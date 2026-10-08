@@ -1,4 +1,5 @@
-import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { visibleAgentProfiles } from "../accounts/visibility";
 import type { CredentialStore } from "../credentials";
 import type { Database } from "../db/client";
 import {
@@ -152,15 +153,6 @@ function joinedProfiles(executor: DatabaseExecutor, actor: AgentActor) {
     .leftJoin(deploymentPackages, eq(deploymentPackages.id, agents.packageId));
 }
 
-function accessFilter(actor: AgentActor) {
-  if (actor.role === "admin") return undefined;
-
-  return or(
-    eq(agentProfiles.visibility, "public"),
-    eq(agentProfiles.ownerUserId, actor.id),
-  );
-}
-
 function mapProfile(
   row: Awaited<
     ReturnType<ReturnType<typeof joinedProfiles>["execute"]>
@@ -305,7 +297,7 @@ async function findAccessibleProfile(
     and(
       eq(agents.id, id),
       isNull(agentProfiles.deletedAt),
-      accessFilter(actor),
+      visibleAgentProfiles(executor, actor),
     ),
   );
   return row ? mapProfile(row) : null;
@@ -386,6 +378,11 @@ export function createAgentProfileStore(
    * agent with a key then simply cannot be created, which is better than storing it in the clear.
    */
   vault?: { store: CredentialStore; encryptionKey: string },
+  /**
+   * Which account a new coworker belongs to. Absent, a coworker is made without one and is then
+   * visible to its owner alone, which is the safe way for a missing collaborator to fail.
+   */
+  accounts?: { ensureTenant: (userId: string) => Promise<string> },
 ): AgentProfileStore {
   const managedConfiguration = managedAgentAgUiUrl
     ? { endpoint: managedAgentAgUiUrl.toString() }
@@ -396,7 +393,7 @@ export function createAgentProfileStore(
       const rows = await joinedProfiles(database, actor).where(
         and(
           isNull(agentProfiles.deletedAt),
-          accessFilter(actor),
+          visibleAgentProfiles(database, actor),
           hidden
             ? isNotNull(agentPreferences.hiddenAt)
             : isNull(agentPreferences.hiddenAt),
@@ -414,7 +411,10 @@ export function createAgentProfileStore(
       return findAccessibleProfile(executor, actor, id);
     },
 
-    create(actor, input) {
+    async create(actor, input) {
+      // Before the transaction, not inside it: this borrows its own connection, and a transaction
+      // that waits on one while holding another is how a small pool deadlocks.
+      const tenantId = await accounts?.ensureTenant(actor.id);
       return database.transaction(async (transaction) => {
         const id = newAgentId();
         const endpoint = input.endpoint
@@ -475,6 +475,7 @@ export function createAgentProfileStore(
         await transaction.insert(agentProfiles).values({
           agentId: id,
           ownerUserId: actor.id,
+          ...(tenantId ? { tenantId } : {}),
           title: input.title,
           roleDescription: input.roleDescription,
           avatarSeed: id,
@@ -590,7 +591,8 @@ export function createAgentProfileStore(
       );
     },
 
-    duplicate(actor, id) {
+    async duplicate(actor, id) {
+      const tenantId = await accounts?.ensureTenant(actor.id);
       return database.transaction(async (transaction) => {
         const source = await findAccessibleProfile(transaction, actor, id);
         if (!source) throw new AgentNotFoundError(id);
@@ -628,6 +630,7 @@ export function createAgentProfileStore(
         await transaction.insert(agentProfiles).values({
           agentId: duplicateId,
           ownerUserId: actor.id,
+          ...(tenantId ? { tenantId } : {}),
           title: source.title,
           roleDescription: source.roleDescription,
           avatarSeed: source.avatarSeed,

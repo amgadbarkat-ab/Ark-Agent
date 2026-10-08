@@ -63,17 +63,21 @@ CREATE UNIQUE INDEX "run_slots_run_key" ON "run_slots" USING btree ("tenant_id",
 CREATE INDEX "run_slots_live_idx" ON "run_slots" USING btree ("tenant_id","expires_at");--> statement-breakpoint
 CREATE INDEX "tenant_memberships_user_idx" ON "tenant_memberships" USING btree ("user_id");
 --> statement-breakpoint
--- Everyone who already exists becomes the owner of an account of their own, on the internal plan:
--- a deployment that was single-company before this keeps working exactly as it did, unlimited.
-WITH new_tenants AS (
-	SELECT u.id AS user_id, gen_random_uuid() AS tenant_id, u.email AS name
-	FROM "users" u
-	WHERE NOT EXISTS (SELECT 1 FROM "tenant_memberships" m WHERE m.user_id = u.id)
-), made AS (
-	INSERT INTO "tenants" ("id", "name") SELECT tenant_id, name FROM new_tenants RETURNING "id"
-), joined AS (
-	INSERT INTO "tenant_memberships" ("tenant_id", "user_id", "role")
-	SELECT tenant_id, user_id, 'owner' FROM new_tenants RETURNING "tenant_id"
+-- A deployment that existed before accounts was one company: everybody in it shared its coworkers.
+-- They all become members of one internal account on the unlimited internal plan, so that keeps
+-- working exactly as it did. (A hosted service with customers starts empty and gives each customer
+-- an account of their own as they arrive.)
+WITH company AS (
+	INSERT INTO "tenants" ("name")
+	SELECT 'Internal'
+	WHERE EXISTS (SELECT 1 FROM "users") AND NOT EXISTS (SELECT 1 FROM "tenant_memberships")
+	RETURNING "id"
+), plan AS (
+	INSERT INTO "subscriptions" ("tenant_id", "plan_id", "status", "provider")
+	SELECT "id", 'internal', 'active', 'manual' FROM company
+	RETURNING "tenant_id"
 )
-INSERT INTO "subscriptions" ("tenant_id", "plan_id", "status", "provider")
-SELECT tenant_id, 'internal', 'active', 'manual' FROM new_tenants;
+INSERT INTO "tenant_memberships" ("tenant_id", "user_id", "role")
+SELECT company."id", u."id",
+	CASE WHEN u."id" = (SELECT "id" FROM "users" ORDER BY "created_at", "id" LIMIT 1) THEN 'owner'::"tenant_role" ELSE 'member'::"tenant_role" END
+FROM company CROSS JOIN "users" u;

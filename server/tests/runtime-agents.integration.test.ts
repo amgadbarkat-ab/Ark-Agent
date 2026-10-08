@@ -1,6 +1,7 @@
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
 import type { AgentActor } from "../src/agents/profile-types";
 import { createRuntimeAgentLoader } from "../src/agents/runtime-agents";
@@ -24,7 +25,14 @@ const databaseUrl = testDatabaseUrl();
 const database = createDatabase(databaseUrl, TEST_POOL);
 const managedEndpoint = new URL("https://managed.example.test/ag-ui");
 const mastraManagedEndpoint = new URL("https://managed.example.test/mastra");
-const profileStore = createAgentProfileStore(database, managedEndpoint);
+// One company: the test people share an internal account, so "public" reaches colleagues.
+const company = createAccountStore(database, { billingMode: "internal" });
+const profileStore = createAgentProfileStore(
+  database,
+  managedEndpoint,
+  undefined,
+  company,
+);
 const channelStore = createChannelStore(
   database,
   profileStore,
@@ -73,6 +81,7 @@ async function createUser(role: AgentActor["role"] = "user") {
     name: "Runtime Agents Test User",
   });
   createdUserIds.push(id);
+  await company.ensureTenant(id);
   return { id, role } satisfies AgentActor;
 }
 
@@ -229,7 +238,7 @@ describe("runtime agent loading", () => {
     expect(idsOf(await loadAgents(administrator))).toContain(profile.id);
   });
 
-  test("shares a public coworker with everybody", async () => {
+  test("shares a public coworker with everybody in the same account", async () => {
     const owner = await createUser();
     const otherUser = await createUser();
     const profile = await createCoworker(owner, {

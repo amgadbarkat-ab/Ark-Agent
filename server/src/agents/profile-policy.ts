@@ -1,5 +1,10 @@
 import type { AgentActor, AgentProfile } from "./profile-types";
 
+/**
+ * The in-memory form of the rule, for a profile already in hand. It knows nothing of accounts: the
+ * read paths decide who can see whose coworkers with `visibleAgentProfiles` (accounts/visibility.ts),
+ * which is the one that keeps one customer's public coworker from reaching another customer.
+ */
 export function canAccessAgent(
   actor: AgentActor,
   agent: AgentProfile,

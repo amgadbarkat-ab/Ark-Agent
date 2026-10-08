@@ -1,6 +1,7 @@
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
+import { createAccountStore } from "../src/accounts/store";
 import { authFromConfiguration } from "../src/agents/auth-header";
 import {
   AgentNotFoundError,
@@ -32,9 +33,15 @@ import { TEST_POOL, testDatabaseUrl } from "./support/database";
 const databaseUrl = testDatabaseUrl();
 const database = createDatabase(databaseUrl, TEST_POOL);
 const managedAgentAgUiUrl = new URL("https://managed.example.test/ag-ui");
+// One company: every test person is a member of the same internal account, so "public" means
+// public to colleagues, which is what these tests are about. Isolation between customers has its own
+// tests in tenant-isolation.integration.test.ts.
+const company = createAccountStore(database, { billingMode: "internal" });
 const store: AgentProfileStore = createAgentProfileStore(
   database,
   managedAgentAgUiUrl,
+  undefined,
+  company,
 );
 const testPrefix = `agent-profile-store-${randomUUID()}`;
 const createdUserIds: string[] = [];
@@ -75,6 +82,7 @@ async function createUser(role: AgentActor["role"] = "user") {
     name: "Profile Store Test User",
   });
   createdUserIds.push(userId);
+  await company.ensureTenant(userId);
   return { id: userId, role } satisfies AgentActor;
 }
 
@@ -120,6 +128,9 @@ async function createProfileFixture(options: {
   await database.insert(agentProfiles).values({
     agentId,
     ownerUserId: options.owner?.id ?? null,
+    tenantId: options.owner
+      ? await company.ensureTenant(options.owner.id)
+      : null,
     title,
     roleDescription,
     avatarSeed,

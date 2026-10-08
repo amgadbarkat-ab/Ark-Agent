@@ -265,6 +265,13 @@ describe("OpenBot database schema", () => {
         hasDefault: false,
         primary: false,
       },
+      // Whose account it belongs to. Null for the platform's own coworkers.
+      {
+        name: "tenant_id",
+        notNull: false,
+        hasDefault: false,
+        primary: false,
+      },
       /*
        * Nullable, and that is the security property.
        *
@@ -365,6 +372,14 @@ describe("OpenBot database schema", () => {
         onDelete: "set null",
         onUpdate: "no action",
       },
+      // A customer's coworker goes with the customer's account.
+      {
+        sourceColumns: ["tenant_id"],
+        targetTable: "tenants",
+        targetColumns: ["id"],
+        onDelete: "cascade",
+        onUpdate: "no action",
+      },
       {
         sourceColumns: ["user_id"],
         targetTable: "users",
@@ -406,6 +421,12 @@ describe("OpenBot database schema", () => {
       {
         name: "agent_profiles_visibility_deleted_idx",
         columns: ["visibility", "deleted_at"],
+        unique: false,
+        method: "btree",
+      },
+      {
+        name: "agent_profiles_tenant_idx",
+        columns: ["tenant_id"],
         unique: false,
         method: "btree",
       },

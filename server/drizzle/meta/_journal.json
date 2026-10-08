@@ -344,6 +344,20 @@
       "when": 1791464394971,
       "tag": "0048_tenants_and_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791464939357,
+      "tag": "0049_agent_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791464947804,
+      "tag": "0050_agent_tenant_index",
+      "breakpoints": true
     }
   ]
 }

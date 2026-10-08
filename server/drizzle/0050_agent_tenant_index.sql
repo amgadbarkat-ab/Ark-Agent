@@ -1,0 +1,1 @@
+CREATE INDEX "agent_profiles_tenant_idx" ON "agent_profiles" USING btree ("tenant_id");

@@ -39,7 +39,9 @@ afterAll(async () => {
 describe("providing an account", () => {
   test("a person gets one account, once, however many requests race", async () => {
     const ann = await person();
-    const store = createAccountStore(database);
+    const store = createAccountStore(database, {
+      billingMode: "subscriptions",
+    });
     const ids = await Promise.all(
       Array.from({ length: 8 }, () => store.ensureTenant(ann)),
     );
@@ -87,13 +89,32 @@ describe("providing an account", () => {
     });
   });
 
-  test("two people never share an account", async () => {
+  test("customers never share an account", async () => {
     const ann = await person();
     const bob = await person();
-    const store = createAccountStore(database);
+    const store = createAccountStore(database, {
+      billingMode: "subscriptions",
+    });
     expect(await store.ensureTenant(ann)).not.toBe(
       await store.ensureTenant(bob),
     );
+  });
+
+  test("on an internal deployment the whole company is one account, owned by whoever came first", async () => {
+    const ann = await person();
+    const bob = await person();
+    const store = createAccountStore(database, { billingMode: "internal" });
+    const first = await store.ensureTenant(ann);
+    expect(await store.ensureTenant(bob)).toBe(first);
+    const roles = await database
+      .select({
+        userId: tenantMemberships.userId,
+        role: tenantMemberships.role,
+      })
+      .from(tenantMemberships)
+      .where(eq(tenantMemberships.tenantId, first));
+    expect(roles.find((r) => r.userId === ann)?.role).toBe("owner");
+    expect(roles.find((r) => r.userId === bob)?.role).toBe("member");
   });
 });
 

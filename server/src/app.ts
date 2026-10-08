@@ -87,6 +87,8 @@ import {
   type UserInstructionsStore,
 } from "./user-instructions";
 import type { UserPreferencesStore } from "./user-preferences";
+import { withAccountProvisioning } from "./accounts/provisioning";
+import type { AccountStore } from "./accounts/store";
 import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { userPreferencesRoutes } from "./user-preferences-routes";
@@ -340,6 +342,11 @@ export function createApp(
     Parameters<typeof modelConnectionRoutes>[0],
     "requireUser"
   > & { encryptionKey: string },
+  /**
+   * Accounts and plans. Appended last, for the positional reason above. Absent leaves every person
+   * without an account and every route as it was.
+   */
+  accountServices?: { store: AccountStore },
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -485,11 +492,15 @@ export function createApp(
     context.json({ error: "No identity provider is configured." }, 503);
   // One administrator, when nothing is configured to sign anybody in. Checked first, and only ever
   // true when there is no provider, so a configured deployment cannot fall back to it.
-  const requireUser = config.singleUser
+  const signedIn = config.singleUser
     ? createDevRequireUser()
     : auth && roleRepository
       ? createRequireUser(auth, roleRepository)
       : authenticationUnavailable;
+  // Every signed-in person belongs to an account before anything runs for them. See provisioning.ts.
+  const requireUser = accountServices
+    ? withAccountProvisioning(signedIn, accountServices.store.ensureTenant)
+    : signedIn;
 
   app.route(
     "/api/audio",

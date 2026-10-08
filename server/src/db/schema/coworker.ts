@@ -12,8 +12,10 @@ import {
   primaryKey,
   text,
   timestamp,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { agents, users } from "./core";
+import { tenants } from "./tenants";
 
 const createdAt = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -38,6 +40,18 @@ export const agentProfiles = pgTable(
     roleDescription: text("role_description").notNull(),
     avatarSeed: text("avatar_seed").notNull(),
     visibility: agentVisibility("visibility").notNull(),
+    /**
+     * Whose account this coworker belongs to. Null for the platform's own (the ones a deployment
+     * ships), which have no owner and are offered to everybody.
+     *
+     * What "public" means depends on it: a platform coworker that is public is public to everyone,
+     * but a customer's coworker that is public is public to the people in that customer's account
+     * and nobody else. Without this a customer sharing a coworker with their own team would be
+     * sharing it with every other customer.
+     */
+    tenantId: uuid("tenant_id").references(() => tenants.id, {
+      onDelete: "cascade",
+    }),
     /*
      * The credential this Bot's agent presents when it calls a tool back.
      *
@@ -61,6 +75,7 @@ export const agentProfiles = pgTable(
       table.visibility,
       table.deletedAt,
     ),
+    index("agent_profiles_tenant_idx").on(table.tenantId),
   ],
 );
 

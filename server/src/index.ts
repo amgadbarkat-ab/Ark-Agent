@@ -205,10 +205,14 @@ const agentVault = {
   reader: credentialStore,
   encryptionKey: config.keyEncryptionKey,
 };
+const accountStore = createAccountStore(database, {
+  billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
+});
 const agentProfileStore = createAgentProfileStore(
   database,
   config.managedAgent?.endpoint,
   agentVault,
+  accountStore,
 );
 // Read here rather than beside the synchronise below, because the package names the deployment and
 // the channel store needs that name before it can mint a thread id.
@@ -931,9 +935,6 @@ const routineRunner = createRoutineRunner({
  */
 const modelForActor = createModelForActor(modelConnectionStore, agentFetch);
 
-const accountStore = createAccountStore(database, {
-  billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
-});
 const runSlots = createRunSlots(database);
 const runGateOptions = { accounts: accountStore, slots: runSlots };
 
@@ -1389,6 +1390,7 @@ const app = createApp(
       ? { allowedHosts: config.agentEndpointAllowedHosts }
       : {}),
   },
+  { store: accountStore },
 );
 
 /**

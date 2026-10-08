@@ -15,9 +15,10 @@ import {
 } from "../db/schema";
 
 /**
- * "internal": every account is on the unlimited internal plan and nobody pays. This is how a
- * company runs Ark for its own staff, and the default.
- * "subscriptions": accounts are created without a paid plan and cannot run bots until they have one.
+ * "internal": one account for the whole company, on the unlimited internal plan, and nobody pays.
+ * Staff share coworkers as they always did. This is how a company runs Ark for itself, and the default.
+ * "subscriptions": each customer gets an account of their own, created without a paid plan, and
+ * cannot run bots until they have one. Nothing is shared between accounts.
  */
 export type BillingMode = "internal" | "subscriptions";
 
@@ -195,6 +196,39 @@ export function createAccountStore(
         .where(eq(users.id, userId))
         .limit(1);
       if (!person) throw new Error("No such person to make an account for.");
+
+      if (billingMode === "internal") {
+        // One company, one account: staff share their coworkers, as they did before accounts.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext('tenant-internal'))`,
+        );
+        const [company] = await tx
+          .select({ id: tenants.id })
+          .from(tenants)
+          .innerJoin(subscriptions, eq(subscriptions.tenantId, tenants.id))
+          .where(eq(subscriptions.planId, "internal"))
+          .orderBy(asc(tenants.createdAt), asc(tenants.id))
+          .limit(1);
+        if (company) {
+          await tx
+            .insert(tenantMemberships)
+            .values({ tenantId: company.id, userId, role: "member" });
+          return company.id;
+        }
+        const [made] = await tx
+          .insert(tenants)
+          .values({ name: "Internal" })
+          .returning({ id: tenants.id });
+        if (!made) throw new Error("The account could not be created.");
+        await tx
+          .insert(tenantMemberships)
+          .values({ tenantId: made.id, userId, role: "owner" });
+        await tx
+          .insert(subscriptions)
+          .values({ tenantId: made.id, planId: "internal", status: "active" });
+        return made.id;
+      }
+
       const [tenant] = await tx
         .insert(tenants)
         .values({ name: person.email })
@@ -205,11 +239,7 @@ export function createAccountStore(
         .values({ tenantId: tenant.id, userId, role: "owner" });
       await tx
         .insert(subscriptions)
-        .values(
-          billingMode === "internal"
-            ? { tenantId: tenant.id, planId: "internal", status: "active" }
-            : { tenantId: tenant.id, planId: "agent", status: "incomplete" },
-        );
+        .values({ tenantId: tenant.id, planId: "agent", status: "incomplete" });
       return tenant.id;
     });
   }

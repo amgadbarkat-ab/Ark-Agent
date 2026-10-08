@@ -1,4 +1,6 @@
-import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { MODEL_HEADER } from "../../../shared/model-header";
+import { visibleAgentProfiles } from "../accounts/visibility";
 import type { ManagedAgentConfig } from "../config";
 import { type RegisteredAgent, registeredAgentFromRow } from "../copilot";
 import type { CredentialSecretReader } from "../credentials";
@@ -10,7 +12,6 @@ import {
   channelMemberships,
   channels,
 } from "../db/schema";
-import { MODEL_HEADER } from "../../../shared/model-header";
 import { agentAuthHeaders, authFromConfiguration } from "./auth-header";
 import type { AgentActor } from "./profile-types";
 
@@ -132,12 +133,9 @@ function selectActiveAgents(database: Database, actor: AgentActor) {
     .where(
       and(
         isNull(agentProfiles.deletedAt),
-        actor.role === "admin"
-          ? undefined
-          : or(
-              eq(agentProfiles.visibility, "public"),
-              eq(agentProfiles.ownerUserId, actor.id),
-            ),
+        // The same rule as the roster, so a coworker a person cannot see is a coworker they cannot
+        // run. Defined once in accounts/visibility.ts.
+        visibleAgentProfiles(database, actor),
       ),
     );
 }
