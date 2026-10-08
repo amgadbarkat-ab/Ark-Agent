@@ -52,12 +52,23 @@ Still to do in this phase:
 - [ ] Remove CopilotKit and OpenBot names and links from user-facing text (with the brand work).
 - Exit test: the whole app starts and works with no network access to any CopilotKit host.
 
-### Phase 2. Provider layer (M)
-- One OpenAI-compatible provider interface (04-llm-providers.md, tiers T0-T4).
-- Local models: managed Ollama or llama.cpp on desktop, hardware-based model choice.
-- Free and paid bring-your-own-key providers, with switching that keeps the bot's workspace.
-- Remove the stored Claude plan token and the `codex login` reuse. Add Claude through the user's
-  unmodified Claude Code, and apply to OpenAI for its official plan sign-in.
+### Phase 2. Provider layer (M) — core done, details in 07-model-connections.md
+Done:
+- [x] Provider catalogue (tiers T0-T3) shared by app and server, with address and key rules.
+- [x] Per-person model connections, keys encrypted at rest, never sent to the browser
+      (`/api/models`, migration 0046).
+- [x] Connection test that lists the provider's models and reports refusals in words.
+- [x] Runs use the person's own connection; hosted deployments refuse "on this computer" providers.
+- [x] Model gateway: managed bots get a signed grant and never hold a key.
+- [x] Settings > Models screen (add, test, default, change, remove), with tests.
+
+Still to do in this phase:
+- [ ] Per-bot model choice (today: one default per person).
+- [ ] Remove the stored Claude plan token and the `codex login` reuse in the desktop code. Add
+      Claude through the user's unmodified Claude Code, and apply to OpenAI for its official plan
+      sign-in.
+- [ ] Local models: hardware detection, suggested model, managed download (Ollama / llama.cpp).
+- [ ] Usage metering in the gateway; audit events for connection changes.
 
 ### Phase 3. Accounts, plans, quotas (L)
 - One paying user per account, each on one plan. Build the tenant boundary so that one account's

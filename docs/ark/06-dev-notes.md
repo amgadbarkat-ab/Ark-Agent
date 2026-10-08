@@ -54,6 +54,9 @@ that port.
 
 ## Known test failures in this sandbox (not product bugs)
 
-About ten tests fail here and passed upstream's CI: the proxy and websocket handshake tests (IPv6),
-the voice and dictation idle-timeout tests, a path-handling test, and the sample `agent-bot` tests
-when its dependencies are not installed. Everything else passes (5,018 at the time of writing).
+Twelve failures remain here and are not product bugs: seven tests (the proxy and websocket handshake
+tests, which need IPv6; the voice and dictation idle-timeout tests; one path-handling test) and five
+files that cannot load because the desktop app's and `agent-mastra`'s dependencies are not installed.
+Everything else passes (5,122 at the time of writing, 2026-10-08). Run `bun test` from the repository
+root: `bunfig.toml` there holds the preload that Base UI dialogs need, and bun reads it from the
+current directory only.

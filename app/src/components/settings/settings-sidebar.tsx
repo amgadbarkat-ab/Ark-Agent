@@ -1,5 +1,6 @@
 import {
   IconArrowLeft,
+  IconCpu,
   IconLayoutGrid,
   IconPlug,
   IconSettings,
@@ -37,6 +38,12 @@ const ITEMS: {
     /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
     exact: true,
     linkOptions: { to: "/settings" },
+  },
+  {
+    /* Where the model behind every coworker comes from: on this computer, free, or your own key. */
+    title: "Models",
+    icon: IconCpu,
+    linkOptions: { to: "/settings/models" },
   },
   {
     /*

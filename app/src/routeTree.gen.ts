@@ -29,6 +29,7 @@ import { Route as AuthedAdminPeopleRouteImport } from './routes/_authed/admin/pe
 import { Route as AuthedAdminPlaygroundRouteImport } from './routes/_authed/admin/playground'
 import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/skills'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
+import { Route as AuthedSettingsModelsRouteImport } from './routes/_authed/settings/models'
 import { Route as AuthedAppAgentsIndexRouteImport } from './routes/_authed/_app/agents/index'
 import { Route as AuthedAppChannelChannelIdRouteImport } from './routes/_authed/_app/channel/$channelId'
 import { Route as AuthedAppChannelNewRouteImport } from './routes/_authed/_app/channel/new'
@@ -143,6 +144,11 @@ const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsModelsRoute = AuthedSettingsModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
 const AuthedAppAgentsIndexRoute = AuthedAppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -241,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/admin/people': typeof AuthedAdminPeopleRoute
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
+  '/settings/models': typeof AuthedSettingsModelsRoute
   '/admin/': typeof AuthedAdminIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -273,6 +280,7 @@ export interface FileRoutesByTo {
   '/admin/people': typeof AuthedAdminPeopleRoute
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
+  '/settings/models': typeof AuthedSettingsModelsRoute
   '/admin': typeof AuthedAdminIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -309,6 +317,7 @@ export interface FileRoutesById {
   '/_authed/admin/people': typeof AuthedAdminPeopleRoute
   '/_authed/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
+  '/_authed/settings/models': typeof AuthedSettingsModelsRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
@@ -346,6 +355,7 @@ export interface FileRouteTypes {
     | '/admin/people'
     | '/admin/playground'
     | '/admin/skills'
+    | '/settings/models'
     | '/admin/'
     | '/settings/'
     | '/channel/$channelId'
@@ -378,6 +388,7 @@ export interface FileRouteTypes {
     | '/admin/people'
     | '/admin/playground'
     | '/admin/skills'
+    | '/settings/models'
     | '/admin'
     | '/settings'
     | '/channel/$channelId'
@@ -413,6 +424,7 @@ export interface FileRouteTypes {
     | '/_authed/admin/people'
     | '/_authed/admin/playground'
     | '/_authed/admin/skills'
+    | '/_authed/settings/models'
     | '/_authed/_app/'
     | '/_authed/admin/'
     | '/_authed/settings/'
@@ -579,6 +591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsIndexRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/settings/models': {
+      id: '/_authed/settings/models'
+      path: '/models'
+      fullPath: '/settings/models'
+      preLoaderRoute: typeof AuthedSettingsModelsRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
     '/_authed/_app/agents/': {
       id: '/_authed/_app/agents/'
       path: '/agents'
@@ -722,6 +741,7 @@ const AuthedAdminRouteRouteWithChildren =
   AuthedAdminRouteRoute._addFileChildren(AuthedAdminRouteRouteChildren)
 
 interface AuthedSettingsRouteRouteChildren {
+  AuthedSettingsModelsRoute: typeof AuthedSettingsModelsRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedSettingsComponentsGalleryNameRoute: typeof AuthedSettingsComponentsGalleryNameRoute
   AuthedSettingsConnectedAccountsKeyRoute: typeof AuthedSettingsConnectedAccountsKeyRoute
@@ -730,6 +750,7 @@ interface AuthedSettingsRouteRouteChildren {
 }
 
 const AuthedSettingsRouteRouteChildren: AuthedSettingsRouteRouteChildren = {
+  AuthedSettingsModelsRoute: AuthedSettingsModelsRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedSettingsComponentsGalleryNameRoute:
     AuthedSettingsComponentsGalleryNameRoute,

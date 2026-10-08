@@ -63,6 +63,12 @@ time. The technical design and the legal check of plan sign-in are in 04-llm-pro
 
 **D8. Brand assets** (name, logo, colours, domain): later.
 
+**D9. Hosting: Microsoft Azure, sign-in with Microsoft Entra ID.** The owner asked for "the
+suitable MS 365 tool". Microsoft 365 itself is office software and does not host applications;
+the Microsoft product that does is Azure, and Entra ID is the sign-in service shared by both. This
+is the working assumption and is to be confirmed with the owner before anything is deployed
+(Phase 7).
+
 ## Open questions
 
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
