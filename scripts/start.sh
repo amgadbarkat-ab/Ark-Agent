@@ -130,6 +130,15 @@ if [ -z "$AGENT_TOOL_TOKEN" ]; then
 fi
 export AGENT_TOOL_TOKEN
 
+# The conversation hub's keys, and the API server's settings that point at it. Before anything below
+# reads .env, because compose and the server both do. A change here is a secret the running server
+# may not have, which is the same condition SECRETS_ROTATED already handles.
+HUB_KEY_BEFORE="$(setting INTELLIGENCE_API_KEY "")"
+bash "$ROOT/scripts/hub.sh" secrets
+if [ "$HUB_KEY_BEFORE" != "$(setting INTELLIGENCE_API_KEY "")" ]; then
+  SECRETS_ROTATED=true
+fi
+
 green() { printf '\033[32m%s\033[0m\n' "$1"; }
 red()   { printf '\033[31m%s\033[0m\n' "$1"; }
 info()  { printf '\033[2m%s\033[0m\n' "$1"; }
@@ -283,6 +292,9 @@ green "  coworker tables migrated"
 # and masks it. So: report what was resolved, and do not re-read the file.
 green "  managed coworker endpoint: $MANAGED_AGENT_AG_UI_URL"
 
+info "     Conversation hub"
+bash "$ROOT/scripts/hub.sh" start
+
 info "2/4  Server"
 require_free_or_ours "$SERVER_PORT" server
 #
@@ -386,14 +398,14 @@ import json, sys
 info = json.loads(sys.argv[1])
 status, agents = info.get("licenseStatus"), list(info.get("agents", {}))
 if status != "valid":
-    print(f"\033[31m  licence is '{status}', not 'valid'.\033[0m")
-    print("\033[31m  Check INTELLIGENCE_API_KEY: npx copilotkit@latest login && npx copilotkit@latest project select\033[0m")
-    print("\033[31m  See README.md for Intelligence setup.\033[0m")
+    print(f"\033[31m  runtime status is '{status}', not 'valid'.\033[0m")
+    print("\033[31m  The server could not reach the conversation hub, or the hub refused it.\033[0m")
+    print("\033[31m  Check: bash scripts/hub.sh status   (log: .logs/hub.log)\033[0m")
     raise SystemExit(1)
 if not agents:
     print("\033[31m  No Bots registered.\033[0m")
     raise SystemExit(1)
-print(f"\033[32m  licence valid · mode {info.get('mode')} · Bots: {', '.join(agents)}\033[0m")
+print(f"\033[32m  hub reachable · mode {info.get('mode')} · Bots: {', '.join(agents)}\033[0m")
 PY
 
 info "4/4  App"

@@ -1,5 +1,5 @@
 import type { HubConfig } from "./config";
-import { connect, migrate, type Sql } from "./db";
+import { connect, ensureDatabase, migrate, type Sql } from "./db";
 import { createGateway, type SocketData } from "./gateway";
 import { Hub } from "./hub";
 import { createRestApp } from "./rest";
@@ -24,6 +24,7 @@ export async function startHub(
   config: HubConfig,
   options: { sql?: Sql } = {},
 ): Promise<RunningHub> {
+  if (!options.sql) await ensureDatabase(config.databaseUrl);
   const sql = options.sql ?? connect(config.databaseUrl);
   await migrate(sql);
   const hub = new Hub(config, new HubStore(sql));

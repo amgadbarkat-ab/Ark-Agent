@@ -25,7 +25,8 @@ for arg in "$@"; do
       cat <<'EOF'
 Usage: bash scripts/stop.sh [--keep-computers]
 
-Stops the app, the routine worker, the API server, the Docker services, and each Bot's computer.
+Stops the app, the routine worker, the API server, the conversation hub, the Docker services, and
+each Bot's computer.
 
   --keep-computers  Leave the Bot computers running, so their browsers stay signed in and warm.
                     Their files and browser profiles are Docker volumes and survive either way.
@@ -135,6 +136,11 @@ fi
 
 info "3/4  API server"
 stop_port "$SERVER_PORT" server
+
+# After the API server, which is the hub's only client; before Docker, so the database it writes to
+# is still there while it shuts down.
+info "     Conversation hub"
+bash "$ROOT/scripts/hub.sh" stop
 
 info "4/4  Docker"
 if docker compose ps --quiet 2>/dev/null | grep -q .; then

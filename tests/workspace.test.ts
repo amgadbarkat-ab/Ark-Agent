@@ -28,10 +28,10 @@ function packagesStartedBy(script: string, workspaces: string[]): string[] {
 }
 
 describe("OpenBot workspace", () => {
-  test("defines the app, server, and worker packages", () => {
+  test("defines the app, server, worker, and hub packages", () => {
     const manifest = rootManifest();
 
-    expect(manifest.workspaces).toEqual(["app", "server", "worker"]);
+    expect(manifest.workspaces).toEqual(["app", "server", "worker", "hub"]);
 
     for (const packageName of manifest.workspaces) {
       expect(existsSync(join(repositoryRoot, packageName))).toBe(true);
@@ -39,12 +39,12 @@ describe("OpenBot workspace", () => {
     }
   });
 
-  test("dev starts the app and the server, and not the routines worker", () => {
+  test("dev starts the app, the server and the hub, and not the routines worker", () => {
     const manifest = rootManifest();
 
     expect(
       packagesStartedBy(manifest.scripts.dev, manifest.workspaces),
-    ).toEqual(["app", "server"]);
+    ).toEqual(["app", "server", "hub"]);
   });
 
   test("build still covers every workspace, including the worker", () => {

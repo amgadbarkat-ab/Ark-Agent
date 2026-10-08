@@ -83,6 +83,11 @@ async function runStartWithStaleServerProbe(
     join(scripts, "require-bash.sh"),
     await readFile("scripts/require-bash.sh"),
   );
+  // Called by start.sh for the conversation hub's keys and process.
+  await writeExecutable(
+    join(scripts, "hub.sh"),
+    await readFile("scripts/hub.sh", "utf8"),
+  );
 
   await writeExecutable(
     join(fakeBin, "lsof"),
@@ -96,6 +101,11 @@ printf '%s\\n' "$args" >> "$CURL_LOG"
 for port in ${unavailableHealthPorts.join(" ")}; do
   if [[ "$args" == *"http://localhost:$port/health"* ]]; then exit 7; fi
 done
+if [[ "$args" == *"http://localhost:7100/health"* ]]; then
+  # The hub answers once the fake bun below has been asked to start it, and not before.
+  if [ -f "$HUB_UP" ]; then printf '{"status":"ok"}'; exit 0; fi
+  exit 7
+fi
 if [[ "$args" == *"/internal/routines/run"* ]]; then
   printf '${status}'
   exit 0
@@ -133,7 +143,10 @@ exit 0
     join(fakeBin, "sleep"),
     "#!/usr/bin/env bash\nexit 0\n",
   );
-  await writeExecutable(join(fakeBin, "bun"), "#!/usr/bin/env bash\nexit 0\n");
+  await writeExecutable(
+    join(fakeBin, "bun"),
+    '#!/usr/bin/env bash\n[[ "$*" == *"hub/src/index.ts"* ]] && touch "$HUB_UP"\nexit 0\n',
+  );
 
   try {
     const child = Bun.spawn({
@@ -144,6 +157,7 @@ exit 0
         PKILL_LOG: logPath,
         DOCKER_LOG: dockerLogPath,
         CURL_LOG: curlLogPath,
+        HUB_UP: join(directory, "hub-up"),
         ...processEnvironment,
       },
       stdout: "pipe",
