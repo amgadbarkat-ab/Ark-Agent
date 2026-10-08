@@ -114,6 +114,7 @@ import {
   synchronizeTenantPackage,
 } from "./tenant-package";
 import { createUserInstructionsStore } from "./user-instructions";
+import { createModelConnectionStore } from "./models/connections";
 import { createUserPreferencesStore } from "./user-preferences";
 import { repeatAfterEach } from "./work/loop";
 import {
@@ -1337,6 +1338,14 @@ const app = createApp(
       resolveApiKey: resolveRuntimeModelApiKey,
     }),
     channels: channelStore,
+  },
+  {
+    store: createModelConnectionStore(database, config.keyEncryptionKey),
+    fetchImpl: agentFetch,
+    allowPrivateHosts: config.computer?.allowPrivateHosts === true,
+    ...(config.agentEndpointAllowedHosts
+      ? { allowedHosts: config.agentEndpointAllowedHosts }
+      : {}),
   },
 );
 

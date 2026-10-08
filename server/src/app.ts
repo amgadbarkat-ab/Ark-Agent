@@ -87,6 +87,7 @@ import {
   type UserInstructionsStore,
 } from "./user-instructions";
 import type { UserPreferencesStore } from "./user-preferences";
+import { modelConnectionRoutes } from "./models/routes";
 import { userPreferencesRoutes } from "./user-preferences-routes";
 
 /**
@@ -330,6 +331,14 @@ export function createApp(
   modelProviderProxy?: ModelProviderProxy,
   userPreferences?: UserPreferencesStore,
   voiceSessions?: VoiceSessionServices,
+  /**
+   * Each person's own connections to a language model. Appended last, for the positional reason
+   * above. Absent leaves `/api/models` unmounted, which is what every deployment did before.
+   */
+  modelConnections?: Omit<
+    Parameters<typeof modelConnectionRoutes>[0],
+    "requireUser"
+  >,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -561,6 +570,13 @@ export function createApp(
     "/api/settings/preferences",
     userPreferencesRoutes(requireUser, userPreferences),
   );
+
+  if (modelConnections) {
+    app.route(
+      "/api/models",
+      modelConnectionRoutes({ requireUser, ...modelConnections }),
+    );
+  }
 
   app.get("/api/settings/instructions", requireUser, async (context) => {
     if (!userInstructions) {
