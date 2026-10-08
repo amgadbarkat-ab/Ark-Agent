@@ -1,0 +1,38 @@
+{{- if and (.Values.hub).enabled ((.Values.hub).ingress | default dict).enabled }}
+{{/*
+The hub's own name, for the browser's live connection.
+
+The hub is reached by browsers directly, so it needs its own host. A WebSocket upgrade must pass, and
+what makes it pass is the controller's: those annotations are `hub.ingress.annotations`, not guesses
+made here.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" "hub") }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" "hub") | indent 4 }}
+  {{- with .Values.hub.ingress.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+spec:
+  {{- with (default .Values.ingress.className .Values.hub.ingress.className) }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.hub.ingress.tls }}
+  tls:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.hub.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "openbot.componentName" (dict "root" . "component" "hub") }}
+                port:
+                  number: {{ include "openbot.hubPort" . }}
+{{- end }}

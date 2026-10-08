@@ -54,6 +54,20 @@ spec:
         - port: 5432
           protocol: TCP
     {{- end }}
+    {{- if (.Values.hub).enabled }}
+    {{- /*
+      Ark Hub, which every conversation goes through. It is a pod on the private network, so the rule
+      that opens HTTP and HTTPS to the outside does not cover it, and without this line the API is
+      fenced off from the one service it cannot run without.
+    */}}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: hub
+      ports:
+        - port: {{ include "openbot.hubPort" . }}
+          protocol: TCP
+    {{- end }}
     {{- if ne .Values.computers.mode "external" }}
     {{- /*
       A Bot's computer, which the API has to reach for every browser action.

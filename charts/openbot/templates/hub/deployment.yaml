@@ -1,0 +1,132 @@
+{{- if (.Values.hub).enabled }}
+{{- $component := "hub" -}}
+{{/*
+Ark Hub: one process, replaced rather than rolled.
+
+`strategy: Recreate` because two hubs running at once would each hold some of a conversation's live
+sockets and neither would see the other's events. Everything is stored before it is acknowledged, so
+the gap while the new one starts costs a reconnect and a replay, not a message.
+
+Nothing here writes to disk: it reads its own files and talks to Postgres and to sockets, so the root
+filesystem is read-only and `/tmp` is a scratch directory the runtime may want.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" $component) }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" $component) | indent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 6 }}
+  template:
+    metadata:
+      labels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 8 }}
+        {{- with .Values.hub.podLabels }}
+{{ toYaml . | indent 8 }}
+        {{- end }}
+      {{- with .Values.hub.podAnnotations }}
+      annotations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "openbot.serviceAccountName" . }}
+      # The hub talks to Postgres and to sockets. It has no use for the cluster's API.
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.hub.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.hub.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.hub.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      containers:
+        - name: hub
+          image: {{ include "openbot.hubImage" . }}
+          imagePullPolicy: {{ default "IfNotPresent" .Values.hub.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ include "openbot.hubPort" . }}
+              protocol: TCP
+          env:
+            - name: HUB_PORT
+              value: {{ include "openbot.hubPort" . | quote }}
+            - name: HUB_JOIN_TOKEN_TTL_SECONDS
+              value: {{ default 86400 .Values.hub.joinTokenTtlSeconds | quote }}
+            - name: HUB_DEFAULT_LOCK_TTL_SECONDS
+              value: {{ default 60 .Values.hub.defaultLockTtlSeconds | quote }}
+            - name: HUB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openbot.secretName" . }}
+                  key: hub-api-key
+            - name: HUB_JOIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openbot.secretName" . }}
+                  key: hub-join-secret
+            - name: HUB_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openbot.secretName" . }}
+                  key: hub-database-url
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          {{- with .Values.hub.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

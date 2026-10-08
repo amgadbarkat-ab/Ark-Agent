@@ -1,23 +1,39 @@
-# AKS. Azure Database, workload identity, Key Vault through external-secrets.
+# AKS, the way Ark runs: Azure Database for PostgreSQL, workload identity, Key Vault through
+# external-secrets, the managed ingress, and Ark Hub in the release. No outside conversation service.
 config:
   initialAdminEmails: admin@example.com
-  intelligence:
-    apiUrl: https://api.intelligence.copilotkit.ai
-    gatewayWsUrl: wss://realtime.intelligence.copilotkit.ai
   auth:
+    # Staff sign in with their own Entra directory (a GUID, never `common`: see docs/ark/15). Customers
+    # sign in with Google or Microsoft; neither can be made an administrator by claiming an address.
+    microsoft:
+      clientId: 00000000-0000-0000-0000-000000000000
+      tenantId: 11111111-1111-1111-1111-111111111111
     google:
       clientId: example.apps.googleusercontent.com
-  publicUrl: https://openbot.example.com
+  publicUrl: https://ark.example.com
 postgresql:
   enabled: false
 database:
-  existingSecret: openbot-database
+  existingSecret: ark-database
 serviceAccount:
   annotations:
     azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
 server:
   podLabels:
     azure.workload.identity/use: "true"
+hub:
+  enabled: true
+  image:
+    repository: example.azurecr.io/ark-hub
+  # Its own name, for the browser's live connection.
+  publicUrl: wss://hub.ark.example.com
+  ingress:
+    enabled: true
+    host: hub.ark.example.com
+    annotations:
+      # The managed NGINX needs to be told a socket may stay open.
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 externalSecrets:
   enabled: true
   secretStoreRef:
@@ -25,29 +41,37 @@ externalSecrets:
   data:
     - secretKey: key-encryption-key
       remoteRef:
-        key: openbot-key-encryption-key
+        key: ark-key-encryption-key
     # Sessions are signed with this. The server refuses to start when sign-in is configured and it
     # is missing, so every provider store has to carry it.
     - secretKey: better-auth-secret
       remoteRef:
-        key: openbot-better-auth-secret
-    - secretKey: intelligence-api-key
+        key: ark-better-auth-secret
+    # The hub's three. The API presents the key to it; the join secret signs a browser's live
+    # connection; the database is the hub's own.
+    - secretKey: hub-api-key
       remoteRef:
-        key: openbot-intelligence-api-key
+        key: ark-hub-api-key
+    - secretKey: hub-join-secret
+      remoteRef:
+        key: ark-hub-join-secret
+    - secretKey: hub-database-url
+      remoteRef:
+        key: ark-hub-database-url
     - secretKey: google-client-secret
       remoteRef:
-        key: openbot/google-client-secret
+        key: ark-google-client-secret
+    - secretKey: microsoft-client-secret
+      remoteRef:
+        key: ark-microsoft-client-secret
     - secretKey: computer-token
       remoteRef:
-        key: openbot/computer-token
-    - secretKey: license-token
-      remoteRef:
-        key: openbot-license-token
+        key: ark-computer-token
 ingress:
   enabled: true
   className: webapprouting.kubernetes.azure.com
   hosts:
-    - host: openbot.example.com
+    - host: ark.example.com
       paths:
         - path: /
           pathType: Prefix

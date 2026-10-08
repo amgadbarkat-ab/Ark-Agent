@@ -1,0 +1,18 @@
+{{- if (.Values.hub).enabled }}
+{{- $component := "hub" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" $component) }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" $component) | indent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ include "openbot.hubPort" . }}
+      targetPort: http
+      protocol: TCP
+  selector:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 4 }}
+{{- end }}

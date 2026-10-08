@@ -1,0 +1,44 @@
+{{- if and (.Values.hub).enabled .Values.networkPolicy.enabled }}
+{{- $component := "hub" -}}
+{{/*
+What may reach the hub, and what it may reach.
+
+In: the API's pods (every conversation goes through it), and whatever `networkPolicy.hubExtraIngress`
+names, which is the ingress controller when the hub has an ingress. Out: DNS and the database, which
+is on the private network and so is named by `networkPolicy.extraEgress`, the same list the API uses.
+The hub calls nothing else: no identity provider, no model, no Bot.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" $component) }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" $component) | indent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" "server") | indent 14 }}
+      ports:
+        - port: {{ include "openbot.hubPort" . }}
+          protocol: TCP
+    {{- with .Values.networkPolicy.hubExtraIngress }}
+{{ toYaml . | indent 4 }}
+    {{- end }}
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- with .Values.networkPolicy.extraEgress }}
+{{ toYaml . | indent 4 }}
+    {{- end }}
+{{- end }}

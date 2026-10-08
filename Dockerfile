@@ -55,6 +55,10 @@ COPY tsconfig.base.json bunfig.toml ./
 COPY app/package.json app/package.json
 COPY server/package.json server/package.json
 COPY worker/package.json worker/package.json
+# The hub is a workspace of the root manifest, so its manifest has to be here or a frozen install
+# refuses with `Workspace not found "hub"`. It is not installed or shipped in this image; the hub
+# has an image of its own (hub/Dockerfile).
+COPY hub/package.json hub/package.json
 RUN bun install --frozen-lockfile
 
 # The lockfile travels with the manifest, because `--frozen-lockfile` with no lockfile in the context
@@ -72,6 +76,7 @@ RUN mkdir -p /prod && cp package.json bun.lock /prod/ \
   && cp /src/app/package.json app/package.json \
   && cp /src/server/package.json server/package.json \
   && cp /src/worker/package.json worker/package.json \
+  && mkdir -p hub && cp /src/hub/package.json hub/package.json \
   && bun install --frozen-lockfile --production
 
 

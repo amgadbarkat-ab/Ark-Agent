@@ -68,17 +68,32 @@ This template renders nothing.
 {{- end }}
 
 {{- /*
-  Intelligence, which is not optional.
+  The conversation service, which is not optional.
 
-  The three addressing values are required together and the server refuses to start on a partial
+  Either Ark Hub runs in this release (`hub.enabled`), or `config.intelligence` names one that runs
+  elsewhere. The addressing values are required together and the server refuses to start on a partial
   set, so the same rule is applied here: caught at install with the values named, rather than in a
   crash loop whose message is in a log nobody has opened.
 
-  `secrets.licenseToken` is NOT among them. Managed Intelligence issues no licence token, so
-  requiring one here would block an install the server would have accepted.
+  `secrets.licenseToken` is NOT among them. It is for a self-hosted service that issues one.
 */}}
-{{- if or (not .Values.config.intelligence.apiUrl) (not .Values.config.intelligence.gatewayWsUrl) }}
-{{- fail "OpenBot requires CopilotKit Intelligence. Set config.intelligence.apiUrl and config.intelligence.gatewayWsUrl, and the matching secrets.intelligenceApiKey." }}
+{{- if (.Values.hub).enabled }}
+{{- if not (((.Values.hub).image | default dict).repository) }}
+{{- fail "hub.enabled needs hub.image.repository, the image built from hub/Dockerfile." }}
+{{- end }}
+{{- if not (hasPrefix "wss://" (default "" .Values.hub.publicUrl)) }}
+{{- if not (hasPrefix "ws://" (default "" .Values.hub.publicUrl)) }}
+{{- fail "hub.publicUrl is where a browser opens its live connection, e.g. wss://hub.example.com. It is required when hub.enabled." }}
+{{- end }}
+{{- end }}
+{{- if and (hasPrefix "ws://" (default "" .Values.hub.publicUrl)) (not .Values.config.singleUser) .Values.config.publicUrl }}
+{{- fail "hub.publicUrl is ws:// but this deployment has a public URL: a page served over https cannot open an unencrypted socket. Use wss://." }}
+{{- end }}
+{{- if and (((.Values.hub).ingress | default dict).enabled) (not ((.Values.hub).ingress | default dict).host) }}
+{{- fail "hub.ingress.enabled needs hub.ingress.host, the name a browser reaches the hub at." }}
+{{- end }}
+{{- else if or (not .Values.config.intelligence.apiUrl) (not .Values.config.intelligence.gatewayWsUrl) }}
+{{- fail "The API needs a conversation service. Either run Ark Hub in this release (hub.enabled, with hub.publicUrl and secrets.hubApiKey, secrets.hubJoinSecret and secrets.hubDatabaseUrl), or set config.intelligence.apiUrl and config.intelligence.gatewayWsUrl and the matching secrets.intelligenceApiKey." }}
 {{- end }}
 
 {{- /*

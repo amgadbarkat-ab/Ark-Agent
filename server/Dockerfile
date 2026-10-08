@@ -19,6 +19,9 @@ COPY bunfig.toml bunfig.toml
 COPY app/package.json app/package.json
 COPY server/package.json server/package.json
 COPY worker/package.json worker/package.json
+# A workspace of the root manifest, so its manifest has to be here or a frozen install refuses with
+# `Workspace not found "hub"`. Nothing of the hub is installed or shipped in this image.
+COPY hub/package.json hub/package.json
 RUN bun install --frozen-lockfile
 
 

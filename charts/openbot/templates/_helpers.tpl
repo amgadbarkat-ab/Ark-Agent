@@ -327,15 +327,21 @@ and in whatever holds the release, which is not where `KEY_ENCRYPTION_KEY` belon
   value: {{ $maxDepth | quote }}
 - name: BOT_HANDOFF_MAX_PER_RUN
   value: {{ $maxPerRun | quote }}
+{{- /*
+  The conversation service. With `hub.enabled` it is Ark Hub, in this release: the API reaches it
+  inside the cluster, and a browser reaches it at `hub.publicUrl`. Otherwise it is whatever
+  `config.intelligence` names. The server's variables keep their historical names either way, because
+  the SDK it is built on reads them and they are not ours to rename.
+*/}}
 - name: INTELLIGENCE_API_URL
-  value: {{ .Values.config.intelligence.apiUrl | quote }}
+  value: {{ (include "openbot.conversationApiUrl" .) | quote }}
 - name: INTELLIGENCE_GATEWAY_WS_URL
-  value: {{ .Values.config.intelligence.gatewayWsUrl | quote }}
+  value: {{ (include "openbot.conversationGatewayUrl" .) | quote }}
 - name: INTELLIGENCE_API_KEY
   valueFrom:
     secretKeyRef:
       name: {{ include "openbot.secretName" . }}
-      key: intelligence-api-key
+      key: {{ ternary "hub-api-key" "intelligence-api-key" ((.Values.hub).enabled) }}
 {{- if .Values.secrets.licenseToken }}
 - name: COPILOTKIT_LICENSE_TOKEN
   valueFrom:
@@ -572,3 +578,41 @@ than anything that names the cause.
 {{- or .Values.serviceAccount.automountServiceAccountToken (eq .Values.computers.mode "sandbox") -}}
 {{- end -}}
 
+{{/* Where the hub is, inside the cluster. */}}
+{{- define "openbot.hubServiceName" -}}
+{{- include "openbot.componentName" (dict "root" . "component" "hub") -}}
+{{- end -}}
+
+{{/*
+The hub's image. Its own repository (hub/Dockerfile builds it), and the chart's appVersion as the tag
+unless one is named, the way the API's is.
+*/}}
+{{- define "openbot.hubImage" -}}
+{{- $image := (.Values.hub).image | default dict -}}
+{{- $tag := $image.tag | default (printf "v%s" .Chart.AppVersion) -}}
+{{- printf "%s:%s" $image.repository $tag -}}
+{{- end -}}
+
+{{- define "openbot.conversationApiUrl" -}}
+{{- if ((.Values.hub).enabled) -}}
+http://{{ include "openbot.hubServiceName" . }}:{{ include "openbot.hubPort" . }}
+{{- else -}}
+{{- .Values.config.intelligence.apiUrl -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openbot.conversationGatewayUrl" -}}
+{{- if ((.Values.hub).enabled) -}}
+{{- (.Values.hub).publicUrl -}}
+{{- else -}}
+{{- .Values.config.intelligence.gatewayWsUrl -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The hub's port. A helper with a default, because a key this release added is absent on every
+deployment upgraded with `--reuse-values`, and an absent port would render as nothing.
+*/}}
+{{- define "openbot.hubPort" -}}
+{{- default 7100 (.Values.hub).port -}}
+{{- end -}}

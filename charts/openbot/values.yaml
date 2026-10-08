@@ -85,6 +85,54 @@ server:
     periodSeconds: 5
     failureThreshold: 60
 
+# Ark Hub, the conversation service: it stores every conversation, streams live runs to the browser and
+# keeps one run at a time per conversation. See hub/README.md.
+#
+# OFF BY DEFAULT, because a deployment may bring its own conversation service (`config.intelligence`).
+# A hosted Ark turns it on. When it is on, the API is pointed at it automatically and
+# `config.intelligence` is ignored.
+#
+# ONE REPLICA AND NO ROLLING UPDATE, ON PURPOSE. Live events move between sockets in memory, so a
+# second process would split a conversation's live stream. A new version replaces the old one (a few
+# seconds without live streaming; every event is already stored, and a reconnecting browser replays
+# what it missed). Running several needs the database-backed bus in the build plan.
+hub:
+  enabled: false
+  # Built from hub/Dockerfile and published by the deploy workflow. The tag defaults to the chart's
+  # appVersion with a `v`, the way the API's does.
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 7100
+  # WHERE A BROWSER OPENS ITS LIVE CONNECTION, e.g. wss://hub.example.com. Required. The hub is reached
+  # from the browser directly, so it needs a name of its own (see `ingress` below).
+  publicUrl: ""
+  joinTokenTtlSeconds: 86400
+  defaultLockTtlSeconds: 60
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  # Its own host, because the SDK builds `<publicUrl>/client/websocket` and `<publicUrl>/runner/websocket`
+  # from the address it is given, and a path prefix would need a rewrite every controller does
+  # differently. A WebSocket has to pass: the annotations for that are the controller's, so they are a
+  # value here and not a guess.
+  ingress:
+    enabled: false
+    # Falls back to the main `ingress.className`.
+    className: ""
+    host: ""
+    annotations: {}
+    tls: []
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 serviceAccount:
   create: true
   name: ""
@@ -153,9 +201,10 @@ config:
       issuer: ""
   tenantPackageDir: /app/examples/fintech
 
-  # CopilotKit Intelligence, which OpenBot requires. All four values are needed together: the server
-  # refuses to start on a partial set, deliberately, because a half-configured Intelligence is a
-  # mistake somebody made rather than a deployment that meant to run without one.
+  # A conversation service run somewhere else, which the API requires unless `hub.enabled`. All four
+  # values are needed together: the server refuses to start on a partial set, deliberately, because a
+  # half-configured one is a mistake somebody made rather than a deployment that meant to run without.
+  # Ignored when `hub.enabled`.
   intelligence:
     apiUrl: ""
     gatewayWsUrl: ""
@@ -467,6 +516,13 @@ secrets:
   # Optional. Managed Intelligence issues no licence token; set this only for a self-hosted
   # Intelligence that has one, and it is passed to the server as COPILOTKIT_LICENSE_TOKEN.
   licenseToken: ""
+  # Ark Hub (`hub.enabled`). The API key is what the API and the runs present to it; the join secret
+  # signs the short-lived tokens a browser opens its live connection with; the database URL is its
+  # own database, separate from the application's, e.g. postgres://user:pass@host:5432/hub?sslmode=require
+  # Generate the first two with: openssl rand -base64 32
+  hubApiKey: ""
+  hubJoinSecret: ""
+  hubDatabaseUrl: ""
   # Sent to `config.managedAgent.url` on every call. Required when that url is set.
   managedAgentToken: ""
   # Required when `routines.enabled`: what the CronJob presents to the API server to be recognised
@@ -514,6 +570,14 @@ networkPolicy:
   # is where Intelligence, sign-in and the Bots are. This is for anything on the private side.
   extraEgress: []
   extraIngress: []
+  # Who may open the hub's port besides the API: the ingress controller's pods, when the hub has an
+  # ingress, which sit in another namespace and are named here by a `from` list. Example for AKS's
+  # managed ingress:
+  #   - from:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: app-routing-system
+  hubExtraIngress: []
   # `computers.mode: sandbox` only. The service range the Kubernetes API server answers on, so the
   # rule that lets the API ask for a Bot's computer can name it.
   #

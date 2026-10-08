@@ -18,7 +18,27 @@ architecture you have and push it somewhere the cluster can reach. Check before 
 docker manifest inspect ghcr.io/copilotkit/openbot:v0.0.9 | grep architecture
 ```
 
-**Intelligence credentials.** OpenBot requires CopilotKit Intelligence and the chart refuses to
+**A conversation service.** The API cannot run without one. For Ark that is **Ark Hub**, which this
+chart can run in the same release (`hub.enabled: true`) and which needs no outside account:
+
+```yaml
+hub:
+  enabled: true
+  image: { repository: <registry>/ark-hub }     # built from hub/Dockerfile
+  publicUrl: wss://hub.example.com              # where a browser opens its live connection
+  ingress: { enabled: true, host: hub.example.com }
+```
+
+and three secrets, `secrets.hubApiKey` and `secrets.hubJoinSecret` (`openssl rand -base64 32` each)
+and `secrets.hubDatabaseUrl` (a database of the hub's own, not the application's). With a secret store
+they are the keys `hub-api-key`, `hub-join-secret` and `hub-database-url`. The API is pointed at the
+hub for you and `config.intelligence` is ignored. The hub is one process, replaced rather than
+rolled (see `hub:` in `values.yaml` for why). `ci/aks-values.yaml` is the worked example.
+
+The rest of this section applies only when the conversation service runs somewhere else
+(`hub.enabled: false`, `config.intelligence.*`):
+
+**Intelligence credentials.** The chart then refuses to
 install without `secrets.intelligenceApiKey`. It comes from the CLI, on any machine with a browser:
 
 ```sh
