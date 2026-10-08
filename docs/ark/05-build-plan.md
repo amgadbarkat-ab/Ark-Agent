@@ -49,6 +49,11 @@ Still to do in this phase:
       the settings to hub names.
 - [ ] Automated test that the whole stack runs with `*.copilotkit.ai` unreachable.
 - [ ] Compact long conversations on replay; Postgres `LISTEN/NOTIFY` bus for several hub processes.
+- [ ] **Desktop app still depends on CopilotKit** (found 2026-10-08, while removing the plan
+      sign-ins). It sends usage telemetry to CopilotKit's ingest by default (`desktop/TELEMETRY.md`),
+      its setup wizard signs in to CopilotKit Intelligence to get a key and project
+      (`desktop/src-tauri/src/intelligence.rs`), and it has an organisation sign-in against a
+      CopilotKit authority. All three must go or point at Ark Hub before any desktop release.
 - [ ] Remove CopilotKit and OpenBot names and links from user-facing text (with the brand work).
 - Exit test: the whole app starts and works with no network access to any CopilotKit host.
 
@@ -68,7 +73,9 @@ Still to do in this phase:
       harnesses; leftovers on existing machines are purged (04-llm-providers.md, Part 3).
 - [ ] Add Claude through the user's unmodified Claude Code (launch only, never touch its login), and
       apply to OpenAI for its official "Sign in with ChatGPT" programme.
-- [ ] Decide the xAI sign-in (written permission, own client, or API key only).
+- [ ] Decide the xAI sign-in: the desktop uses a hard-coded OAuth client id that belongs to another
+      party's integration (`XAI_CLIENT` in `provider_oauth.rs`). Remove it, or get xAI's written
+      permission, or register Ark's own client. Until then treat xAI as API-key only.
 - [ ] Local models: hardware detection, suggested model, managed download (Ollama / llama.cpp).
 - [ ] Usage metering in the gateway; audit events for connection changes.
 

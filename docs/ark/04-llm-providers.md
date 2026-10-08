@@ -63,9 +63,11 @@ of 2026-10-08:
   both harnesses drop the variables from their environment at start.
 - **Google:** Gemini Developer API with a Cloud project's quota, not a Gemini subscription, which is
   acceptable. Needs Ark's own verified OAuth client, and paid-only for EEA/UK/CH users. Still to do.
-- **xAI: still open.** The desktop signs in following "xAI's endorsed OpenCode integration"
-  (`desktop/PROVIDER_OAUTH.md`). Unless xAI confirms in writing that Ark may use that route, this
-  must be replaced by an API key only or by Ark's own registered client. Not yet changed.
+- **xAI: still open.** The desktop signs in with a hard-coded OAuth client id taken from "xAI's
+  endorsed OpenCode integration" (`XAI_CLIENT` in `desktop/src-tauri/src/provider_oauth.rs`,
+  `desktop/PROVIDER_OAUTH.md`). That client belongs to someone else's integration. Unless xAI confirms
+  in writing that Ark may use it, replace it with an API key only or with Ark's own registered
+  client. Not yet changed.
 
 ## Sources
 
