@@ -89,6 +89,18 @@ export const subscriptions = pgTable("subscriptions", {
   providerSubscriptionId: text("provider_subscription_id"),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  /**
+   * When the payment provider says the last change it told us about happened.
+   *
+   * Providers deliver late and out of order. A subscription that was cancelled and then renewed must
+   * not be left cancelled because the older notice arrived second, so a change that happened before
+   * this is ignored. Kept as text so a provider's microseconds survive; a JavaScript date has only
+   * milliseconds.
+   */
+  lastEventAt: timestamp("last_event_at", {
+    withTimezone: true,
+    mode: "string",
+  }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

@@ -110,13 +110,13 @@ function serve(
   }) as unknown as typeof fetch;
 }
 
-function renderRoute(component: unknown) {
+function renderRoute(component: unknown, entry = "/") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const router = createRouter({
     routeTree: createRootRoute({ component: component as never }),
-    history: createMemoryHistory({ initialEntries: ["/"] }),
+    history: createMemoryHistory({ initialEntries: [entry] }),
   });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -125,7 +125,8 @@ function renderRoute(component: unknown) {
   );
 }
 
-const renderPlan = () => renderRoute(PlanRoute.options.component);
+const renderPlan = (entry = "/") =>
+  renderRoute(PlanRoute.options.component, entry);
 
 test("shows the plan, when it renews and how much of it is in use", async () => {
   serve(overview());
@@ -364,3 +365,122 @@ test("staff can put an account on another plan", async () => {
   expect(put?.url).toContain("/api/admin/accounts/t1/plan");
   expect(put?.body).toEqual({ planId: "team" });
 });
+
+/** The account as a payment provider confirms it a moment later: each read answers the next one. */
+function serveInSteps(
+  steps: AccountOverview[],
+  options: { planAnswer?: unknown; calls?: Calls } = {},
+) {
+  let read = 0;
+  global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    options.calls?.push({
+      method: init?.method ?? "GET",
+      url,
+      ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
+    });
+    if (url.endsWith("/api/account/plan")) {
+      return Response.json(options.planAnswer ?? { changed: true });
+    }
+    if (url.endsWith("/api/account")) {
+      const step = steps[Math.min(read, steps.length - 1)];
+      read += 1;
+      return Response.json(step);
+    }
+    return new Response(null, { status: 404 });
+  }) as unknown as typeof fetch;
+}
+
+const notYet = () =>
+  overview({
+    canRun: false,
+    blockedCode: "no_plan",
+    blockedReason: "Choose a plan to start your digital employees.",
+    subscriptionStatus: "incomplete",
+    activeBots: 0,
+    currentPeriodEnd: null,
+  });
+
+test("coming back from paying says the payment is being confirmed, and updates by itself", async () => {
+  serveInSteps([
+    notYet(),
+    overview({
+      planId: "team",
+      planName: "Ark Team",
+      maxActiveBots: 15,
+      activeBots: 0,
+    }),
+  ]);
+  const screen = renderPlan("/?paid=1");
+  expect(
+    await screen.findByText(/We are confirming your payment/, {}, SLOW),
+  ).toBeTruthy();
+  // It does not tell somebody who has just paid to choose a plan.
+  expect(screen.queryByText(/Choose a plan to start/) === null).toBe(true);
+  // And it asks again on its own, so nothing needs reloading.
+  await waitFor(
+    () => {
+      expect(
+        screen.queryByText(/We are confirming your payment/) === null,
+      ).toBe(true);
+      expect(screen.getAllByText("Ark Team").length).toBeGreaterThan(0);
+    },
+    { timeout: 8000 },
+  );
+}, 12000);
+
+test("without having just paid, no plan is the ordinary invitation to choose one", async () => {
+  serveInSteps([notYet()]);
+  const screen = renderPlan("/");
+  expect(await screen.findByRole("status", {}, SLOW)).toBeTruthy();
+  expect(screen.getByRole("status").textContent).toMatch(/choose a plan/i);
+  expect(screen.queryByText(/confirming your payment/) === null).toBe(true);
+});
+
+test("changing plan while subscribed does not send anyone to pay, and waits for the change", async () => {
+  const calls: Calls = [];
+  serveInSteps(
+    [
+      overview(),
+      overview(),
+      overview({
+        planId: "team",
+        planName: "Ark Team",
+        maxActiveBots: 15,
+        activeBots: 1,
+      }),
+    ],
+    { calls },
+  );
+  const assigned: string[] = [];
+  const original = window.location;
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { ...original, assign: (url: string) => assigned.push(url) },
+  });
+  try {
+    const screen = renderPlan();
+    const user = userEvent.setup({ document });
+    await user.click(
+      await screen.findByRole("button", { name: "Choose Ark Team" }, SLOW),
+    );
+    expect(
+      await screen.findByText(/Changing your plan/, {}, SLOW),
+    ).toBeTruthy();
+    expect(assigned).toEqual([]);
+    expect(
+      calls.find((c) => c.url.endsWith("/api/account/plan"))?.body,
+    ).toEqual({ planId: "team" });
+    await waitFor(
+      () =>
+        expect(screen.queryByText(/Changing your plan/) === null).toBe(true),
+      { timeout: 8000 },
+    );
+    expect(screen.getAllByText("Ark Team").length).toBeGreaterThan(0);
+  } finally {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: original,
+    });
+  }
+}, 15000);

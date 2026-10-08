@@ -66,23 +66,23 @@ time. The technical design and the legal check of plan sign-in are in 04-llm-pro
 **D9. Hosting: Microsoft Azure, sign-in with Microsoft Entra ID.** The owner asked for "the
 suitable MS 365 tool". Microsoft 365 itself is office software and does not host applications;
 the Microsoft product that does is Azure, and Entra ID is the sign-in service shared by both. This
-is the working assumption and is to be confirmed with the owner before anything is deployed
-(Phase 7).
+was the working assumption and is now **confirmed by the owner (2026-10-08)**; Phase 7 builds for it.
 
 ## Open questions
 
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
-2. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling. The
-   billing core is built and provider-neutral; the choice only decides which adapter is written.
-   Recommendation (09-accounts-plans-quotas.md): a merchant of record such as Paddle, so VAT
-   collection and filing are not ours.
-3. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
+2. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
    digital goods are sold. Check current terms before choosing how mobile users pay.
-4. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires
-   contacting OpenAI (see 04-llm-providers.md).
 
 ## Answered
 
+- **Payments and tax: Paddle**, a merchant of record that collects and files VAT and sends invoices.
+  Adapter written; sandbox run still to do (12-paddle.md). (2026-10-08)
+- **Hosting: Microsoft Azure with Microsoft Entra ID** for sign-in, confirmed by the owner. (2026-10-08)
+- **OpenAI approval:** the application was submitted by the owner (08-openai-application.md); waiting
+  for OpenAI's answer. (2026-10-08)
+- **Keys:** the CopilotKit and Anthropic keys already shared stay in use; no rotation needed, by the
+  owner's decision. (2026-10-08)
 - A bot with only a future schedule does not count between runs; it counts only while a run is in
   progress. (2026-10-08)
 - At the limit, a task that wants to start is queued and the user is offered an upgrade. (2026-10-08)

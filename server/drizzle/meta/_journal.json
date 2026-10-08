@@ -365,6 +365,13 @@
       "when": 1791467790614,
       "tag": "0051_marketplace",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791469804542,
+      "tag": "0052_subscription_event_order",
+      "breakpoints": true
     }
   ]
 }

@@ -81,6 +81,52 @@ export function accountRoutes(options: {
     const actor = context.var.actor;
     const tenantId = await accounts.ensureTenant(actor.id);
     try {
+      /*
+       * Somebody who already has a subscription moves it; they are not sold a second one. Without
+       * this, choosing another plan would bill them for both.
+       */
+      const summary = await accounts.summaryFor(actor.id);
+      const subscriptionId = await accounts.providerSubscriptionIdFor(
+        tenantId,
+        billing.id,
+      );
+      const subscribed =
+        subscriptionId !== undefined &&
+        (summary.subscriptionStatus === "active" ||
+          summary.subscriptionStatus === "trialing" ||
+          summary.subscriptionStatus === "past_due");
+      if (subscribed && billing.changePlan) {
+        if (summary.subscriptionStatus === "past_due") {
+          return context.json(
+            {
+              error:
+                "The last payment did not go through. Update your card from Manage billing, then change your plan.",
+            },
+            409,
+          );
+        }
+        if (summary.planId === plan.id) {
+          return context.json(
+            {
+              error: summary.cancelAtPeriodEnd
+                ? "This plan ends at the end of the period. Choose it again once it has ended."
+                : "You are already on that plan.",
+            },
+            409,
+          );
+        }
+        const upgrade =
+          plan.priceEurCents > (planById(summary.planId)?.priceEurCents ?? 0);
+        await billing.changePlan(subscriptionId, plan.id, { upgrade });
+        await audit?.({
+          eventType: "account.subscription_changed",
+          actorUserId: actor.id,
+          tenantId,
+          payload: { change: "plan", from: summary.planId, to: plan.id },
+        });
+        // The account changes when the provider says so; the screen waits for that.
+        return context.json({ changed: true });
+      }
       const checkout = await billing.createCheckout({
         tenantId,
         planId: plan.id,
@@ -98,26 +144,44 @@ export function accountRoutes(options: {
 
   app.post("/portal", async (context) => {
     const summary = await accounts.summaryFor(context.var.actor.id);
-    const customerId = await accounts.providerCustomerIdFor(summary.tenantId);
+    const customerId = await accounts.providerCustomerIdFor(
+      summary.tenantId,
+      billing.id,
+    );
     if (!billing.createPortal || !customerId) {
       return context.json(
         { error: "There is no billing page for this account yet." },
         404,
       );
     }
-    const portal = await billing.createPortal(customerId, returnUrl(context));
-    return context.json({ portalUrl: portal.url });
+    try {
+      const portal = await billing.createPortal(customerId, returnUrl(context));
+      return context.json({ portalUrl: portal.url });
+    } catch (error) {
+      if (error instanceof BillingUnavailableError) {
+        return context.json({ error: error.message }, 503);
+      }
+      throw error;
+    }
   });
 
   app.post("/cancel", async (context) => {
     const summary = await accounts.summaryFor(context.var.actor.id);
     const subscriptionId = await accounts.providerSubscriptionIdFor(
       summary.tenantId,
+      billing.id,
     );
     if (!billing.cancel || !subscriptionId) {
       return context.json({ error: "Contact us to cancel this account." }, 400);
     }
-    await billing.cancel(subscriptionId, { atPeriodEnd: true });
+    try {
+      await billing.cancel(subscriptionId, { atPeriodEnd: true });
+    } catch (error) {
+      if (error instanceof BillingUnavailableError) {
+        return context.json({ error: error.message }, 503);
+      }
+      throw error;
+    }
     await accounts.applySubscription(summary.tenantId, {
       cancelAtPeriodEnd: true,
     });

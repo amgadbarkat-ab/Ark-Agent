@@ -20,6 +20,11 @@ export type BillingEvent = {
   status?: SubscriptionStatus;
   currentPeriodEnd?: Date | null;
   cancelAtPeriodEnd?: boolean;
+  /**
+   * When the provider says this happened (ISO 8601). A notice older than one already applied to the
+   * same account is dropped, because providers deliver late and out of order.
+   */
+  occurredAt?: string;
 };
 
 export type CheckoutRequest = {
@@ -31,8 +36,11 @@ export type CheckoutRequest = {
 };
 
 export class BillingUnavailableError extends Error {
-  constructor(message = "Payments are not set up on this deployment yet.") {
-    super(message);
+  constructor(
+    message = "Payments are not set up on this deployment yet.",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
     this.name = "BillingUnavailableError";
   }
 }
@@ -54,6 +62,23 @@ export type BillingProvider = {
     providerCustomerId: string,
     returnUrl: string,
   ) => Promise<{ url: string }>;
+  /**
+   * Move an existing subscription to another plan, in place.
+   *
+   * Without this, choosing another plan while subscribed would start a second subscription and bill
+   * the customer twice. The account changes when the provider reports the change, not when this
+   * returns.
+   */
+  changePlan?: (
+    providerSubscriptionId: string,
+    planId: string,
+    options: { upgrade: boolean },
+  ) => Promise<void>;
+  /**
+   * The page the provider's checkout opens on, for a provider whose checkout is a script on the
+   * seller's own page. Served at `/api/billing/checkout`.
+   */
+  checkoutPage?: (options: { successUrl: string }) => string;
   /** Stop renewing at the end of the paid period (or at once). */
   cancel?: (
     providerSubscriptionId: string,

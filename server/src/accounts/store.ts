@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, gt, ilike, lt, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  ilike,
+  isNull,
+  lt,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   type Plan,
   planById,
@@ -82,6 +93,11 @@ export type SubscriptionChange = {
   providerSubscriptionId?: string | null;
   currentPeriodEnd?: Date | null;
   cancelAtPeriodEnd?: boolean;
+  /**
+   * When the provider says this happened, as an ISO 8601 string. Given, the change is dropped if the
+   * account has already heard about something later; absent, it always applies (staff and tests).
+   */
+  eventAt?: string;
 };
 
 export type AccountStore = {
@@ -90,20 +106,35 @@ export type AccountStore = {
   tenantIdForUser: (userId: string) => Promise<string | undefined>;
   entitlementFor: (userId: string) => Promise<Entitlement>;
   summaryFor: (userId: string) => Promise<AccountSummary>;
-  /** Change what a tenant has bought. Used by billing events and by administrators. */
+  /**
+   * Change what a tenant has bought. Used by billing events and by administrators.
+   *
+   * "stale" means a later change had already been recorded, so this one was not applied.
+   */
   applySubscription: (
     tenantId: string,
     change: SubscriptionChange,
-  ) => Promise<void>;
+  ) => Promise<"applied" | "stale">;
   suspend: (tenantId: string, reason: string) => Promise<void>;
   resume: (tenantId: string) => Promise<void>;
   tenantIdForProviderCustomer: (
     provider: string,
     customerId: string,
   ) => Promise<string | undefined>;
-  /** The payment provider's id for this account's customer and subscription, if it has any. */
-  providerCustomerIdFor: (tenantId: string) => Promise<string | undefined>;
-  providerSubscriptionIdFor: (tenantId: string) => Promise<string | undefined>;
+  /**
+   * The payment provider's id for this account's customer and subscription, if it has any.
+   *
+   * Given a provider, an id that belongs to another one is not returned: after switching providers, a
+   * stored id is meaningless to the new one and must never be sent to it.
+   */
+  providerCustomerIdFor: (
+    tenantId: string,
+    provider?: string,
+  ) => Promise<string | undefined>;
+  providerSubscriptionIdFor: (
+    tenantId: string,
+    provider?: string,
+  ) => Promise<string | undefined>;
   /** One page of accounts for the administrator's screen, newest first. */
   listForAdmin: (query?: {
     search?: string;
@@ -331,12 +362,31 @@ export function createAccountStore(
         set.currentPeriodEnd = change.currentPeriodEnd;
       if (change.cancelAtPeriodEnd !== undefined)
         set.cancelAtPeriodEnd = change.cancelAtPeriodEnd;
+      if (change.eventAt !== undefined) set.lastEventAt = change.eventAt;
       const done = await database
         .update(subscriptions)
         .set(set)
-        .where(eq(subscriptions.tenantId, tenantId))
+        .where(
+          and(
+            eq(subscriptions.tenantId, tenantId),
+            // Compared in the database, to the microsecond the provider gave.
+            change.eventAt === undefined
+              ? undefined
+              : or(
+                  isNull(subscriptions.lastEventAt),
+                  sql`${subscriptions.lastEventAt} <= ${change.eventAt}::timestamptz`,
+                ),
+          ),
+        )
         .returning({ tenantId: subscriptions.tenantId });
-      if (done.length === 0) throw new UnknownAccountError();
+      if (done.length > 0) return "applied";
+      const [exists] = await database
+        .select({ tenantId: subscriptions.tenantId })
+        .from(subscriptions)
+        .where(eq(subscriptions.tenantId, tenantId))
+        .limit(1);
+      if (!exists) throw new UnknownAccountError();
+      return "stale";
     },
 
     async suspend(tenantId, reason) {
@@ -381,20 +431,34 @@ export function createAccountStore(
       return row?.tenantId;
     },
 
-    async providerCustomerIdFor(tenantId) {
+    async providerCustomerIdFor(tenantId, provider) {
       const [row] = await database
         .select({ id: subscriptions.providerCustomerId })
         .from(subscriptions)
-        .where(eq(subscriptions.tenantId, tenantId))
+        .where(
+          and(
+            eq(subscriptions.tenantId, tenantId),
+            provider === undefined
+              ? undefined
+              : eq(subscriptions.provider, provider),
+          ),
+        )
         .limit(1);
       return row?.id ?? undefined;
     },
 
-    async providerSubscriptionIdFor(tenantId) {
+    async providerSubscriptionIdFor(tenantId, provider) {
       const [row] = await database
         .select({ id: subscriptions.providerSubscriptionId })
         .from(subscriptions)
-        .where(eq(subscriptions.tenantId, tenantId))
+        .where(
+          and(
+            eq(subscriptions.tenantId, tenantId),
+            provider === undefined
+              ? undefined
+              : eq(subscriptions.provider, provider),
+          ),
+        )
         .limit(1);
       return row?.id ?? undefined;
     },

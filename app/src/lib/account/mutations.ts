@@ -9,14 +9,21 @@ function invalidate(queryClient: QueryClient) {
 }
 
 /**
- * Start buying a plan. Answers where to pay; the caller sends the person there.
+ * What choosing a plan answers: where to pay, for somebody who has no subscription, or that their
+ * existing subscription is being moved, for somebody who has one. The second must never become a
+ * second payment.
+ */
+export type ChosenPlan = { checkoutUrl: string } | { changed: true };
+
+/**
+ * Start buying a plan, or move an existing subscription to another.
  *
  * Not invalidated on success: nothing has changed yet. The plan changes when the payment provider
- * tells the server so, and the page reads it fresh when the person comes back.
+ * tells the server so, and the page asks again until it does.
  */
 export function choosePlanMutationOptions() {
   return mutationOptions({
-    mutationFn: async (planId: string): Promise<{ checkoutUrl: string }> =>
+    mutationFn: async (planId: string): Promise<ChosenPlan> =>
       (
         await client("/api/account/plan", {
           method: "POST",

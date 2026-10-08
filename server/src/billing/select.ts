@@ -1,4 +1,5 @@
 import { manualBilling } from "./manual";
+import { type PaddleEnvironment, paddleBilling } from "./paddle";
 import type { BillingProvider } from "./provider";
 import { sandboxBilling } from "./sandbox";
 
@@ -7,7 +8,7 @@ import { sandboxBilling } from "./sandbox";
  *
  * `manual` (the default) takes no money. `sandbox` is a stand-in with real signature checks and no
  * payment; it refuses to start without a secret, so it cannot be turned on by accident half-configured.
- * A real provider is added here when one is chosen.
+ * `paddle` is the real one (Paddle Billing, decided 2026-10-08); it refuses to start unless every setting it needs is present and consistent.
  */
 export function billingFromEnvironment(
   environment: Record<string, string | undefined>,
@@ -37,7 +38,51 @@ export function billingFromEnvironment(
       checkoutBase: `${base}/api/billing/sandbox/checkout`,
     });
   }
+  if (name === "paddle") {
+    const need = (key: string) => {
+      const value = environment[key]?.trim();
+      if (!value) {
+        throw new Error(`ARK_BILLING_PROVIDER=paddle needs ${key}.`);
+      }
+      return value;
+    };
+    const apiKey = need("PADDLE_API_KEY");
+    const declared = environment.PADDLE_ENVIRONMENT?.trim().toLowerCase();
+    if (declared && declared !== "sandbox" && declared !== "production") {
+      throw new Error("PADDLE_ENVIRONMENT is sandbox or production.");
+    }
+    // Said out loud rather than guessed from the key, so a live key is never used by accident.
+    const paddleEnvironment: PaddleEnvironment =
+      (declared as PaddleEnvironment | undefined) ??
+      (apiKey.startsWith("pdl_sdbx_") ? "sandbox" : "production");
+    if (!deployment.appUrl) {
+      throw new Error(
+        "ARK_BILLING_PROVIDER=paddle needs this deployment's public address (APP_URL), because Paddle sends customers back to a page on it.",
+      );
+    }
+    const prices: Record<string, string> = {};
+    for (const [plan, key] of [
+      ["agent", "PADDLE_PRICE_AGENT"],
+      ["team", "PADDLE_PRICE_TEAM"],
+      ["enterprise", "PADDLE_PRICE_ENTERPRISE"],
+    ] as const) {
+      const value = environment[key]?.trim();
+      if (value) prices[plan] = value;
+    }
+    const tolerance = Number(environment.PADDLE_WEBHOOK_TOLERANCE_SECONDS);
+    return paddleBilling({
+      apiKey,
+      webhookSecret: need("PADDLE_WEBHOOK_SECRET"),
+      clientToken: need("PADDLE_CLIENT_TOKEN"),
+      environment: paddleEnvironment,
+      prices,
+      checkoutUrl: `${deployment.appUrl.replace(/\/+$/, "")}/api/billing/checkout`,
+      ...(Number.isFinite(tolerance) && tolerance > 0
+        ? { toleranceSeconds: tolerance }
+        : {}),
+    });
+  }
   throw new Error(
-    `ARK_BILLING_PROVIDER=${name} is not a billing provider this version knows. Use manual or sandbox.`,
+    `ARK_BILLING_PROVIDER=${name} is not a billing provider this version knows. Use manual, paddle or sandbox.`,
   );
 }

@@ -593,6 +593,33 @@ export function createApp(
         }),
       );
     }
+    /*
+     * The page a provider's checkout script runs on (Paddle's checkout is Paddle.js on a page of the
+     * seller's own). Not behind a session: the provider's own redirect lands here, and the page holds
+     * nothing but the provider's public token and the address to return to. It acts on nothing; the
+     * transaction it opens was made for a particular account when the customer asked to pay.
+     */
+    if (billing.checkoutPage) {
+      const checkoutPage = billing.checkoutPage;
+      app.get("/api/billing/checkout", (context) => {
+        const base = (
+          config.appUrl ??
+          config.publicUrl ??
+          new URL(context.req.url).origin
+        ).replace(/\/+$/, "");
+        return new Response(
+          checkoutPage({ successUrl: `${base}/settings/plan?paid=1` }),
+          {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "no-store",
+              "x-content-type-options": "nosniff",
+              "referrer-policy": "strict-origin",
+            },
+          },
+        );
+      });
+    }
     // Not behind a session: the caller is a payment provider, and its signature is its credential.
     const webhook = accountServices.webhook;
     if (webhook) {

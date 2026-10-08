@@ -86,8 +86,8 @@ it, so it is still open.
 
 Everything is behind one interface (`BillingProvider`), so choosing a payment provider is writing one
 adapter. Shipped: **manual** (no online payment; staff set plans; the app says to contact us) and
-**sandbox** (real signature checks, no money; refuses production and a missing secret). Set with
-`ARK_BILLING_PROVIDER`.
+**sandbox** (real signature checks, no money; refuses production and a missing secret), and **paddle**
+(the real one, see 12-paddle.md). Set with `ARK_BILLING_PROVIDER`.
 
 The webhook (`POST /api/billing/webhook/:provider`) believes nothing unsigned (signature over the raw
 bytes, constant-time), does nothing on a repeat or out-of-order delivery (the provider's event id is
@@ -126,7 +126,8 @@ have their own rules for selling subscriptions inside an app (open question 3).
 
 ## Not done yet
 
-- A real payment provider adapter (waiting on the owner's choice above), invoices and VAT through it.
+- The Paddle adapter is written and tested against a fake; it has not met Paddle yet (the sandbox run in
+  12-paddle.md comes first). Invoices and VAT are Paddle's.
 - Queue order is "whoever polls first", not first come first served, and the queue is not durable
   across a server restart (a queued run is a live request). Fine at this scale; revisit with load.
 - The cloud add-on (Phase 4): metering what a cloud-run bot uses, priced to cover cost.

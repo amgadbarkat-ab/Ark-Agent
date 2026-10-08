@@ -1,7 +1,7 @@
 import { IconCreditCard, IconRobot, IconSparkles } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import React, { useState } from "react";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
+import React, { useEffect, useState } from "react";
 import {
   PageEmpty,
   PageRows,
@@ -32,15 +32,26 @@ import {
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/settings/plan")({
+  // `paid` is put on the address by the payment page when the customer comes back from paying.
+  validateSearch: (search: Record<string, unknown>): { paid?: string } =>
+    search.paid === undefined ? {} : { paid: String(search.paid) },
   component: PlanPage,
 });
+
+/** How long the page keeps asking whether a payment or a change has landed, before saying it is slow. */
+const CONFIRM_FOR_MS = 90_000;
+const CONFIRM_EVERY_MS = 2_000;
 
 /** Where the person is sent to pay or manage billing: a different site, so a full navigation. */
 function goTo(address: string) {
   window.location.assign(address);
 }
 
-function statusLine(account: AccountOverview["account"]): string {
+function statusLine(
+  account: AccountOverview["account"],
+  waiting: boolean,
+): string {
+  if (waiting) return "Waiting for confirmation";
   const until = account.currentPeriodEnd
     ? new Date(account.currentPeriodEnd).toLocaleDateString()
     : null;
@@ -66,12 +77,59 @@ function workingLine(account: AccountOverview["account"]): string {
     : `${account.activeBots} of ${limit} working now`;
 }
 
+/**
+ * Whether the account is waiting for the payment provider to say something.
+ *
+ * A payment is confirmed by the provider telling the server, which is a moment after the customer
+ * lands back here. Until it has, the account still says "no plan", which is true and alarming, so the
+ * page says what is happening and asks again by itself. A change of plan is confirmed the same way.
+ */
+function isWaiting(
+  account: AccountOverview["account"] | undefined,
+  paid: unknown,
+  requested: string | null,
+): boolean {
+  if (!account) return false;
+  const paidAndNotYetSeen =
+    paid !== undefined &&
+    !account.canRun &&
+    (account.blockedCode === "no_plan" || account.blockedCode === "canceled");
+  return (
+    paidAndNotYetSeen || (requested !== null && account.planId !== requested)
+  );
+}
+
 function PlanPage() {
+  const { paid } = useSearch({ strict: false }) as { paid?: unknown };
+  /** A plan the customer asked to move to, until the account shows it. */
+  const [requested, setRequested] = useState<string | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
   const overview = useQuery(accountQueryOptions());
   const choose = useMutation(choosePlanMutationOptions());
   const portal = useMutation(openBillingPortalMutationOptions());
   const cancel = useMutation(cancelPlanMutationOptions(queryClient));
   const [confirmCancel, setConfirmCancel] = useState(false);
+
+  const waiting = isWaiting(overview.data?.account, paid, requested);
+  const { refetch } = overview;
+  /*
+   * Ask again until the provider has told the server, then stop, and give up after a while with an
+   * honest sentence. A timer of our own rather than the query's refetch interval: that one also
+   * stops while the tab is in the background, and the customer may well be paying in another.
+   */
+  useEffect(() => {
+    if (!waiting) {
+      setGaveUp(false);
+      return;
+    }
+    if (gaveUp) return;
+    const giveUp = setTimeout(() => setGaveUp(true), CONFIRM_FOR_MS);
+    const ask = setInterval(() => void refetch(), CONFIRM_EVERY_MS);
+    return () => {
+      clearTimeout(giveUp);
+      clearInterval(ask);
+    };
+  }, [waiting, gaveUp, refetch]);
 
   const data = overview.data;
   const failure = choose.error ?? portal.error ?? cancel.error;
@@ -87,7 +145,16 @@ function PlanPage() {
         </p>
       ) : (
         <>
-          {!data.account.canRun && data.account.blockedReason ? (
+          {waiting ? (
+            <p className="mt-4 text-sm" role="status">
+              {gaveUp
+                ? "This is taking longer than usual. If your plan does not appear soon, contact us and we will sort it out."
+                : requested !== null
+                  ? "Changing your plan. This page updates by itself."
+                  : "Thank you. We are confirming your payment. This page updates by itself."}
+            </p>
+          ) : null}
+          {!waiting && !data.account.canRun && data.account.blockedReason ? (
             <p className="mt-4 text-sm" role="status">
               {data.account.blockedCode === "no_plan"
                 ? "Choose a plan to start your digital employees."
@@ -116,7 +183,7 @@ function PlanPage() {
                 <ItemContent>
                   <ItemTitle>{data.account.planName}</ItemTitle>
                   <ItemDescription className="line-clamp-none">
-                    {statusLine(data.account)}
+                    {statusLine(data.account, waiting)}
                   </ItemDescription>
                 </ItemContent>
               </Item>
@@ -145,13 +212,19 @@ function PlanPage() {
                   {data.plans.map((plan, index) => (
                     <React.Fragment key={plan.id}>
                       <PlanRow
-                        busy={choose.isPending}
+                        busy={choose.isPending || waiting}
                         current={
                           plan.id === data.account.planId && data.account.canRun
                         }
                         onChoose={() =>
                           choose.mutate(plan.id, {
-                            onSuccess: ({ checkoutUrl }) => goTo(checkoutUrl),
+                            onSuccess: (chosen) => {
+                              if ("checkoutUrl" in chosen) {
+                                goTo(chosen.checkoutUrl);
+                              } else {
+                                setRequested(plan.id);
+                              }
+                            },
                           })
                         }
                         plan={plan}

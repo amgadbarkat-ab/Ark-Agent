@@ -111,8 +111,12 @@ export function createBillingWebhook(options: {
           continue;
         }
 
+        let result: "applied" | "stale";
         try {
-          await accounts.applySubscription(tenantId, {
+          result = await accounts.applySubscription(tenantId, {
+            ...(event.occurredAt !== undefined
+              ? { eventAt: event.occurredAt }
+              : {}),
             provider: providerId,
             ...(event.planId !== undefined ? { planId: event.planId } : {}),
             ...(event.status !== undefined ? { status: event.status } : {}),
@@ -150,6 +154,11 @@ export function createBillingWebhook(options: {
           .update(billingEvents)
           .set({ tenantId })
           .where(eq(billingEvents.id, first.id));
+        // A later change had already been recorded; this one is history.
+        if (result === "stale") {
+          ignored += 1;
+          continue;
+        }
         applied += 1;
         await options.onApplied?.({ tenantId, provider: providerId, event });
       }
