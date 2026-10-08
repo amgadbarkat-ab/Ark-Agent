@@ -26,15 +26,19 @@ layer enforces the limits. Every plan is **per single user account**: there are 
 - Ark Team is a separate product from Ark Agent, not a bigger version of it.
 - A person who needs more than their plan allows moves to a bigger plan. A company that wants
   several people on Ark buys one plan per person.
-- The platform blocks hiring or starting bots beyond the plan limit.
+- When a user is at their limit, a task that wants to start is **queued** and the user is offered an
+  upgrade. It is not refused outright.
+- The account data model is built so that shared seats can be added later without rewriting the
+  tables (decided 2026-10-08), even though v1 sells one user per account.
 - The price covers the Ark software. Running bots in Ark's cloud is a separate paid add-on (D5).
 - Enterprise works out at EUR 0.50 per bot. This is intended: those bots are expected to run mostly
   on the customer's own machines, and cloud running is paid for separately (D5).
 
-**D4. What counts toward the limit.** A bot counts only while it is **hired and active** (an agent
-with running tasks). These do **not** count:
-- idle bots, and
-- bots that are installed but not hired.
+**D4. What counts toward the limit.** A bot counts only while it is **hired and has a run in
+progress**. These do **not** count:
+- idle bots,
+- bots that are installed but not hired, and
+- bots that only have a future schedule, between runs.
 
 Installing a bot from the marketplace is free of limits; hiring and running it is what uses the
 allowance.
@@ -61,20 +65,19 @@ time. The technical design and the legal check of plan sign-in are in 04-llm-pro
 
 ## Open questions
 
-1. **Exact meaning of "active".** A bot counts while it has a running task. Does a bot with only a
-   future schedule (a routine waiting for its next run) count in between? Suggested: it counts only
-   while a run is in progress, but the plan should say how many may run at the same time.
-2. **At the limit.** When a user is at their limit, what happens to a task that wants to start:
-   refuse, queue, or offer an upgrade? Suggested: queue it and offer the upgrade.
-3. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
-4. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling.
-5. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
+1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
+2. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling.
+3. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
    digital goods are sold. Check current terms before choosing how mobile users pay.
-6. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires
+4. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires
    contacting OpenAI (see 04-llm-providers.md).
 
 ## Answered
 
+- A bot with only a future schedule does not count between runs; it counts only while a run is in
+  progress. (2026-10-08)
+- At the limit, a task that wants to start is queued and the user is offered an upgrade. (2026-10-08)
+- Build the accounts so shared seats can be added later. (2026-10-08)
 - Idle bots and bots installed but not hired do not count toward the limit. (2026-10-08)
 - Every plan is per single user, no shared seats, including Ark Team. (2026-10-08)
 - Enterprise at EUR 250 for 500 bots is intended, with bots mostly on customers' machines. (2026-10-08)
