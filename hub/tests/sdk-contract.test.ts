@@ -265,14 +265,15 @@ describe("a run through the SDK's own runner", () => {
     await withTimeout(view.done);
     view.close();
 
+    // Stored as two pieces ("hel", "lo"), replayed as one: the pieces of a message are merged.
     expect(view.events.map((e) => e.type)).toEqual([
       "RUN_STARTED",
       "TEXT_MESSAGE_START",
       "TEXT_MESSAGE_CONTENT",
-      "TEXT_MESSAGE_CONTENT",
       "TEXT_MESSAGE_END",
       "RUN_FINISHED",
     ]);
+    expect(view.events[2]?.delta).toBe("hello");
     const names = view.controls.map((c) => c.event);
     expect(names).toEqual(["replay_complete", "stream_idle"]);
     const last = view.events[view.events.length - 1] as {
@@ -282,7 +283,8 @@ describe("a run through the SDK's own runner", () => {
       last.metadata.cpki_event_id,
     );
 
-    // Resuming from a cursor replays only what came after it.
+    // Resuming from a cursor replays only what came after it. The merged piece carries its last
+    // part's cursor, so resuming from it does not repeat any of the message.
     const first = view.events[2] as { metadata: { cpki_event_id: string } };
     const resumed = watch(
       connection?.joinToken as string,
@@ -296,7 +298,6 @@ describe("a run through the SDK's own runner", () => {
     await withTimeout(resumed.done);
     resumed.close();
     expect(resumed.events.map((e) => e.type)).toEqual([
-      "TEXT_MESSAGE_CONTENT",
       "TEXT_MESSAGE_END",
       "RUN_FINISHED",
     ]);

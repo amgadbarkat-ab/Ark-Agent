@@ -7,6 +7,7 @@ import {
   pushFrame,
   replyFrame,
 } from "./phoenix";
+import { coalesce } from "./coalesce";
 import { isTerminalEvent, type StoredEvent } from "./store";
 import { joinCodeFor, type JoinScope, verifyJoinToken } from "./tokens";
 
@@ -262,7 +263,10 @@ export function createGateway(hub: Hub) {
           const options = lastEventId
             ? { afterEventId: lastEventId }
             : baseReplay;
-          for (const event of await store.eventsForReplay(threadId, options)) {
+          // Streamed pieces of one message are sent as one: same text, far fewer frames to apply.
+          for (const event of coalesce(
+            await store.eventsForReplay(threadId, options),
+          )) {
             send(event);
           }
           for (const event of buffered.splice(0)) send(event);

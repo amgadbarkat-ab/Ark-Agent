@@ -65,7 +65,11 @@ Still to do in this phase:
       starting at once do not collide. The chart runs the hub as a rolling update with a disruption
       budget, `replicaCount: 2` on Azure. Tested with two hubs on one database. Not tested: a real
       multi-pod cluster under load.
-- [ ] Compact long conversations on replay.
+- [x] Compact long conversations on replay: consecutive streamed pieces of one message are sent as
+      one (`hub/src/coalesce.ts`), 3,000 stored pieces replay as one frame with the same text and a
+      cursor that still resumes. Replay only; the log and live events are unchanged. Not done:
+      a stored snapshot to replay from, which would also cut the number of messages and tool calls
+      replayed (not needed until conversations of that length are seen).
 - [x] Desktop usage telemetry to CopilotKit removed (frontend, native emitter, server relay), with a
       test that the window reports nothing.
 - [ ] **Desktop app still depends on CopilotKit** for its Intelligence sign-in, organisation sign-in,

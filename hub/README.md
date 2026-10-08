@@ -86,8 +86,13 @@ runner and Phoenix browser client against the hub. If the SDK is upgraded, run i
   refreshes on its next change. The processes must share one database and one schema
   (the channel is named for the schema). Tested with two hubs on one database
   (`tests/scale-out.test.ts`), including a lost connection mid-run.
-- **Replay sends the whole conversation** when a browser has no cursor. Long conversations should
-  be compacted into a snapshot first.
+- **Replay sends the whole conversation** when a browser has no cursor, but not every piece of it:
+  consecutive streamed pieces of one message (a character or a word at a time) are sent as one,
+  up to 32,000 characters (`src/coalesce.ts`), with the last piece's cursor so a browser resumes
+  where it should. Only replay is compacted; live events go out as they happen and the stored log is
+  untouched. What a very long conversation still costs is its number of messages, tool calls and
+  runs: a stored snapshot to start from instead is not built. Tested through a Phoenix client
+  against 3,000 stored pieces (`tests/replay-compaction.test.ts`).
 - **Not provided:** memories, managed channels, the inspector's debug endpoints. The app does not
   use them; they answer 404.
 - **The SDK's internal API is the contract.** It is pinned (`@copilotkit/runtime` 1.70.1) and the
