@@ -236,9 +236,7 @@ export class HubStore {
   }
 
   /** The unexpired lock on a conversation, if a run is in progress. */
-  async activeLock(
-    threadId: string,
-  ): Promise<{
+  async activeLock(threadId: string): Promise<{
     runId: string;
     userId: string;
     agentId: string;
