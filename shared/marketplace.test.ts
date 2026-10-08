@@ -6,7 +6,7 @@ test("slugs are web-safe and never empty", () => {
   expect(slugify("  Café — Reçu #1!  ")).toBe("cafe-recu-1");
   expect(slugify("!!!")).toBe("listing");
   expect(slugify("x".repeat(200)).length).toBeLessThanOrEqual(48);
-  expect(slugify("a".repeat(47) + " b c")).not.toMatch(/-$/);
+  expect(slugify(`${"a".repeat(47)} b c`)).not.toMatch(/-$/);
 });
 
 test("categories and report reasons have distinct ids", () => {

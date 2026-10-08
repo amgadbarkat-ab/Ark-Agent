@@ -33,6 +33,7 @@ import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/sk
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSettingsModelsRouteImport } from './routes/_authed/settings/models'
 import { Route as AuthedSettingsPlanRouteImport } from './routes/_authed/settings/plan'
+import { Route as AuthedSettingsPrivacyRouteImport } from './routes/_authed/settings/privacy'
 import { Route as AuthedAppAgentsIndexRouteImport } from './routes/_authed/_app/agents/index'
 import { Route as AuthedAppChannelChannelIdRouteImport } from './routes/_authed/_app/channel/$channelId'
 import { Route as AuthedAppChannelNewRouteImport } from './routes/_authed/_app/channel/new'
@@ -171,6 +172,11 @@ const AuthedSettingsPlanRoute = AuthedSettingsPlanRouteImport.update({
   path: '/plan',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsPrivacyRoute = AuthedSettingsPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
 const AuthedAppAgentsIndexRoute = AuthedAppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/settings/models': typeof AuthedSettingsModelsRoute
   '/settings/plan': typeof AuthedSettingsPlanRoute
+  '/settings/privacy': typeof AuthedSettingsPrivacyRoute
   '/admin/': typeof AuthedAdminIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -337,6 +344,7 @@ export interface FileRoutesByTo {
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/settings/models': typeof AuthedSettingsModelsRoute
   '/settings/plan': typeof AuthedSettingsPlanRoute
+  '/settings/privacy': typeof AuthedSettingsPrivacyRoute
   '/admin': typeof AuthedAdminIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -381,6 +389,7 @@ export interface FileRoutesById {
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
   '/_authed/settings/models': typeof AuthedSettingsModelsRoute
   '/_authed/settings/plan': typeof AuthedSettingsPlanRoute
+  '/_authed/settings/privacy': typeof AuthedSettingsPrivacyRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
@@ -426,6 +435,7 @@ export interface FileRouteTypes {
     | '/admin/skills'
     | '/settings/models'
     | '/settings/plan'
+    | '/settings/privacy'
     | '/admin/'
     | '/settings/'
     | '/channel/$channelId'
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/admin/skills'
     | '/settings/models'
     | '/settings/plan'
+    | '/settings/privacy'
     | '/admin'
     | '/settings'
     | '/channel/$channelId'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/_authed/admin/skills'
     | '/_authed/settings/models'
     | '/_authed/settings/plan'
+    | '/_authed/settings/privacy'
     | '/_authed/_app/'
     | '/_authed/admin/'
     | '/_authed/settings/'
@@ -707,6 +719,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsPlanRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/settings/privacy': {
+      id: '/_authed/settings/privacy'
+      path: '/privacy'
+      fullPath: '/settings/privacy'
+      preLoaderRoute: typeof AuthedSettingsPrivacyRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
     '/_authed/_app/agents/': {
       id: '/_authed/_app/agents/'
       path: '/agents'
@@ -884,6 +903,7 @@ const AuthedAdminRouteRouteWithChildren =
 interface AuthedSettingsRouteRouteChildren {
   AuthedSettingsModelsRoute: typeof AuthedSettingsModelsRoute
   AuthedSettingsPlanRoute: typeof AuthedSettingsPlanRoute
+  AuthedSettingsPrivacyRoute: typeof AuthedSettingsPrivacyRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedSettingsComponentsGalleryNameRoute: typeof AuthedSettingsComponentsGalleryNameRoute
   AuthedSettingsConnectedAccountsKeyRoute: typeof AuthedSettingsConnectedAccountsKeyRoute
@@ -894,6 +914,7 @@ interface AuthedSettingsRouteRouteChildren {
 const AuthedSettingsRouteRouteChildren: AuthedSettingsRouteRouteChildren = {
   AuthedSettingsModelsRoute: AuthedSettingsModelsRoute,
   AuthedSettingsPlanRoute: AuthedSettingsPlanRoute,
+  AuthedSettingsPrivacyRoute: AuthedSettingsPrivacyRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedSettingsComponentsGalleryNameRoute:
     AuthedSettingsComponentsGalleryNameRoute,

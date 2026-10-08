@@ -34,6 +34,11 @@ config:
   # What turns Ark from a company's own tool into a service customers pay for. The Paddle values are
   # public (prices, the client-side token) or come from the vault; see docs/ark/12-paddle.md.
   extraEnv:
+    # The audit trail is kept for a year, then trimmed. It is the record of who did what, so it is
+    # not erased with a person (see docs/ark/14-data-protection.md); it is what the retention period
+    # is for.
+    - name: AUDIT_RETENTION_DAYS
+      value: "365"
     - name: ARK_BILLING_MODE
       value: subscriptions
     - name: ARK_BILLING_PROVIDER

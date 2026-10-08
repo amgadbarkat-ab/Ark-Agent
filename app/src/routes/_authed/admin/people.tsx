@@ -9,7 +9,7 @@ import {
   PageShell,
 } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Item,
@@ -26,6 +26,10 @@ import {
   setPersonAccessMutationOptions,
   setPersonRoleMutationOptions,
 } from "@/lib/people/mutations";
+import {
+  erasePersonMutationOptions,
+  personExportPath,
+} from "@/lib/privacy/mutations";
 import { type Person, peopleListQueryOptions } from "@/lib/people/queries";
 import { queryClient } from "@/query-client";
 
@@ -79,10 +83,16 @@ function PeoplePage() {
   const currentUser = useQuery(currentUserQueryOptions());
   const setRole = useMutation(setPersonRoleMutationOptions(queryClient));
   const setAccess = useMutation(setPersonAccessMutationOptions(queryClient));
+  const erase = useMutation(erasePersonMutationOptions(queryClient));
+  /** Whose data is being removed, and the address typed to confirm it, until it is sent or dropped. */
+  const [erasing, setErasing] = useState<{
+    userId: string;
+    typed: string;
+  } | null>(null);
 
   // The server refuses these too. Disabling them here is so the screen does not offer something it
   // knows will be refused, not so the rule is enforced in the browser.
-  const failure = setRole.error ?? setAccess.error;
+  const failure = setRole.error ?? setAccess.error ?? erase.error;
 
   return (
     <PageShell
@@ -124,7 +134,8 @@ function PeoplePage() {
           <PageRows>
             {rows.map((person, index) => {
               const isSelf = person.id === currentUser.data?.id;
-              const busy = setRole.isPending || setAccess.isPending;
+              const busy =
+                setRole.isPending || setAccess.isPending || erase.isPending;
 
               return (
                 <StaggerItem index={index} key={person.id}>
@@ -144,8 +155,82 @@ function PeoplePage() {
                         {person.name ? `${person.email} · ` : ""}
                         {describe(person)}
                       </ItemDescription>
+                      {erasing?.userId === person.id ? (
+                        <Input
+                          aria-label={`Type ${person.email} to confirm removing their data`}
+                          autoFocus
+                          className="mt-2"
+                          onChange={(event) =>
+                            setErasing({
+                              userId: person.id,
+                              typed: event.target.value,
+                            })
+                          }
+                          placeholder={`Type ${person.email} to confirm. This cannot be undone.`}
+                          value={erasing.typed}
+                        />
+                      ) : null}
                     </ItemContent>
                     <ItemActions>
+                      {/*
+                       * For a person who has asked, by email, to be sent or to be rid of what is held
+                       * about them. Both are on the audit trail. Erasing takes their data and their
+                       * account for good, which is why it asks for the address to be typed.
+                       */}
+                      {erasing?.userId === person.id ? (
+                        <>
+                          <Button
+                            onClick={() => setErasing(null)}
+                            size="sm"
+                            variant="ghost"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            disabled={
+                              busy ||
+                              erasing.typed.trim().toLowerCase() !==
+                                person.email.toLowerCase()
+                            }
+                            onClick={() =>
+                              erase.mutate(
+                                {
+                                  userId: person.id,
+                                  confirmEmail: erasing.typed,
+                                },
+                                { onSuccess: () => setErasing(null) },
+                              )
+                            }
+                            size="sm"
+                            variant="destructive"
+                          >
+                            Erase data
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <a
+                            className={buttonVariants({
+                              size: "sm",
+                              variant: "ghost",
+                            })}
+                            download
+                            href={personExportPath(person.id)}
+                          >
+                            Export
+                          </a>
+                          <Button
+                            disabled={busy || isSelf}
+                            onClick={() =>
+                              setErasing({ userId: person.id, typed: "" })
+                            }
+                            size="sm"
+                            variant="outline"
+                          >
+                            Erase…
+                          </Button>
+                        </>
+                      )}
                       {/*
                        * Removing access is the louder decision, so it is a button rather than a
                        * second switch: two switches on one row invites somebody to flip the wrong

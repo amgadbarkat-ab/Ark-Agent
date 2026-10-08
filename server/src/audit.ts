@@ -365,6 +365,13 @@ export const auditEventTypes = [
    * wrote), so the configuration did not make it an administrator. See auth/provider-trust.ts.
    */
   "person.admin_withheld",
+  /** Somebody downloaded everything held about a person (their own, or staff on a request). */
+  "person.exported",
+  /**
+   * A person and what was theirs were removed. The row says who asked and what went, not who the
+   * person was: an erasure receipt that kept the address would undo the erasure.
+   */
+  "person.erased",
   /*
    * A company's own identity provider, added or taken away.
    *

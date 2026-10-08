@@ -4,6 +4,7 @@ import {
   IconCreditCard,
   IconLayoutGrid,
   IconPlug,
+  IconShieldLock,
   IconSettings,
 } from "@tabler/icons-react";
 import { Link, type LinkOptions } from "@tanstack/react-router";
@@ -51,6 +52,12 @@ const ITEMS: {
     title: "Plan",
     icon: IconCreditCard,
     linkOptions: { to: "/settings/plan" },
+  },
+  {
+    /* A copy of what is held about you, and a way to have it removed. */
+    title: "Your data",
+    icon: IconShieldLock,
+    linkOptions: { to: "/settings/privacy" },
   },
   {
     /*

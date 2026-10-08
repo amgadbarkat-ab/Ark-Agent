@@ -96,6 +96,12 @@ import {
   marketplaceRoutes,
 } from "./marketplace/routes";
 import type { MarketplaceStore } from "./marketplace/store";
+import {
+  adminPrivacyRoutes,
+  type PrivacyAudit,
+  privacyRoutes,
+} from "./privacy/routes";
+import type { ErasureDependencies } from "./privacy/erase";
 import { manualBilling } from "./billing/manual";
 import type { BillingProvider } from "./billing/provider";
 import { sandboxCheckoutRoutes } from "./billing/sandbox-routes";
@@ -368,6 +374,11 @@ export function createApp(
    * unmounted, which is what every deployment did before.
    */
   marketplace?: MarketplaceStore,
+  /**
+   * What a person can ask of their data: to have it, and to have it removed. Appended last, for the
+   * positional reason above. Absent leaves `/api/account/export` and `/delete` unmounted.
+   */
+  privacy?: ErasureDependencies,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -643,6 +654,27 @@ export function createApp(
           : context.json({ error: outcome.error }, outcome.status);
       });
     }
+  }
+
+  if (privacy) {
+    const audit: PrivacyAudit = async (event) => {
+      if (!auditStore) return;
+      await recordAuditEvent(auditStore, {
+        eventType: event.eventType,
+        targetType: "person",
+        targetId: event.targetId,
+        actorUserId: event.actorUserId,
+        payload: event.payload,
+      }).catch(() => undefined);
+    };
+    app.route(
+      "/api/account",
+      privacyRoutes({ requireUser, dependencies: privacy, audit }),
+    );
+    app.route(
+      "/api/admin/people",
+      adminPrivacyRoutes({ requireUser, dependencies: privacy, audit }),
+    );
   }
 
   if (marketplace) {

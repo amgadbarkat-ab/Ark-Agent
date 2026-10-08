@@ -113,6 +113,7 @@ import { createBillingWebhook } from "./billing/webhook";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
 import { createMarketplaceStore } from "./marketplace/store";
+import { hubConversations } from "./privacy/conversations";
 import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
@@ -1416,6 +1417,22 @@ const app = createApp(
     }),
   },
   marketplaceStore,
+  {
+    database,
+    accounts: accountStore,
+    billing,
+    // The conversation service, which holds the conversations this person has had.
+    conversations: hubConversations({
+      apiUrl: config.runtime.intelligence.apiUrl,
+      apiKey: config.runtime.intelligence.apiKey,
+    }),
+    // An integration vendor asked to forget the person's connected apps, where one is configured.
+    ...(composio
+      ? {
+          revokeIntegration: (request) => composio.broker.revoke(request),
+        }
+      : {}),
+  },
 );
 
 /**
