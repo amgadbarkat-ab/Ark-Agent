@@ -54,9 +54,14 @@ that port.
 
 ## Known test failures in this sandbox (not product bugs)
 
-Twelve failures remain here and are not product bugs: seven tests (the proxy and websocket handshake
-tests, which need IPv6; the voice and dictation idle-timeout tests; one path-handling test) and five
-files that cannot load because the desktop app's and `agent-mastra`'s dependencies are not installed.
-Everything else passes (5,122 at the time of writing, 2026-10-08). Run `bun test` from the repository
+Eight failures remain here and are not product bugs: seven tests (the proxy and websocket handshake
+tests, which need IPv6; the voice and dictation idle-timeout tests; one path-handling test) and one
+file that cannot load because `agent-mastra`'s dependencies are not installed (the desktop app's are
+installed with `bun install` inside `desktop/`).
+
+Starting the server by hand: use `bun --env-file=../.env src/production-entry.ts` from `server/`, not
+`src/index.ts` (the entry evaluates an ESM-only dependency first). Stop a process by its id; never
+`pkill -f` a pattern that appears in your own command line.
+Everything else passes (5,330 at the time of writing, 2026-10-08). Run `bun test` from the repository
 root: `bunfig.toml` there holds the preload that Base UI dialogs need, and bun reads it from the
 current directory only.

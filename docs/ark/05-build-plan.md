@@ -79,20 +79,24 @@ Still to do in this phase:
 - [ ] Local models: hardware detection, suggested model, managed download (Ollama / llama.cpp).
 - [ ] Usage metering in the gateway; audit events for connection changes.
 
-### Phase 3. Accounts, plans, quotas (L)
-- One paying user per account, each on one plan. Build the tenant boundary so that one account's
-  data is fully isolated from every other. The current "tenant package" is only a configuration
-  bundle, not a customer boundary.
-- Keep the data model able to hold several users under one account later (for example a
-  `memberships` table with one row per account today). Adding shared seats afterwards would
-  otherwise mean rewriting every table that points to a user. This costs little now.
-- Plans: Ark Agent (1 bot), Ark Team (15), Ark Team Enterprise (500).
-- Quota (D4): counts only bots that are hired and have a run in progress. Installing a bot, idle
-  bots and bots waiting for a scheduled run never count. Enforced on the server when a run starts.
-  At the limit the run is queued and the user is offered an upgrade.
-- Sign-up flow where the user picks the plan; payments, invoices and VAT through a payment provider
-  (to choose); plan changes and cancellation.
-- Admin console for us: accounts, plans, usage, suspensions.
+### Phase 3. Accounts, plans, quotas (L) — core done, details in 09-accounts-plans-quotas.md
+Done:
+- [x] Accounts, memberships (seat-ready), subscriptions, the plan catalogue (`shared/plans.ts`),
+      backfill of existing users.
+- [x] Quota (D4): different coworkers working at once, counted in the database as leases, enforced
+      around every coworker on every run path; at the limit a run waits, says so and offers the next
+      plan; suspended, unpaid and ended accounts are refused with the reason.
+- [x] Isolation between customers: a customer's public coworker is public to their account only; one
+      rule shared by roster, profile store and runtime; tested across two customers.
+- [x] Billing core behind one provider interface, with manual and sandbox providers and a safe,
+      idempotent webhook; customer and staff account APIs, audited.
+- [x] Settings > Plan, Admin > Accounts, and the sign-up gate; verified in a real browser.
+
+Still to do in this phase:
+- [ ] Choose the payment provider (open question 2; recommendation in 09) and write its adapter,
+      invoices and VAT.
+- [ ] Per-owner skill names (known cross-customer name clash, 09).
+- [ ] A fair queue order, if load ever needs one.
 
 ### Phase 4. Bot runtime: device or Ark cloud (L)
 - Local: the existing desktop stack runs the bot on the user's machine.

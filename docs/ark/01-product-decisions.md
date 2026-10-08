@@ -72,7 +72,10 @@ is the working assumption and is to be confirmed with the owner before anything 
 ## Open questions
 
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
-2. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling.
+2. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling. The
+   billing core is built and provider-neutral; the choice only decides which adapter is written.
+   Recommendation (09-accounts-plans-quotas.md): a merchant of record such as Paddle, so VAT
+   collection and filing are not ours.
 3. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
    digital goods are sold. Check current terms before choosing how mobile users pay.
 4. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires

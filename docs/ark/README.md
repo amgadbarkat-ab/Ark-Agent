@@ -13,6 +13,8 @@ research and plans. Each file says when it was written.
 | [05-build-plan.md](05-build-plan.md) | What the code gives us, and the phased plan to turn it into Ark. |
 | [06-dev-notes.md](06-dev-notes.md) | How to run and test it, and the quirks of the web sandbox. |
 | [07-model-connections.md](07-model-connections.md) | How people connect their own models, how keys stay safe, what is verified and what is left. |
+| [08-openai-application.md](08-openai-application.md) | Draft application to OpenAI for ChatGPT plan sign-in, ready for the owner to submit. |
+| [09-accounts-plans-quotas.md](09-accounts-plans-quotas.md) | Accounts, the three plans, the run quota with queue-and-upgrade, isolation between customers, billing. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.
 It no longer needs CopilotKit's hosted Intelligence service: Ark Hub (`hub/`) replaces it.
