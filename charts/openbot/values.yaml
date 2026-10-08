@@ -92,12 +92,15 @@ server:
 # A hosted Ark turns it on. When it is on, the API is pointed at it automatically and
 # `config.intelligence` is ignored.
 #
-# ONE REPLICA AND NO ROLLING UPDATE, ON PURPOSE. Live events move between sockets in memory, so a
-# second process would split a conversation's live stream. A new version replaces the old one (a few
-# seconds without live streaming; every event is already stored, and a reconnecting browser replays
-# what it missed). Running several needs the database-backed bus in the build plan.
+# ONE REPLICA OR SEVERAL. By default (`bus: postgres`) live events move between hub processes through
+# the database, so any number may run, a rolling update has no gap, and `replicaCount` is how many.
+# With `bus: memory` they move in memory, so exactly one may run and a new version replaces the old
+# (a few seconds without live streaming; every event is already stored, and a reconnecting browser
+# replays what it missed). The database bus costs one extra connection per hub pod.
 hub:
   enabled: false
+  bus: postgres
+  replicaCount: 1
   # Built from hub/Dockerfile and published by the deploy workflow. The tag defaults to the chart's
   # appVersion with a `v`, the way the API's does.
   image:

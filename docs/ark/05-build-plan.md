@@ -59,7 +59,13 @@ Still to do in this phase:
       suite through it, and fails if anything was recorded. `scripts/csp-walk.mjs` does the same for
       the browser (21 screens: no host but the deployment's own). Not covered: the desktop app, and the
       hub process (its own code makes no outside calls; nothing checks that by machine).
-- [ ] Compact long conversations on replay; Postgres `LISTEN/NOTIFY` bus for several hub processes.
+- [x] Postgres `LISTEN/NOTIFY` bus for several hub processes (`hub/src/shared-bus.ts`): a runner on
+      one hub and a person on another see each other live, big events go through an overflow table, a
+      lost connection is answered by replaying the log, hub migrations take an advisory lock so two
+      starting at once do not collide. The chart runs the hub as a rolling update with a disruption
+      budget, `replicaCount: 2` on Azure. Tested with two hubs on one database. Not tested: a real
+      multi-pod cluster under load.
+- [ ] Compact long conversations on replay.
 - [x] Desktop usage telemetry to CopilotKit removed (frontend, native emitter, server relay), with a
       test that the window reports nothing.
 - [ ] **Desktop app still depends on CopilotKit** for its Intelligence sign-in, organisation sign-in,

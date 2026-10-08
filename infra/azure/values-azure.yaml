@@ -89,6 +89,9 @@ database:
 # Ark Hub, the conversation service, in this release.
 hub:
   enabled: true
+  # Two, sharing live events through the database: a node drain or an update never leaves the
+  # conversations without one, and a deploy has no gap. (`bus: memory` would allow exactly one.)
+  replicaCount: 2
   image:
     # REPLACE: the same registry, /ark-hub. Built from hub/Dockerfile.
     repository: REPLACE.azurecr.io/ark-hub

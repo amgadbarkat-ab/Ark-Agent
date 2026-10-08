@@ -30,6 +30,7 @@ const config: HubConfig = {
   joinSecret: "j".repeat(40),
   joinTokenTtlSeconds: 3600,
   defaultLockTtlSeconds: 60,
+  bus: "postgres",
 };
 
 let database: TestDatabase;

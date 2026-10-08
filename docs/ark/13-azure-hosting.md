@@ -29,7 +29,7 @@ and compiled without an Azure subscription to try it on.
  managed NGINX ingress ──────────────┐
         │                            │ wss (live conversations)
         ▼                            ▼
- ark  (API + web app, ≥2 replicas)   ark-hub  (conversation service)
+ ark  (API + web app, ≥2 replicas)   ark-hub  (conversation service, 2 replicas)
         │   │   │                         │
         │   │   └── bot computers ◄───────┘  (one per active bot, in the cluster)
         │   │

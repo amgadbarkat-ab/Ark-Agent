@@ -350,3 +350,14 @@ This template renders nothing.
 {{- if and (.Values.cloud).charging (.Values.cloud).charging.enabled (ne ((.Values.cloud).mode | default "included") "metered") }}
 {{- fail "cloud.charging.enabled charges months of cloud running, which only exists when cloud.mode is metered. Set cloud.mode: metered, or leave charging off." }}
 {{- end }}
+
+{{- /*
+  Several hubs with no way to share live events would split every conversation's live stream between
+  them. The template would quietly run one anyway; refusing says why the second never appears.
+*/}}
+{{- if and ((.Values.hub).enabled) (eq ((.Values.hub).bus | default "postgres") "memory") (gt (int ((.Values.hub).replicaCount | default 1)) 1) }}
+{{- fail "hub.replicaCount is more than 1 but hub.bus is memory, which keeps live events inside one process. Use hub.bus: postgres to run several, or set hub.replicaCount: 1." }}
+{{- end }}
+{{- if and ((.Values.hub).enabled) (not (has ((.Values.hub).bus | default "postgres") (list "postgres" "memory"))) }}
+{{- fail "hub.bus is postgres or memory." }}
+{{- end }}

@@ -1,4 +1,4 @@
-import { Bus } from "./bus";
+import type { EventBus } from "./bus";
 import type { HubConfig } from "./config";
 import type { HubStore, StoredEvent, ThreadSummary } from "./store";
 import { joinCodeFor, signJoinToken } from "./tokens";
@@ -10,11 +10,10 @@ export type ThreadOperation = "created" | "updated" | "archived" | "deleted";
  * what gets announced to whom.
  */
 export class Hub {
-  readonly bus = new Bus();
-
   constructor(
     readonly config: HubConfig,
     readonly store: HubStore,
+    readonly bus: EventBus,
   ) {}
 
   threadToken(threadId: string, userId: string): string {

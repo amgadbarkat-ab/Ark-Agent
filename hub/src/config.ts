@@ -15,6 +15,12 @@ export interface HubConfig {
   joinTokenTtlSeconds: number;
   /** Lock lifetime when the caller does not ask for one, in seconds. */
   defaultLockTtlSeconds: number;
+  /**
+   * How live events travel between sockets. `postgres` (the default) lets several hub processes share
+   * them, so a runner on one and a browser on another still see each other; it costs one database
+   * connection. `memory` keeps them inside one process and is only right for exactly one.
+   */
+  bus: "postgres" | "memory";
 }
 
 export class HubConfigError extends Error {
@@ -56,6 +62,14 @@ function positiveInteger(
   return value;
 }
 
+function busMode(value: string | undefined): "postgres" | "memory" {
+  const mode = (value ?? "postgres").trim().toLowerCase();
+  if (mode !== "postgres" && mode !== "memory") {
+    throw new HubConfigError("HUB_BUS must be postgres or memory.");
+  }
+  return mode;
+}
+
 export function loadConfig(
   env: Record<string, string | undefined> = process.env,
 ): HubConfig {
@@ -74,5 +88,6 @@ export function loadConfig(
       "HUB_DEFAULT_LOCK_TTL_SECONDS",
       60,
     ),
+    bus: busMode(env.HUB_BUS),
   };
 }

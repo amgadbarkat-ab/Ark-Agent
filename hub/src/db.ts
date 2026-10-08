@@ -16,32 +16,43 @@ export function connect(
   });
 }
 
-/** Applies every migration not yet recorded, in filename order, each in its own transaction. */
+/** An arbitrary number all hub processes agree on, so only one applies migrations at a time. */
+const MIGRATION_LOCK = 7_100_001;
+
+/**
+ * Applies every migration not yet recorded, in filename order, all in one transaction.
+ *
+ * Under an advisory lock, because several hub processes may start at once (two replicas, a rolling
+ * update). Without it two of them would both see a migration as unapplied and the second would fail
+ * halfway, so a clean start would crash once. With it the second waits, finds everything applied, and
+ * does nothing. One transaction because DDL in PostgreSQL is transactional: a migration that fails
+ * leaves the schema as it was.
+ */
 export async function migrate(sql: Sql): Promise<string[]> {
-  await sql`
-    create table if not exists hub_migrations (
-      name text primary key,
-      applied_at timestamptz not null default now()
-    )`;
-  const applied = new Set(
-    (await sql<{ name: string }[]>`select name from hub_migrations`).map(
-      (row) => row.name,
-    ),
-  );
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((file) => file.endsWith(".sql"))
-    .sort();
-  const ran: string[] = [];
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    const text = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
-    await sql.begin(async (tx) => {
-      await tx.unsafe(text);
+  return sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(${MIGRATION_LOCK})`;
+    await tx`
+      create table if not exists hub_migrations (
+        name text primary key,
+        applied_at timestamptz not null default now()
+      )`;
+    const applied = new Set(
+      (await tx<{ name: string }[]>`select name from hub_migrations`).map(
+        (row) => row.name,
+      ),
+    );
+    const files = readdirSync(MIGRATIONS_DIR)
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
+    const ran: string[] = [];
+    for (const file of files) {
+      if (applied.has(file)) continue;
+      await tx.unsafe(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
       await tx`insert into hub_migrations (name) values (${file})`;
-    });
-    ran.push(file);
-  }
-  return ran;
+      ran.push(file);
+    }
+    return ran;
+  });
 }
 
 const DATABASE_NAME = /^[A-Za-z0-9_]+$/;

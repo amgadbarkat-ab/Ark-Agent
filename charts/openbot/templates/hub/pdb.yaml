@@ -1,0 +1,24 @@
+{{- if (.Values.hub).enabled }}
+{{- $component := "hub" -}}
+{{/*
+What a node drain may take of the hub at once. Only where there is more than one hub to keep: a budget
+of `minAvailable: 1` over a single pod makes a drain wait forever instead of being safe.
+*/}}
+{{- $bus := "postgres" -}}
+{{- if not (kindIs "invalid" (.Values.hub).bus) -}}{{- $bus = .Values.hub.bus -}}{{- end }}
+{{- $replicas := 1 -}}
+{{- if not (kindIs "invalid" (.Values.hub).replicaCount) -}}{{- $replicas = int .Values.hub.replicaCount -}}{{- end }}
+{{- if and (ne $bus "memory") (gt $replicas 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" $component) }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" $component) | indent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 6 }}
+{{- end }}
+{{- end }}

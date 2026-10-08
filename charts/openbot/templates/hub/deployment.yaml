@@ -1,11 +1,15 @@
 {{- if (.Values.hub).enabled }}
 {{- $component := "hub" -}}
 {{/*
-Ark Hub: one process, replaced rather than rolled.
+Ark Hub, one process or several.
 
-`strategy: Recreate` because two hubs running at once would each hold some of a conversation's live
-sockets and neither would see the other's events. Everything is stored before it is acknowledged, so
-the gap while the new one starts costs a reconnect and a replay, not a message.
+With the default bus (`hub.bus: postgres`) live events travel between hub processes through the
+database, so a runner on one replica and a person on another still see each other, and a rolling
+update is safe: the new pod starts beside the old one, takes over, and the old one's sockets
+reconnect and replay what they missed. With `hub.bus: memory` events stay inside one process, so
+exactly one may run and a new version REPLACES the old (`Recreate`): two at once would each hold some
+of a conversation's sockets and neither would see the other's events. Everything is stored before it
+is acknowledged either way, so a gap costs a reconnect and a replay, not a message.
 
 Nothing here writes to disk: it reads its own files and talks to Postgres and to sockets, so the root
 filesystem is read-only and `/tmp` is a scratch directory the runtime may want.
@@ -21,9 +25,23 @@ metadata:
 {{ toYaml . | indent 4 }}
   {{- end }}
 spec:
-  replicas: 1
+  {{- /* Defaulted through kindIs: an upgrade that reuses values from before this key existed has none. */}}
+  {{- $bus := "postgres" -}}
+  {{- if not (kindIs "invalid" (.Values.hub).bus) -}}{{- $bus = .Values.hub.bus -}}{{- end }}
+  {{- $replicas := 1 -}}
+  {{- if not (kindIs "invalid" (.Values.hub).replicaCount) -}}{{- $replicas = .Values.hub.replicaCount -}}{{- end }}
+  replicas: {{ if eq $bus "memory" }}1{{ else }}{{ $replicas }}{{ end }}
+  {{- if eq $bus "memory" }}
   strategy:
     type: Recreate
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # The new pod is up and ready before the old one goes, so there is always one listening.
+      maxSurge: 1
+      maxUnavailable: 0
+  {{- end }}
   selector:
     matchLabels:
 {{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 6 }}
@@ -84,6 +102,8 @@ spec:
               value: {{ default 86400 .Values.hub.joinTokenTtlSeconds | quote }}
             - name: HUB_DEFAULT_LOCK_TTL_SECONDS
               value: {{ default 60 .Values.hub.defaultLockTtlSeconds | quote }}
+            - name: HUB_BUS
+              value: {{ $bus | quote }}
             - name: HUB_API_KEY
               valueFrom:
                 secretKeyRef:

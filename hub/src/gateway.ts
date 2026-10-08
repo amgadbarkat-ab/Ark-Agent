@@ -16,6 +16,11 @@ const RUNNER_CAPABILITIES = ["runner_event_batch_v1"];
 interface Join {
   joinRef: string | null;
   dispose: () => void;
+  /**
+   * Brings a conversation's socket up to date from the event log. Called when the bus says events may
+   * have been missed; sends only what the socket has not already been sent.
+   */
+  resync?: () => Promise<void>;
   /** Set for a runner's ingestion channel. */
   ingest?: { threadId: string; runId: string; userId: string };
   /** Set for a browser's conversation channel. */
@@ -47,6 +52,17 @@ const str = (value: unknown) =>
 /** The realtime half of the hub: sockets for the runner and for browsers. */
 export function createGateway(hub: Hub) {
   const { store, bus, config } = hub;
+
+  // Every open conversation, so a gap in the bus (it lost its connection and got it back) can be
+  // answered by replaying the log to each. Events are durable; only the live hand-off can be lost.
+  const conversations = new Set<Join>();
+  bus.onResync(() => {
+    for (const join of [...conversations]) {
+      void join.resync?.().catch((error) => {
+        console.error("hub could not catch a conversation up", error);
+      });
+    }
+  });
 
   /**
    * Upgrades a request to a socket, refuses it, or returns null when it is not a socket request at
@@ -206,9 +222,11 @@ export function createGateway(hub: Hub) {
     const buffered: StoredEvent[] = [];
     let live = false;
     let lastSeq = 0;
+    let lastEventId: string | undefined;
     const send = (event: StoredEvent) => {
       if (event.seq <= lastSeq) return;
       lastSeq = event.seq;
+      lastEventId = event.eventId;
       ws.send(pushFrame(topic, "ag_ui_event", event.payload));
     };
     const dispose = bus.subscribe(topic, (event, body) => {
@@ -220,7 +238,25 @@ export function createGateway(hub: Hub) {
       }
     });
     ws.data.joins.get(topic)?.dispose();
-    ws.data.joins.set(topic, { joinRef, dispose, threadId });
+    const join: Join = {
+      joinRef,
+      dispose: () => {
+        dispose();
+        conversations.delete(join);
+      },
+      threadId,
+      // Only once the join has caught up: before that, the join itself is reading the log.
+      resync: async () => {
+        if (!live) return;
+        const missed = await store.eventsForReplay(
+          threadId,
+          lastEventId ? { afterEventId: lastEventId } : {},
+        );
+        for (const event of missed) send(event);
+      },
+    };
+    conversations.add(join);
+    ws.data.joins.set(topic, join);
     ws.send(replyFrame(joinRef, ref, topic, "ok", {}));
 
     const replay = await store.eventsForReplay(threadId, {

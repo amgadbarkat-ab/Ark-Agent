@@ -63,6 +63,7 @@ INTELLIGENCE_API_KEY=<the same value as HUB_API_KEY>
 | `HUB_PORT` | `7100` | |
 | `HUB_JOIN_TOKEN_TTL_SECONDS` | `86400` | |
 | `HUB_DEFAULT_LOCK_TTL_SECONDS` | `60` | when the caller does not say |
+| `HUB_BUS` | `postgres` | how live events travel between sockets. `postgres`: through the database, so any number of hub processes share them. `memory`: inside one process; only right for exactly one |
 
 ## Tests
 
@@ -77,8 +78,14 @@ runner and Phoenix browser client against the hub. If the SDK is upgraded, run i
 
 ## Known limits
 
-- **One hub process.** Live events move between sockets in memory (`src/bus.ts`). To run several,
-  swap that class for a Postgres `LISTEN/NOTIFY` one with the same two methods.
+- **Several hub processes are supported** (`HUB_BUS=postgres`, the default; `src/shared-bus.ts`). Live
+  events cross between processes by `LISTEN/NOTIFY` (one extra connection per process); an event too
+  big for a notification (8000 bytes) goes through a short-lived table. A lost connection is answered
+  by replaying the event log to every open conversation. What is not replayed is a stop request or a
+  thread-list update sent in the gap: at worst a stop that has to be pressed again and a list that
+  refreshes on its next change. The processes must share one database and one schema
+  (the channel is named for the schema). Tested with two hubs on one database
+  (`tests/scale-out.test.ts`), including a lost connection mid-run.
 - **Replay sends the whole conversation** when a browser has no cursor. Long conversations should
   be compacted into a snapshot first.
 - **Not provided:** memories, managed channels, the inspector's debug endpoints. The app does not
