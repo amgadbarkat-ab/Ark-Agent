@@ -96,9 +96,22 @@ function connection(overrides: Partial<ModelConnection>): ModelConnection {
 function serve(options: {
   providers: ModelCatalogue;
   connections: ModelConnection[] | "fail";
+  coworkers?: Array<{ id: string; name: string }>;
+  choices?: Array<{ botId: string; connectionId: string }>;
+  puts?: Array<{ url: string; body: unknown }>;
 }) {
-  global.fetch = (async (input: RequestInfo | URL) => {
+  global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url.endsWith("/api/agents")) {
+      return Response.json({ agents: options.coworkers ?? [] });
+    }
+    if (url.includes("/api/models/bots")) {
+      if (init?.method === "PUT") {
+        options.puts?.push({ url, body: JSON.parse(String(init.body)) });
+        return Response.json({});
+      }
+      return Response.json({ choices: options.choices ?? [] });
+    }
     if (url.endsWith("/api/models/providers")) {
       return Response.json(options.providers);
     }
@@ -193,4 +206,43 @@ test("Add model opens the form once the providers have loaded", async () => {
   await waitFor(() => expect((add as HTMLButtonElement).disabled).toBe(false));
   await userEvent.setup({ document }).click(add);
   expect(await screen.findByText(/Test connection/, {}, SLOW)).toBeTruthy();
+});
+
+test("a coworker can be pointed at another model, once there is more than one to choose from", async () => {
+  const puts: Array<{ url: string; body: unknown }> = [];
+  serve({
+    providers: catalogue([ollama, anthropic]),
+    connections: [
+      connection({ id: "c1", label: "Work Claude" }),
+      connection({
+        id: "c2",
+        providerId: "ollama",
+        label: "On my laptop",
+        isDefault: false,
+        hasKey: false,
+      }),
+    ],
+    coworkers: [{ id: "analyst", name: "Analyst" }],
+    puts,
+  });
+  const screen = renderModels();
+  const user = userEvent.setup({ document });
+  await user.click(
+    await screen.findByRole("combobox", { name: "Model for Analyst" }, SLOW),
+  );
+  await user.click(await screen.findByRole("option", { name: "On my laptop" }));
+  await waitFor(() => expect(puts).toHaveLength(1));
+  expect(puts[0]?.url).toContain("/api/models/bots/analyst");
+  expect(puts[0]?.body).toEqual({ connectionId: "c2" });
+});
+
+test("shows no coworker section when there is only one model to use", async () => {
+  serve({
+    providers: catalogue([ollama, anthropic]),
+    connections: [connection({ id: "c1", label: "Work Claude" })],
+    coworkers: [{ id: "analyst", name: "Analyst" }],
+  });
+  const screen = renderModels();
+  expect(await screen.findByText("Work Claude", {}, SLOW)).toBeTruthy();
+  expect(screen.queryByRole("combobox", { name: /Model for/ })).toBeNull();
 });

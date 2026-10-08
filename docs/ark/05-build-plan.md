@@ -63,7 +63,7 @@ Done:
 - [x] Settings > Models screen (add, test, default, change, remove), with tests.
 
 Still to do in this phase:
-- [ ] Per-bot model choice (today: one default per person).
+- [x] Per-coworker model choice (07-model-connections.md).
 - [x] Stored Claude plan token and `codex login` reuse removed from the desktop, the server and both
       harnesses; leftovers on existing machines are purged (04-llm-providers.md, Part 3).
 - [ ] Add Claude through the user's unmodified Claude Code (launch only, never touch its login), and

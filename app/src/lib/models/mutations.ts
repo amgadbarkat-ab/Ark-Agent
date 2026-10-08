@@ -117,3 +117,20 @@ export async function probeSavedModelConnection(
     await tryClient(`/api/models/connections/${id}/probe`, { method: "POST" }),
   );
 }
+
+/** Point one coworker at one of the person's models, or null to go back to their default. */
+export function setBotModelMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (variables: {
+      botId: string;
+      connectionId: string | null;
+    }): Promise<void> => {
+      await client(`/api/models/bots/${encodeURIComponent(variables.botId)}`, {
+        method: "PUT",
+        body: { connectionId: variables.connectionId },
+        fallback: "Could not change the model for that coworker",
+      });
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}

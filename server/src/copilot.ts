@@ -159,10 +159,15 @@ export type RuntimeModel = {
    * The model the person asking has chosen for themselves, already built for this request.
    *
    * Set per request by `createRequestAgents`, never at boot: it holds that person's key. When it is
-   * present it wins over the deployment's model and over a plan, because choosing a connection is
-   * the more recent and more specific decision.
+   * present it wins over the deployment's model, because choosing a connection is the more recent
+   * and more specific decision.
    */
   connection?: ConnectionLanguageModel;
+  /**
+   * The model the same person chose for one particular Bot, which wins over `connection` for that
+   * Bot alone. Set per request beside `connection`, for the same reason: it holds their key.
+   */
+  connectionFor?: (botId: string) => ConnectionLanguageModel | undefined;
 };
 
 /** Optional desktop environment values may be present but blank; SDKs treat them as URLs. */
@@ -793,6 +798,10 @@ async function buildAgent(
   if (agent.type === "unavailable") {
     return new UnavailableAgent(agent);
   }
+
+  // The person's choice for this Bot, if they made one, over their default for all of them.
+  const chosenHere = model.connectionFor?.(agent.id);
+  if (chosenHere) model = { ...model, connection: chosenHere };
 
   const granted = await loadTools(agent.id);
 
@@ -1802,7 +1811,30 @@ export type SignRun = (
  */
 export type ModelForActor = (
   actorId: string,
-) => Promise<ConnectionLanguageModel | undefined>;
+) => Promise<PersonalModels | undefined>;
+
+/** What one person has chosen to think with. */
+export type PersonalModels = {
+  /** Their default, for every Bot they have not pointed elsewhere. */
+  connection?: ConnectionLanguageModel;
+  /** Models they chose for particular Bots, by Bot id. */
+  forBot: ReadonlyMap<string, ConnectionLanguageModel>;
+};
+
+/** The deployment's model with a person's choices laid over it, for the request they made. */
+export function withPersonalModels(
+  model: RuntimeModel,
+  personal: PersonalModels | undefined,
+): RuntimeModel {
+  if (!personal) return model;
+  return {
+    ...model,
+    ...(personal.connection ? { connection: personal.connection } : {}),
+    ...(personal.forBot.size > 0
+      ? { connectionFor: (botId) => personal.forBot.get(botId) }
+      : {}),
+  };
+}
 
 /** Who is asking. Agent visibility is decided per person, so a run has to know this first. */
 export type IdentifyActor = (request: Request) => Promise<AgentActor>;
@@ -1899,7 +1931,7 @@ export function createRequestAgents(
     const personal = await modelForActor?.(actor.id);
     return resolveRuntimeAgents(
       () => loadAgents(actor),
-      personal ? { ...model, connection: personal } : model,
+      withPersonalModels(model, personal),
       resolveModelApiKey,
       stallGuard,
       loadToolsForActor?.(actor.id),
@@ -2103,7 +2135,7 @@ export function mountCopilotRuntime(
     const personal = await modelForActor?.(actor.id);
     const agents = await resolveRuntimeAgents(
       () => loadAgents(actor),
-      personal ? { ...model, connection: personal } : model,
+      withPersonalModels(model, personal),
       resolveModelApiKey,
       stallGuard,
       loadToolsForActor?.(actor.id, input.initiator),

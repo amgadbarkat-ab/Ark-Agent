@@ -3,12 +3,13 @@ import {
   boolean,
   index,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { users } from "./core";
+import { agents, users } from "./core";
 
 /**
  * A person's connection to a language model: which provider, where it lives, and the key they gave
@@ -48,5 +49,35 @@ export const modelConnections = pgTable(
     uniqueIndex("model_connections_one_default_idx")
       .on(table.userId)
       .where(sql`${table.isDefault}`),
+  ],
+);
+
+/**
+ * Which of a person's connections one Bot thinks with, when it is not their default.
+ *
+ * Per person AND per Bot, not per Bot alone: a Bot someone else built still runs on the key of
+ * whoever is talking to it, and never on the key of whoever made it. A row disappears with the
+ * connection it names (the Bot then falls back to the person's default), with the Bot, or with the
+ * person.
+ */
+export const botModelChoices = pgTable(
+  "bot_model_choices",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    botId: text("bot_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => modelConnections.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.botId] }),
+    index("bot_model_choices_connection_idx").on(table.connectionId),
   ],
 );

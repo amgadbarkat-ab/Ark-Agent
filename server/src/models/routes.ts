@@ -34,6 +34,10 @@ const patchBody = z.strictObject({
   apiKey: key.nullable().optional(),
   model: model.optional(),
 });
+const botChoiceBody = z.strictObject({
+  /** A connection of the person's own, or null to go back to their default. */
+  connectionId: z.uuid().nullable(),
+});
 const probeBody = z.strictObject({
   providerId: z.string().min(1).max(64),
   baseUrl: address.optional(),
@@ -70,9 +74,23 @@ export function modelConnectionRoutes(options: {
   /** Whether this deployment may contact the machine it runs on and its own network. */
   allowPrivateHosts: boolean;
   allowedHosts?: ReadonlySet<string>;
+  /**
+   * Whether this person may see, and so may choose a model for, one Bot. The same roster that
+   * decides what they can talk to. Absent means no Bot can be chosen for.
+   */
+  botVisible?: (
+    actor: { id: string; role: string },
+    botId: string,
+  ) => Promise<boolean>;
 }) {
-  const { requireUser, store, fetchImpl, allowPrivateHosts, allowedHosts } =
-    options;
+  const {
+    requireUser,
+    store,
+    fetchImpl,
+    allowPrivateHosts,
+    allowedHosts,
+    botVisible,
+  } = options;
   const app = new Hono<{ Variables: AppVariables }>();
   const mayProbe = createLimiter(30, 60_000);
   app.use("*", requireUser);
@@ -220,6 +238,44 @@ export function modelConnectionRoutes(options: {
     );
     return connection
       ? context.json({ connection })
+      : context.json({ error: "No such connection." }, 404);
+  });
+
+  // Which Bot thinks with which of the person's connections, where it is not their default.
+  app.get("/bots", async (context) => {
+    if (!store) return unavailable(context);
+    const choices = await store.choices(context.var.actor.id);
+    return context.json({
+      choices: Object.entries(choices).map(([botId, connectionId]) => ({
+        botId,
+        connectionId,
+      })),
+    });
+  });
+
+  app.put("/bots/:botId", async (context) => {
+    if (!store || !botVisible) return unavailable(context);
+    const parsed = botChoiceBody.safeParse(
+      await context.req.json().catch(() => undefined),
+    );
+    if (!parsed.success) {
+      return context.json(
+        { error: "Choose one of your models, or the default." },
+        400,
+      );
+    }
+    const botId = context.req.param("botId");
+    const actor = context.var.actor;
+    if (!(await botVisible(actor, botId))) {
+      return context.json({ error: "No such coworker." }, 404);
+    }
+    const done = await store.setChoice(
+      actor.id,
+      botId,
+      parsed.data.connectionId,
+    );
+    return done
+      ? context.json({ botId, connectionId: parsed.data.connectionId })
       : context.json({ error: "No such connection." }, 404);
   });
 

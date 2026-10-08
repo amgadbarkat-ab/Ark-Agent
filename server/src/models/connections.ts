@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { decryptSecret, encryptSecret } from "../credentials";
 import type { Database } from "../db/client";
-import { modelConnections } from "../db/schema";
+import { botModelChoices, modelConnections } from "../db/schema";
 
 /**
  * What the app and the routes may see of a connection. There is no key in it, ever: whether one is
@@ -59,6 +59,24 @@ export type ModelConnectionStore = {
   getDefault: (userId: string) => Promise<ModelConnection | null>;
   /** The named connection, or the person's default, with its key opened. */
   open: (userId: string, id?: string) => Promise<ModelConnectionSecret | null>;
+  /**
+   * Bot id to connection id, for the Bots this person has pointed somewhere other than their
+   * default. A Bot not in it thinks with the default.
+   */
+  choices: (userId: string) => Promise<Record<string, string>>;
+  /** The connection this person chose for one Bot, if they did. */
+  choiceFor: (userId: string, botId: string) => Promise<string | undefined>;
+  /**
+   * Point a Bot at one of the person's connections, or back at their default with null.
+   *
+   * False when the connection is not theirs, so one person cannot name another's. The Bot must
+   * exist (the caller checks it is one they may see); a missing one is a thrown error, not a false.
+   */
+  setChoice: (
+    userId: string,
+    botId: string,
+    connectionId: string | null,
+  ) => Promise<boolean>;
 };
 
 /** Enough for anyone's real use, and a ceiling on what a stolen session can pile up. */
@@ -237,6 +255,60 @@ export function createModelConnectionStore(
         )
         .limit(1);
       return row ? view(row) : null;
+    },
+
+    async choices(userId) {
+      const rows = await database
+        .select({
+          botId: botModelChoices.botId,
+          connectionId: botModelChoices.connectionId,
+        })
+        .from(botModelChoices)
+        .where(eq(botModelChoices.userId, userId));
+      return Object.fromEntries(rows.map((r) => [r.botId, r.connectionId]));
+    },
+
+    async choiceFor(userId, botId) {
+      const [row] = await database
+        .select({ connectionId: botModelChoices.connectionId })
+        .from(botModelChoices)
+        .where(
+          and(
+            eq(botModelChoices.userId, userId),
+            eq(botModelChoices.botId, botId),
+          ),
+        )
+        .limit(1);
+      return row?.connectionId;
+    },
+
+    async setChoice(userId, botId, connectionId) {
+      if (connectionId === null) {
+        await database
+          .delete(botModelChoices)
+          .where(
+            and(
+              eq(botModelChoices.userId, userId),
+              eq(botModelChoices.botId, botId),
+            ),
+          );
+        return true;
+      }
+      const [mine] = await database
+        .select({ id: modelConnections.id })
+        .from(modelConnections)
+        .where(owned(userId, connectionId))
+        .limit(1);
+      if (!mine) return false;
+      const now = new Date();
+      await database
+        .insert(botModelChoices)
+        .values({ userId, botId, connectionId, updatedAt: now })
+        .onConflictDoUpdate({
+          target: [botModelChoices.userId, botModelChoices.botId],
+          set: { connectionId, updatedAt: now },
+        });
+      return true;
     },
 
     async open(userId, id) {

@@ -1364,6 +1364,14 @@ const app = createApp(
     store: modelConnectionStore,
     encryptionKey: config.keyEncryptionKey,
     fetchImpl: agentFetch,
+    // The roster the person talks to is the roster they may choose a model for.
+    botVisible: async (actor, botId) =>
+      (
+        await loadAgentsForActor({
+          id: actor.id,
+          role: actor.role === "admin" ? "admin" : "user",
+        })
+      ).some((agent) => agent.id === botId && agent.type !== "unavailable"),
     allowPrivateHosts: config.computer?.allowPrivateHosts === true,
     ...(config.agentEndpointAllowedHosts
       ? { allowedHosts: config.agentEndpointAllowedHosts }

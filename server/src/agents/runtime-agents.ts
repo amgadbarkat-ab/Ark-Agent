@@ -32,7 +32,10 @@ export function createRuntimeAgentLoader(
    * ever attached to an endpoint the deployment runs, beside the token that proves who is asking.
    * Absent, or answering undefined, leaves the bot on the model it was started with.
    */
-  modelHeaderForActor?: (actorId: string) => Promise<string | undefined>,
+  modelHeaderForActor?: (
+    actorId: string,
+    botId?: string,
+  ) => Promise<string | undefined>,
 ) {
   return async (actor: AgentActor): Promise<RegisteredAgent[]> => {
     const [active, tombstones] = await Promise.all([
@@ -43,8 +46,6 @@ export function createRuntimeAgentLoader(
     // A row whose configuration cannot be understood is skipped rather than mounted as a broken
     // agent. Tombstones are appended after, and never overwrite a live agent of the same id.
     const registered = new Map<string, RegisteredAgent>();
-    // Asked once per load, and only when a managed bot is actually among them.
-    let personalModel: { header: string | undefined } | undefined;
     for (const row of active) {
       const agent = registeredAgentFromRow(row);
       if (!agent) continue;
@@ -78,13 +79,13 @@ export function createRuntimeAgentLoader(
             .filter((url): url is URL => url !== undefined)
             .some((url) => endpoint === managedEndpointIdentity(url));
         if (ours) {
-          personalModel ??= { header: await modelHeaderForActor?.(actor.id) };
+          // Asked per bot, because a person can point each one at a different connection, and
+          // only for a bot this deployment runs.
+          const header = await modelHeaderForActor?.(actor.id, agent.id);
           agent.headers = {
             ...agent.headers,
             "x-openbot-agent-token": managedAgent.token,
-            ...(personalModel.header
-              ? { [MODEL_HEADER]: personalModel.header }
-              : {}),
+            ...(header ? { [MODEL_HEADER]: header } : {}),
           };
         }
       }

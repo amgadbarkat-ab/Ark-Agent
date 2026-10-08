@@ -1,6 +1,7 @@
 import { encodeModelOverride } from "../../../shared/model-header";
 import { providerById } from "../../../shared/model-providers";
 import type { ModelForActor } from "../copilot";
+import type { ConnectionLanguageModel } from "./language-model";
 import type { ModelConnectionStore } from "./connections";
 import { mintModelGrant } from "./grant";
 import { languageModelFor } from "./language-model";
@@ -8,7 +9,8 @@ import { languageModelFor } from "./language-model";
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 /**
- * Turns a person's default connection into the model their runs use.
+ * Turns a person's connections into the models their runs use: their default, and the one they
+ * chose for any Bot they pointed elsewhere.
  *
  * Nobody having chosen one is not a problem: the deployment's own model answers, as it always has.
  * Having chosen one that cannot be used IS a problem, and is reported as one rather than worked
@@ -18,10 +20,10 @@ export function createModelForActor(
   store: ModelConnectionStore,
   fetchImpl: GuardedFetch,
 ): ModelForActor {
-  return async (actorId) => {
+  const build = async (actorId: string, connectionId?: string) => {
     let opened: Awaited<ReturnType<ModelConnectionStore["open"]>>;
     try {
-      opened = await store.open(actorId);
+      opened = await store.open(actorId, connectionId);
     } catch {
       // Never the thrown value: it can carry ciphertext or connection details.
       throw new Error(
@@ -46,6 +48,24 @@ export function createModelForActor(
       fetchImpl,
     );
   };
+
+  return async (actorId) => {
+    const choices = await store.choices(actorId);
+    const connection = await build(actorId);
+    // One model per distinct connection, however many Bots share it.
+    const byConnection = new Map<string, ConnectionLanguageModel>();
+    const forBot = new Map<string, ConnectionLanguageModel>();
+    for (const [botId, connectionId] of Object.entries(choices)) {
+      let model = byConnection.get(connectionId);
+      if (!model) {
+        model = await build(actorId, connectionId);
+        if (model) byConnection.set(connectionId, model);
+      }
+      if (model) forBot.set(botId, model);
+    }
+    if (!connection && forBot.size === 0) return undefined;
+    return { ...(connection ? { connection } : {}), forBot };
+  };
 }
 
 /** Where the gateway answers, by dialect, as a path on this deployment. */
@@ -67,9 +87,13 @@ const GATEWAY_PATH = {
 export function createModelHeaderForActor(
   store: ModelConnectionStore,
   encryptionKey: string,
-): (actorId: string) => Promise<string | undefined> {
-  return async (actorId) => {
-    const connection = await store.getDefault(actorId);
+): (actorId: string, botId?: string) => Promise<string | undefined> {
+  return async (actorId, botId) => {
+    // The connection this person chose for this Bot, else their default.
+    const chosen = botId ? await store.choiceFor(actorId, botId) : undefined;
+    const connection = chosen
+      ? await store.get(actorId, chosen)
+      : await store.getDefault(actorId);
     if (!connection) return undefined;
     const provider = providerById(connection.providerId);
     const protocol =

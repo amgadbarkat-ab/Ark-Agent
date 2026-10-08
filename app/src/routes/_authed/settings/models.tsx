@@ -3,8 +3,9 @@ import {
   IconCloud,
   IconCpu,
   IconPlus,
+  IconRobot,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import React, { useState } from "react";
 import {
@@ -23,13 +24,27 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { Separator } from "@/components/ui/separator";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
+import { setBotModelMutationOptions } from "@/lib/models/mutations";
+import {
+  botModelChoicesQueryOptions,
   type ModelCatalogue,
   type ModelConnection,
   modelCatalogueQueryOptions,
   modelConnectionsQueryOptions,
 } from "@/lib/models/queries";
+import { queryClient } from "@/query-client";
+
+/** The value the picker uses for "no choice of its own", which the server stores as no row. */
+const DEFAULT_MODEL = "default";
 
 export const Route = createFileRoute("/_authed/settings/models")({
   component: ModelsPage,
@@ -44,6 +59,8 @@ type Editing =
 function ModelsPage() {
   const catalogue = useQuery(modelCatalogueQueryOptions());
   const connections = useQuery(modelConnectionsQueryOptions());
+  const coworkers = useQuery(agentListQueryOptions());
+  const choices = useQuery(botModelChoicesQueryOptions());
   const [editing, setEditing] = useState<Editing>({ kind: "none" });
 
   const editedConnection =
@@ -113,6 +130,32 @@ function ModelsPage() {
         )}
       </PageSection>
 
+      {/* Only worth showing when there is something to choose between. */}
+      {(connections.data?.length ?? 0) > 1 &&
+      (coworkers.data?.length ?? 0) > 0 &&
+      choices.data ? (
+        <PageSection
+          description="Each coworker uses your default model unless you choose another for it."
+          title="Coworkers"
+        >
+          <PageRows>
+            {coworkers.data?.map((coworker, index) => (
+              <React.Fragment key={coworker.id}>
+                <CoworkerRow
+                  choice={
+                    choices.data?.find((c) => c.botId === coworker.id)
+                      ?.connectionId
+                  }
+                  connections={connections.data ?? []}
+                  coworker={coworker}
+                />
+                {index !== (coworkers.data?.length ?? 0) - 1 && <Separator />}
+              </React.Fragment>
+            ))}
+          </PageRows>
+        </PageSection>
+      ) : null}
+
       {unavailable.length > 0 ? (
         <PageSection
           description="These are not offered here, and why."
@@ -178,6 +221,66 @@ function ConnectionRow({
       </ItemContent>
       <ItemActions>
         <IconChevronRight className="size-4 text-muted-foreground" />
+      </ItemActions>
+    </Item>
+  );
+}
+
+function CoworkerRow({
+  choice,
+  connections,
+  coworker,
+}: {
+  /** The connection chosen for this coworker, if any. */
+  choice: string | undefined;
+  connections: ModelConnection[];
+  coworker: AgentProfile;
+}) {
+  const setModel = useMutation(setBotModelMutationOptions(queryClient));
+  const chosen = connections.find((c) => c.id === choice);
+  const fallback = connections.find((c) => c.isDefault);
+  return (
+    <Item size="sm">
+      <ItemMedia variant="icon">
+        <IconRobot />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>{coworker.name}</ItemTitle>
+        {setModel.error ? (
+          <ItemDescription className="text-destructive" role="alert">
+            {setModel.error.message}
+          </ItemDescription>
+        ) : null}
+      </ItemContent>
+      <ItemActions>
+        <Select
+          disabled={setModel.isPending}
+          onValueChange={(value) =>
+            setModel.mutate({
+              botId: coworker.id,
+              connectionId: value === DEFAULT_MODEL ? null : String(value),
+            })
+          }
+          value={chosen?.id ?? DEFAULT_MODEL}
+        >
+          <SelectTrigger aria-label={`Model for ${coworker.name}`} size="sm">
+            <SelectValue>
+              {chosen
+                ? chosen.label
+                : `Default${fallback ? ` (${fallback.label})` : ""}`}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={DEFAULT_MODEL}>
+              Default{fallback ? ` (${fallback.label})` : ""}
+            </SelectItem>
+            {connections.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </ItemActions>
     </Item>
   );

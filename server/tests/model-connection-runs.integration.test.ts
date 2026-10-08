@@ -4,9 +4,9 @@ import { LLMock } from "@copilotkit/aimock";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createAgentFetch } from "../src/agents/endpoint";
-import { resolveRuntimeAgents } from "../src/copilot";
+import { resolveRuntimeAgents, withPersonalModels } from "../src/copilot";
 import { createDatabase } from "../src/db/client";
-import { modelConnections, users } from "../src/db/schema";
+import { agents, modelConnections, users } from "../src/db/schema";
 import { createModelConnectionStore } from "../src/models/connections";
 import { createModelForActor } from "../src/models/for-actor";
 import { languageModelFor } from "../src/models/language-model";
@@ -100,23 +100,23 @@ const balanceTool = (executed: unknown[]) => async () => [
 async function ask(
   model: Parameters<typeof resolveRuntimeAgents>[1],
   executed: unknown[],
+  botId = "assistant",
 ) {
-  const agents = await resolveRuntimeAgents(
-    async () => [
-      {
-        id: "assistant",
-        name: "Assistant",
-        type: "built_in",
+  const built = await resolveRuntimeAgents(
+    async () =>
+      ["assistant", "analyst"].map((id) => ({
+        id,
+        name: id,
+        type: "built_in" as const,
         systemPrompt: "Answer using the granted balance tool.",
-      },
-    ],
+      })),
     model,
     // The deployment has no key at all: only the person's own connection can answer.
     async () => null,
     undefined,
     balanceTool(executed),
   );
-  const agent = agents.assistant?.clone();
+  const agent = built[botId]?.clone();
   if (!agent) throw new Error("agent was not built");
   agent.addMessage({ id: "q", role: "user", content: "Read my balance." });
   await agent.runAgent();
@@ -225,13 +225,58 @@ describe("createModelForActor", () => {
       }
       const forActor = createModelForActor(store, lenient);
       for (const who of [ann, bob]) {
-        const connection = await forActor(who);
-        expect(connection).toBeDefined();
-        await ask({ ...deploymentModel, connection }, []);
+        const personal = await forActor(who);
+        expect(personal?.connection).toBeDefined();
+        await ask(withPersonalModels(deploymentModel, personal), []);
       }
       const byModel = new Map(seen.map((s) => [s.model, s.authorization]));
       expect(byModel.get("ann-model")).toBe("Bearer ann-key");
       expect(byModel.get("bob-model")).toBe("Bearer bob-key");
+    });
+  });
+
+  test("a Bot the person pointed elsewhere thinks with that connection, every other Bot with their default", async () => {
+    await withProvider(async ({ url, mock, seen }) => {
+      mock.on({ hasToolResult: true }, { content: "ok" });
+      mock.onMessage(/balance/, { content: "ok" });
+      const ann = await person();
+      const first = await store.create(ann, {
+        providerId: "openai-compatible",
+        label: "default one",
+        baseUrl: `${url}/v1`,
+        apiKey: "default-key",
+        model: "default-model",
+      });
+      const second = await store.create(ann, {
+        providerId: "openai-compatible",
+        label: "analyst one",
+        baseUrl: `${url}/v1`,
+        apiKey: "analyst-key",
+        model: "analyst-model",
+      });
+      expect(first.isDefault).toBe(true);
+      await database
+        .insert(agents)
+        .values({
+          id: "analyst",
+          name: "analyst",
+          type: "built_in",
+          configuration: {},
+        })
+        .onConflictDoNothing();
+      expect(await store.setChoice(ann, "analyst", second.id)).toBe(true);
+
+      const personal = await createModelForActor(store, lenient)(ann);
+      const model = withPersonalModels(deploymentModel, personal);
+      await ask(model, [], "assistant");
+      await ask(model, [], "analyst");
+
+      const byModel = new Map(seen.map((s) => [s.model, s.authorization]));
+      expect(byModel.get("default-model")).toBe("Bearer default-key");
+      expect(byModel.get("analyst-model")).toBe("Bearer analyst-key");
+      expect(seen.map((s) => s.model)).toEqual(
+        expect.arrayContaining(["default-model", "analyst-model"]),
+      );
     });
   });
 
@@ -252,6 +297,41 @@ describe("createModelForActor", () => {
     const forActor = createModelForActor(wrongKey, lenient);
     await expect(forActor(ann)).rejects.toThrow(
       /could not be opened.*Settings/is,
+    );
+  });
+
+  test("a connection chosen for a Bot that cannot be opened fails, even when the default is fine", async () => {
+    const ann = await person();
+    const plain = await store.create(ann, {
+      providerId: "openai-compatible",
+      label: "plain",
+      baseUrl: "http://127.0.0.1:9/v1",
+      model: "m",
+    });
+    const keyed = await store.create(ann, {
+      providerId: "anthropic",
+      label: "Claude",
+      baseUrl: "https://api.anthropic.com",
+      apiKey: "sk-ant-x",
+      model: "m",
+    });
+    expect(plain.isDefault).toBe(true);
+    await database
+      .insert(agents)
+      .values({
+        id: "analyst",
+        name: "analyst",
+        type: "built_in",
+        configuration: {},
+      })
+      .onConflictDoNothing();
+    await store.setChoice(ann, "analyst", keyed.id);
+    const wrongKey = createModelConnectionStore(
+      database,
+      Buffer.alloc(32, 9).toString("base64"),
+    );
+    await expect(createModelForActor(wrongKey, lenient)(ann)).rejects.toThrow(
+      /could not be opened/i,
     );
   });
 

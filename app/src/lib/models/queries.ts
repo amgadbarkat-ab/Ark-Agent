@@ -52,10 +52,17 @@ export type ModelConnection = {
   updatedAt: string;
 };
 
+/** One coworker the person pointed at a connection other than their default. */
+export type BotModelChoice = {
+  botId: string;
+  connectionId: string;
+};
+
 export const modelKeys = {
   all: ["models"] as const,
   catalogue: () => [...modelKeys.all, "catalogue"] as const,
   connections: () => [...modelKeys.all, "connections"] as const,
+  bots: () => [...modelKeys.all, "bots"] as const,
 };
 
 export function modelCatalogueQueryOptions() {
@@ -76,6 +83,16 @@ export function modelConnectionsQueryOptions() {
     queryFn: async (): Promise<ModelConnection[]> =>
       client("/api/models/connections", "connections", {
         fallback: "Could not load your models",
+      }),
+  });
+}
+
+export function botModelChoicesQueryOptions() {
+  return queryOptions({
+    queryKey: modelKeys.bots(),
+    queryFn: async (): Promise<BotModelChoice[]> =>
+      client("/api/models/bots", "choices", {
+        fallback: "Could not load which model each coworker uses",
       }),
   });
 }

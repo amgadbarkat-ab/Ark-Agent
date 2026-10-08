@@ -35,6 +35,21 @@ person by their own provider.
 | Bot side | `agent-langgraph/src/model-override.ts`, `agent-langgraph/src/index.ts` |
 | Screen | `app/src/routes/_authed/settings/models.tsx`, `app/src/components/settings/model-dialog.tsx`, `app/src/lib/models/` |
 
+## Choosing a model per coworker
+
+By default every coworker uses the person's default connection. Once a person has two or more, Settings
+> Models shows a **Coworkers** section where each coworker can be pointed at a different one.
+
+- Stored per person **and** per coworker (`bot_model_choices`, migration 0047), never per coworker
+  alone: a coworker someone else built still runs on the key of whoever is talking to it.
+- A choice disappears with the connection it names (the coworker falls back to the default), with the
+  coworker, or with the person.
+- Applies to the server's own agents (`RuntimeModel.connectionFor`) and to the managed bot (the
+  `x-ark-model` header is minted per bot). A choice that cannot be opened is an error with a sentence,
+  never a quiet fallback to the deployment's model.
+- API: `GET /api/models/bots`, `PUT /api/models/bots/:botId` with `{ "connectionId": "<id>" | null }`.
+  The coworker must be one the person can see, and the connection one of their own.
+
 ## Rules the code keeps
 
 1. **A key is never sent to a browser.** The API returns `hasKey: true/false` and nothing else.
@@ -73,7 +88,6 @@ person by their own provider.
 ## Not done yet
 
 - **Usage metering** in the gateway (needed for the cloud add-on, Phase 4).
-- **Per-bot model choice.** Today a person has one default; a bot cannot yet pick another.
 - **Plan sign-ins.** The old Claude and ChatGPT plan code is removed (see 04-llm-providers.md,
   Part 3). Still to do: Claude through the person's own Claude Code, ChatGPT through OpenAI's
   programme once approved, and a decision on xAI sign-in.
