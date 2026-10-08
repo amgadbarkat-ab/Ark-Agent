@@ -28,11 +28,21 @@ spec:
     - host: {{ .Values.hub.ingress.host | quote }}
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          {{- /*
+            ONLY WHAT A BROWSER NEEDS. The hub's REST API and its runner socket are for this
+            deployment's own server, which reaches them inside the cluster, and each is protected by a
+            key. Publishing them on the internet as well adds an attack surface (a login prompt for
+            a key, every route of an HTTP service) for no use, so the public host answers the browser's
+            socket and nothing else. `hub.ingress.paths` widens it, deliberately, for a deployment
+            whose server is outside the cluster.
+          */}}
+          {{- range (.Values.hub.ingress.paths | default (list "/client/websocket")) }}
+          - path: {{ . }}
+            pathType: Exact
             backend:
               service:
-                name: {{ include "openbot.componentName" (dict "root" . "component" "hub") }}
+                name: {{ include "openbot.componentName" (dict "root" $ "component" "hub") }}
                 port:
-                  number: {{ include "openbot.hubPort" . }}
+                  number: {{ include "openbot.hubPort" $ }}
+          {{- end }}
 {{- end }}

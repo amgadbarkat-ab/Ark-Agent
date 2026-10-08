@@ -159,6 +159,13 @@ export type HandoffCaps = {
   maxPerRun: number;
 };
 
+/** Where the app is served from on a developer's own machine, in every spelling a browser might use. */
+export const LOCAL_APP_ORIGINS = [
+  "http://127.0.0.1:3010",
+  "http://[::1]:3010",
+  "http://localhost:3010",
+] as const;
+
 export type DeploymentConfig = {
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
@@ -865,7 +872,7 @@ function authConfig(
          * sends and not an address anything dials. `localhost` alone refused a browser pointed at
          * `127.0.0.1:3010`, which is the address the rest of this deployment hands out.
          */
-        ["http://127.0.0.1:3010", "http://[::1]:3010", "http://localhost:3010"],
+        [...LOCAL_APP_ORIGINS],
     initialAdminEmails,
     allowedEmailDomains,
     ...(google ? { google } : {}),

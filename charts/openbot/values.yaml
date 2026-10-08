@@ -125,6 +125,10 @@ hub:
     # Falls back to the main `ingress.className`.
     className: ""
     host: ""
+    # What is published on that host. Only the browser's socket by default: the hub's REST API and
+    # runner socket are for this deployment's own server, which reaches them inside the cluster.
+    paths:
+      - /client/websocket
     annotations: {}
     tls: []
   podAnnotations: {}

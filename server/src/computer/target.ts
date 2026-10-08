@@ -174,12 +174,47 @@ function isPrivateIpv4(hostname: string): boolean {
   if (octets.some((value) => Number.isNaN(value) || value < 0 || value > 255)) {
     return false;
   }
-  const [a, b] = octets as [number, number, number, number];
+  const [a, b, c] = octets as [number, number, number, number];
   if (a === 10) return true;
   if (a === 127) return true;
+  if (a === 0) return true; // 0.0.0.0/8: "this host", which reaches every port bound locally
   if (a === 169 && b === 254) return true; // link-local, includes metadata
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
+  /*
+   * Carrier-grade NAT, `100.64.0.0/10`. Not "private" in the RFC1918 sense, and for that reason left
+   * out for a long time, but it is where clouds and overlay networks put their own addressing (Tailscale,
+   * EKS custom networking, some Kubernetes pod ranges), so on a hosted deployment it is inside, and
+   * nobody hosts a public model provider there.
+   */
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a === 192 && b === 0 && c === 0) return true; // 192.0.0.0/24, protocol assignments
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+  return false;
+}
+
+/**
+ * Is this IP address somewhere inside a deployment, or otherwise not the public internet?
+ *
+ * For an address a NAME RESOLVED TO, which is a different question from the one `checkNavigationTarget`
+ * answers about a name as typed: a hostname such as `internal.attacker.example` passes every textual
+ * check and may have an A record pointing at the cluster's own services or the cloud metadata
+ * address. Used on the answer, so it is deliberately broader than the typed-address rule: ranges that
+ * nobody legitimately hosts a public service on (0.0.0.0/8, carrier-grade NAT, the benchmarking and
+ * protocol ranges, multicast, reserved) are refused here too.
+ *
+ * Takes an IP literal, as the resolver returns it, without brackets.
+ */
+export function isInternalAddress(address: string): boolean {
+  const host = canonicalHostname(
+    address.includes(":") ? `[${address.toLowerCase()}]` : address,
+  );
+  if (isNeverAllowedHostname(host) || INTERNAL_HOSTNAMES.has(host)) return true;
+  if (isPrivateIpv4(host) || isPrivateIpv6(host)) return true;
+
+  // Multicast and reserved space, which no public service lives in.
+  const first = Number.parseInt(host.split(".")[0] ?? "", 10);
+  if (host.split(".").length === 4 && first >= 224 && first <= 255) return true;
   return false;
 }
 

@@ -17,6 +17,8 @@ import { probeConnection } from "./probe";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const label = z.string().trim().min(1).max(80);
 const model = z.string().trim().min(1).max(200);
 const key = z.string().max(4096);
@@ -152,6 +154,20 @@ export function modelConnectionRoutes(options: {
       throw error;
     }
   });
+
+  /*
+   * A connection's id is a UUID, and the database refuses anything else with an error this route
+   * would not catch. So a person who sends `x`, or a NUL, got a server error where "no such
+   * connection" is the answer. Said once, before any of the routes below, not once in each.
+   */
+  const validConnectionId: MiddlewareHandler = async (context, next) => {
+    if (!UUID.test(context.req.param("id") ?? "")) {
+      return context.json({ error: "No such connection." }, 404);
+    }
+    return next();
+  };
+  app.use("/connections/:id", validConnectionId);
+  app.use("/connections/:id/*", validConnectionId);
 
   app.patch("/connections/:id", async (context) => {
     if (!store) return unavailable(context);

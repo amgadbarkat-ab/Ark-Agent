@@ -48,7 +48,11 @@ import type { ComputerGateway } from "./computer/gateway";
 import type { PageFrameStore } from "./computer/page-frames";
 import type { PolicyStore } from "./computer/policy-store";
 import { createComputerRoutes } from "./computer/routes";
-import { configuredAuthProviders, type DeploymentConfig } from "./config";
+import {
+  configuredAuthProviders,
+  type DeploymentConfig,
+  LOCAL_APP_ORIGINS,
+} from "./config";
 import type { CredentialAdminService, CredentialInput } from "./credentials";
 import type { Database } from "./db/client";
 import { withoutStatement } from "./db/query-failure";
@@ -80,6 +84,9 @@ import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
+import { jsonBodyLimit } from "./body-limit";
+import { originGuard } from "./origin-guard";
+import { requestShape } from "./request-shape";
 import { securityHeaders } from "./security-headers";
 import type { PackageStatusReader } from "./tenant-package";
 import {
@@ -388,6 +395,18 @@ export function createApp(
       https: (config.publicUrl ?? config.appUrl ?? "").startsWith("https://"),
     }),
   );
+  app.use(
+    "/api/*",
+    originGuard({
+      trusted: [
+        ...(config.auth?.trustedOrigins ?? LOCAL_APP_ORIGINS),
+        config.publicUrl,
+        config.appUrl,
+      ],
+    }),
+  );
+  app.use("*", requestShape());
+  app.use("/api/*", jsonBodyLimit());
   mountDesktopConnectionFailure(app, desktopHostToken);
   mountProviderOAuthProxy(app, modelProviderProxy);
 
@@ -446,6 +465,21 @@ export function createApp(
     "/api/auth/sso/delete-provider",
   ]);
 
+  /*
+   * Routes of the sign-in library that nothing here uses, and that hand a token to whoever asks.
+   *
+   * `list-sessions` returns every session's raw token, and the three below return the sign-in
+   * provider's own access or refresh token. The session cookie is `HttpOnly` so that a script in the
+   * page cannot read it; a route that prints the same token in JSON undoes that for any script that
+   * can call it. The app never calls them, so they do not exist.
+   */
+  const UNUSED_AUTH_ROUTES = new Set([
+    "/api/auth/list-sessions",
+    "/api/auth/get-access-token",
+    "/api/auth/refresh-token",
+    "/api/auth/account-info",
+  ]);
+
   const AUTH_ROUTE_EVENTS: Record<string, AuditEventType | undefined> = {
     "/api/auth/sso/register": "identity_provider.registered",
     "/api/auth/sso/delete-provider": "identity_provider.removed",
@@ -467,6 +501,10 @@ export function createApp(
         { error: "No identity provider is configured." },
         503,
       );
+    }
+
+    if (UNUSED_AUTH_ROUTES.has(new URL(context.req.url).pathname)) {
+      return context.notFound();
     }
 
     if (ADMIN_ONLY_AUTH_ROUTES.has(new URL(context.req.url).pathname)) {

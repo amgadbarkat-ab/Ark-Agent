@@ -73,7 +73,8 @@ import {
   describeComputerIsolation,
 } from "./computer/provider";
 import { createSnapshotStore } from "./computer/snapshot-store";
-import { loadConfig } from "./config";
+import { loadConfig, LOCAL_APP_ORIGINS } from "./config";
+import { originAllowed, trustedOrigins } from "./origin-guard";
 import {
   type IdentifyActor,
   type IdentifyUser,
@@ -197,7 +198,14 @@ const identifyActor: IdentifyActor = async (request) => {
   }
 };
 
+const MAX_REQUEST_BYTES = 64 * 1024 * 1024;
 const config = loadConfig();
+// The same trusted origins the app's own guard uses (app.ts), for the one route this file answers itself.
+const streamOrigins = trustedOrigins([
+  ...(config.auth?.trustedOrigins ?? LOCAL_APP_ORIGINS),
+  config.publicUrl,
+  config.appUrl,
+]);
 // Before anything reads a stored value, so a rotation under way never meets one it cannot open.
 useRetiredEncryptionKeys(config.previousKeyEncryptionKeys);
 // Read with the rest of the configuration, where an empty variable is an absent one. See
@@ -1486,6 +1494,10 @@ const asChannelSocket = (ws: { data: SocketData }) =>
 
 serve<SocketData>({
   port,
+  // The largest thing legitimately sent here is a conversation with attachments inlined (up to 32 MB
+  // of files, a third more as base64). Bun's own ceiling is 128 MB, which is a reason for nobody;
+  // JSON endpoints are held to far less by `jsonBodyLimit`.
+  maxRequestBodySize: MAX_REQUEST_BYTES,
   async fetch(request, server) {
     const url = new URL(request.url);
     if (url.pathname === "/api/audio/transcriptions") {
@@ -1500,6 +1512,13 @@ serve<SocketData>({
     ) {
       if (!config.computer) {
         return new Response("No computer is configured.", { status: 503 });
+      }
+      // Whose page opened this socket, before anything else: a handshake carries the cookie. Applied by
+      // hand, like the session guard, because the app's middleware does not run on this path.
+      if (!originAllowed(request.headers, streamOrigins)) {
+        return new Response("This request came from another website.", {
+          status: 403,
+        });
       }
       // The session guard, applied by hand because middleware does not run on an upgrade. An
       // unauthenticated socket here would be the whole point of the proxy defeated.
@@ -1588,6 +1607,27 @@ serve<SocketData>({
     },
   },
 });
+
+// Writes down every route this process registered, for the security tests (server/tests/security), which
+// need the real inventory: `createApp` registers a route only when the store behind it was given, so an
+// app built anywhere else has fewer routes than this one. Off unless asked for, and it reads nothing but
+// the route table. Done here rather than by importing this file, because importing the entry point as a
+// module changes when its top-level awaits settle, and a dependency that loads CommonJS then fails
+// intermittently ("require() async module") under Bun, which the entry point itself never does.
+if (process.env.ARK_DUMP_ROUTES) {
+  await Bun.write(
+    process.env.ARK_DUMP_ROUTES,
+    JSON.stringify(
+      app.routes
+        .filter(
+          (route) =>
+            ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(route.method) &&
+            !route.path.includes("*"),
+        )
+        .map((route) => ({ method: route.method, path: route.path })),
+    ),
+  );
+}
 
 if (config.singleUser) {
   // Loud, every boot. A server that is not checking who is asking should never be a quiet default.

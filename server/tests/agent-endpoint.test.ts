@@ -758,3 +758,114 @@ describe("named addresses on a redirect hop", () => {
     await expect(dial("https://agent.example.com/start")).rejects.toThrow();
   });
 });
+
+describe("a name that points inside the deployment", () => {
+  /** A fetch that records where it was sent, and a resolver that answers from a table. */
+  function dial(
+    table: Record<string, string[]>,
+    options: Parameters<typeof createAgentFetch>[0] = {},
+  ) {
+    const dialled: string[] = [];
+    const fetched = createAgentFetch({
+      ...options,
+      resolve: async (hostname) => {
+        const answer = table[hostname];
+        if (!answer) throw new Error("ENOTFOUND");
+        return answer;
+      },
+      fetchImpl: (async (url: string | URL | Request) => {
+        dialled.push(String(url));
+        return new Response("ok");
+      }) as unknown as typeof fetch,
+    });
+    return { fetched, dialled };
+  }
+
+  test("an ordinary name that resolves to a public address is dialled", async () => {
+    const { fetched, dialled } = dial({
+      "agent.example.com": ["93.184.216.34"],
+    });
+    await fetched("https://agent.example.com/ag-ui");
+    expect(dialled).toEqual(["https://agent.example.com/ag-ui"]);
+  });
+
+  test.each([
+    ["the cloud metadata address", "169.254.169.254"],
+    ["a private network address", "10.0.0.5"],
+    ["loopback", "127.0.0.1"],
+    ["another private range", "192.168.1.20"],
+    ["carrier-grade NAT", "100.64.0.9"],
+    ["IPv6 loopback", "::1"],
+    ["an IPv6 unique-local address", "fd00::1"],
+    ["IPv6 carrying a private IPv4 address", "::ffff:10.0.0.5"],
+  ])(
+    "a name that points at %s is refused before anything is sent",
+    async (_what, address) => {
+      const { fetched, dialled } = dial({
+        "innocent.attacker.example": [address],
+      });
+      await expect(
+        fetched("https://innocent.attacker.example/ag-ui"),
+      ).rejects.toThrow(EndpointNotAllowedError);
+      expect(dialled).toEqual([]);
+    },
+  );
+
+  test("one internal answer among several public ones is enough to refuse", async () => {
+    const { fetched, dialled } = dial({
+      "mixed.example": ["93.184.216.34", "10.1.2.3"],
+    });
+    await expect(fetched("https://mixed.example/")).rejects.toThrow(
+      /points at an address inside/,
+    );
+    expect(dialled).toEqual([]);
+  });
+
+  test("a redirect to a name that points inside is refused at that hop", async () => {
+    const dialled: string[] = [];
+    const fetched = createAgentFetch({
+      resolve: async (hostname) =>
+        hostname === "trap.example" ? ["10.9.9.9"] : ["93.184.216.34"],
+      fetchImpl: (async (url: string | URL | Request) => {
+        dialled.push(String(url));
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://trap.example/steal" },
+        });
+      }) as unknown as typeof fetch,
+    });
+    await expect(fetched("https://agent.example.com/ag-ui")).rejects.toThrow(
+      /points at an address inside/,
+    );
+    expect(dialled).toEqual(["https://agent.example.com/ag-ui"]);
+  });
+
+  test("a deployment that allows private hosts, or names this one, is not asked", async () => {
+    const open = dial(
+      { "intranet.local": ["10.0.0.5"] },
+      { allowPrivateHosts: true },
+    );
+    await open.fetched("https://intranet.local/ag-ui");
+    expect(open.dialled).toHaveLength(1);
+
+    const named = dial(
+      { "intranet.local": ["10.0.0.5"] },
+      { allowedHosts: new Set(["intranet.local"]) },
+    );
+    await named.fetched("https://intranet.local/ag-ui");
+    expect(named.dialled).toHaveLength(1);
+  });
+
+  test("a name that does not resolve is left to fail in the request itself", async () => {
+    const { fetched, dialled } = dial({});
+    await fetched("https://nowhere.example/");
+    expect(dialled).toHaveLength(1);
+  });
+
+  test("an address that is already a number needs no lookup and is judged as before", async () => {
+    const { fetched } = dial({});
+    await expect(fetched("http://10.0.0.5/")).rejects.toThrow(
+      EndpointNotAllowedError,
+    );
+  });
+});

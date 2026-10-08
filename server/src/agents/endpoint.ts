@@ -1,4 +1,5 @@
-import { checkNavigationTarget } from "../computer/target";
+import { lookup } from "node:dns/promises";
+import { checkNavigationTarget, isInternalAddress } from "../computer/target";
 
 /**
  * Where an external agent lives, and whether we are willing to talk to it.
@@ -242,6 +243,11 @@ export function createAgentFetch(
     allowedHosts?: ReadonlySet<string>;
     fetchImpl?: typeof fetch;
     /**
+     * What a name resolves to. Replaceable so a test need not touch the network; the default asks the
+     * system resolver, which is what the connection that follows will use.
+     */
+    resolve?: (hostname: string) => Promise<string[]>;
+    /**
      * Told about every address this refused to dial, and why.
      *
      * A refusal is the one thing on this path an operator cannot otherwise learn. The person who
@@ -269,6 +275,48 @@ export function createAgentFetch(
     }
     return new EndpointNotAllowedError(reason);
   };
+  const resolve = options.resolve ?? resolveAll;
+  /*
+   * WHAT A NAME POINTS AT, which no look at the text of an address can tell. `internal.attacker.example`
+   * is a perfectly ordinary name with an A record for 10.0.0.5 or 169.254.169.254, and is allowed by
+   * every check above, which is how a customer-chosen address becomes a request to the cluster's own
+   * services. So the name is resolved here and every answer must be public.
+   *
+   * NOT DONE when private hosts are allowed (a laptop reaching its own network on purpose) or the
+   * address is one the deployment named: those are exactly the cases where an internal answer is the
+   * point. An IP literal needs no lookup, and the textual check has already judged it. A name that
+   * does not resolve is left to fail in the request itself, with the request's own error.
+   *
+   * A RESIDUAL GAP, SAID PLAINLY: this resolves and then the fetch resolves again. A name that answers
+   * differently the second time (DNS rebinding) is not caught here. What catches that is the cluster's
+   * network policy, which refuses the private ranges whatever the application believes
+   * (charts/openbot/templates/networkpolicy.yaml); this check is what stops the ordinary case, and the
+   * policy is what stops the clever one.
+   */
+  const checkResolved = async (address: string) => {
+    if (options.allowPrivateHosts) return;
+    if (namedAsAllowed(address, options.allowedHosts)) return;
+    let hostname: string;
+    try {
+      hostname = new URL(address).hostname;
+    } catch {
+      return;
+    }
+    if (hostname.startsWith("[") || /^[0-9.]+$/.test(hostname)) return;
+    let answers: string[];
+    try {
+      answers = await resolve(hostname);
+    } catch {
+      return;
+    }
+    const inside = answers.find((answer) => isInternalAddress(answer));
+    if (inside !== undefined) {
+      throw refuse(
+        address,
+        `This deployment will not dial ${address}: the name ${hostname} points at an address inside the deployment's own network.`,
+      );
+    }
+  };
   const check = (address: string) =>
     checkAgentEndpoint(address, {
       ...(options.allowPrivateHosts !== undefined
@@ -286,6 +334,7 @@ export function createAgentFetch(
       );
     }
 
+    await checkResolved(stored.url);
     const origin = stored.url;
     let target = stored.url;
     let carried = init;
@@ -325,6 +374,7 @@ export function createAgentFetch(
           );
         }
       }
+      await checkResolved(verdict.url);
       target = verdict.url;
     }
 
@@ -335,4 +385,9 @@ export function createAgentFetch(
       `That address redirected more than ${MAX_REDIRECTS} times without arriving anywhere.`,
     );
   };
+}
+
+async function resolveAll(hostname: string): Promise<string[]> {
+  const answers = await lookup(hostname, { all: true, verbatim: true });
+  return answers.map((answer) => answer.address);
 }
