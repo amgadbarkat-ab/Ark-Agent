@@ -66,6 +66,13 @@ export const agentProfiles = pgTable(
     callbackTokenIssuedAt: timestamp("callback_token_issued_at", {
       withTimezone: true,
     }),
+    /**
+     * Where this coworker runs: in Ark's cloud (the default, and the only place a hosted deployment
+     * can run it) or on the person's own computer, where the desktop app runs it and it costs Ark
+     * nothing (decision D5). A coworker set to the computer is refused on the hosted service, with
+     * the way to change it, rather than quietly run somewhere that costs money.
+     */
+    runLocation: text("run_location").notNull().default("cloud"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
