@@ -97,6 +97,8 @@ import {
 import type { UserPreferencesStore } from "./user-preferences";
 import { withAccountProvisioning } from "./accounts/provisioning";
 import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
+import type { CloudGate } from "./cloud/gate";
+import { adminCloudRoutes, type CloudAudit, cloudRoutes } from "./cloud/routes";
 import type { AccountStore } from "./accounts/store";
 import {
   adminMarketplaceRoutes,
@@ -387,6 +389,15 @@ export function createApp(
    * positional reason above. Absent leaves `/api/account/export` and `/delete` unmounted.
    */
   privacy?: ErasureDependencies,
+  /**
+   * Running in Ark's cloud: a person's switch, limit and bill; staff's rates and usage. Appended
+   * last, for the positional reason above. Absent leaves `/api/account/cloud` and `/api/admin/cloud`
+   * unmounted.
+   */
+  cloud?: Pick<
+    Parameters<typeof adminCloudRoutes>[0],
+    "config" | "store" | "meter" | "database"
+  > & { gate: CloudGate },
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use(
@@ -699,6 +710,40 @@ export function createApp(
           : context.json({ error: outcome.error }, outcome.status);
       });
     }
+  }
+
+  if (cloud && accountServices) {
+    const audit: CloudAudit = async (event) => {
+      if (!auditStore) return;
+      await recordAuditEvent(auditStore, {
+        eventType: event.eventType,
+        targetType: event.targetType,
+        targetId: event.targetId,
+        actorUserId: event.actorUserId,
+        payload: event.payload,
+      }).catch(() => undefined);
+    };
+    app.route(
+      "/api/account/cloud",
+      cloudRoutes({
+        requireUser,
+        accounts: accountServices.store,
+        gate: cloud.gate,
+        store: cloud.store,
+        audit,
+      }),
+    );
+    app.route(
+      "/api/admin/cloud",
+      adminCloudRoutes({
+        requireUser,
+        config: cloud.config,
+        store: cloud.store,
+        meter: cloud.meter,
+        database: cloud.database,
+        audit,
+      }),
+    );
   }
 
   if (privacy) {

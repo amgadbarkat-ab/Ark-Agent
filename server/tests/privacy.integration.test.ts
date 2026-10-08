@@ -15,6 +15,9 @@ import {
   billingEvents,
   channelMemberships,
   channels,
+  cloudAccounts,
+  cloudCharges,
+  cloudIntervals,
   composioConnections,
   credentials,
   marketplaceListings,
@@ -292,6 +295,43 @@ async function furnished(
     userId: who.id,
     expiresAt: new Date(Date.now() + 60_000),
   });
+  // Running in Ark's cloud: the agreement, a month charged, and the time the coworker ran.
+  const rates = {
+    computeCentsPerHour: 60,
+    storageCentsPerGbMonth: 0,
+    egressCentsPerGb: 0,
+    paymentFeePercent: 5,
+    paymentFeeFixedCents: 50,
+    marginPercent: 0,
+    minimumChargeCents: 500,
+  };
+  await database.insert(cloudAccounts).values({
+    tenantId,
+    enabled: true,
+    monthlyCapCents: 3000,
+    consentedAt: new Date("2026-09-01T00:00:00Z"),
+    consentedRates: rates,
+  });
+  await database.insert(cloudCharges).values({
+    tenantId,
+    period: "2026-09",
+    status: "charged",
+    usage: { computeSeconds: 7200, storageByteSeconds: 0, egressBytes: 0 },
+    rates,
+    costCents: "120",
+    amountCents: 190,
+    providerRef: "paddle:PAYMENT-SERVICE-REFERENCE",
+    note: "A NOTE TO OURSELVES",
+  });
+  await database.insert(cloudIntervals).values({
+    tenantId,
+    botId: coworker.id,
+    source: "run",
+    ref: `run-${randomUUID()}`,
+    startedAt: new Date("2026-09-10T08:00:00Z"),
+    lastSeenAt: new Date("2026-09-10T10:00:00Z"),
+    endedAt: new Date("2026-09-10T10:00:00Z"),
+  });
   await database.insert(billingEvents).values({
     provider: "paddle",
     eventId: `evt-${randomUUID()}`,
@@ -459,6 +499,30 @@ async function rowsFor(
             .select({ n: count() })
             .from(billingEvents)
             .where(eq(billingEvents.tenantId, tenantId)),
+        )
+      : 0,
+    cloudAgreement: tenantId
+      ? await n(
+          database
+            .select({ n: count() })
+            .from(cloudAccounts)
+            .where(eq(cloudAccounts.tenantId, tenantId)),
+        )
+      : 0,
+    cloudCharges: tenantId
+      ? await n(
+          database
+            .select({ n: count() })
+            .from(cloudCharges)
+            .where(eq(cloudCharges.tenantId, tenantId)),
+        )
+      : 0,
+    cloudUsage: tenantId
+      ? await n(
+          database
+            .select({ n: count() })
+            .from(cloudIntervals)
+            .where(eq(cloudIntervals.tenantId, tenantId)),
         )
       : 0,
   };
@@ -787,6 +851,48 @@ describe("what a person is sent", () => {
     expect(file.conversations).toHaveLength(2);
     expect(file.conversations[0].messages[0].content).toContain("hello from");
     expect(file.notIncluded.length).toBeGreaterThan(0);
+  });
+
+  test("includes what they agreed to for cloud running, the months charged and the time their coworkers ran", async () => {
+    const ann = await furnished("ann");
+    const file = JSON.parse(await exported(ann.id));
+    expect(file.cloudRunning.agreement).toMatchObject({
+      enabled: true,
+      monthlyLimitCents: 3000,
+    });
+    expect(file.cloudRunning.agreement.agreedToPrices.computeCentsPerHour).toBe(
+      60,
+    );
+    expect(file.cloudRunning.months).toEqual([
+      expect.objectContaining({
+        month: "2026-09",
+        status: "charged",
+        chargedCents: 190,
+      }),
+    ]);
+    expect(file.cloudUsage).toHaveLength(1);
+    expect(file.cloudUsage[0]).toMatchObject({ kind: "run" });
+    // Their record, not the payment service's reference or a note we wrote to ourselves.
+    const text = JSON.stringify(file);
+    expect(text).not.toContain("PAYMENT-SERVICE-REFERENCE");
+    expect(text).not.toContain("A NOTE TO OURSELVES");
+  });
+
+  test("reads a long record of cloud use a page at a time and loses none of it", async () => {
+    const ann = await furnished("ann");
+    for (let i = 0; i < 7; i++) {
+      await database.insert(cloudIntervals).values({
+        tenantId: ann.tenantId as string,
+        botId: ann.coworkerId,
+        source: "run",
+        ref: `bulk-${randomUUID()}`,
+        startedAt: new Date("2026-09-11T08:00:00Z"),
+        lastSeenAt: new Date("2026-09-11T08:30:00Z"),
+        endedAt: new Date("2026-09-11T08:30:00Z"),
+      });
+    }
+    const file = JSON.parse(await exported(ann.id, fakeConversations(), 3));
+    expect(file.cloudUsage).toHaveLength(8);
   });
 
   test("holds nothing that opens a door", async () => {

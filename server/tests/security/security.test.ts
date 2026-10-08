@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
-import { sessions } from "../../src/db/schema";
+import { cloudAccounts, cloudCharges, sessions } from "../../src/db/schema";
 import { mintModelGrant } from "../../src/models/grant";
 import {
   type Person,
@@ -84,6 +84,17 @@ const PUBLIC: Record<string, string> = {
 run("who may reach what", () => {
   test("every route that is not public refuses somebody who is not signed in", async () => {
     const open: string[] = [];
+    // The sweep is only as good as the list it walks: the money routes are on it.
+    const listed = target.routes.map(
+      (route) => `${route.method} ${route.path}`,
+    );
+    for (const money of [
+      "POST /api/account/cloud/enable",
+      "PUT /api/admin/cloud/rates",
+      "POST /api/admin/cloud/charges/:id/settle",
+    ]) {
+      expect(listed).toContain(money);
+    }
     for (const route of unique(target.routes)) {
       const key = `${route.method} ${route.path}`;
       if (key in PUBLIC) continue;
@@ -1498,5 +1509,149 @@ run("how fast a person may ask", () => {
       statuses.push(answer.status);
     }
     expect(statuses).toContain(429);
+  });
+});
+
+run("running in the cloud, which is charged for", () => {
+  const RATES = {
+    computeCentsPerHour: 60,
+    storageCentsPerGbMonth: 0,
+    egressCentsPerGb: 0,
+    paymentFeePercent: 5,
+    paymentFeeFixedCents: 50,
+    marginPercent: 0,
+    minimumChargeCents: 500,
+  };
+  const enable = (
+    as: Person,
+    body: unknown = { monthlyCapCents: 3000, shownRates: RATES },
+  ) => target.call(as, "POST", "/api/account/cloud/enable", { body });
+  const mine = async (as: Person) =>
+    JSON.parse((await target.call(as, "GET", "/api/account/cloud")).text);
+
+  test("only staff set a price, and a customer's attempt changes nothing", async () => {
+    const before = (
+      await target.call(target.admin, "GET", "/api/admin/cloud/rates")
+    ).text;
+    for (const as of [target.a, target.b]) {
+      for (const body of [RATES, { ...RATES, computeCentsPerHour: 1 }]) {
+        const answer = await target.call(as, "PUT", "/api/admin/cloud/rates", {
+          body,
+        });
+        expect(answer.status).toBe(403);
+      }
+    }
+    expect(
+      (await target.call(target.admin, "GET", "/api/admin/cloud/rates")).text,
+    ).toBe(before);
+    expect(
+      (
+        await target.call(target.admin, "PUT", "/api/admin/cloud/rates", {
+          body: RATES,
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  test("a customer agrees only to the prices actually in force, and to a limit that makes sense", async () => {
+    const forged = await enable(target.a, {
+      monthlyCapCents: 3000,
+      shownRates: { ...RATES, computeCentsPerHour: 1 },
+    });
+    expect(forged.status).toBe(409);
+    for (const monthlyCapCents of [0, -5, 99, 1_000_001, 1.5, "30", null]) {
+      expect(
+        (await enable(target.a, { monthlyCapCents, shownRates: RATES })).status,
+      ).toBe(400);
+    }
+    // Neither refusal switched anything on.
+    expect((await mine(target.a)).cloud.enabled).toBe(false);
+  });
+
+  test("one customer's switch, limit and bill are theirs alone", async () => {
+    expect((await enable(target.a)).status).toBe(200);
+    await target.database.insert(cloudCharges).values({
+      tenantId: target.a.tenantId,
+      period: "2026-09",
+      status: "uncertain",
+      usage: { computeSeconds: 3600, storageByteSeconds: 0, egressBytes: 0 },
+      rates: RATES,
+      costCents: "60",
+      amountCents: 123,
+      providerRef: "paddle:sub_ALICEREF",
+      note: "ALICENOTE",
+    });
+
+    const bobs = await target.call(target.b, "GET", "/api/account/cloud");
+    expect(JSON.parse(bobs.text).cloud.enabled).toBe(false);
+    expect(JSON.parse(bobs.text).charges).toEqual([]);
+    // Bob's switches act on Bob's account, and do not reach Alice's.
+    await target.call(target.b, "PUT", "/api/account/cloud/cap", {
+      body: { monthlyCapCents: 100 },
+    });
+    await target.call(target.b, "POST", "/api/account/cloud/disable");
+    const alices = await mine(target.a);
+    expect(alices.cloud.enabled).toBe(true);
+    expect(alices.cloud.monthlyCapCents).toBe(3000);
+    // Her own bill is hers to read, without the provider's reference or our notes.
+    expect(alices.charges).toHaveLength(1);
+    expect(alices.charges[0].status).toBe("checking");
+    const text = JSON.stringify(alices);
+    expect(text).not.toContain("ALICEREF");
+    expect(text).not.toContain("ALICENOTE");
+  });
+
+  test("a customer cannot read what staff read, nor settle a month, and a settled one stays settled", async () => {
+    const [charge] = await target.database
+      .select({ id: cloudCharges.id })
+      .from(cloudCharges);
+    for (const as of [target.a, target.b]) {
+      for (const [method, path] of [
+        ["GET", "/api/admin/cloud/usage"],
+        ["GET", "/api/admin/cloud/charges"],
+        ["POST", `/api/admin/cloud/charges/${charge?.id}/settle`],
+      ] as const) {
+        const answer = await target.call(as, method, path, {
+          body: { outcome: "waived", note: "I would like it free" },
+        });
+        expect(answer.status).toBe(403);
+      }
+    }
+    const first = await target.call(
+      target.admin,
+      "POST",
+      `/api/admin/cloud/charges/${charge?.id}/settle`,
+      { body: { outcome: "charged", note: "Paddle shows it taken" } },
+    );
+    expect(first.status).toBe(200);
+    const second = await target.call(
+      target.admin,
+      "POST",
+      `/api/admin/cloud/charges/${charge?.id}/settle`,
+      { body: { outcome: "waived", note: "changed my mind" } },
+    );
+    expect(second.status).toBe(409);
+  });
+
+  test("the switch is on the customer's own account, whatever is put in the body", async () => {
+    const spare = await target.makePerson("cloudspare");
+    const answer = await target.call(
+      spare,
+      "POST",
+      "/api/account/cloud/enable",
+      {
+        body: {
+          monthlyCapCents: 3000,
+          shownRates: RATES,
+          tenantId: target.a.tenantId,
+        },
+      },
+    );
+    // A field that is not part of the request is a refused request, not an instruction.
+    expect(answer.status).toBe(400);
+    const stray = await target.database
+      .select({ id: cloudAccounts.tenantId })
+      .from(cloudAccounts);
+    expect(stray.map((row) => row.id)).not.toContain(spare.tenantId);
   });
 });

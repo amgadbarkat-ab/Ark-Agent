@@ -1478,6 +1478,13 @@ const app = createApp(
         }
       : {}),
   },
+  {
+    config: config.cloud,
+    gate: cloudGate,
+    store: cloudStore,
+    meter: cloudMeter,
+    database,
+  },
 );
 
 /**

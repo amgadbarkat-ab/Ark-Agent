@@ -8,6 +8,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { CloudRunningSection } from "@/components/settings/cloud-running";
 import { Button } from "@/components/ui/button";
 import {
   Item,
@@ -242,6 +243,10 @@ function PlanPage() {
                 </p>
               ) : null}
             </PageSection>
+          ) : null}
+
+          {data.billing.mode === "subscriptions" && data.account.canRun ? (
+            <CloudRunningSection />
           ) : null}
 
           {data.billing.mode === "subscriptions" && data.billing.selfService ? (

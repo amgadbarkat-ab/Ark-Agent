@@ -1,6 +1,7 @@
 import {
   IconBuildingBank,
   IconBuildingStore,
+  IconCloud,
   IconCreditCard,
   IconChevronRight,
   IconCode,
@@ -126,6 +127,13 @@ const SECTIONS: {
           "Every customer account: its plan, how much is in use, and whether it may run.",
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
+      },
+      {
+        title: "Cloud costs",
+        description:
+          "What running in Ark's cloud costs us, what it is priced at, and what was charged.",
+        icon: IconCloud,
+        linkOptions: { to: "/admin/cloud" },
       },
       {
         title: "Marketplace",

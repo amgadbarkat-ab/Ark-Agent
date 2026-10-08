@@ -72,6 +72,7 @@ import {
 } from "@/lib/agents/mutations";
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
 import { isComposing } from "@/lib/composing";
+import { cloudQueryOptions } from "@/lib/cloud/queries";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 
@@ -306,6 +307,11 @@ function GeneralSection({
           onSave={(visibility) => save({ visibility })}
           value={profile.visibility}
         />
+        <RunLocationItem
+          canManage={profile.canManage}
+          onSave={(runLocation) => save({ runLocation })}
+          value={profile.runLocation}
+        />
         {profile.systemOwned ? (
           <Item variant="muted">
             <ItemContent>
@@ -534,6 +540,88 @@ function VisibilityItem({
         ) : (
           <span className="text-sm text-muted-foreground">
             {value === "private" ? "Private" : "Public"}
+          </span>
+        )}
+      </ItemActions>
+    </Item>
+  );
+}
+
+/**
+ * Where this coworker runs: on Ark's computers, or on the person's own.
+ *
+ * Shown only on a hosted service with customers, where the choice means something (a company's own
+ * deployment runs everything on its own machines) and only while cloud running is not switched off.
+ * It writes on pick, like visibility. A coworker set to run on the person's computer is never run in
+ * the cloud behind their back, and the cloud costs only what is used (Settings, Plan).
+ */
+function RunLocationItem({
+  value,
+  canManage,
+  onSave,
+}: {
+  value: AgentProfile["runLocation"];
+  canManage: boolean;
+  onSave: (runLocation: AgentProfile["runLocation"]) => Promise<unknown>;
+}) {
+  const cloud = useQuery(cloudQueryOptions());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const status = cloud.data?.cloud;
+  if (!status?.hosted || status.mode === "off") return null;
+
+  return (
+    <Item variant="muted">
+      <ItemContent>
+        <ItemTitle>Where it runs</ItemTitle>
+        <ItemDescription>
+          {value === "device"
+            ? "On your own computer, in the Ark desktop app. Included, and never run in the cloud instead."
+            : status.addOn
+              ? "On Ark's computers. Paid at cost, only while it is working, once you switch cloud running on in Settings, Plan."
+              : "On Ark's computers."}
+        </ItemDescription>
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </ItemContent>
+      <ItemActions>
+        {canManage ? (
+          <Select
+            disabled={saving}
+            items={{ cloud: "Ark's cloud", device: "My computer" }}
+            onValueChange={async (next) => {
+              if (next === value) return;
+              setError(null);
+              setSaving(true);
+              try {
+                await onSave(next as AgentProfile["runLocation"]);
+              } catch (failure) {
+                setError(
+                  failure instanceof Error
+                    ? failure.message
+                    : "Could not save.",
+                );
+              } finally {
+                setSaving(false);
+              }
+            }}
+            value={value}
+          >
+            <SelectTrigger aria-label="Where it runs" className="w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cloud">Ark's cloud</SelectItem>
+              <SelectItem value="device">My computer</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            {value === "device" ? "My computer" : "Ark's cloud"}
           </span>
         )}
       </ItemActions>

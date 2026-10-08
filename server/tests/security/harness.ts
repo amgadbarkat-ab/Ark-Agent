@@ -210,6 +210,8 @@ export async function startTarget(): Promise<Target> {
           : {}),
         ARK_BILLING_MODE: "subscriptions",
         ARK_BILLING_PROVIDER: "paddle",
+        // Cloud running as a paid add-on, which is the shape with money in it.
+        ARK_CLOUD_MODE: "metered",
         APP_URL: url,
         PADDLE_ENVIRONMENT: "sandbox",
         PADDLE_API_KEY: "pdl_sdbx_apikey_securitytest0000",

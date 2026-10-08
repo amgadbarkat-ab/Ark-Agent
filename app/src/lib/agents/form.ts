@@ -38,6 +38,11 @@ export const agentFormSchema = z.object({
    * always empty when editing, and leaving it empty keeps whatever key is already set.
    */
   authValue: z.string(),
+  /**
+   * Where it runs. Left out, the coworker keeps wherever it runs now (or the cloud, when new): only
+   * a person who chose a place sends one.
+   */
+  runLocation: z.enum(["cloud", "device"]).optional(),
 });
 
 export type AgentFormValues = z.infer<typeof agentFormSchema>;
@@ -59,6 +64,7 @@ export function agentInputFrom(values: AgentFormValues) {
     roleDescription: values.roleDescription,
     visibility: values.visibility,
     endpoint: values.endpoint,
+    ...(values.runLocation ? { runLocation: values.runLocation } : {}),
     ...(values.authValue.trim()
       ? { auth: { header: "Authorization", value: values.authValue.trim() } }
       : {}),

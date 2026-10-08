@@ -10,6 +10,9 @@ import {
   botModelChoices,
   channelMemberships,
   channels,
+  cloudAccounts,
+  cloudCharges,
+  cloudIntervals,
   composioConnections,
   marketplaceInstalls,
   marketplaceListings,
@@ -131,6 +134,32 @@ export function exportPerson(
         .where(eq(tenants.id, tenantId))
         .limit(1);
       sections.account = account ?? null;
+      // What they agreed to for running in Ark's cloud, and the months charged for it.
+      const [agreement] = await database
+        .select({
+          enabled: cloudAccounts.enabled,
+          monthlyLimitCents: cloudAccounts.monthlyCapCents,
+          agreedAt: cloudAccounts.consentedAt,
+          agreedToPrices: cloudAccounts.consentedRates,
+        })
+        .from(cloudAccounts)
+        .where(eq(cloudAccounts.tenantId, tenantId))
+        .limit(1);
+      sections.cloudRunning = {
+        agreement: agreement ?? null,
+        // Not the payment service's reference or our notes to ourselves about a charge.
+        months: await database
+          .select({
+            month: cloudCharges.period,
+            status: cloudCharges.status,
+            chargedCents: cloudCharges.amountCents,
+            usage: cloudCharges.usage,
+            prices: cloudCharges.rates,
+          })
+          .from(cloudCharges)
+          .where(eq(cloudCharges.tenantId, tenantId))
+          .orderBy(asc(cloudCharges.period)),
+      };
       sections.membership = await database
         .select({
           role: tenantMemberships.role,
@@ -335,6 +364,43 @@ export function exportPerson(
       }
       if (page.length < auditPage) break;
       after = page.at(-1)?.id;
+    }
+    yield "]";
+
+    // When their coworkers used Ark's computers: the record the monthly charge is worked out from.
+    yield ',"cloudUsage":[';
+    if (tenantId) {
+      let firstUse = true;
+      let afterUse: string | undefined;
+      for (;;) {
+        const page = await database
+          .select({
+            id: cloudIntervals.id,
+            coworkerId: cloudIntervals.botId,
+            kind: cloudIntervals.source,
+            from: cloudIntervals.startedAt,
+            lastSeen: cloudIntervals.lastSeenAt,
+            until: cloudIntervals.endedAt,
+            bytes: cloudIntervals.bytes,
+          })
+          .from(cloudIntervals)
+          .where(
+            afterUse
+              ? and(
+                  eq(cloudIntervals.tenantId, tenantId),
+                  gt(cloudIntervals.id, afterUse),
+                )
+              : eq(cloudIntervals.tenantId, tenantId),
+          )
+          .orderBy(asc(cloudIntervals.id))
+          .limit(auditPage);
+        for (const { id: _id, ...row } of page) {
+          yield `${firstUse ? "" : ","}${JSON.stringify(row)}`;
+          firstUse = false;
+        }
+        if (page.length < auditPage) break;
+        afterUse = page.at(-1)?.id;
+      }
     }
     yield "]";
 

@@ -32,6 +32,8 @@ export type CloudDecision =
 
 export type CloudStatus = {
   mode: CloudConfig["mode"];
+  /** A hosted service with customers, as against a company's own deployment. */
+  hosted: boolean;
   /** Whether this account has to opt in at all. */
   addOn: boolean;
   /** Whether it can be switched on yet: there are prices to agree to. */
@@ -83,6 +85,7 @@ export function createCloudGate(deps: {
     const charge = rates ? chargeCents(usage, rates) : 0;
     return {
       mode: config.mode,
+      hosted,
       addOn,
       priced: rates !== null,
       rates,
