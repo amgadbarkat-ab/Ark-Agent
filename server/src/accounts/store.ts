@@ -28,6 +28,14 @@ export function billingModeFrom(value: string | undefined): BillingMode {
     : "internal";
 }
 
+/** Thrown when a change names an account that does not exist. */
+export class UnknownAccountError extends Error {
+  constructor() {
+    super("No such account.");
+    this.name = "UnknownAccountError";
+  }
+}
+
 export type BlockedCode = "suspended" | "no_plan" | "canceled";
 
 /** What an account is allowed to do right now, decided in one place. */
@@ -93,6 +101,9 @@ export type AccountStore = {
     provider: string,
     customerId: string,
   ) => Promise<string | undefined>;
+  /** The payment provider's id for this account's customer and subscription, if it has any. */
+  providerCustomerIdFor: (tenantId: string) => Promise<string | undefined>;
+  providerSubscriptionIdFor: (tenantId: string) => Promise<string | undefined>;
   /** One page of accounts for the administrator's screen, newest first. */
   listForAdmin: (query?: {
     search?: string;
@@ -325,7 +336,7 @@ export function createAccountStore(
         .set(set)
         .where(eq(subscriptions.tenantId, tenantId))
         .returning({ tenantId: subscriptions.tenantId });
-      if (done.length === 0) throw new Error("No such account.");
+      if (done.length === 0) throw new UnknownAccountError();
     },
 
     async suspend(tenantId, reason) {
@@ -339,7 +350,7 @@ export function createAccountStore(
         })
         .where(eq(tenants.id, tenantId))
         .returning({ id: tenants.id });
-      if (done.length === 0) throw new Error("No such account.");
+      if (done.length === 0) throw new UnknownAccountError();
     },
 
     async resume(tenantId) {
@@ -353,7 +364,7 @@ export function createAccountStore(
         })
         .where(eq(tenants.id, tenantId))
         .returning({ id: tenants.id });
-      if (done.length === 0) throw new Error("No such account.");
+      if (done.length === 0) throw new UnknownAccountError();
     },
 
     async tenantIdForProviderCustomer(provider, customerId) {
@@ -368,6 +379,24 @@ export function createAccountStore(
         )
         .limit(1);
       return row?.tenantId;
+    },
+
+    async providerCustomerIdFor(tenantId) {
+      const [row] = await database
+        .select({ id: subscriptions.providerCustomerId })
+        .from(subscriptions)
+        .where(eq(subscriptions.tenantId, tenantId))
+        .limit(1);
+      return row?.id ?? undefined;
+    },
+
+    async providerSubscriptionIdFor(tenantId) {
+      const [row] = await database
+        .select({ id: subscriptions.providerSubscriptionId })
+        .from(subscriptions)
+        .where(eq(subscriptions.tenantId, tenantId))
+        .limit(1);
+      return row?.id ?? undefined;
     },
 
     async listForAdmin(query = {}) {

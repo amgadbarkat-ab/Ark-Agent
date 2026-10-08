@@ -88,7 +88,11 @@ import {
 } from "./user-instructions";
 import type { UserPreferencesStore } from "./user-preferences";
 import { withAccountProvisioning } from "./accounts/provisioning";
+import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
 import type { AccountStore } from "./accounts/store";
+import { manualBilling } from "./billing/manual";
+import type { BillingProvider } from "./billing/provider";
+import type { BillingWebhook } from "./billing/webhook";
 import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { userPreferencesRoutes } from "./user-preferences-routes";
@@ -346,7 +350,12 @@ export function createApp(
    * Accounts and plans. Appended last, for the positional reason above. Absent leaves every person
    * without an account and every route as it was.
    */
-  accountServices?: { store: AccountStore },
+  accountServices?: {
+    store: AccountStore;
+    /** The payment provider. Absent means plans are set by hand. */
+    billing?: BillingProvider;
+    webhook?: BillingWebhook;
+  },
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -521,6 +530,70 @@ export function createApp(
       voiceSessions,
     ),
   );
+
+  if (accountServices) {
+    const audit = async (event: {
+      eventType:
+        | "account.plan_changed"
+        | "account.suspended"
+        | "account.resumed"
+        | "account.subscription_changed";
+      actorUserId: string;
+      tenantId: string;
+      payload: Record<string, unknown>;
+    }) => {
+      if (!auditStore) return;
+      await recordAuditEvent(auditStore, {
+        eventType: event.eventType,
+        targetType: "account",
+        targetId: event.tenantId,
+        actorUserId: event.actorUserId,
+        payload: event.payload,
+      }).catch(() => undefined);
+    };
+    const billing = accountServices.billing ?? manualBilling;
+    app.route(
+      "/api/account",
+      accountRoutes({
+        requireUser,
+        accounts: accountServices.store,
+        billing,
+        appUrl: config.appUrl,
+        audit,
+      }),
+    );
+    app.route(
+      "/api/admin/accounts",
+      adminAccountRoutes({
+        requireUser,
+        accounts: accountServices.store,
+        audit,
+      }),
+    );
+    // Not behind a session: the caller is a payment provider, and its signature is its credential.
+    const webhook = accountServices.webhook;
+    if (webhook) {
+      app.post("/api/billing/webhook/:provider", async (context) => {
+        // A notification is small. Refuse anything large before reading it all.
+        const length = Number(context.req.header("content-length") ?? 0);
+        if (length > 1_000_000) {
+          return context.json({ error: "That is too large." }, 413);
+        }
+        const raw = await context.req.text();
+        if (raw.length > 1_000_000) {
+          return context.json({ error: "That is too large." }, 413);
+        }
+        const outcome = await webhook.handle(
+          context.req.param("provider"),
+          context.req.raw.headers,
+          raw,
+        );
+        return outcome.ok
+          ? context.json(outcome)
+          : context.json({ error: outcome.error }, outcome.status);
+      });
+    }
+  }
 
   app.get("/api/me", requireUser, async (context) =>
     context.json({

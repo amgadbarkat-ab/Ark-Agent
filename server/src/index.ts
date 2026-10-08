@@ -107,6 +107,9 @@ import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
 import { RunGateAgent } from "./accounts/run-gate";
+import { billingFromEnvironment } from "./billing/select";
+import type { BillingProvider } from "./billing/provider";
+import { createBillingWebhook } from "./billing/webhook";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
 import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
@@ -936,6 +939,11 @@ const routineRunner = createRoutineRunner({
 const modelForActor = createModelForActor(modelConnectionStore, agentFetch);
 
 const runSlots = createRunSlots(database);
+// Which payment provider takes the money. "manual" until one is chosen: staff set plans by hand.
+// "sandbox" runs the whole flow with a signed fake and no money, for demonstrations and tests.
+const billing: BillingProvider = billingFromEnvironment(process.env, {
+  appUrl: config.appUrl ?? config.publicUrl,
+});
 const runGateOptions = { accounts: accountStore, slots: runSlots };
 
 const copilotRuntime = mountCopilotRuntime(
@@ -1390,7 +1398,15 @@ const app = createApp(
       ? { allowedHosts: config.agentEndpointAllowedHosts }
       : {}),
   },
-  { store: accountStore },
+  {
+    store: accountStore,
+    billing,
+    webhook: createBillingWebhook({
+      database,
+      accounts: accountStore,
+      providers: new Map([[billing.id, billing]]),
+    }),
+  },
 );
 
 /**

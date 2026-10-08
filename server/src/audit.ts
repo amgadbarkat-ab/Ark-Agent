@@ -435,6 +435,13 @@ export const auditEventTypes = [
    * withholds; the offered credential never does.
    */
   "routines.dispatch_refused",
+  /** A staff member changed what an account has bought, or whether it is paid up. */
+  "account.plan_changed",
+  /** A staff member suspended an account, with the reason shown to the customer. */
+  "account.suspended",
+  "account.resumed",
+  /** The customer changed their own plan or cancelled, through the billing provider. */
+  "account.subscription_changed",
 ] as const;
 
 export type AuditEventType = (typeof auditEventTypes)[number];
