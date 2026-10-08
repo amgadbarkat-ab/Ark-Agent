@@ -163,7 +163,7 @@ describe("a run inside the plan", () => {
   test("an unlimited account never waits", async () => {
     const staff = await person("internal");
     const bots = ["a", "b", "c", "d"].map((id) => new FakeBot(id));
-    bots.forEach((bot, i) => start(staff, `bot-${i}`, bot));
+    for (const [i, bot] of bots.entries()) start(staff, `bot-${i}`, bot);
     await until(() => bots.every((bot) => bot.runs.length === 1));
     expect(await slots.activeBots(staff.tenantId)).toBe(4);
     for (const bot of bots) bot.finishAll();
