@@ -1,64 +1,65 @@
 # Product decisions
 
-Written 2026-10-08, from the owner's instructions. Anything under "Open questions" is not decided.
+Updated 2026-10-08 from the owner's instructions. Section "Open questions" is not decided.
 
 ## Decisions
 
-**D1. Independent product.** Ark Agent must not depend on CopilotKit or any other third-party
-hosted control plane. All conversation data, memory and accounts live in storage we operate (or, on
-the desktop app, on the user's own device).
+**D1. Independent product, built on MIT code.** Ark is built by taking CopilotKit's OpenBot (MIT)
+directly and modifying it. Ark must not depend on CopilotKit's hosted services or any other
+third-party control plane. Conversations, memory and accounts live in storage we operate (cloud) or
+on the user's own device (desktop). See 03-licensing.md and 05-build-plan.md.
 
 **D2. Both desktop and cloud, plus mobile.**
 - Desktop app: macOS and Windows.
 - Mobile apps: Android and iOS.
-- Cloud service behind all of them (accounts, billing, marketplace, hosted bots).
+- A cloud service behind all of them (accounts, billing, marketplace, hosted bots).
 
-**D3. Pricing: monthly subscription per user account, with a tenant layer.**
+**D3. Three subscription plans.** The user chooses one at sign-up. A tenant layer enforces limits.
 
-| Plan | Price | Bots per user account |
+| Plan | Price | Bots included |
 | --- | --- | --- |
-| Solo | EUR 50 / month | 1 |
-| Team | EUR 100 / month | up to 10 |
+| Ark Agent | EUR 50 / month | 1 |
+| Ark Team | EUR 100 / month | up to 15 |
+| Ark Team Enterprise | EUR 250 / month | up to 500 |
 
-- The number of bots is controlled by the platform: creation is blocked at the plan limit.
-- Billing is per user account, inside a tenant (a customer organisation). The tenant layer holds
-  the organisation, its users, their plans, and admin controls.
+- Ark Team is a separate product from Ark Agent, not a bigger version of it.
+- The platform blocks activating bots beyond the plan limit.
+- The price covers the Ark software. Running bots in Ark's cloud is a separate paid add-on (D5).
 
-**D4. LLM providers.**
-- Default: local models and free providers, so a user pays Ark and nothing else.
-- Optional: the user connects their own provider by signing in (plan sign-in) or with their own key.
-- A provider can be changed at any time without losing the bot's workspace or conversation.
+**D4. What counts as a bot.** An **active agent with running tasks**. Not a saved definition on
+its own. (To confirm: do idle saved definitions count toward the limit? See open question 1.)
 
-**D5. Marketplace.**
-- Ark publishes its own digital employees (bots).
-- Users can publish and share their own bots.
+**D5. Where bots run: the user's choice, per bot.**
+- On the user's own device (included in the plan; costs Ark nothing).
+- In Ark's cloud (optional add-on). It is metered and priced so the extra charge covers **100% of
+  Ark's cost** for that usage (compute, storage, network, payment fees and tax handling). Any margin
+  on top is a separate business decision. We need real cost data before setting prices.
+
+**D6. LLM providers.** Local and free providers are the default, so a user pays Ark and nothing
+else. Users may connect their own provider by signing in or with their own key, and switch at any
+time. The technical design and the legal check of plan sign-in are in 04-llm-providers.md.
+
+**D7. Marketplace.**
+- Ark publishes its own digital employees. Users can install these.
+- Users can share their own bots, but a shared bot is **view-only**: other users can read all its
+  details (instructions, tools, skills, setup) as a guide to build their own, but **cannot import,
+  install, clone or export it**. Nothing from a user-shared listing ever runs on another user's
+  account. This also removes most of the security risk of shared bots.
+- Secrets and private data must be stripped from a bot before it can be listed.
+
+**D8. Brand assets** (name, logo, colours, domain): later.
 
 ## Open questions
 
-1. **What counts as a "bot"?** A saved agent definition (instructions, tools, skills), or a running
-   agent with its own computer (browser, files)? Cloud computers cost real money per bot; local ones
-   cost us nothing. This decides whether EUR 50 / EUR 100 is profitable.
-2. **Where do bots run?** On the user's device, in our cloud, or the user's choice per bot?
-3. **"Free providers" in practice.** Free hosted tiers have rate limits and can change terms. Local
-   models need capable hardware, and phones are limited. Which free providers do we support first?
-4. **Plan sign-in terms.** Using a user's ChatGPT/Claude/Gemini plan through a third-party app is
-   governed by each provider's terms. Check before we promise it.
-5. **Marketplace rules.** Revenue share on paid bots? Review and moderation before listing? A shared
-   bot can run commands and use a browser, so a malicious listing is a security risk. Governed
-   tool access (a policy gateway like OpenBot's) is the likely answer.
-6. **Mobile store fees.** Apple and Google take a cut of in-app subscriptions and have rules on
-   how paid digital goods are sold. Confirm current terms before choosing how users pay.
-7. **Tax and billing.** Prices are in EUR: VAT handling and the payment provider need choosing.
-8. **Name and brand assets.** Logo, colours, domain.
-
-## What these decisions imply for the build
-
-- Replace CopilotKit Intelligence (threads and memory) with our own store, in Postgres for the
-  cloud and SQLite on devices. Needed by D1.
-- A provider layer: one interface over local models (for example Ollama), free hosted providers,
-  OpenAI-compatible endpoints, and user sign-in. Needed by D4.
-- Accounts, tenants, plans and bot-count enforcement. Needed by D3.
-- A marketplace service with listing, install, review and publisher accounts. Needed by D5.
-- Desktop (macOS, Windows) and mobile (Android, iOS) clients over one shared API. Needed by D2.
-
-A phased plan will follow once the open questions marked 1 to 3 are answered.
+1. **Active vs saved.** Does a saved but idle bot definition count toward the plan limit, or only
+   active ones? And is a bot "active" while it has a schedule, or only while a task is running?
+2. **Seats.** Is each plan per single user account, or per organisation with several users sharing
+   the bot allowance? How many users does Ark Team and Ark Team Enterprise include?
+3. **Enterprise economics.** EUR 250 for 500 bots is EUR 0.50 per bot. That only works if those
+   bots run on the customer's own machines or on cloud add-on charges. Confirm this is intended.
+4. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
+5. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling.
+6. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
+   digital goods are sold. Check current terms before choosing how mobile users pay.
+7. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires
+   contacting OpenAI (see 04-llm-providers.md).
