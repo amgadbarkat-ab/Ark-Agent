@@ -112,6 +112,18 @@ ingress:
   className: webapprouting.kubernetes.azure.com
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
+    # A first line against floods, per client address, in front of every route (the sign-in library's
+    # own limiter is per replica and only on in production; docs/ark/15-security-review.md, O7).
+    # Generous on purpose: an office shares one address, and loading the app is dozens of requests in a
+    # second. 100 a second sustained with a burst five times that; 60 open connections.
+    # This stops a script hammering a route. It does not stop a distributed flood: that is Azure Front
+    # Door with its WAF in front of the cluster, which is a decision about cost and is not made here.
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/limit-connections: "60"
+    # Refused with 429 (Too Many Requests), which is what it is, rather than nginx's default 503.
+    nginx.ingress.kubernetes.io/limit-req-status-code: "429"
+    nginx.ingress.kubernetes.io/limit-conn-status-code: "429"
   hosts:
     - host: ark.example.com
       paths:

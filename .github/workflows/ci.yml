@@ -439,6 +439,41 @@ jobs:
           tags: openbot:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # What is in the image, as against what it does. A known-exploitable flaw in a library or in the
+      # operating system underneath is the thing that gets an otherwise correct image taken over.
+      #
+      # CRITICAL and fixable only (`--ignore-unfixed`): a flaw with no fix cannot be acted on and would
+      # turn every build red for something nobody can change, and HIGH is reported rather than blocking
+      # so it is seen without making the gate one people learn to ignore. An accepted CRITICAL goes in
+      # security/trivyignore with a reason and a date, like security/audit-allowlist.json does for
+      # dependencies (docs/ark/15-security-review.md, O5).
+      #
+      # Trivy runs from its own published image, pinned by version, so there is no third-party action
+      # between this job and the registry. Bump TRIVY_VERSION deliberately; it is the scanner's own
+      # database, fetched at run time, that stays current.
+      - name: No fixable critical vulnerability in the image
+        env:
+          TRIVY_VERSION: 0.58.2
+        run: |
+          set -uo pipefail
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/security:/security:ro" \
+            -v "${HOME}/.cache/trivy:/root/.cache/trivy" \
+            "ghcr.io/aquasecurity/trivy:${TRIVY_VERSION}" image \
+            --no-progress --scanners vuln \
+            --severity HIGH,CRITICAL --ignore-unfixed \
+            --ignorefile /security/trivyignore \
+            --exit-code 0 --format table openbot:ci
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/security:/security:ro" \
+            -v "${HOME}/.cache/trivy:/root/.cache/trivy" \
+            "ghcr.io/aquasecurity/trivy:${TRIVY_VERSION}" image \
+            --no-progress --scanners vuln \
+            --severity CRITICAL --ignore-unfixed \
+            --ignorefile /security/trivyignore \
+            --exit-code 1 --format table openbot:ci
       # Building it says the layers resolve. Running it says the supervision tree comes up and stays
       # up, which is a different claim and the one that has broken before.
       - name: The image boots and serves

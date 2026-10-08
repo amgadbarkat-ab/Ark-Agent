@@ -45,6 +45,15 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-09-01' = {
     oidcIssuerProfile: { enabled: true }
     securityProfile: {
       workloadIdentity: { enabled: true }
+      // Defender for Containers' sensor on the nodes: runtime threat detection, and the cluster half of
+      // vulnerability scanning of the images it runs. It only does anything once the subscription has
+      // the Containers plan on (`az security pricing create -n Containers --tier standard`, which is
+      // subscription-wide and so cannot be created from this group-scoped template; see
+      // infra/azure/README.md).
+      defender: {
+        logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId
+        securityMonitoring: { enabled: true }
+      }
     }
     apiServerAccessProfile: {
       enablePrivateCluster: false

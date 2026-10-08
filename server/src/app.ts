@@ -853,7 +853,22 @@ export function createApp(
     const { encryptionKey, ...routeOptions } = modelConnections;
     app.route(
       "/api/models",
-      modelConnectionRoutes({ requireUser, ...routeOptions }),
+      modelConnectionRoutes({
+        requireUser,
+        ...routeOptions,
+        // A change to what a person's coworkers think with is on the trail beside everything else
+        // that changes configuration.
+        audit: async (event) => {
+          if (!auditStore) return;
+          await recordAuditEvent(auditStore, {
+            eventType: event.eventType,
+            targetType: "model_connection",
+            targetId: event.targetId,
+            actorUserId: event.actorUserId,
+            payload: event.payload,
+          });
+        },
+      }),
     );
     // Not behind a session: the caller is a bot, and what it holds is a grant minted for one person.
     app.route(

@@ -17,6 +17,28 @@ import { probeConnection } from "./probe";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
+/** What a change to a person's model connections tells the audit trail. Never a key. */
+export type ModelAuditEvent = {
+  eventType:
+    | "model.connection_added"
+    | "model.connection_changed"
+    | "model.connection_removed"
+    | "model.default_changed"
+    | "model.bot_choice_changed";
+  actorUserId: string;
+  targetId: string;
+  payload: Record<string, unknown>;
+};
+
+/** The host of an address, which says where a key goes without saying anything that could be secret. */
+function hostOf(address: string): string | null {
+  try {
+    return new URL(address).host;
+  } catch {
+    return null;
+  }
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const label = z.string().trim().min(1).max(80);
@@ -66,6 +88,11 @@ export function modelConnectionRoutes(options: {
     actor: { id: string; role: string },
     botId: string,
   ) => Promise<boolean>;
+  /**
+   * Told when a connection changes, after it has. A failure to record never fails the change: the
+   * person's work is not undone because a log was unavailable. Absent records nothing.
+   */
+  audit?: (event: ModelAuditEvent) => Promise<void>;
 }) {
   const {
     requireUser,
@@ -75,6 +102,13 @@ export function modelConnectionRoutes(options: {
     allowedHosts,
     botVisible,
   } = options;
+  const record = async (event: ModelAuditEvent) => {
+    try {
+      await options.audit?.(event);
+    } catch {
+      // See the option.
+    }
+  };
   const app = new Hono<{ Variables: AppVariables }>();
   const mayProbe = createLimiter(30, 60_000);
   app.use("*", requireUser);
@@ -146,6 +180,18 @@ export function modelConnectionRoutes(options: {
         model: input.model,
         apiKey: input.apiKey ?? null,
       });
+      await record({
+        eventType: "model.connection_added",
+        actorUserId: context.var.actor.id,
+        targetId: connection.id,
+        payload: {
+          providerId: connection.providerId,
+          label: connection.label,
+          model: connection.model,
+          host: hostOf(connection.baseUrl),
+          keySet: Boolean(input.apiKey),
+        },
+      });
       return context.json({ connection }, 201);
     } catch (error) {
       if (error instanceof TooManyConnectionsError) {
@@ -212,20 +258,53 @@ export function modelConnectionRoutes(options: {
       ...(baseUrl !== undefined ? { baseUrl } : {}),
       ...(patch.apiKey !== undefined ? { apiKey: patch.apiKey || null } : {}),
     });
-    return updated
-      ? context.json({ connection: updated })
-      : context.json({ error: "No such connection." }, 404);
+    if (!updated) return context.json({ error: "No such connection." }, 404);
+    await record({
+      eventType: "model.connection_changed",
+      actorUserId: userId,
+      targetId: updated.id,
+      payload: {
+        providerId: updated.providerId,
+        // Which things were changed, and for the ones that are not secret, from what to what.
+        changed: Object.keys(patch).sort(),
+        ...(patch.model !== undefined
+          ? { model: { from: current.model, to: updated.model } }
+          : {}),
+        ...(baseUrl !== undefined
+          ? {
+              host: {
+                from: hostOf(current.baseUrl),
+                to: hostOf(updated.baseUrl),
+              },
+            }
+          : {}),
+        ...(patch.apiKey !== undefined
+          ? { key: patch.apiKey ? "replaced" : "removed" }
+          : {}),
+      },
+    });
+    return context.json({ connection: updated });
   });
 
   app.delete("/connections/:id", async (context) => {
     if (!store) return unavailable(context);
-    const removed = await store.remove(
-      context.var.actor.id,
-      context.req.param("id"),
-    );
-    return removed
-      ? context.json({ removed: true })
-      : context.json({ error: "No such connection." }, 404);
+    const userId = context.var.actor.id;
+    const id = context.req.param("id");
+    // Read before it is gone, so the trail can say what was removed.
+    const before = await store.get(userId, id);
+    const removed = await store.remove(userId, id);
+    if (!removed) return context.json({ error: "No such connection." }, 404);
+    await record({
+      eventType: "model.connection_removed",
+      actorUserId: userId,
+      targetId: id,
+      payload: {
+        providerId: before?.providerId ?? null,
+        label: before?.label ?? null,
+        host: before ? hostOf(before.baseUrl) : null,
+      },
+    });
+    return context.json({ removed: true });
   });
 
   app.post("/connections/:id/default", async (context) => {
@@ -234,9 +313,19 @@ export function modelConnectionRoutes(options: {
       context.var.actor.id,
       context.req.param("id"),
     );
-    return connection
-      ? context.json({ connection })
-      : context.json({ error: "No such connection." }, 404);
+    if (!connection) {
+      return context.json({ error: "No such connection." }, 404);
+    }
+    await record({
+      eventType: "model.default_changed",
+      actorUserId: context.var.actor.id,
+      targetId: connection.id,
+      payload: {
+        providerId: connection.providerId,
+        model: connection.model,
+      },
+    });
+    return context.json({ connection });
   });
 
   // Which Bot thinks with which of the person's connections, where it is not their default.
@@ -272,9 +361,14 @@ export function modelConnectionRoutes(options: {
       botId,
       parsed.data.connectionId,
     );
-    return done
-      ? context.json({ botId, connectionId: parsed.data.connectionId })
-      : context.json({ error: "No such connection." }, 404);
+    if (!done) return context.json({ error: "No such connection." }, 404);
+    await record({
+      eventType: "model.bot_choice_changed",
+      actorUserId: actor.id,
+      targetId: botId,
+      payload: { connectionId: parsed.data.connectionId },
+    });
+    return context.json({ botId, connectionId: parsed.data.connectionId });
   });
 
   // Test something before saving it. The key travels in the body, is used once, and is not kept.

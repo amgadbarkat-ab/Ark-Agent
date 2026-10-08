@@ -83,27 +83,40 @@ not guessed at: the app draws bot output, markdown, a Paddle checkout and live f
 tried against each screen breaks one silently. Build it report-only first (`Content-Security-Policy-
 Report-Only`), walk every screen with the browser console open, then enforce.
 
-### O4. Dependencies still reported — Medium/Low
+### O4. Dependencies still reported — Low
 
-`bun audit` after the fixes lists 32. The ones that matter:
-- **`undici` 5.29 (8 advisories, 6 high)** and its `@fastify/busboy` 2.x: pulled in by `@composio/core`,
-  `@ai-sdk/*`, `@mastra/core` and `@copilotkit/runtime`. The advisories are in undici's own WebSocket
-  client and `BalancedPool`; the server runs on Bun, whose own `fetch` and `WebSocket` are used, and no
-  code of ours calls those parts of undici. Not exploitable through our code that was found, but not
-  proven; watch for upstream updates and re-run the audit with each dependency bump.
-- **`braces` ≤ 3.0.3** (build-time glob matching; no fixed release at the time of writing).
-- **`esbuild` ≤ 0.24** (the Vite *development* server only; not shipped).
-- **`@ai-sdk/provider-utils`, `fast-copy`, `sprintf-js`**: low/moderate, in libraries that handle our
-  own data, not attacker input.
+`bun audit` now lists **5** (1 high, 3 moderate, 1 low), down from 32. The drop is from forcing the
+patched releases of `undici` (7.29.1, which also took the 5.x and 6.x users to 7) and
+`@fastify/busboy` (3.2.2), and `fast-copy` (3.1), through `overrides` in the root `package.json`;
+type checks and the whole test suite pass on the new set. What is left:
+- **`braces` ≤ 3.0.3** (high): stack exhaustion on deeply nested brace patterns, reached only through
+  `fast-glob`/`micromatch` in the app's build-time tooling (shadcn, ts-morph) with our own patterns.
+  No fixed release exists. It is the one entry in `security/audit-allowlist.json`, with a reason and
+  an expiry date.
+- **`esbuild` ≤ 0.24** (the Vite *development* server only; not shipped), **`sprintf-js`** (no fix
+  published) and **`@ai-sdk/provider-utils`** (low): moderate or low, in libraries that handle our own
+  data, not attacker input.
 
-Make `bun audit --audit-level=high` a scheduled check with an explicit allow-list for the above, so a
-*new* high finding fails visibly.
+**A scheduled check now exists** (`.github/workflows/dependency-audit.yml`, weekly and on any change to
+a dependency file): `scripts/audit-check.ts` fails on any HIGH or CRITICAL advisory that is not in the
+allow-list, or whose allow-list entry has passed its expiry date (at most 200 days out), so a decision
+has to be made again rather than being made once and forgotten. Tested (`scripts/audit-check.test.ts`).
+It reads the public advisory database, so a new advisory fails the next run with no change of ours.
 
-### O5. Image and cluster scanning not set up — Medium
+### O5. Image and cluster scanning — Low (partly done)
 
-No container image scan (Microsoft Defender for Containers or Trivy in the pipeline) and no policy
-enforcement beyond network policy. Turn on Defender for Containers on the cluster and registry, and
-fail the deploy on a critical finding in the images.
+- **In CI:** the `image` job now scans the built image with Trivy and **fails on a fixable CRITICAL
+  vulnerability** (HIGH and CRITICAL are printed). Accepted findings go in `security/trivyignore`
+  with a reason and an expiry. **Not yet run**: the first run on `main` is the first scan, and
+  whatever it finds is decided then. The Trivy version is pinned in the workflow and is bumped on
+  purpose.
+- **On the cluster:** the AKS template turns on the Defender sensor (`securityProfile.defender`). It
+  only reports once the **subscription** has the Defender for Containers plan on
+  (`az security pricing create -n Containers --tier standard`), which is a subscription-wide setting
+  and so is a step in `infra/azure/README.md`, not part of a resource-group template. With the plan
+  on, Defender also scans the images in the registry and flags vulnerable ones that are running.
+- **Still not done:** failing the *deploy* on a finding in the registry's own scan (the CI scan
+  stands in for it), and admission policy beyond network policy.
 
 ### O6. Account squatting by an unverified address — Low
 
@@ -114,14 +127,20 @@ requires the customer-facing providers to include one that does not verify addre
 customer-facing provider is Google, which verifies**, so this stays low; do not enable such a provider
 for customers without revisiting it.
 
-### O7. Rate limiting is per endpoint, not global — Low
+### O7. Rate limiting is per endpoint, not global — Low (partly done)
 
 The marketplace, model-connection tests and the privacy endpoints have limits. Sign-in relies on the
 authentication library's default limiter, which is only on when `NODE_ENV=production` and keeps its
 counts in each replica's memory, so with two replicas the effective limit is double and a restart
-resets it (it has not been configured or tested here). There is no general limit in front of the API. The ingress can carry one
-(`nginx.ingress.kubernetes.io/limit-rps`), and Azure Front Door/WAF would add bot and DDoS
-protection. Decide with the penetration test (O1.7).
+resets it (it has not been configured or tested here).
+
+**Now:** the Azure ingress carries a per-address limit in front of every route
+(`infra/azure/values-azure.yaml`: 100 requests a second sustained, a burst five times that, 60
+connections; refused with 429). It is deliberately generous, because an office shares one address and
+loading the app is dozens of requests. It stops a script hammering one route; it does not stop a
+distributed flood, and **it has not been exercised** (it needs the running ingress). Azure Front Door
+with its WAF would add bot and DDoS protection; that is a cost decision and is not made here.
+Remaining: a distributed-flood answer, and sign-in limits that are shared across replicas.
 
 ### O8. Audit trail is in the product database — Low
 
@@ -148,5 +167,5 @@ portal/CLI.
 | Breach notification? | 72-hour procedure (14). |
 | Data deletion and export on request? | Self-serve, audited (14). |
 | Sub-processors? | Listed (14). |
-| Vulnerability management? | Dependency audit now run by hand (O4); CI workflow scan by zizmor. |
+| Vulnerability management? | Weekly dependency audit that fails on an unreviewed high or critical advisory (O4); image scan in CI (O5); CI workflow scan by zizmor. |
 | Tenant separation? | Application level, tested (O2). |

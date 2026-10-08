@@ -6,7 +6,10 @@ import { createAgentFetch } from "../src/agents/endpoint";
 import { createDatabase } from "../src/db/client";
 import { users } from "../src/db/schema";
 import { createModelConnectionStore } from "../src/models/connections";
-import { modelConnectionRoutes } from "../src/models/routes";
+import {
+  type ModelAuditEvent,
+  modelConnectionRoutes,
+} from "../src/models/routes";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const KEY = Buffer.alloc(32, 5).toString("base64");
@@ -41,6 +44,8 @@ function fakeProvider(status = 200) {
   return { url: `http://127.0.0.1:${server.port}`, requests };
 }
 
+const trail: ModelAuditEvent[] = [];
+
 function appFor(userId: string | null, options: { hosted?: boolean } = {}) {
   const allowPrivateHosts = !options.hosted;
   return new Hono().route(
@@ -58,6 +63,9 @@ function appFor(userId: string | null, options: { hosted?: boolean } = {}) {
       store,
       fetchImpl: createAgentFetch({ allowPrivateHosts }),
       allowPrivateHosts,
+      audit: async (event) => {
+        trail.push(event);
+      },
     }),
   );
 }
@@ -70,6 +78,7 @@ const call = (app: Hono, method: string, path: string, body?: unknown) =>
   });
 
 afterEach(async () => {
+  trail.length = 0;
   for (const id of made.splice(0))
     await database.delete(users).where(eq(users.id, id));
 });
@@ -268,6 +277,132 @@ describe("changing and removing", () => {
       .connections;
     expect(left).toHaveLength(1);
     expect(left[0]).toMatchObject({ id: a.id, isDefault: true });
+  });
+});
+
+describe("the trail", () => {
+  const SECRET = "sk-ant-SECRET-VALUE-for-the-trail";
+
+  test("records adding, changing, defaulting and removing a connection, and never a key", async () => {
+    const ann = await person();
+    const app = appFor(ann);
+    const { connection } = await (
+      await call(app, "POST", "/connections", {
+        providerId: "anthropic",
+        apiKey: SECRET,
+        model: "claude-haiku-4-5-20251001",
+      })
+    ).json();
+    await call(app, "PATCH", `/connections/${connection.id}`, {
+      model: "claude-sonnet-4-5",
+      apiKey: `${SECRET}-2`,
+    });
+    await call(app, "POST", `/connections/${connection.id}/default`);
+    await call(app, "DELETE", `/connections/${connection.id}`);
+
+    expect(trail.map((event) => event.eventType)).toEqual([
+      "model.connection_added",
+      "model.connection_changed",
+      "model.default_changed",
+      "model.connection_removed",
+    ]);
+    for (const event of trail) {
+      expect(event.actorUserId).toBe(ann);
+      expect(event.targetId).toBe(connection.id);
+    }
+    expect(trail[0]?.payload).toMatchObject({
+      providerId: "anthropic",
+      host: "api.anthropic.com",
+      keySet: true,
+    });
+    expect(trail[1]?.payload).toMatchObject({
+      changed: ["apiKey", "model"],
+      model: { from: "claude-haiku-4-5-20251001", to: "claude-sonnet-4-5" },
+      key: "replaced",
+    });
+    expect(trail[3]?.payload).toMatchObject({
+      providerId: "anthropic",
+      host: "api.anthropic.com",
+    });
+    // The one thing that must never be here.
+    expect(JSON.stringify(trail)).not.toContain("SECRET");
+  });
+
+  test("records removing a key, and a coworker being given a different model", async () => {
+    const ann = await person();
+    const app = appFor(ann);
+    const { connection } = await (
+      await call(app, "POST", "/connections", {
+        providerId: "ollama",
+        model: "llama3",
+      })
+    ).json();
+    await call(app, "PATCH", `/connections/${connection.id}`, {
+      apiKey: null,
+    });
+    expect(trail.at(-1)?.payload).toMatchObject({
+      changed: ["apiKey"],
+      key: "removed",
+    });
+  });
+
+  test("a refused or failed change leaves nothing on the trail", async () => {
+    const ann = await person();
+    const bob = await person();
+    const { connection } = await (
+      await call(appFor(ann), "POST", "/connections", {
+        providerId: "anthropic",
+        apiKey: SECRET,
+        model: "m",
+      })
+    ).json();
+    trail.length = 0;
+    // Somebody else's connection, a bad body, and a connection that is not there.
+    await call(appFor(bob), "PATCH", `/connections/${connection.id}`, {
+      model: "x",
+    });
+    await call(appFor(bob), "DELETE", `/connections/${connection.id}`);
+    await call(appFor(bob), "POST", `/connections/${connection.id}/default`);
+    await call(appFor(ann), "PATCH", `/connections/${connection.id}`, {
+      surprise: 1,
+    });
+    await call(appFor(ann), "POST", "/connections", {
+      providerId: "anthropic",
+      model: "m",
+    });
+    expect(trail).toEqual([]);
+  });
+
+  test("a trail that cannot be written does not undo the change", async () => {
+    const ann = await person();
+    const app = new Hono().route(
+      "/api/models",
+      modelConnectionRoutes({
+        requireUser: async (context, next) => {
+          context.set("actor", {
+            id: ann,
+            email: `${ann}@example.com`,
+            role: "user",
+          });
+          await next();
+        },
+        store,
+        fetchImpl: createAgentFetch({ allowPrivateHosts: true }),
+        allowPrivateHosts: true,
+        audit: async () => {
+          throw new Error("the log is down");
+        },
+      }),
+    );
+    const response = await call(app, "POST", "/connections", {
+      providerId: "anthropic",
+      apiKey: SECRET,
+      model: "m",
+    });
+    expect(response.status).toBe(201);
+    expect(
+      (await (await call(app, "GET", "/connections")).json()).connections,
+    ).toHaveLength(1);
   });
 });
 

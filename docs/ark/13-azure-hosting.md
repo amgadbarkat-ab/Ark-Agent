@@ -253,7 +253,9 @@ Tick each one with the date and who did it. Nothing here is optional.
 - [ ] Customer sign-in with Google works from a fresh account; that account is **not** an administrator.
 - [ ] The **restore drill** above, with the time it took.
 - [ ] Each alert fired once on purpose (stop the pods, fill a scratch table, etc.) and reached the mailbox.
-- [ ] A **dependency scan and an image scan** run (see the security review) and nothing critical is open.
+- [ ] Defender for Containers is on for the subscription (`az security pricing create -n Containers --tier standard`),
+      the CI image scan has run once on `main` and anything it found is fixed or written down in
+      `security/trivyignore`, and the weekly dependency audit is green (15, O4 and O5).
 - [ ] `helm rollback` rehearsed on `dev`.
 - [ ] The `prod` GitHub environment has required reviewers; nobody can deploy by themselves.
 - [ ] Privacy notice and the processor list in [14-data-protection.md](14-data-protection.md) are

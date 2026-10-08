@@ -477,6 +477,16 @@ export const auditEventTypes = [
   "cloud.charge_failed",
   /** Staff settled a month by hand: charged elsewhere, or waived. */
   "cloud.charge_settled",
+  /**
+   * A person added, changed or removed one of their own connections to a language model, made one
+   * their default, or chose which one a coworker thinks with. The row says which provider, model and
+   * host, and whether a key was set, replaced or removed. It never holds a key.
+   */
+  "model.connection_added",
+  "model.connection_changed",
+  "model.connection_removed",
+  "model.default_changed",
+  "model.bot_choice_changed",
   "marketplace.listing_installed",
   "marketplace.report_filed",
   "marketplace.report_dismissed",

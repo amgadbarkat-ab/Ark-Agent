@@ -1,0 +1,13 @@
+# Vulnerabilities in the container image that we have looked at and accepted for now, one per line.
+# Read by the image job in .github/workflows/ci.yml (Trivy). Only CRITICAL, fixable findings fail the
+# build, so this file should usually be empty.
+#
+# Each entry is a decision, not a silence. Write it as
+#
+#   CVE-2026-0000 exp:2026-12-31
+#
+# with a comment above it saying why it does not apply here or what the plan is. Trivy stops honouring
+# an entry on its `exp:` date, so the finding fails the build again and has to be looked at.
+#
+# (Intentionally empty at the time of writing: nothing has been scanned yet. The first CI run on
+# main is the first scan, and whatever it finds is decided here.)

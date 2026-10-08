@@ -60,6 +60,15 @@ reasoning, the day-to-day operation and what is and is not verified are in
    (docs/ark/12-paddle.md). **The end-to-end sandbox purchase is deliberately the last thing checked**
    (docs/ark/13-azure-hosting.md, "Before customers").
 
+7. **Defender for Containers, once per subscription.** The cluster template turns the sensor on, but
+   it reports nothing until the subscription has the plan (it is subscription-wide, so it cannot live
+   in a resource-group template). It is a paid plan, billed per vCore; it also scans the images in the
+   registry. Turn it on before the first customer:
+
+   ```sh
+   az security pricing create -n Containers --tier standard
+   ```
+
 Replace the `REPLACE` and example values in `main.<env>.bicepparam` and `values-azure.yaml`.
 
 ## The commands
