@@ -45,19 +45,12 @@ class _Turn:
 
 
 class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
-    def __init__(self, *args, model_only=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._model_only = model_only
         self._turns: dict[str, _Turn] = {}
         self._segment_locks: dict[str, asyncio.Lock] = {}
 
     def build_options(self, input_data=None, thread_id=None):
-        if self._model_only and input_data:
-            # The model endpoint accepts prompts and caller-owned tools, never SDK
-            # configuration or an ungoverned state-management tool.
-            input_data = input_data.model_copy(
-                update={"state": None, "forwarded_props": {}}
-            )
         options = super().build_options(input_data, thread_id)
         tool_names = {tool.name for tool in input_data.tools} if input_data else set()
 
@@ -93,43 +86,11 @@ class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
                 ),
             ],
         }
-        if self._model_only:
-            options.tools = []  # SDK 0.2.152 maps this to --tools "": no Bash/Read/Edit.
-            options.setting_sources = []
-            options.strict_mcp_config = True
-            options.permission_mode = "dontAsk"
-            options.allowed_tools = [
-                f"mcp__ag_ui__{name}" for name in sorted(tool_names)
-            ]
-            options.mcp_servers = {
-                name: server
-                for name, server in options.mcp_servers.items()
-                if name == "ag_ui"
-            }
-
-            async def only_offered(input_data, tool_use_id, context):
-                if input_data.get("tool_name") in options.allowed_tools:
-                    return {}
-                return {
-                    "hookSpecificOutput": {
-                        "hookEventName": "PreToolUse",
-                        "permissionDecision": "deny",
-                        "permissionDecisionReason": "Built-in Bots may only call tools supplied by the OpenBot server.",
-                    }
-                }
-
-            options.hooks["PreToolUse"] = [HookMatcher(hooks=[only_offered])]
         return options
 
     async def _run_query(self, input_data):
-        if self._model_only:
-            from .model_mode import run_model_query
-
-            async for event in run_model_query(self, input_data):
-                yield event
-        else:
-            async for event in super().run(input_data):
-                yield event
+        async for event in super().run(input_data):
+            yield event
 
     async def _stream_claude_sdk(
         self, message_stream, thread_id, run_id, input_data, frontend_tool_names
@@ -147,7 +108,7 @@ class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
                     if turn:
                         turn.authentication_failed = True
                     raise ModelAuthenticationError(
-                        "Sign in to your model provider again."
+                        "Anthropic refused the API key. Check it and try again."
                     )
                 if (
                     isinstance(message, StreamEvent)

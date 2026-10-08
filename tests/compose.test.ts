@@ -394,25 +394,18 @@ test("passes the selected Anthropic provider and model into the picked harness",
   });
 });
 
-test("mounts the ChatGPT token store directory into the picked harness", () => {
+test("gives the picked harness no chat-plan credential and no token-store mount", () => {
   const config = runComposeConfig({
+    CLAUDE_CODE_OAUTH_TOKEN: "synthetic-plan-token",
     CHATGPT_AUTH_FILE: "/root/.langchain/chatgpt-auth.json",
   });
+  const harness = config.services["agent-harness"];
 
-  expect(config.services["agent-harness"].environment).toMatchObject({
-    CHATGPT_AUTH_FILE: "/root/.langchain/chatgpt-auth.json",
-  });
-  expect(config.services["agent-harness"].volumes).toContainEqual(
-    expect.objectContaining({
-      type: "bind",
-      target: "/root/.langchain",
-    }),
-  );
-  expect(config.services["agent-harness"].volumes).not.toContainEqual(
-    expect.objectContaining({
-      type: "bind",
-      target: "/root/.langchain/chatgpt-auth.json",
-    }),
+  expect(harness.environment).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
+  expect(harness.environment).not.toHaveProperty("CHATGPT_AUTH_FILE");
+  expect(JSON.stringify(harness)).not.toContain("synthetic-plan-token");
+  expect(harness.volumes ?? []).not.toContainEqual(
+    expect.objectContaining({ target: "/root/.langchain" }),
   );
 });
 

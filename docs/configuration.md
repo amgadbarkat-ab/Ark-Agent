@@ -207,9 +207,8 @@ Joining includes recent thread messages and previous voice chats, capped at 12,0
 
 Ending a nonempty call saves its text transcript to the database and creates a compact, expandable
 Voice chat card in the same channel. A separate summary request uses the deployment's default chat
-model and its existing credential: OpenAI-compatible or Anthropic API keys, Claude or ChatGPT plan
-sign-in, or the deployment's Google/xAI OAuth proxy. It does not need a separate OpenAI key when
-another provider is selected. Plan summaries use an isolated conversation with no tools. A failed
+model and its existing credential: OpenAI-compatible or Anthropic API keys, or the deployment's
+Google/xAI OAuth proxy. It does not need a separate OpenAI key when another provider is selected. A failed
 summary leaves the saved transcript available with a retry button. A successful retry updates the
 sidebar preview only while that call is still the latest activity. Interrupted answers are marked
 as interrupted rather than treated as fully heard.
@@ -273,11 +272,16 @@ policies apply. See [OpenAI WebRTC](https://developers.openai.com/api/docs/guide
 | `OPENBOT_ORGANIZATION_AUTH_URL` | An OpenBot deployment that verifies employee identity and roles. Decides sign-in ahead of `OPENBOT_SINGLE_USER`. |
 
 **Some variables belong to the desktop app, not to you.** A desktop installation writes these into
-its own deployment's `.env` and owns their values: `OPENBOT_MODEL_OAUTH_FILE`, `CHATGPT_AUTH_FILE`
-and `CLAUDE_CODE_OAUTH_TOKEN`. When a model provider is connected by OAuth rather than by key, the
+its own deployment's `.env` and owns their values: `OPENBOT_MODEL_OAUTH_FILE`. When a model provider is connected by OAuth rather than by key, the
 desktop also points `OPENAI_BASE_URL` at OpenBot's own loopback route and sets `OPENAI_API_KEY` to a
 local proxy credential rather than a provider key, so those two do not mean what the table above says
 in that mode. A server you configure yourself is unaffected by all of this.
+
+**Chat-subscription credentials are not used.** `CLAUDE_CODE_OAUTH_TOKEN` and `CHATGPT_AUTH_FILE`
+are ignored if set, and removed from the server's and the harnesses' environment at start with a
+one-line notice naming the variable (never its value). Anthropic does not allow a product to use
+Claude plan credentials, and OpenAI allows ChatGPT plan sign-in in a paid app only through its own
+approved programme. Connect a model with an API key, a local model or a compatible endpoint.
 
 **With no provider at all, `OPENBOT_SINGLE_USER=true` is required.** A deployment that configures
 nothing to sign anybody in and does not say that was deliberate refuses to start, naming what to

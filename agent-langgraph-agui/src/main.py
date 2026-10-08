@@ -6,7 +6,6 @@ package the AG-UI project maintains, so the protocol stops being ours to keep wo
 """
 
 import os
-from pathlib import Path
 
 from ag_ui_langgraph import add_langgraph_fastapi_endpoint
 from fastapi import FastAPI, Request
@@ -87,55 +86,33 @@ def _resolve_provider(provider: str):
     return OPENBOT_PROVIDER_ALIASES.get(provider, provider)
 
 
-def _chatgpt_auth_file(store: str) -> Path:
-    path = Path(store)
-    if not path.exists():
-        raise FileNotFoundError(f"CHATGPT_AUTH_FILE points to a missing file: {path}")
-    if path.is_dir():
-        raise IsADirectoryError(
-            f"CHATGPT_AUTH_FILE must point to a file, not a directory: {path}"
-        )
-    if not os.access(path, os.R_OK):
-        raise PermissionError(f"CHATGPT_AUTH_FILE is not readable: {path}")
-    with path.open("rb"):
-        pass
-    return path
+def _drop_retired_plan_credentials() -> None:
+    """Chat-plan credentials are not used, and are removed from the environment, not honoured.
+
+    An earlier version could be given a ChatGPT plan's login (`CHATGPT_AUTH_FILE`) and a Claude plan
+    token. OpenAI allows plan sign-in in a paid app only through its own approved programme, and
+    Anthropic does not allow it at all, so neither is read. Removing them here also keeps any tool
+    this process starts from inheriting one.
+    """
+    for name in ("CHATGPT_AUTH_FILE", "CLAUDE_CODE_OAUTH_TOKEN"):
+        if (os.environ.pop(name, "") or "").strip():
+            print(
+                f"{name} is set. Chat-plan credentials are not used and were ignored.",
+                flush=True,
+            )
+
+
+_drop_retired_plan_credentials()
 
 
 def _model():
-    """The model this Bot thinks with, chosen by which credential the deployment gave it.
-
-    A SIGNED-IN CHATGPT PLAN IS NOT AN API KEY, and this is the only place that difference shows up.
-    A plan token is a bearer for `chatgpt.com/backend-api/codex`, and `langchain-openai` pins that
-    address and refuses a caller-supplied one on purpose, so pointing `OPENAI_BASE_URL` at it and
-    passing the token as a key does not work and is not meant to. The Codex chat model is the
-    supported way in, and it is selected by the presence of the token rather than by another
-    setting, so nothing can say "plan" while holding a key.
+    """The model this Bot thinks with, chosen by the provider and key the deployment gave it.
 
     A recognized `provider:model` choice keeps its provider. Otherwise the model is an opaque ID
     and the selected provider is passed separately, including when that ID contains a colon.
     """
     configured_model = os.environ.get("BOT_MODEL")
     model = (configured_model or "gpt-4o-mini").strip()
-    store = (os.environ.get("CHATGPT_AUTH_FILE") or "").strip()
-    if store:
-        store_path = _chatgpt_auth_file(store)
-        # Private and experimental, both deliberately. `langchain-openai` exports no public Codex
-        # model and warns in the module that this one is unofficial. That is a maintenance cost we
-        # took knowingly rather than a reason to withhold the plan, because a subscription someone
-        # already pays for is the whole point of offering it on the model screen.
-        from langchain_openai.chat_models.codex import _ChatOpenAICodex
-
-        from .chatgpt_store import ChatGptTokenStore
-
-        # THE STORE FILE, NOT A BARE TOKEN. An access token expires within the hour and cannot be
-        # renewed; the store holds the refresh token, and this provider renews from it. A Bot given
-        # only the access token works until lunchtime and then reports an auth error nobody can
-        # explain.
-        return _ChatOpenAICodex(
-            model=model,
-            token_provider=ChatGptTokenStore(path=store_path),
-        )
 
     _normalize_openai_base_url()
     provider = (os.environ.get("BOT_PROVIDER") or "").strip() or "openai"
@@ -196,7 +173,6 @@ def _wants_system_turns_first(model) -> bool:
 
 async def answer(state: MessagesState):
     from openai import AuthenticationError, PermissionDeniedError
-    from langchain_openai.chatgpt_oauth import _ChatGPTOAuthRefreshError
     from .tool_runtime import current_tools
 
     try:
@@ -205,7 +181,7 @@ async def answer(state: MessagesState):
         if _wants_system_turns_first(model):
             messages = _system_turns_first(messages)
         return {"messages": [await bind_tools(model).ainvoke(messages)]}
-    except (AuthenticationError, PermissionDeniedError, _ChatGPTOAuthRefreshError):
+    except (AuthenticationError, PermissionDeniedError):
         # Typed provider boundary only. A callback or harness 401 is a different credential.
         current_tools().connection["authentication_failed"] = True
         raise

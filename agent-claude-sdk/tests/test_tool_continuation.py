@@ -205,13 +205,11 @@ async def events(adapter, input_data):
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-@pytest.mark.parametrize("model_only", [False, True])
-def test_client_result_resumes_original_sdk_query(sdk, streaming, model_only):
+def test_client_result_resumes_original_sdk_query(sdk, streaming):
     async def scenario():
         adapter = OpenBotClaudeAgentAdapter(
             name="test",
             options={"include_partial_messages": streaming},
-            model_only=model_only,
         )
         try:
             first = await events(adapter, request())
@@ -265,12 +263,13 @@ def test_client_result_resumes_original_sdk_query(sdk, streaming, model_only):
 
 
 @pytest.mark.parametrize("separate_requests", [False, True])
-@pytest.mark.parametrize("model_only", [False, True])
 def test_parallel_calls_with_identical_arguments_keep_distinct_results(
-    sdk, separate_requests, model_only
+    sdk, separate_requests
 ):
     async def scenario():
-        adapter = OpenBotClaudeAgentAdapter(name="test", model_only=model_only)
+        adapter = OpenBotClaudeAgentAdapter(
+            name="test",
+        )
         try:
             first = await events(adapter, request(tool_count=2))
             assert any(
@@ -312,10 +311,11 @@ def test_parallel_calls_with_identical_arguments_keep_distinct_results(
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("model_only", [False, True])
-def test_unknown_id_cannot_resolve_another_threads_tool(sdk, model_only):
+def test_unknown_id_cannot_resolve_another_threads_tool(sdk):
     async def scenario():
-        adapter = OpenBotClaudeAgentAdapter(name="test", model_only=model_only)
+        adapter = OpenBotClaudeAgentAdapter(
+            name="test",
+        )
         try:
             await events(adapter, request())
             await events(adapter, request(thread="thread-b"))
@@ -348,10 +348,11 @@ def test_unknown_id_cannot_resolve_another_threads_tool(sdk, model_only):
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("model_only", [False, True])
-def test_interrupt_cancels_pending_tool_without_fabricating_a_result(sdk, model_only):
+def test_interrupt_cancels_pending_tool_without_fabricating_a_result(sdk):
     async def scenario():
-        adapter = OpenBotClaudeAgentAdapter(name="test", model_only=model_only)
+        adapter = OpenBotClaudeAgentAdapter(
+            name="test",
+        )
         await events(adapter, request())
         await asyncio.wait_for(sdk[0].hooks_entered.wait(), 2)
         await asyncio.wait_for(adapter.interrupt("thread-a"), 2)
@@ -383,11 +384,11 @@ def test_disconnected_event_consumer_cancels_the_sdk_query(sdk):
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("model_only", [False, True])
-def test_query_timeout_interrupts_sdk_before_abandoning_client_result(sdk, model_only):
+def test_query_timeout_interrupts_sdk_before_abandoning_client_result(sdk):
     async def scenario():
         adapter = OpenBotClaudeAgentAdapter(
-            name="test", query_timeout_seconds=0.02, model_only=model_only
+            name="test",
+            query_timeout_seconds=0.02,
         )
         try:
             first = await events(adapter, request())
@@ -406,10 +407,11 @@ def test_query_timeout_interrupts_sdk_before_abandoning_client_result(sdk, model
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("model_only", [False, True])
-def test_sdk_authentication_signal_is_typed(sdk, model_only):
+def test_sdk_authentication_signal_is_typed(sdk):
     async def scenario():
-        adapter = OpenBotClaudeAgentAdapter(name="test", model_only=model_only)
+        adapter = OpenBotClaudeAgentAdapter(
+            name="test",
+        )
         try:
             result = await events(adapter, request(tool_count="auth-failed"))
             assert result[-1].type == "RUN_ERROR"

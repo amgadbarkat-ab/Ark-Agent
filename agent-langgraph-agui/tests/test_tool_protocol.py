@@ -13,16 +13,12 @@ from threading import Thread
 from uuid import uuid4
 
 import httpx
-import httpx2
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import main
-from test_provider_boundaries import (
-    _install_loopback_socket_guard,
-    _write_synthetic_chatgpt_store,
-)
+from test_provider_boundaries import _install_loopback_socket_guard
 
 
 def tool(name):
@@ -41,7 +37,6 @@ def tool(name):
 def boundary(monkeypatch):
     _install_loopback_socket_guard()
     for name in [
-        "CHATGPT_AUTH_FILE",
         "OPENAI_BASE_URL",
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_BASE_URL",
@@ -504,145 +499,3 @@ async def test_same_thread_does_not_reuse_prior_deployment_ownership(boundary):
     await run_protocol(second)
     assert len(boundary["callback"]) == 1
     assert len(boundary["model"]) == 3
-
-
-def codex_events(output, response_id):
-    response = {
-        "id": response_id,
-        "object": "response",
-        "created_at": 0,
-        "model": "gpt-5.5",
-        "status": "completed",
-        "output": output,
-        "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
-    }
-    events = [
-        {
-            "type": "response.created",
-            "response": {**response, "status": "in_progress", "output": []},
-        }
-    ]
-    for index, item in enumerate(output):
-        events.append(
-            {
-                "type": "response.output_item.added",
-                "output_index": index,
-                "item": {**item, "arguments": ""}
-                if item["type"] == "function_call"
-                else item,
-            }
-        )
-        if item["type"] == "function_call":
-            events.append(
-                {
-                    "type": "response.function_call_arguments.delta",
-                    "output_index": index,
-                    "item_id": item["id"],
-                    "delta": item["arguments"],
-                }
-            )
-        else:
-            events.append(
-                {
-                    "type": "response.output_text.delta",
-                    "output_index": index,
-                    "content_index": 0,
-                    "item_id": item["id"],
-                    "delta": item["content"][0]["text"],
-                }
-            )
-        events.append(
-            {"type": "response.output_item.done", "output_index": index, "item": item}
-        )
-    events.append({"type": "response.completed", "response": response})
-    return "".join("data: " + json.dumps(event) + "\n\n" for event in events).encode()
-
-
-@pytest.mark.asyncio
-async def test_chatgpt_plan_sdk_emits_both_surface_calls_and_consumes_results(
-    boundary, monkeypatch, tmp_path
-):
-    auth_file = tmp_path / "synthetic-chatgpt-auth.json"
-    _write_synthetic_chatgpt_store(auth_file)
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(auth_file))
-    monkeypatch.setenv("BOT_MODEL", "gpt-5.5")
-    captured = []
-
-    async def send(_client, request, **_kwargs):
-        assert request.url.host == "chatgpt.com"
-        payload = json.loads(request.content)
-        captured.append(payload)
-        if len(captured) == 1:
-            output = [
-                {
-                    "id": "fc-" + name,
-                    "type": "function_call",
-                    "status": "completed",
-                    "call_id": "call-" + name,
-                    "name": name,
-                    "arguments": json.dumps({"value": "public marker"}),
-                }
-                for name in ["computer_navigate", "computer_run_command"]
-            ]
-        else:
-            output = [
-                {
-                    "id": "msg-proof",
-                    "type": "message",
-                    "status": "completed",
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": "Both client results: public marker 43",
-                            "annotations": [],
-                        }
-                    ],
-                }
-            ]
-        return httpx2.Response(
-            200,
-            content=codex_events(output, "resp-proof-" + str(len(captured))),
-            headers={"content-type": "text/event-stream"},
-            request=request,
-        )
-
-    monkeypatch.setattr(httpx2.AsyncClient, "send", send)
-    names = ["computer_navigate", "computer_run_command"]
-    body = run_input(names)
-    first = await run_protocol(body)
-    assert [t["name"] for t in captured[0]["tools"]] == names
-    assert [e["toolCallName"] for e in first if e["type"] == "TOOL_CALL_START"] == names
-    assert boundary["model"] == []
-    assert boundary["callback"] == []
-    history = snapshot(first)
-    history.extend(
-        {
-            "id": "result-" + name,
-            "role": "tool",
-            "toolCallId": "call-" + name,
-            "content": "client " + name + " result: public marker 43",
-        }
-        for name in names
-    )
-    second = await run_protocol(
-        run_input(names, thread=body["threadId"], messages=history)
-    )
-    results = [
-        part
-        for part in captured[1]["input"]
-        if part.get("type") == "function_call_output"
-    ]
-    assert {part["call_id"] for part in results} == {"call-" + name for name in names}
-    assert all("public marker 43" in part["output"] for part in results)
-    assert "Both client results: public marker 43" in json.dumps(snapshot(second))
-    assert "synthetic-access" not in json.dumps(first + second)
-    # Streamed owners and final history must describe the same messages. A
-    # Responses API metadata-only chunk has the provider ID before text/tools.
-    for events in (first, second):
-        final_ids = {message["id"] for message in snapshot(events)}
-        for event in events:
-            if event["type"] == "TEXT_MESSAGE_START":
-                assert event["messageId"] in final_ids
-            elif event["type"] == "TOOL_CALL_START":
-                assert event["parentMessageId"] in final_ids

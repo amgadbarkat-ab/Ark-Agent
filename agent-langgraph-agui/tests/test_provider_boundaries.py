@@ -1,11 +1,6 @@
 import json
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
-from dataclasses import replace
-from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -119,9 +114,7 @@ def google_genai_endpoint():
             captured.append(
                 {
                     "path": self.path,
-                    "x_goog_api_key_present": bool(
-                        self.headers.get("x-goog-api-key")
-                    ),
+                    "x_goog_api_key_present": bool(self.headers.get("x-goog-api-key")),
                     "body": body,
                 }
             )
@@ -157,7 +150,6 @@ def provider_environment(monkeypatch):
         "ANTHROPIC_BASE_URL",
         "BOT_MODEL",
         "BOT_PROVIDER",
-        "CHATGPT_AUTH_FILE",
         "GOOGLE_API_KEY",
         "GOOGLE_GENERATIVE_AI_BASE_URL",
         "HTTP_PROXY",
@@ -199,7 +191,9 @@ async def _run_answer_with_httpx2_capture(monkeypatch, response_json, messages=N
     [(None, "gpt-4o-mini"), ("", "gpt-4o-mini"), ("gpt-ci", "gpt-ci")],
 )
 async def test_openai_key_without_compatible_endpoint_uses_sdk_default_boundary(
-    monkeypatch, model, request_model,
+    monkeypatch,
+    model,
+    request_model,
 ):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-openbot-ci")
     if model is not None:
@@ -409,9 +403,7 @@ async def test_openai_keeps_a_skill_turn_beside_the_message_it_was_picked_for(
     assert [
         (message["role"], message["content"])
         for message in captured[0]["body"]["messages"]
-    ] == [
-        (message["role"], message["content"]) for message in _HISTORY_WITH_A_SKILL
-    ]
+    ] == [(message["role"], message["content"]) for message in _HISTORY_WITH_A_SKILL]
 
 
 @pytest.mark.asyncio
@@ -463,265 +455,21 @@ async def test_google_provider_reaches_google_genai_boundary(
     ]
 
 
-def _write_synthetic_chatgpt_store(path: Path):
-    from langchain_openai.chatgpt_oauth import _ChatGPTToken
-    from langchain_openai.chat_models.codex import _FileChatGPTOAuthTokenProvider
-
-    provider = _FileChatGPTOAuthTokenProvider(path=path)
-    provider._write_to_disk(
-        _ChatGPTToken(
-            access_token="synthetic-access",
-            refresh_token="synthetic-refresh",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-            account_id="synthetic-account",
-            plan_type="plus",
-            user_id="synthetic-user",
-        )
-    )
-
-
-def test_configured_chatgpt_auth_file_missing_fails_before_fallback(
-    monkeypatch, tmp_path
+def test_a_chat_plan_credential_is_dropped_and_never_selects_a_model(
+    monkeypatch, capsys
 ):
-    missing_file = tmp_path / "missing-chatgpt-auth.json"
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(missing_file))
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-should-not-be-used")
-    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
+    from src import main
 
-    def fail_if_fallback_is_built(*_args, **_kwargs):
-        raise AssertionError("fallback provider model was constructed")
+    monkeypatch.setenv("CHATGPT_AUTH_FILE", "/auth/chatgpt.json")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "synthetic-plan-token")
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-key")
 
-    monkeypatch.setattr(main, "init_chat_model", fail_if_fallback_is_built)
+    main._drop_retired_plan_credentials()
 
-    with pytest.raises(FileNotFoundError, match="CHATGPT_AUTH_FILE.*missing file"):
-        main._model()
-
-
-def test_configured_chatgpt_auth_file_directory_fails_before_fallback(
-    monkeypatch, tmp_path
-):
-    directory_path = tmp_path / "auth-directory"
-    directory_path.mkdir()
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(directory_path))
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-should-not-be-used")
-    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
-
-    def fail_if_fallback_is_built(*_args, **_kwargs):
-        raise AssertionError("fallback provider model was constructed")
-
-    monkeypatch.setattr(main, "init_chat_model", fail_if_fallback_is_built)
-
-    with pytest.raises(IsADirectoryError, match="CHATGPT_AUTH_FILE.*directory"):
-        main._model()
-
-
-def test_configured_chatgpt_auth_file_unreadable_fails_before_fallback(
-    monkeypatch, tmp_path
-):
-    unreadable_file = tmp_path / "unreadable-chatgpt-auth.json"
-    _write_synthetic_chatgpt_store(unreadable_file)
-    unreadable_file.chmod(0)
-    if os.access(unreadable_file, os.R_OK):
-        pytest.skip("platform still reports chmod(0) file as readable")
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(unreadable_file))
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-should-not-be-used")
-    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
-
-    def fail_if_fallback_is_built(*_args, **_kwargs):
-        raise AssertionError("fallback provider model was constructed")
-
-    monkeypatch.setattr(main, "init_chat_model", fail_if_fallback_is_built)
-
-    try:
-        with pytest.raises(PermissionError, match="CHATGPT_AUTH_FILE.*not readable"):
-            main._model()
-    finally:
-        unreadable_file.chmod(0o600)
-
-
-@pytest.mark.parametrize(
-    ("configured_model", "request_model"),
-    [(None, "gpt-4o-mini"), ("", "gpt-4o-mini"), ("gpt-5.5", "gpt-5.5")],
-)
-def test_configured_chatgpt_auth_file_selects_codex_model(
-    monkeypatch, tmp_path, configured_model, request_model
-):
-    auth_file = tmp_path / "chatgpt-auth.json"
-    _write_synthetic_chatgpt_store(auth_file)
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(auth_file))
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-should-not-be-used")
-    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:9/v1")
-    monkeypatch.setenv("BOT_PROVIDER", "anthropic")
-    if configured_model is not None:
-        monkeypatch.setenv("BOT_MODEL", configured_model)
-
-    model = main._model()
-    token = model.token_provider.get_token()
-
-    assert (
-        f"{type(model).__module__}.{type(model).__name__}"
-        == "langchain_openai.chat_models.codex._ChatOpenAICodex"
-    )
-    assert model.model_name == request_model
-    assert type(model.token_provider).__name__ == "ChatGptTokenStore"
-    assert str(model.token_provider.path) == str(auth_file)
-    assert token.access_token == "synthetic-access"
-    assert token.refresh_token == "synthetic-refresh"
-
-
-@pytest.mark.skipif(os.name != "posix", reason="POSIX private file ownership")
-def test_chatgpt_writer_sets_owner_before_replacement(monkeypatch, tmp_path):
-    path = tmp_path / "chatgpt-auth.json"
-    _write_synthetic_chatgpt_store(path)
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(path))
-    provider = main._model().token_provider
-    token = provider.get_token()
-    original = path.read_bytes()
-    owner = path.stat()
-    replace_path = Path.replace
-    published = []
-
-    def inspect_replace(staged, destination):
-        if Path(destination) == path:
-            metadata = staged.stat()
-            assert (metadata.st_uid, metadata.st_gid) == (owner.st_uid, owner.st_gid)
-            assert metadata.st_mode & 0o777 == 0o600
-            assert path.read_bytes() == original
-            assert provider.path == path
-            published.append(staged)
-        return replace_path(staged, destination)
-
-    monkeypatch.setattr(Path, "replace", inspect_replace)
-    provider.save(replace(token, access_token="synthetic-renewed"))
-
-    assert len(published) == 1
-    assert json.loads(path.read_text())["access_token"] == "synthetic-renewed"
-    assert sorted(item.name for item in tmp_path.iterdir()) == [
-        "chatgpt-auth.json", "chatgpt-auth.json.lock"
-    ]
-
-
-@pytest.mark.skipif(os.name != "posix", reason="POSIX private file ownership")
-def test_chatgpt_writer_ownership_failure_keeps_original(monkeypatch, tmp_path):
-    path = tmp_path / "chatgpt-auth.json"
-    _write_synthetic_chatgpt_store(path)
-    monkeypatch.setenv("CHATGPT_AUTH_FILE", str(path))
-    provider = main._model().token_provider
-    token = provider.get_token()
-    original = path.read_bytes()
-    before = path.stat()
-
-    def refuse_owner_change(*_args):
-        raise PermissionError("synthetic ownership refusal")
-
-    monkeypatch.setattr(os, "fchown", refuse_owner_change)
-    with pytest.raises(PermissionError, match="synthetic ownership refusal"):
-        provider.save(replace(token, access_token="synthetic-renewed"))
-
-    after = path.stat()
-    assert path.read_bytes() == original
-    assert (after.st_uid, after.st_gid, after.st_mode) == (
-        before.st_uid, before.st_gid, before.st_mode
-    )
-    assert provider.get_token().access_token == "synthetic-access"
-    assert sorted(item.name for item in tmp_path.iterdir()) == [
-        "chatgpt-auth.json", "chatgpt-auth.json.lock"
-    ]
-
-
-def _run_chatgpt_writer_container(host_source: Path, container_target: str):
-    writer = host_source.parent / "writer.py"
-    writer.write_text(
-        """
-import json
-from datetime import datetime, timedelta, timezone
-from importlib.metadata import version
-from pathlib import Path
-from langchain_openai.chatgpt_oauth import _ChatGPTToken
-from chatgpt_store import ChatGptTokenStore
-
-provider = ChatGptTokenStore(
-    path=Path('/root/.langchain/chatgpt-auth.json')
-)
-provider._write_to_disk(
-    _ChatGPTToken(
-        access_token='synthetic-access',
-        refresh_token='synthetic-refresh',
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        account_id='synthetic-account',
-        plan_type='plus',
-        user_id='synthetic-user',
-    )
-)
-print(json.dumps({
-    'version': version('langchain-openai'),
-    'written': json.loads(Path('/root/.langchain/chatgpt-auth.json').read_text()),
-}))
-""",
-        encoding="utf-8",
-    )
-    return subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--mount",
-            f"type=bind,source={host_source},target={container_target}",
-            "--mount",
-            f"type=bind,source={writer},target=/tmp/writer.py,readonly",
-            "--mount",
-            f"type=bind,source={Path(main.__file__).with_name('chatgpt_store.py')},target=/tmp/chatgpt_store.py,readonly",
-            "python:3.12-slim",
-            "sh",
-            "-lc",
-            "python -m pip install --quiet --root-user-action=ignore langchain-openai==1.6.0 && python /tmp/writer.py",
-        ],
-        check=False,
-        text=True,
-        capture_output=True,
-        timeout=180,
-    )
-
-
-def test_chatgpt_token_provider_atomic_writer_survives_directory_mount():
-    root = Path(tempfile.mkdtemp(prefix="openbot-id6-directory-", dir="/tmp"))
-    try:
-        mount_dir = root / "langchain"
-        mount_dir.mkdir()
-        token_file = mount_dir / "chatgpt-auth.json"
-        token_file.write_text("{}", encoding="utf-8")
-        token_file.chmod(0o600)
-
-        result = _run_chatgpt_writer_container(mount_dir, "/root/.langchain")
-
-        assert result.returncode == 0, result.stderr
-        payload = json.loads(result.stdout.splitlines()[-1])
-        assert payload["version"] == "1.6.0"
-        assert payload["written"]["access_token"] == "synthetic-access"
-        assert payload["written"]["refresh_token"] == "synthetic-refresh"
-        host_payload = json.loads(token_file.read_text(encoding="utf-8"))
-        assert host_payload["access_token"] == "synthetic-access"
-        assert host_payload["refresh_token"] == "synthetic-refresh"
-        if os.name == "posix":
-            assert token_file.stat().st_uid == os.getuid()
-            assert token_file.stat().st_mode & 0o777 == 0o600
-    finally:
-        shutil.rmtree(root)
-
-
-def test_chatgpt_token_provider_atomic_writer_fails_on_single_file_mount():
-    root = Path(tempfile.mkdtemp(prefix="openbot-id6-file-", dir="/tmp"))
-    try:
-        host_file = root / "chatgpt-auth.json"
-        host_file.write_text("{}", encoding="utf-8")
-
-        result = _run_chatgpt_writer_container(
-            host_file,
-            "/root/.langchain/chatgpt-auth.json",
-        )
-
-        assert result.returncode != 0
-        assert "Device or resource busy" in result.stderr or "Errno 16" in result.stderr
-        assert host_file.read_text(encoding="utf-8") == "{}"
-    finally:
-        shutil.rmtree(root)
+    assert "CHATGPT_AUTH_FILE" not in os.environ
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in os.environ
+    assert os.environ["OPENAI_API_KEY"] == "synthetic-key"
+    said = capsys.readouterr().out
+    assert "CHATGPT_AUTH_FILE is set" in said
+    assert "synthetic-plan-token" not in said
+    assert "codex" not in type(main._model()).__name__.lower()

@@ -43,22 +43,29 @@ Decisions:
 - Never log or store plan tokens in Ark's cloud. Keys and tokens stay on the user's device, or in an
   encrypted vault for cloud bots.
 
-## Part 3. What the current code does that conflicts
+## Part 3. What the inherited code did that conflicted, and what was done
 
-Found in `desktop/src-tauri/src/` (`main.rs`, `provider.rs`, `vault.rs`) and `desktop/PROVIDER_OAUTH.md`:
-- **Claude plan:** runs Anthropic's CLI in a container to obtain a plan token, **stores it** as
-  `CLAUDE_CODE_OAUTH_TOKEN` in the local vault, and passes it to a bot built on the Claude Agent SDK.
-  This conflicts with Anthropic's rule against collecting, storing or intermediating plan
-  credentials and against routing plan credentials through developer products. **Remove, or replace
-  with launching the user's own unmodified Claude Code.**
-- **ChatGPT plan:** uses the `codex login` flow and reuses the resulting token in the bot harness.
-  That is the Codex CLI's token, not OpenAI's official Sign in with ChatGPT program for apps. It is
-  a grey area. **Replace with the official program flow and apply for approval.**
-- **Google:** uses the Gemini Developer API with a Cloud project's quota, not a Gemini
-  subscription, which is acceptable. It needs Ark's own verified OAuth client, and paid-only for
-  EEA/UK/CH users.
-- **xAI:** follows xAI's "endorsed OpenCode integration". Ark would need its own registered client
-  or xAI's written permission.
+Found in `desktop/src-tauri/src/`, `server/src/agents/plan-model.ts` and the two harnesses. Status as
+of 2026-10-08:
+
+- **Claude plan: removed.** The desktop ran Anthropic's CLI in a container to obtain a plan token,
+  stored it as `CLAUDE_CODE_OAUTH_TOKEN`, and passed it to a Claude Agent SDK bot, which the server
+  then called as a model. All of it is deleted (sign-in driver, storage, the server's plan model, the
+  harness's model-only endpoint). The Claude Agent SDK harness now requires an API key and drops a
+  plan token from its environment. A person who wants their plan uses it in their own, unmodified
+  Claude Code (a later, separate feature: Ark launches it, never touches its credentials).
+- **ChatGPT plan (Codex login reuse): removed.** The desktop used `codex login` and reused its token
+  store in the LangGraph harness. Deleted, including the store file and its mount. It comes back only
+  through OpenAI's "Sign in with ChatGPT" programme, as its own row, once OpenAI approves Ark. The
+  application to OpenAI is not made yet.
+- **Leftovers on existing machines:** the desktop removes a retired plan token from the protected
+  store, `.env` and the token-store file at Start and when its setup screen opens, and the server and
+  both harnesses drop the variables from their environment at start.
+- **Google:** Gemini Developer API with a Cloud project's quota, not a Gemini subscription, which is
+  acceptable. Needs Ark's own verified OAuth client, and paid-only for EEA/UK/CH users. Still to do.
+- **xAI: still open.** The desktop signs in following "xAI's endorsed OpenCode integration"
+  (`desktop/PROVIDER_OAUTH.md`). Unless xAI confirms in writing that Ark may use that route, this
+  must be replaced by an API key only or by Ark's own registered client. Not yet changed.
 
 ## Sources
 

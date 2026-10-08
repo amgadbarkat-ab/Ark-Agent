@@ -64,9 +64,11 @@ Done:
 
 Still to do in this phase:
 - [ ] Per-bot model choice (today: one default per person).
-- [ ] Remove the stored Claude plan token and the `codex login` reuse in the desktop code. Add
-      Claude through the user's unmodified Claude Code, and apply to OpenAI for its official plan
-      sign-in.
+- [x] Stored Claude plan token and `codex login` reuse removed from the desktop, the server and both
+      harnesses; leftovers on existing machines are purged (04-llm-providers.md, Part 3).
+- [ ] Add Claude through the user's unmodified Claude Code (launch only, never touch its login), and
+      apply to OpenAI for its official "Sign in with ChatGPT" programme.
+- [ ] Decide the xAI sign-in (written permission, own client, or API key only).
 - [ ] Local models: hardware detection, suggested model, managed download (Ollama / llama.cpp).
 - [ ] Usage metering in the gateway; audit events for connection changes.
 

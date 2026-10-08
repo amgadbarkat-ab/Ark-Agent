@@ -74,10 +74,9 @@ person by their own provider.
 
 - **Usage metering** in the gateway (needed for the cloud add-on, Phase 4).
 - **Per-bot model choice.** Today a person has one default; a bot cannot yet pick another.
-- **Removing the old plan-token code.** The desktop app still stores a Claude plan token and reuses
-  `codex login`. This is not allowed by the providers' terms (04-llm-providers.md) and must be
-  replaced by the compliant routes: Claude through the person's own unmodified Claude Code, ChatGPT
-  through OpenAI's official programme once approved.
+- **Plan sign-ins.** The old Claude and ChatGPT plan code is removed (see 04-llm-providers.md,
+  Part 3). Still to do: Claude through the person's own Claude Code, ChatGPT through OpenAI's
+  programme once approved, and a decision on xAI sign-in.
 - **Local model helper.** Detect memory, suggest a model from `LOCAL_MODELS`, offer to download it.
 - **Audit events** for adding, changing and removing a connection.
 - **Google and xAI sign-in** needs Ark's own OAuth clients.

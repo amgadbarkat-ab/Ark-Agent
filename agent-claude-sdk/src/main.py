@@ -1,11 +1,9 @@
 """Claude Agent SDK as a Bot, through `ag-ui-claude-sdk`.
 
-This is the row where a plan can stand in for a key. `claude setup-token` mints a
-`CLAUDE_CODE_OAUTH_TOKEN` against a Pro or Max subscription and the SDK accepts it, which is why
-this harness is the one the model screen offers a subscription on.
-
-The precedence trap is the thing to get right: `ANTHROPIC_API_KEY` wins over the OAuth token, so a
-deployment that sets both silently bills the key and the plan goes unused. OpenBot sets one.
+It runs on an Anthropic API key, billed to whoever owns the key. It does not run on a Claude plan:
+Anthropic does not allow a product to collect or route requests through plan credentials, so this
+harness refuses to start with one in its environment rather than quietly ignoring it. A person who
+wants their plan uses it in their own, unmodified Claude Code.
 """
 
 import os
@@ -13,34 +11,28 @@ import os
 from ag_ui_claude_sdk import add_claude_fastapi_endpoint
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from .adapter import OpenBotClaudeAgentAdapter
 
 TOKEN_HEADER = "x-openbot-agent-token"
 
 
-def _refuse_both_credentials() -> None:
-    """One credential or the other, never both.
+def _require_an_api_key() -> None:
+    """An API key, and nothing else.
 
-    Anthropic resolves `ANTHROPIC_API_KEY` ahead of `CLAUDE_CODE_OAUTH_TOKEN`, so a container given
-    both uses the key and quietly ignores the subscription somebody chose. Failing here is the only
-    way that becomes visible: the alternative is a correct-looking Bot on the wrong credential.
+    A Claude plan token in the environment would be read by the SDK's bundled CLI and used, so it
+    is removed before anything starts rather than relied on to be absent.
     """
-    key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
-    plan = (os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip()
-    if key and plan:
-        raise SystemExit(
-            "Both ANTHROPIC_API_KEY and CLAUDE_CODE_OAUTH_TOKEN are set. Anthropic prefers the key, "
-            "so the subscription would be ignored. Set one."
+    if (os.environ.pop("CLAUDE_CODE_OAUTH_TOKEN", "") or "").strip():
+        print(
+            "CLAUDE_CODE_OAUTH_TOKEN is set. Chat-plan credentials are not used and were ignored.",
+            flush=True,
         )
-    if not key and not plan:
-        raise SystemExit(
-            "Set ANTHROPIC_API_KEY, or CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`."
-        )
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        raise SystemExit("Set ANTHROPIC_API_KEY.")
 
 
-_refuse_both_credentials()
+_require_an_api_key()
 
 app = FastAPI()
 
@@ -65,20 +57,3 @@ add_claude_fastapi_endpoint(
     adapter=OpenBotClaudeAgentAdapter(name="openbot"),
     path="/",
 )
-
-model_adapter = OpenBotClaudeAgentAdapter(name="openbot-model", model_only=True)
-add_claude_fastapi_endpoint(
-    app=app,
-    adapter=model_adapter,
-    path="/model",
-)
-
-
-class CancelModelRun(BaseModel):
-    threadId: str = Field(min_length=1, max_length=128)
-
-
-@app.post("/model/cancel")
-async def cancel_model_run(request: CancelModelRun):
-    await model_adapter.interrupt(request.threadId)
-    return {"ok": True}
