@@ -14,20 +14,30 @@ on the user's own device (desktop). See 03-licensing.md and 05-build-plan.md.
 - Mobile apps: Android and iOS.
 - A cloud service behind all of them (accounts, billing, marketplace, hosted bots).
 
-**D3. Three subscription plans.** The user chooses one at sign-up. A tenant layer enforces limits.
+**D3. Three subscription plans, each for one user.** The user chooses one at sign-up. A tenant
+layer enforces the limits. Every plan is **per single user account**: there are no shared seats.
 
-| Plan | Price | Bots included |
+| Plan | Price | Bots included (per user) |
 | --- | --- | --- |
 | Ark Agent | EUR 50 / month | 1 |
 | Ark Team | EUR 100 / month | up to 15 |
 | Ark Team Enterprise | EUR 250 / month | up to 500 |
 
 - Ark Team is a separate product from Ark Agent, not a bigger version of it.
-- The platform blocks activating bots beyond the plan limit.
+- A person who needs more than their plan allows moves to a bigger plan. A company that wants
+  several people on Ark buys one plan per person.
+- The platform blocks hiring or starting bots beyond the plan limit.
 - The price covers the Ark software. Running bots in Ark's cloud is a separate paid add-on (D5).
+- Enterprise works out at EUR 0.50 per bot. This is intended: those bots are expected to run mostly
+  on the customer's own machines, and cloud running is paid for separately (D5).
 
-**D4. What counts as a bot.** An **active agent with running tasks**. Not a saved definition on
-its own. (To confirm: do idle saved definitions count toward the limit? See open question 1.)
+**D4. What counts toward the limit.** A bot counts only while it is **hired and active** (an agent
+with running tasks). These do **not** count:
+- idle bots, and
+- bots that are installed but not hired.
+
+Installing a bot from the marketplace is free of limits; hiring and running it is what uses the
+allowance.
 
 **D5. Where bots run: the user's choice, per bot.**
 - On the user's own device (included in the plan; costs Ark nothing).
@@ -51,15 +61,20 @@ time. The technical design and the legal check of plan sign-in are in 04-llm-pro
 
 ## Open questions
 
-1. **Active vs saved.** Does a saved but idle bot definition count toward the plan limit, or only
-   active ones? And is a bot "active" while it has a schedule, or only while a task is running?
-2. **Seats.** Is each plan per single user account, or per organisation with several users sharing
-   the bot allowance? How many users does Ark Team and Ark Team Enterprise include?
-3. **Enterprise economics.** EUR 250 for 500 bots is EUR 0.50 per bot. That only works if those
-   bots run on the customer's own machines or on cloud add-on charges. Confirm this is intended.
-4. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
-5. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling.
-6. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
+1. **Exact meaning of "active".** A bot counts while it has a running task. Does a bot with only a
+   future schedule (a routine waiting for its next run) count in between? Suggested: it counts only
+   while a run is in progress, but the plan should say how many may run at the same time.
+2. **At the limit.** When a user is at their limit, what happens to a task that wants to start:
+   refuse, queue, or offer an upgrade? Suggested: queue it and offer the upgrade.
+3. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
+4. **Payments and tax.** Prices are in EUR: choose the payment provider and VAT handling.
+5. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
    digital goods are sold. Check current terms before choosing how mobile users pay.
-7. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires
+6. **OpenAI approval.** OpenAI's official plan sign-in path for paid or hosted apps requires
    contacting OpenAI (see 04-llm-providers.md).
+
+## Answered
+
+- Idle bots and bots installed but not hired do not count toward the limit. (2026-10-08)
+- Every plan is per single user, no shared seats, including Ark Team. (2026-10-08)
+- Enterprise at EUR 250 for 500 bots is intended, with bots mostly on customers' machines. (2026-10-08)

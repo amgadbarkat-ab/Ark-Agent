@@ -40,14 +40,20 @@ the Anthropic key. Uses the temporary Intelligence key, then we drop it in Phase
 - Remove the stored Claude plan token and the `codex login` reuse. Add Claude through the user's
   unmodified Claude Code, and apply to OpenAI for its official plan sign-in.
 
-### Phase 3. Accounts, tenants, plans (L)
-- Real multi-tenancy: tenants, memberships, roles, per-tenant data isolation. The current
-  "tenant package" is only a configuration bundle, not a customer boundary.
-- Plans: Ark Agent (1 bot), Ark Team (15), Ark Team Enterprise (500). Quota enforced on the server
-  when a bot becomes active (D4), with clear errors in the app.
+### Phase 3. Accounts, plans, quotas (L)
+- One paying user per account, each on one plan. Build the tenant boundary so that one account's
+  data is fully isolated from every other. The current "tenant package" is only a configuration
+  bundle, not a customer boundary.
+- Keep the data model able to hold several users under one account later (for example a
+  `memberships` table with one row per account today). Adding shared seats afterwards would
+  otherwise mean rewriting every table that points to a user. This costs little now.
+- Plans: Ark Agent (1 bot), Ark Team (15), Ark Team Enterprise (500).
+- Quota (D4): counts only bots that are hired and active. Installing a bot never counts. Enforced on
+  the server when a bot is hired or a run starts, with clear messages in the app, and a queue plus
+  upgrade offer when at the limit (open question 2).
 - Sign-up flow where the user picks the plan; payments, invoices and VAT through a payment provider
   (to choose); plan changes and cancellation.
-- Admin console for us: tenants, plans, usage, suspensions.
+- Admin console for us: accounts, plans, usage, suspensions.
 
 ### Phase 4. Bot runtime: device or Ark cloud (L)
 - Local: the existing desktop stack runs the bot on the user's machine.
@@ -80,6 +86,7 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 
 ## Immediate next steps
 
-1. Decide open questions 1-3 in 01-product-decisions.md.
+1. Settle the remaining open questions in 01-product-decisions.md (meaning of "active", behaviour at
+   the limit). Neither blocks Phase 1.
 2. Anthropic API key, then Phase 0 baseline run.
 3. Start Phase 1.
