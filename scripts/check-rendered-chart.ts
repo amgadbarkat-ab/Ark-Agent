@@ -143,7 +143,9 @@ for (const [name, keys] of written) {
 const serverPolicy = documents.find(
   (document) =>
     /^kind:\s*NetworkPolicy\s*$/m.test(document) &&
-    /app\.kubernetes\.io\/component:\s*server/.test(document),
+    // The policy FOR the server, by its own labels (four spaces in). Not any policy that mentions the
+    // server: the hub's admits the server's pods by selector, and that mention sits deeper in the file.
+    /^ {4}app\.kubernetes\.io\/component:\s*server\s*$/m.test(document),
 );
 if (serverPolicy) {
   const egress = serverPolicy.split(/^\s{2}egress:\s*$/m)[1] ?? "";

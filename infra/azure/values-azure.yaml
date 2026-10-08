@@ -1,0 +1,164 @@
+# Ark on AKS: the Helm values for charts/openbot, for the infrastructure main.bicep creates.
+#
+#   helm upgrade --install ark charts/openbot -n ark --create-namespace -f infra/azure/values-azure.yaml \
+#     --set image.tag=<commit> --set hub.image.tag=<commit> --atomic --wait
+#
+# Everything marked REPLACE is a value only you know. Nothing secret is here: secrets come from the
+# vault through External Secrets (see `externalSecrets` at the bottom) and are named, never written.
+
+# Short names, so the secret is called `ark-secrets` and the services `ark-server` and `ark-hub`.
+fullnameOverride: ark
+
+image:
+  # REPLACE: `registryLoginServer` from the deployment, then /ark. Built from the repository's own Dockerfile.
+  repository: REPLACE.azurecr.io/ark
+  # Set on the command line to the commit being deployed, so a rollout is always to a known build.
+  tag: ""
+
+config:
+  # REPLACE: who is an administrator. Only a sign-in that can vouch for the address makes them one
+  # (a single Microsoft directory, Google when it verified the address, Okta, a company provider).
+  initialAdminEmails: you@example.com
+  # REPLACE: where people reach Ark.
+  publicUrl: https://ark.example.com
+  auth:
+    microsoft:
+      # REPLACE: the app registration for Ark's own staff directory, a single-tenant one.
+      clientId: 00000000-0000-0000-0000-000000000000
+      # REPLACE with your directory's id (a GUID). Never `common`, `organizations` or `consumers`.
+      tenantId: 00000000-0000-0000-0000-000000000000
+    google:
+      # REPLACE: for customers.
+      clientId: REPLACE.apps.googleusercontent.com
+  tenantPackageDir: /app/examples/fintech
+  # What turns Ark from a company's own tool into a service customers pay for. The Paddle values are
+  # public (prices, the client-side token) or come from the vault; see docs/ark/12-paddle.md.
+  extraEnv:
+    - name: ARK_BILLING_MODE
+      value: subscriptions
+    - name: ARK_BILLING_PROVIDER
+      value: paddle
+    - name: PADDLE_ENVIRONMENT
+      value: production
+    - name: PADDLE_CLIENT_TOKEN
+      value: live_REPLACE
+    - name: PADDLE_PRICE_AGENT
+      value: pri_REPLACE
+    - name: PADDLE_PRICE_TEAM
+      value: pri_REPLACE
+    - name: PADDLE_PRICE_ENTERPRISE
+      value: pri_REPLACE
+    - name: PADDLE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: paddle-api-key
+    - name: PADDLE_WEBHOOK_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: paddle-webhook-secret
+
+# The database is Azure's, not a pod's. The address is in the vault.
+postgresql:
+  enabled: false
+database:
+  existingSecret: ark-secrets
+  existingSecretKey: database-url
+
+# Ark Hub, the conversation service, in this release.
+hub:
+  enabled: true
+  image:
+    # REPLACE: the same registry, /ark-hub. Built from hub/Dockerfile.
+    repository: REPLACE.azurecr.io/ark-hub
+    tag: ""
+  # Its own name, for the browser's live connection.
+  publicUrl: wss://hub.ark.example.com
+  ingress:
+    enabled: true
+    host: hub.ark.example.com
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+      # The managed NGINX closes an idle connection after a minute unless told a socket may stay open.
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    tls:
+      - hosts: [hub.ark.example.com]
+        secretName: ark-hub-tls
+
+ingress:
+  enabled: true
+  className: webapprouting.kubernetes.azure.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: ark.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts: [ark.example.com]
+      secretName: ark-tls
+
+server:
+  replicaCount: 2
+
+# Scheduled work for digital employees, and the hourly sweep of attachments nobody sent.
+routines:
+  enabled: true
+
+# One browser for every bot, run by this chart. A browser each (the cloud runtime) is Phase 4.
+computers:
+  mode: shared
+
+# Fence the pods in. The database is on the private network the default rules cut out, so it is named:
+# the subnet is `databaseSubnetPrefix` from the deployment, and the ingress controller's namespace is
+# the one AKS creates for its managed ingress.
+networkPolicy:
+  enabled: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 10.40.16.0/24
+      ports:
+        - port: 5432
+          protocol: TCP
+  hubExtraIngress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app-routing-system
+
+# One Secret, written by External Secrets from the vault. Each key is a vault secret
+# scripts/bootstrap-secrets.sh created or a person set.
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: azure-key-vault
+    kind: ClusterSecretStore
+  data:
+    - secretKey: key-encryption-key
+      remoteRef: { key: ark-key-encryption-key }
+    - secretKey: better-auth-secret
+      remoteRef: { key: ark-better-auth-secret }
+    - secretKey: database-url
+      remoteRef: { key: ark-database-url }
+    - secretKey: hub-api-key
+      remoteRef: { key: ark-hub-api-key }
+    - secretKey: hub-join-secret
+      remoteRef: { key: ark-hub-join-secret }
+    - secretKey: hub-database-url
+      remoteRef: { key: ark-hub-database-url }
+    - secretKey: computer-token
+      remoteRef: { key: ark-computer-token }
+    - secretKey: worker-shared-secret
+      remoteRef: { key: ark-worker-shared-secret }
+    - secretKey: google-client-secret
+      remoteRef: { key: ark-google-client-secret }
+    - secretKey: microsoft-client-secret
+      remoteRef: { key: ark-microsoft-client-secret }
+    - secretKey: paddle-api-key
+      remoteRef: { key: ark-paddle-api-key }
+    - secretKey: paddle-webhook-secret
+      remoteRef: { key: ark-paddle-webhook-secret }
