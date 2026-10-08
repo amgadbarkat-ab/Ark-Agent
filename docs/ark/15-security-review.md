@@ -76,12 +76,42 @@ would make that a database error instead of a data leak. It is a substantial cha
 as a role with the account set) and is worth doing before the product grows more endpoints; the
 penetration test (O1.2) tells how urgent it is.
 
-### O3. No Content-Security-Policy for the app — Medium
+### O3. Content-Security-Policy — Low (watched, not yet enforced)
 
-Only `frame-ancestors` is set (F7). A full policy would limit what an injected script could do. It was
-not guessed at: the app draws bot output, markdown, a Paddle checkout and live frames, and a policy not
-tried against each screen breaks one silently. Build it report-only first (`Content-Security-Policy-
-Report-Only`), walk every screen with the browser console open, then enforce.
+A full policy exists (`server/src/csp.ts`) and is **sent in report-only mode by default**: the browser
+reports what it would have blocked to `POST /api/csp-report` (public, small, limited per address,
+one clean log line per distinct violation) and blocks nothing. `frame-ancestors 'self'` is still
+enforced as before (F7). The policy allows only the app's own script (no inline script, no `eval`),
+inline style, images from anywhere over https (a coworker's answer may show one), the app's own
+address and the conversation hub for connections, and closes `object-src`, `base-uri` and
+`form-action`. The payment page has its own, watched policy in every mode (below).
+
+**It was walked in a real browser** (headless Chromium, 35 screens as a customer and as staff, sign-in,
+dialogs opened): with the policy **enforced**, every customer screen and every admin screen drew and
+worked, with **no violation on any customer screen**. The only violations were in two places that
+run a *generated interface*, which is a sandboxed frame built from inline script:
+the component previews and playground under Admin.
+
+That is the decision to understand. Generated interfaces (a Bot drawing an interface it wrote itself,
+and the components an administrator writes) run in a frame the SDK builds from inline script, and such
+a frame **inherits the page's policy**, so an enforced policy that forbids inline script stops every one
+of them drawing. So:
+- **`CSP_MODE=report-only` (default):** safe with generated interfaces on. Nothing is blocked; what
+  the policy would block is reported and logged, which is the evidence for the next step.
+- **`CSP_MODE=enforce`:** the server **refuses to start** unless `OPENBOT_GENERATIVE_UI=false` too, so
+  nobody enforces by accident and finds out from a customer. Those interfaces then do not draw. The
+  frames have no same-origin access to the app (checked: `sandbox="allow-scripts"` without
+  `allow-same-origin`), so leaving the policy report-only does not give a generated page the app.
+- **`CSP_MODE=off`:** only `frame-ancestors`.
+
+Not yet exercised, so not yet guaranteed: the payment page (its script and frame come from Paddle; the
+allowances are from Paddle's documentation and the page's policy is report-only whatever the mode, so a
+wrong guess cannot stop a customer paying), a live conversation through the hub (the walk had no
+model or hub attached; the hub's address is in `connect-src`), voice and the live screen of a bot's
+browser. **Before enforcing:** run `node scripts/csp-walk.mjs` against `dev` (it lists what the policy objects to, screen by screen), run in report-only for a while with real use, read the log lines
+(`{"type":"csp-violation",...}`), and add what is legitimate. A better answer than turning generated
+interfaces off is to give them a policy of their own, by serving their frame from a separate address
+(or patching the SDK's renderer to); that is not done.
 
 ### O4. Dependencies still reported — Low
 

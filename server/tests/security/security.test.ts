@@ -77,6 +77,8 @@ const PUBLIC: Record<string, string> = {
     "signed by Paddle, checked in its own block",
   "GET /api/plugins/oauth/callback":
     "a vendor redirects the browser here; the state is checked",
+  "POST /api/csp-report":
+    "the browser says what the content policy would have blocked; small, limited, logs a few clean fields",
   "GET /api/host-access/desktop/next": "the desktop app, with its own token",
   "POST /api/host-access/desktop/result": "the desktop app, with its own token",
 };
@@ -1653,5 +1655,63 @@ run("running in the cloud, which is charged for", () => {
       .select({ id: cloudAccounts.tenantId })
       .from(cloudAccounts);
     expect(stray.map((row) => row.id)).not.toContain(spare.tenantId);
+  });
+});
+
+run("the content-security-policy and its report door", () => {
+  test("every page of the app carries the policy, watched by default, and the payment page its own", async () => {
+    for (const path of [
+      "/health",
+      "/",
+      "/settings/plan",
+      "/api/nothing-here",
+    ]) {
+      const answer = await target.call(null, "GET", path);
+      expect(answer.headers.get("content-security-policy")).toBe(
+        "frame-ancestors 'self'",
+      );
+      expect(
+        answer.headers.get("content-security-policy-report-only"),
+      ).toContain("script-src 'self'");
+    }
+    // Wherever the payment page is configured it never gets the application's policy.
+    const checkout = await target.call(null, "GET", "/api/billing/checkout");
+    expect(
+      checkout.headers.get("content-security-policy-report-only"),
+    ).toContain("https://cdn.paddle.com");
+    expect(checkout.headers.get("content-security-policy")).toBe(
+      "frame-ancestors 'self'",
+    );
+  });
+
+  test("the report door takes reports from the site itself and nobody else's pages, and stays small", async () => {
+    const report = JSON.stringify({
+      "csp-report": {
+        "effective-directive": "script-src",
+        "blocked-uri": "https://evil.example/x.js?secret=1",
+        "document-uri": `${target.url}/settings/plan`,
+      },
+    });
+    const post = (headers: Record<string, string>, raw: string = report) =>
+      target.call(null, "POST", "/api/csp-report", {
+        raw,
+        headers: { "content-type": "application/csp-report", ...headers },
+      });
+    expect((await post({ origin: target.url })).status).toBe(204);
+    // A page on another site posting here is the same cross-site write as any other.
+    expect((await post({ origin: "https://evil.example" })).status).toBe(403);
+    expect(
+      (await post({ origin: target.url }, "x".repeat(20_000))).status,
+    ).toBe(413);
+    expect((await post({ origin: target.url }, "{nope")).status).toBe(400);
+    const wrongKind = await target.call(null, "POST", "/api/csp-report", {
+      raw: report,
+      headers: { "content-type": "text/plain", origin: target.url },
+    });
+    expect(wrongKind.status).toBe(415);
+    // It does not read back: there is nothing to GET.
+    expect((await target.call(null, "GET", "/api/csp-report")).status).toBe(
+      404,
+    );
   });
 });

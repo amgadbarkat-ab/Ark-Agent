@@ -3,6 +3,7 @@
  * for durable threads and memory. Configuration the product cannot function without belongs at the
  * boot boundary.
  */
+import { type CspMode, parseCspMode } from "./csp";
 import { singleUserEnabled } from "./auth/dev-actor";
 import { normalizeDomain } from "./auth/email-domain";
 import { organizationAuthority } from "./auth/organization";
@@ -193,6 +194,12 @@ export type DeploymentConfig = {
   port: number;
   databaseUrl: string;
   cloud: CloudConfig;
+  /**
+   * How hard the Content-Security-Policy is held to: `report-only` (the default) tells
+   * `/api/csp-report` what would have been blocked and blocks nothing, `enforce` blocks, `off` sends
+   * only `frame-ancestors`. See server/src/csp.ts.
+   */
+  contentSecurityPolicy: CspMode;
   keyEncryptionKey: string;
   /**
    * Keys that used to be `keyEncryptionKey`, kept only so what they sealed can still be read until
@@ -1273,6 +1280,26 @@ function generativeUiEnabled(environment: Environment): boolean {
 }
 
 /**
+ * How hard the Content-Security-Policy is held to, refused if it cannot be held without breaking the
+ * product.
+ *
+ * Generated interfaces (and the components an administrator writes) run in a sandboxed frame built
+ * from inline script, and a frame made that way inherits the page's policy. Enforcing a policy that
+ * allows no inline script and no `eval` therefore stops every one of them drawing, silently. Watching
+ * (`report-only`) is safe with them on, and is the default; enforcing needs them off, so the choice is
+ * made on purpose instead of discovered by a customer. docs/ark/15-security-review.md (O3).
+ */
+function contentSecurityPolicyMode(environment: Environment): CspMode {
+  const mode = parseCspMode(optional(environment, "CSP_MODE"));
+  if (mode === "enforce" && generativeUiEnabled(environment)) {
+    throw new Error(
+      "CSP_MODE=enforce would stop generated interfaces and administrator-written components from drawing, because they run from inline script. Set OPENBOT_GENERATIVE_UI=false as well (and accept that those components then do not draw), or leave CSP_MODE at report-only.",
+    );
+  }
+  return mode;
+}
+
+/**
  * How long the audit trail is kept.
  *
  * Refused rather than coerced, like everything else here. "We accepted your retention policy but not
@@ -1366,6 +1393,7 @@ export function loadConfig(
     voice: voiceConfig(environment),
     databaseUrl: required(environment, "DATABASE_URL"),
     cloud: cloudConfig(environment),
+    contentSecurityPolicy: contentSecurityPolicyMode(environment),
     keyEncryptionKey: keyEncryptionKey(environment),
     previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),
     ...(managedAgent ? { managedAgent } : {}),

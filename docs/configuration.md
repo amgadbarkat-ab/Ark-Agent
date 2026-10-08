@@ -162,6 +162,16 @@ Most gateways publish a model list, which is the way to check a name before conf
 
 Two things are worth knowing before pointing a deployment at any gateway. Not every catalogue entry accepts tools, and a Bot without tool calling cannot drive its computer; the model list says which do. And `BOT_RESPONSES_API=true` needs an endpoint that implements the Responses API, not only chat completions.
 
+## Content-Security-Policy
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `CSP_MODE` | `report-only` | `report-only`: the browser reports what the policy would have blocked to `/api/csp-report` (one clean log line each) and blocks nothing. `enforce`: it is blocked. `off`: only `frame-ancestors 'self'`, which is always sent. |
+
+`enforce` is refused at start-up unless `OPENBOT_GENERATIVE_UI=false` as well: generated interfaces and
+administrator-written components run from inline script, and would silently stop drawing. The policy
+and how it was checked are in [ark/15-security-review.md](ark/15-security-review.md), O3.
+
 ## Running in Ark's cloud
 
 Whether a coworker may run on Ark's computers, and whether that is an add-on a customer pays for. The

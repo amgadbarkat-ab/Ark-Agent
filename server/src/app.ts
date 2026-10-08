@@ -118,6 +118,12 @@ import { sandboxCheckoutRoutes } from "./billing/sandbox-routes";
 import type { BillingWebhook } from "./billing/webhook";
 import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
+import {
+  appPolicy,
+  checkoutPolicy,
+  CSP_REPORT_PATH,
+  cspReportRoutes,
+} from "./csp";
 import { userPreferencesRoutes } from "./user-preferences-routes";
 
 /**
@@ -404,6 +410,14 @@ export function createApp(
     "*",
     securityHeaders({
       https: (config.publicUrl ?? config.appUrl ?? "").startsWith("https://"),
+      csp: {
+        mode: config.contentSecurityPolicy,
+        policy: appPolicy({
+          selfOrigins: [config.publicUrl, config.appUrl],
+          hubAddress: config.runtime.intelligence.gatewayWsUrl,
+          reportUri: CSP_REPORT_PATH,
+        }),
+      },
     }),
   );
   app.use(
@@ -418,6 +432,10 @@ export function createApp(
   );
   app.use("*", requestShape());
   app.use("/api/*", jsonBodyLimit());
+  // Where the browser says what the policy would have blocked. Public, because the browser sends it
+  // by itself; after the guards above like everything else, and small, limited and written to the log
+  // field by field (csp.ts).
+  app.route(CSP_REPORT_PATH, cspReportRoutes({}));
   mountDesktopConnectionFailure(app, desktopHostToken);
   mountProviderOAuthProxy(app, modelProviderProxy);
 
@@ -682,6 +700,12 @@ export function createApp(
               "cache-control": "no-store",
               "x-content-type-options": "nosniff",
               "referrer-policy": "strict-origin",
+              // Its own policy, because it is a script from Paddle with an inline script of ours and
+              // the application's policy is wrong for it. Always only watched: see csp.ts.
+              "content-security-policy": "frame-ancestors 'self'",
+              "content-security-policy-report-only": checkoutPolicy({
+                reportUri: CSP_REPORT_PATH,
+              }),
             },
           },
         );

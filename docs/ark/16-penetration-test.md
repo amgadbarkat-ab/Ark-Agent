@@ -86,7 +86,7 @@ Said plainly, because a green list invites more trust than it has earned:
 - **The Azure deployment as built.** Network policy enforcement, private networking, Key Vault access, ingress behaviour and the alerts need a real subscription.
 - **The desktop app and mobile.**
 - **Load and denial of service** beyond the size caps; **timing side channels**; **dependency exploitability** (32 advisories remain, the `undici` group chiefly; see 15, O4).
-- **A content-security-policy** is still not set (15, O3): a cross-site-scripting bug, should one exist, would be less contained than it should be. None was found: every user-supplied field the app draws is rendered as text, and there is no `dangerouslySetInnerHTML` anywhere in it.
+- **A content-security-policy** is sent in report-only mode, not enforced (15, O3): a cross-site-scripting bug, should one exist, is not yet contained by it. None was found: every user-supplied field the app draws is rendered as text, and there is no `dangerouslySetInnerHTML` anywhere in it. The policy was walked in a real browser and enforcing it is possible (with generated interfaces off); 15 says what it would take.
 
 ## Informational
 

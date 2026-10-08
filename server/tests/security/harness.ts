@@ -94,7 +94,13 @@ async function sessionCookie(token: string): Promise<string> {
   return `better-auth.session_token=${encodeURIComponent(value)}`;
 }
 
-export async function startTarget(): Promise<Target> {
+/**
+ * Start the real server against a database made for the run. `env` adds to, and overrides, what the
+ * server is started with, for a test of one setting.
+ */
+export async function startTarget(
+  options: { env?: Record<string, string> } = {},
+): Promise<Target> {
   const base = new URL(testDatabaseUrl());
   const databaseName = `ark_sec_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
   const adminUrl = new URL(base);
@@ -220,6 +226,7 @@ export async function startTarget(): Promise<Target> {
         PADDLE_PRICE_AGENT: "pri_01aaaaaaaa",
         PADDLE_PRICE_TEAM: "pri_01bbbbbbbb",
         PADDLE_PRICE_ENTERPRISE: "pri_01cccccccc",
+        ...options.env,
       },
       stdout: "ignore",
       stderr: "ignore",
