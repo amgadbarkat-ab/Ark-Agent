@@ -8,6 +8,7 @@ import {
   createCredentialStore,
   decryptCredentialForUse,
   decryptSecret,
+  encryptionKeyId,
   encryptSecret,
   resolveModelApiKey,
   revokeCredential,
@@ -34,7 +35,8 @@ describe("credential encryption", () => {
     const envelope = await encryptSecret(key, "openai-secret-value");
 
     expect(JSON.parse(envelope)).toEqual({
-      version: 1,
+      version: 2,
+      kid: await encryptionKeyId(key),
       iv: expect.any(String),
       ciphertext: expect.any(String),
     });

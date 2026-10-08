@@ -20,6 +20,7 @@ bash scripts/start.sh
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`                | PostgreSQL connection string.                                                                         |
 | `KEY_ENCRYPTION_KEY`          | Base64-encoded 32-byte key for encrypted stored credentials. Generate with `openssl rand -base64 32`. |
+| `KEY_ENCRYPTION_KEY_PREVIOUS` | Only while rotating that key: the old key (or several, separated by commas), used to read what it sealed and never to write. Re-seal with `server/scripts/rotate-encryption-key.ts`, then remove it. See `docs/ark/13-azure-hosting.md`. |
 | `INTELLIGENCE_API_URL`        | CopilotKit Intelligence API URL.                                                                      |
 | `INTELLIGENCE_GATEWAY_WS_URL` | CopilotKit Intelligence realtime gateway URL.                                                         |
 | `INTELLIGENCE_API_KEY`        | Runtime key for the Intelligence project.                                                             |

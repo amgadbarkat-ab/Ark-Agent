@@ -39,6 +39,15 @@ config:
     # is for.
     - name: AUDIT_RETENTION_DAYS
       value: "365"
+    # Present only while the data encryption key is being rotated: the key being retired, so what it
+    # sealed can still be read until it has been re-sealed. `optional` is why a deployment that is not
+    # rotating starts without it. The steps are in docs/ark/13-azure-hosting.md.
+    - name: KEY_ENCRYPTION_KEY_PREVIOUS
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: key-encryption-key-previous
+          optional: true
     - name: ARK_BILLING_MODE
       value: subscriptions
     - name: ARK_BILLING_PROVIDER

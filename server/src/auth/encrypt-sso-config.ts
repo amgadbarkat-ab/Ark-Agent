@@ -50,9 +50,9 @@ type RowishAdapter = Record<
   ((data: Rowish) => Promise<unknown>) | undefined
 >;
 
-function isEnvelope(value: string): boolean {
+export function isEnvelope(value: string): boolean {
   // What `encryptSecret` produces. Anything else is a value written before this wrapper existed.
-  return value.startsWith('{"version":1');
+  return value.startsWith('{"version":1') || value.startsWith('{"version":2');
 }
 
 async function encryptFields(

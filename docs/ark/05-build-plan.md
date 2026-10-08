@@ -147,9 +147,10 @@ Done:
 Still to do:
 - [ ] **A first real deployment to `dev`**, which will find the small things a schema check cannot.
 - [ ] The restore drill, and each alert fired once (13, "Before customers").
-- [ ] **Key rotation for the data encryption key** (15, O1) and an **independent penetration test**
-      (15, O2): both before the first paying customer.
-- [ ] A content-security-policy, image scanning, scheduled dependency audit (15, O4–O6).
+- [x] **Rotation for the data encryption key**: each sealed value names its key; a script re-seals
+      everything while the service runs (13, "Rotating the data encryption key").
+- [ ] An **independent penetration test** (15, O1) before the first paying customer.
+- [ ] A content-security-policy, image scanning, scheduled dependency audit (15, O3–O5).
 - [ ] Legal items only the owner can supply: privacy notice, data processing agreement, the
       sub-processors' agreements (14, "Before the first customer").
 
@@ -164,8 +165,8 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 1. **Owner:** run the Paddle sandbox checklist (12-paddle.md); create the Entra staff application, the
    Google client, the Paddle products and the DNS names (infra/azure/README.md); supply the legal
    documents (14-data-protection.md).
-2. **Next to build, needs nothing from the owner:** rotation for the data encryption key (15, O1), a
-   report-only content-security-policy (15, O4), a scheduled dependency audit (15, O5). A first
-   deployment to `dev` needs an Azure subscription to deploy into.
+2. **Next to build, needs nothing from the owner:** a report-only content-security-policy (15, O3), a
+   scheduled dependency audit (15, O4). A first deployment to `dev` needs an Azure subscription to
+   deploy into.
 3. **Then:** Phase 4 (cloud runtime and metering, needs measured cost) and Phase 6 (desktop
    re-platform and mobile, needs brand assets and signing certificates).

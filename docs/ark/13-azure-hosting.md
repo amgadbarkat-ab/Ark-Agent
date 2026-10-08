@@ -161,7 +161,7 @@ kubectl rollout restart deployment -n ark
 
 | Secret | What rotating it does | How |
 | --- | --- | --- |
-| `ark-key-encryption-key` | **Do not rotate casually.** It encrypts every stored credential, model key and SSO setting. Replacing it makes all of them unreadable. There is **no re-encryption tool yet** (an open item in the security review); until there is, this key changes only with a planned re-entry of everything it protects. | Not supported yet. |
+| `ark-key-encryption-key` | It seals every stored credential, model key and directory secret. **Never just replace it**: the values it sealed become unreadable. Rotate it with the procedure below, which re-seals everything under the new key with no downtime and nothing lost. | "Rotating the data encryption key", below. |
 | `ark-better-auth-secret` | Signs everybody out. Harmless. | Set a new value, restart. |
 | `ark-hub-api-key`, `ark-hub-join-secret` | Live conversations drop and reconnect. Both services must pick up the new value together. | Set both, `rollout restart` the API and the hub in the same minute. |
 | `ark-computer-token`, `ark-worker-shared-secret` | Bot computers and the routines job use these. | Set, restart everything. |
@@ -174,6 +174,59 @@ rotation.
 
 If a secret may have leaked: rotate it first, then work out the how. Key Vault's access log says who
 read what and when.
+
+## Rotating the data encryption key
+
+When: on a schedule the customers' questionnaires ask for, or at once if the key may have leaked.
+Takes about ten minutes, with no downtime. **Values already stored keep working throughout**, and
+nothing new is ever sealed under the old key once the new one is in.
+
+How it works: each sealed value carries a short fingerprint of the key that sealed it. The server holds
+the new key (`KEY_ENCRYPTION_KEY`), which seals everything new, and the old one
+(`KEY_ENCRYPTION_KEY_PREVIOUS`), which is only ever used to read. A script re-seals every stored value
+under the new key; when it reports nothing is left under the old one, the old one is removed.
+
+1. **Make the new key** and keep the old one:
+   ```sh
+   old=$(az keyvault secret show --vault-name "$vault" --name ark-key-encryption-key --query value -o tsv)
+   az keyvault secret set --vault-name "$vault" --name ark-key-encryption-key-previous --value "$old" >/dev/null
+   az keyvault secret set --vault-name "$vault" --name ark-key-encryption-key \
+     --value "$(openssl rand -base64 32)" >/dev/null
+   unset old
+   ```
+   The old key is copied *first*, so there is no moment at which neither exists.
+2. **Tell the cluster to read the old key.** In `infra/azure/values-azure.yaml`, add this to
+   `externalSecrets.data` (the environment variable is already wired, as optional):
+   ```yaml
+   - secretKey: key-encryption-key-previous
+     remoteRef: { key: ark-key-encryption-key-previous }
+   ```
+   Run the deploy workflow. The pods restart holding both keys.
+3. **See what will change** (changes nothing; exit code 2 means work remains):
+   ```sh
+   kubectl exec -n ark deploy/<the server deployment> -- sh -c 'cd /app/server && bun scripts/rotate-encryption-key.ts'
+   ```
+   The output is counts and row ids, never a value.
+4. **Re-seal**, then check it:
+   ```sh
+   kubectl exec -n ark deploy/<the server deployment> -- sh -c 'cd /app/server && bun scripts/rotate-encryption-key.ts --apply'
+   kubectl exec -n ark deploy/<the server deployment> -- sh -c 'cd /app/server && bun scripts/rotate-encryption-key.ts'
+   ```
+   It is safe to run while people use the product, and to run twice: a row somebody changed in the
+   meantime is left for the next pass instead of being overwritten with the old value.
+5. **Prove the old key is no longer needed.** Run it once more with the old key *removed from the
+   process*, which is exactly the state the server will be in afterwards:
+   ```sh
+   kubectl exec -n ark deploy/<the server deployment> -- sh -c 'cd /app/server && env -u KEY_ENCRYPTION_KEY_PREVIOUS bun scripts/rotate-encryption-key.ts'
+   ```
+   **Exit 0 is the only answer that allows the next step.** Exit 1 lists rows no key it holds can open:
+   keep the old key, and find out why before going on (a value sealed under a third, older key that
+   was never kept is the usual reason, and is unrecoverable by anyone).
+6. **Retire the old key.** Remove the entry added in step 2, deploy, then disable the vault secret
+   (`az keyvault secret set-attributes --enabled false`) and, after a week with nothing wrong, delete it.
+   Keep a note of the date.
+
+If a step fails, nothing is lost: the old key is still in the vault and the server reads with it.
 
 ## When something is wrong
 

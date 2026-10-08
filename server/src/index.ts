@@ -87,6 +87,7 @@ import {
   createCredentialAdminService,
   createCredentialStore,
   resolveModelApiKey,
+  useRetiredEncryptionKeys,
 } from "./credentials";
 import { createDatabase } from "./db/client";
 import { intelligenceChannelMappings } from "./db/schema";
@@ -197,6 +198,8 @@ const identifyActor: IdentifyActor = async (request) => {
 };
 
 const config = loadConfig();
+// Before anything reads a stored value, so a rotation under way never meets one it cannot open.
+useRetiredEncryptionKeys(config.previousKeyEncryptionKeys);
 // Read with the rest of the configuration, where an empty variable is an absent one. See
 // `serverPort` in config.ts for what `process.env.PORT ?? …` did with `PORT=` instead.
 const port = config.port;

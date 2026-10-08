@@ -168,6 +168,12 @@ export type DeploymentConfig = {
   databaseUrl: string;
   keyEncryptionKey: string;
   /**
+   * Keys that used to be `keyEncryptionKey`, kept only so what they sealed can still be read until
+   * `server/scripts/rotate-encryption-key.ts` has re-sealed it under the current one. Never written
+   * with. Empty except while a rotation is under way (docs/ark/13-azure-hosting.md).
+   */
+  previousKeyEncryptionKeys: string[];
+  /**
    * Authentication for the bundled Bot and/or the installed picked harness.
    *
    * The bundled endpoint is optional: plan credentials can run a picked harness without it.
@@ -423,6 +429,35 @@ function keyEncryptionKey(environment: Environment): string {
   }
 
   return value;
+}
+
+/**
+ * The keys a rotation is moving away from: `KEY_ENCRYPTION_KEY_PREVIOUS`, one or more, separated by
+ * commas or spaces (more than one when a rotation was started before the last one finished).
+ *
+ * Checked as strictly as the current key, and refused if it names the current one: that is the
+ * mistake of someone who has not yet put the new key in, and starting then would seal new values
+ * under a key they believe they are retiring.
+ */
+function previousKeyEncryptionKeys(environment: Environment): string[] {
+  const raw = optional(environment, "KEY_ENCRYPTION_KEY_PREVIOUS");
+  if (!raw) return [];
+  const current = required(environment, "KEY_ENCRYPTION_KEY");
+  const keys = raw.split(/[\s,]+/).filter((key) => key !== "");
+  for (const key of keys) {
+    const decoded = Buffer.from(key, "base64");
+    if (decoded.byteLength !== 32 || decoded.toString("base64") !== key) {
+      throw new Error(
+        "KEY_ENCRYPTION_KEY_PREVIOUS must be one or more base64-encoded 32-byte keys, separated by commas",
+      );
+    }
+    if (key === current) {
+      throw new Error(
+        "KEY_ENCRYPTION_KEY_PREVIOUS contains the current KEY_ENCRYPTION_KEY. Put the new key in KEY_ENCRYPTION_KEY and the old one here.",
+      );
+    }
+  }
+  return [...new Set(keys)];
 }
 
 /**
@@ -1277,6 +1312,7 @@ export function loadConfig(
     voice: voiceConfig(environment),
     databaseUrl: required(environment, "DATABASE_URL"),
     keyEncryptionKey: keyEncryptionKey(environment),
+    previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),
     ...(managedAgent ? { managedAgent } : {}),
     agentEndpointAllowedHosts: agentEndpointAllowedHosts(environment),
     deploymentId: optional(environment, "DEPLOYMENT_ID"),

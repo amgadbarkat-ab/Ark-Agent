@@ -4,11 +4,17 @@ import type { Database } from "./db/client";
 import { reasonWithoutStatement } from "./db/query-failure";
 import { type credentialKind, credentials } from "./db/schema";
 
-type CredentialEnvelope = {
-  version: 1;
-  iv: string;
-  ciphertext: string;
-};
+/**
+ * What an encrypted value looks like in the database.
+ *
+ * Version 1 carries no hint of which key sealed it, so a reader with more than one key has to try
+ * them. Version 2 names the key (`kid`, a short fingerprint of it, which reveals nothing about it), so
+ * reading is a lookup, and so a person can tell from a row which key it still depends on. New values
+ * are always version 2; version 1 is read for as long as any exist.
+ */
+type CredentialEnvelope =
+  | { version: 1; iv: string; ciphertext: string }
+  | { version: 2; kid: string; iv: string; ciphertext: string };
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -155,9 +161,10 @@ function parseEnvelope(value: string): CredentialEnvelope {
   try {
     const envelope = JSON.parse(value) as CredentialEnvelope;
     if (
-      envelope.version !== 1 ||
+      (envelope.version !== 1 && envelope.version !== 2) ||
       typeof envelope.iv !== "string" ||
-      typeof envelope.ciphertext !== "string"
+      typeof envelope.ciphertext !== "string" ||
+      (envelope.version === 2 && typeof envelope.kid !== "string")
     ) {
       throw new Error("invalid envelope");
     }
@@ -165,6 +172,50 @@ function parseEnvelope(value: string): CredentialEnvelope {
   } catch {
     throw new Error("Credential envelope is invalid");
   }
+}
+
+/*
+ * KEY ROTATION.
+ *
+ * One key seals everything the server stores for somebody (credentials, model keys, directory
+ * secrets), so a key that leaks, or a policy that says keys are replaced every so often, needs a way
+ * to change it without losing any of it. The current key (`KEY_ENCRYPTION_KEY`) seals every new
+ * value. The retired keys (`KEY_ENCRYPTION_KEY_PREVIOUS`) are only ever used to READ what they sealed,
+ * until `server/scripts/rotate-encryption-key.ts` has re-sealed it all under the current one and they
+ * are removed. The steps are in docs/ark/13-azure-hosting.md.
+ *
+ * Held here, once, rather than threaded through the twenty places that pass the current key around:
+ * those all end in `encryptSecret` or `decryptSecret`, which is where a key is chosen.
+ */
+const retiredKeys: string[] = [];
+const fingerprints = new Map<string, string>();
+
+/** Keys that may still be read with, and are never written with. Replaces whatever was set before. */
+export function useRetiredEncryptionKeys(keys: readonly string[]) {
+  retiredKeys.length = 0;
+  retiredKeys.push(...keys);
+}
+
+/** A short, public name for a key, so a value can say which one sealed it without giving it away. */
+export async function encryptionKeyId(encodedKey: string): Promise<string> {
+  const known = fingerprints.get(encodedKey);
+  if (known) return known;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    Buffer.from(encodedKey, "base64"),
+  );
+  const id = Buffer.from(digest).subarray(0, 8).toString("hex");
+  fingerprints.set(encodedKey, id);
+  return id;
+}
+
+async function open(encodedKey: string, envelope: CredentialEnvelope) {
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: Buffer.from(envelope.iv, "base64") },
+    await aesKey(encodedKey),
+    Buffer.from(envelope.ciphertext, "base64"),
+  );
+  return decoder.decode(plaintext);
 }
 
 export async function encryptSecret(encodedKey: string, plaintext: string) {
@@ -176,7 +227,8 @@ export async function encryptSecret(encodedKey: string, plaintext: string) {
   );
 
   return JSON.stringify({
-    version: 1,
+    version: 2,
+    kid: await encryptionKeyId(encodedKey),
     iv: Buffer.from(iv).toString("base64"),
     ciphertext: Buffer.from(ciphertext).toString("base64"),
   } satisfies CredentialEnvelope);
@@ -184,13 +236,42 @@ export async function encryptSecret(encodedKey: string, plaintext: string) {
 
 export async function decryptSecret(encodedKey: string, value: string) {
   const envelope = parseEnvelope(value);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: Buffer.from(envelope.iv, "base64") },
-    await aesKey(encodedKey),
-    Buffer.from(envelope.ciphertext, "base64"),
-  );
+  const candidates = [encodedKey, ...retiredKeys];
 
-  return decoder.decode(plaintext);
+  if (envelope.version === 2) {
+    for (const candidate of candidates) {
+      if ((await encryptionKeyId(candidate)) === envelope.kid) {
+        return open(candidate, envelope);
+      }
+    }
+    throw new Error(
+      `This value was sealed with a key this deployment no longer holds (${envelope.kid}).`,
+    );
+  }
+
+  // Version 1 does not say which key sealed it. AES-GCM authenticates, so a wrong key fails rather
+  // than returning something that looks like a value.
+  let failure: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await open(candidate, envelope);
+    } catch (error) {
+      failure = error;
+    }
+  }
+  throw failure;
+}
+
+/** Whether a stored value is sealed under anything but the current key, and so still needs re-sealing. */
+export async function needsResealing(
+  encodedKey: string,
+  value: string,
+): Promise<boolean> {
+  const envelope = parseEnvelope(value);
+  return (
+    envelope.version === 1 ||
+    envelope.kid !== (await encryptionKeyId(encodedKey))
+  );
 }
 
 /**
