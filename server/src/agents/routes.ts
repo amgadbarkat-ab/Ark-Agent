@@ -13,10 +13,12 @@ import {
   ManagedAgentUnavailableError,
   ProtectedAgentError,
 } from "./profile-store";
-import type {
-  AgentActor,
-  AgentProfile,
-  CreateAgentInput,
+import {
+  type AgentActor,
+  type AgentProfile,
+  type CreateAgentInput,
+  RUN_LOCATIONS,
+  type RunLocation,
 } from "./profile-types";
 
 type AgentInputParseResult =
@@ -28,6 +30,7 @@ type AgentInputObject = {
   title?: unknown;
   roleDescription?: unknown;
   visibility?: unknown;
+  runLocation?: unknown;
   endpoint?: unknown;
   auth?: unknown;
 };
@@ -78,6 +81,20 @@ export function parseAgentInput(
     return { ok: false, error: "Visibility must be public or private." };
   }
 
+  let runLocation: RunLocation | undefined;
+  if (input.runLocation !== undefined) {
+    if (
+      typeof input.runLocation !== "string" ||
+      !RUN_LOCATIONS.includes(input.runLocation as RunLocation)
+    ) {
+      return {
+        ok: false,
+        error: "Where it runs must be Ark's cloud or your computer.",
+      };
+    }
+    runLocation = input.runLocation as RunLocation;
+  }
+
   // The endpoint is optional and checked. Absent means the Bot in the box, which is what most people
   // want on their first go. Present means this server will POST to an address a person chose, so it
   // goes through the same target check as navigation before it is allowed anywhere near the database.
@@ -122,7 +139,15 @@ export function parseAgentInput(
 
   return {
     ok: true,
-    value: { name, title, roleDescription, visibility, endpoint, auth },
+    value: {
+      name,
+      title,
+      roleDescription,
+      visibility,
+      ...(runLocation ? { runLocation } : {}),
+      endpoint,
+      auth,
+    },
   };
 }
 
@@ -724,6 +749,7 @@ function agentDto(actor: AgentActor, agent: AgentProfile) {
     roleDescription: agent.roleDescription,
     avatarSeed: agent.avatarSeed,
     visibility: agent.visibility,
+    runLocation: agent.runLocation,
     hidden: agent.hidden,
     systemOwned: agent.systemOwned,
     // Published so the edit form can show it. Safe to expose: it is an address the person supplied,

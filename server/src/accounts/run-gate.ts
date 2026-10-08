@@ -6,6 +6,8 @@ import {
 } from "@ag-ui/client";
 import { Observable } from "rxjs";
 import { formatEur, nextPlanUp } from "../../../shared/plans";
+import type { CloudGate } from "../cloud/gate";
+import type { CloudMeter } from "../cloud/meter";
 import type { AccountStore, Entitlement } from "./store";
 import type { RunSlots } from "./run-slots";
 
@@ -20,6 +22,11 @@ export type RunGateOptions = {
   heartbeatMs?: number;
   /** The page where a customer changes plan, as the app serves it. */
   upgradePath?: string;
+  /**
+   * Whether this run may use the cloud (docs/ark/17-cloud-runtime.md), and the record of the time it
+   * uses. Absent means neither is asked or kept, which is how every deployment worked before.
+   */
+  cloud?: { gate: CloudGate; meter: CloudMeter };
 };
 
 const DEFAULT_QUEUE_TIMEOUT_MS = 10 * 60_000;
@@ -138,6 +145,11 @@ export class RunGateAgent extends AbstractAgent {
           held = false;
           // Never throws into the run: a place that cannot be released simply expires.
           await slots.release(tenantId, input.runId).catch(() => undefined);
+          // The record of time used. Never throws into the run: a missing end is bounded by the last
+          // time the run was seen, so the worst it costs is a few seconds of accuracy.
+          await this.options.cloud?.meter
+            .runEnded(input.runId)
+            .catch(() => undefined);
         }
       };
 
@@ -190,6 +202,38 @@ export class RunGateAgent extends AbstractAgent {
           return;
         }
         tenantId = entitlement.tenantId;
+
+        // Before a place is taken: a run that may not use the cloud should not hold one.
+        const cloud = this.options.cloud;
+        if (cloud) {
+          let decision: Awaited<ReturnType<CloudGate["check"]>>;
+          try {
+            decision = await cloud.gate.check({ tenantId, botId });
+          } catch {
+            subscriber.error(
+              new Error(
+                "Cloud running could not be checked just now. Try again in a moment.",
+              ),
+            );
+            return;
+          }
+          if (!decision.ok) {
+            started();
+            subscriber.next({
+              type: EventType.CUSTOM,
+              name: "ark.cloud_refused",
+              value: { code: decision.code },
+            } as BaseEvent);
+            say(decision.reason);
+            subscriber.next({
+              type: EventType.RUN_FINISHED,
+              threadId: input.threadId,
+              runId: input.runId,
+            } as BaseEvent);
+            subscriber.complete();
+            return;
+          }
+        }
         const limit = entitlement.maxActiveBots;
         const deadline = Date.now() + timeoutMs;
 
@@ -214,6 +258,9 @@ export class RunGateAgent extends AbstractAgent {
           }
           if (result.ok) {
             held = true;
+            void this.options.cloud?.meter
+              .runStarted({ tenantId, botId, runId: input.runId })
+              .catch(() => undefined);
             break;
           }
           if (!announced) {
@@ -261,6 +308,9 @@ export class RunGateAgent extends AbstractAgent {
               runId: input.runId,
               limit: null,
             })
+            .catch(() => undefined);
+          void this.options.cloud?.meter
+            .runSeen(input.runId)
             .catch(() => undefined);
         }, heartbeatMs);
 

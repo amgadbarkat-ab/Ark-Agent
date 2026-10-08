@@ -73,6 +73,10 @@ import {
   describeComputerIsolation,
 } from "./computer/provider";
 import { createSnapshotStore } from "./computer/snapshot-store";
+import { createCloudGate } from "./cloud/gate";
+import { createCloudMeter } from "./cloud/meter";
+import { meteredComputerProvider, tenantOfBot } from "./cloud/provider";
+import { createCloudStore } from "./cloud/store";
 import { loadConfig, LOCAL_APP_ORIGINS } from "./config";
 import { originAllowed, trustedOrigins } from "./origin-guard";
 import {
@@ -91,7 +95,7 @@ import {
   useRetiredEncryptionKeys,
 } from "./credentials";
 import { createDatabase } from "./db/client";
-import { intelligenceChannelMappings } from "./db/schema";
+import { agentProfiles, intelligenceChannelMappings } from "./db/schema";
 import { createHostAccessBroker } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
@@ -315,8 +319,34 @@ const auth: AuthService | undefined = config.organizationAuthUrl
         signInAuditStore,
       )
     : undefined;
+/*
+ * Running in Ark's cloud: what it may do, and the record of the time it uses (docs/ark/17-cloud-runtime.md).
+ *
+ * The record is kept in every deployment, including a company's own where nobody is charged, because
+ * what the cloud costs is worth knowing before anybody decides what to charge for it.
+ */
+const cloudStore = createCloudStore(database);
+const cloudMeter = createCloudMeter(database);
+const botTenant = tenantOfBot(database);
+const cloudGate = createCloudGate({
+  config: config.cloud,
+  hosted: accountStore.billingMode === "subscriptions",
+  store: cloudStore,
+  meter: cloudMeter,
+  runLocationOf: async (botId) => {
+    const [row] = await database
+      .select({ runLocation: agentProfiles.runLocation })
+      .from(agentProfiles)
+      .where(eq(agentProfiles.agentId, botId))
+      .limit(1);
+    return row ? (row.runLocation === "device" ? "device" : "cloud") : null;
+  },
+});
 const computerProvider = config.computer
-  ? createComputerProvider(config.computer)
+  ? meteredComputerProvider(createComputerProvider(config.computer), {
+      meter: cloudMeter,
+      tenantOf: botTenant,
+    })
   : undefined;
 
 if (computerProvider?.warm) {
@@ -964,7 +994,11 @@ const runSlots = createRunSlots(database);
 const billing: BillingProvider = billingFromEnvironment(process.env, {
   appUrl: config.appUrl ?? config.publicUrl,
 });
-const runGateOptions = { accounts: accountStore, slots: runSlots };
+const runGateOptions = {
+  accounts: accountStore,
+  slots: runSlots,
+  cloud: { gate: cloudGate, meter: cloudMeter },
+};
 
 const copilotRuntime = mountCopilotRuntime(
   config,

@@ -8,6 +8,7 @@ import type { AgentProfile } from "@/lib/agents/queries";
 
 function agent(id: string, name = id): AgentProfile {
   return {
+    runLocation: "cloud",
     avatarSeed: id,
     builtIn: id === "general-assistant",
     canManage: true,

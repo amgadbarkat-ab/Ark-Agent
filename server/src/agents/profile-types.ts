@@ -1,5 +1,14 @@
 export type AgentVisibility = "public" | "private";
 
+/**
+ * Where a coworker runs: in Ark's cloud, or on the person's own computer (decision D5). On the
+ * computer it is included in the plan and costs Ark nothing; in the cloud it is metered and paid for
+ * as an add-on (docs/ark/17-cloud-runtime.md).
+ */
+export type RunLocation = "cloud" | "device";
+
+export const RUN_LOCATIONS: readonly RunLocation[] = ["cloud", "device"];
+
 export type AgentActor = {
   id: string;
   role: "admin" | "user";
@@ -12,6 +21,7 @@ export type AgentProfile = {
   roleDescription: string;
   avatarSeed: string;
   visibility: AgentVisibility;
+  runLocation: RunLocation;
   ownerUserId: string | null;
   systemOwned: boolean;
   hidden: boolean;
@@ -33,6 +43,8 @@ export type CreateAgentInput = Pick<
   AgentProfile,
   "name" | "title" | "roleDescription" | "visibility"
 > & {
+  /** Where it runs. Absent on a create is the cloud, and on an update leaves it where it is. */
+  runLocation?: RunLocation;
   /**
    * The AG-UI endpoint this Bot runs on, or undefined for the one in the box.
    *

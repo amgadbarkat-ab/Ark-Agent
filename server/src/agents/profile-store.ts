@@ -129,6 +129,7 @@ const joinedProjection = {
   roleDescription: agentProfiles.roleDescription,
   avatarSeed: agentProfiles.avatarSeed,
   visibility: agentProfiles.visibility,
+  runLocation: agentProfiles.runLocation,
   ownerUserId: agentProfiles.ownerUserId,
   packageId: deploymentPackages.id,
   hiddenAt: agentPreferences.hiddenAt,
@@ -165,6 +166,7 @@ function mapProfile(
     roleDescription: row.roleDescription,
     avatarSeed: row.avatarSeed,
     visibility: row.visibility,
+    runLocation: row.runLocation === "device" ? "device" : "cloud",
     ownerUserId: row.ownerUserId,
     systemOwned: row.packageId !== null,
     hasCallbackToken: row.callbackTokenHash !== null,
@@ -480,6 +482,7 @@ export function createAgentProfileStore(
           roleDescription: input.roleDescription,
           avatarSeed: id,
           visibility: input.visibility,
+          ...(input.runLocation ? { runLocation: input.runLocation } : {}),
         });
 
         const profile = await findAccessibleProfile(transaction, actor, id);
@@ -579,6 +582,7 @@ export function createAgentProfileStore(
               title: input.title,
               roleDescription: input.roleDescription,
               visibility: input.visibility,
+              ...(input.runLocation ? { runLocation: input.runLocation } : {}),
               updatedAt,
             })
             .where(eq(agentProfiles.agentId, id));
@@ -635,6 +639,7 @@ export function createAgentProfileStore(
           roleDescription: source.roleDescription,
           avatarSeed: source.avatarSeed,
           visibility: "private",
+          runLocation: source.runLocation,
         });
 
         const duplicate = await findAccessibleProfile(

@@ -43,6 +43,7 @@ function boundary(id: string, refusal?: "unauthenticated" | "forbidden") {
   const profile: AgentProfile = {
     ...input,
     id,
+    runLocation: "cloud",
     avatarSeed: id,
     ownerUserId: actor.id,
     systemOwned: false,

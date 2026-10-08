@@ -3,6 +3,7 @@
  * charged. Decision D5 in docs/ark/01-product-decisions.md; how it fits together is in
  * docs/ark/17-cloud-runtime.md.
  */
+import { sql } from "drizzle-orm";
 import {
   bigint,
   index,
@@ -96,6 +97,14 @@ export const cloudIntervals = pgTable(
     uniqueIndex("cloud_intervals_ref_idx").on(table.source, table.ref),
     index("cloud_intervals_tenant_idx").on(table.tenantId, table.startedAt),
     index("cloud_intervals_open_idx").on(table.endedAt),
+    /*
+     * One computer, and one storage, open at a time per coworker. Two server processes that both see
+     * a computer come up insert the same row, and the second is a refresh of the first instead of a
+     * second hour of the same hour. Runs are not held to this: a coworker may have several going.
+     */
+    uniqueIndex("cloud_intervals_one_open_idx")
+      .on(table.source, table.botId)
+      .where(sql`${table.endedAt} is null and ${table.source} <> 'run'`),
   ],
 );
 

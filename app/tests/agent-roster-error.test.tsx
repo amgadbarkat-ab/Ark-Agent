@@ -88,6 +88,7 @@ function agent(
   overrides: Partial<AgentProfile> & { id: string },
 ): AgentProfile {
   return {
+    runLocation: "cloud",
     name: "Agent",
     title: "Title",
     roleDescription: "Role",

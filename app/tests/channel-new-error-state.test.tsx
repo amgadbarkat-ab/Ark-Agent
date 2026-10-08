@@ -25,6 +25,7 @@ function agent(
   overrides: Partial<AgentProfile> & { id: string },
 ): AgentProfile {
   return {
+    runLocation: "cloud",
     avatarSeed: "seed",
     builtIn: true,
     canManage: true,

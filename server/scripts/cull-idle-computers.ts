@@ -10,6 +10,8 @@
  * reported and left for the next sweep, because a computer still running costs money rather than
  * losing anything, and a failing CronJob that pages somebody at 3am should mean something worse.
  */
+import { createCloudMeter } from "../src/cloud/meter";
+import { reconcileCloudComputers, tenantOfBot } from "../src/cloud/provider";
 import { createComputerProvider } from "../src/computer/provider";
 import { loadConfig } from "../src/config";
 import { createDatabase } from "../src/db/client";
@@ -84,6 +86,25 @@ try {
       purged,
     }),
   );
+  /*
+   * The record of which computers are up, brought into line with what exists. After the suspensions,
+   * so the record reflects them, and never able to fail the sweep: a computer that went unnoticed
+   * here is bounded by the last time it was seen, and a CronJob that pages somebody over a ledger is
+   * worse than a few minutes of a ledger being wrong.
+   */
+  try {
+    const metering = await reconcileCloudComputers({
+      provider,
+      meter: createCloudMeter(database),
+      tenantOf: tenantOfBot(database),
+      volumeBytes: config.cloud.volumeBytes,
+    });
+    console.info(JSON.stringify({ type: "cloud-reconcile", ...metering }));
+  } catch (error) {
+    console.error(
+      JSON.stringify({ type: "cloud-reconcile-failed", error: String(error) }),
+    );
+  }
 } finally {
   await database.$client.end({ timeout: 5 });
 }

@@ -379,6 +379,13 @@
       "when": 1791486929376,
       "tag": "0053_cloud_running",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791486986282,
+      "tag": "0054_cloud_one_open_interval",
+      "breakpoints": true
     }
   ]
 }

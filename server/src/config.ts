@@ -166,6 +166,25 @@ export const LOCAL_APP_ORIGINS = [
   "http://localhost:3010",
 ] as const;
 
+/**
+ * How running in Ark's cloud is treated by this deployment (decision D5, docs/ark/17-cloud-runtime.md).
+ *
+ * `included`: it is metered, so that cost is visible, and nobody is charged or asked. This is what a
+ * company running Ark for itself wants, and what a hosted service is until it has measured its cost.
+ * `metered`: an add-on. An account must switch it on, having been shown the rates, and sets a
+ * monthly limit; usage is charged in arrears through the payment provider. `off`: no cloud runs.
+ *
+ * Nothing changes for a deployment that does not say: `included` is what every deployment has
+ * effectively always been.
+ */
+export type CloudConfig = {
+  mode: "included" | "metered" | "off";
+  /** Persistent storage each coworker's computer holds, in bytes. Zero means storage is not metered. */
+  volumeBytes: number;
+  /** The monthly limit offered, in cents, when an account switches cloud running on. */
+  defaultCapCents: number;
+};
+
 export type DeploymentConfig = {
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
@@ -173,6 +192,7 @@ export type DeploymentConfig = {
   /** The port the API listens on. Named `PORT` or `SERVER_PORT`; see `serverPort`. */
   port: number;
   databaseUrl: string;
+  cloud: CloudConfig;
   keyEncryptionKey: string;
   /**
    * Keys that used to be `keyEncryptionKey`, kept only so what they sealed can still be read until
@@ -436,6 +456,33 @@ function keyEncryptionKey(environment: Environment): string {
   }
 
   return value;
+}
+
+function cloudConfig(environment: Environment): CloudConfig {
+  const mode = (optional(environment, "ARK_CLOUD_MODE") ?? "included")
+    .trim()
+    .toLowerCase();
+  if (mode !== "included" && mode !== "metered" && mode !== "off") {
+    throw new Error("ARK_CLOUD_MODE must be included, metered or off.");
+  }
+  const number = (name: string, fallback: number, max: number) => {
+    const raw = optional(environment, name);
+    if (raw === undefined) return fallback;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > max) {
+      throw new Error(`${name} must be a number between 0 and ${max}.`);
+    }
+    return value;
+  };
+  return {
+    mode,
+    volumeBytes: Math.round(
+      number("ARK_CLOUD_VOLUME_GB", 0, 100_000) * 1024 ** 3,
+    ),
+    defaultCapCents: Math.round(
+      number("ARK_CLOUD_DEFAULT_CAP_EUR", 20, 100_000) * 100,
+    ),
+  };
 }
 
 /**
@@ -1318,6 +1365,7 @@ export function loadConfig(
     transcription: transcriptionConfig(environment),
     voice: voiceConfig(environment),
     databaseUrl: required(environment, "DATABASE_URL"),
+    cloud: cloudConfig(environment),
     keyEncryptionKey: keyEncryptionKey(environment),
     previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),
     ...(managedAgent ? { managedAgent } : {}),

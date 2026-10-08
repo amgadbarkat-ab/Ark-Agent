@@ -3,6 +3,9 @@ import { client, tryClient } from "@/lib/client";
 
 export type AgentVisibility = "public" | "private";
 
+/** Where a coworker runs: Ark's cloud (an add-on, paid at cost), or the person's own computer (included). */
+export type RunLocation = "cloud" | "device";
+
 /**
  * A coworker as the browser sees it.
  *
@@ -16,6 +19,7 @@ export type AgentProfile = {
   roleDescription: string;
   avatarSeed: string;
   visibility: AgentVisibility;
+  runLocation: RunLocation;
   /** Where this coworker runs. Null for the Bot in the box. */
   endpoint: string | null;
   /**

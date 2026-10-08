@@ -50,6 +50,7 @@ const originalFetch = global.fetch;
 let writes: { request: string; body: unknown }[] = [];
 
 const PROFILE: AgentProfile = {
+  runLocation: "cloud",
   id: "expenses",
   name: "Expenses",
   title: "Finance Operations",
