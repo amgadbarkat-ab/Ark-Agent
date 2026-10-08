@@ -89,6 +89,8 @@ COPY shared shared
 # `server/src/tenant-package`, so the app cannot be built without it.
 COPY server server
 COPY examples examples
+# The privacy notice the app shows at /privacy is generated from this file.
+COPY docs/legal docs/legal
 RUN bun run --cwd app build
 
 

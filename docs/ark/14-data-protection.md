@@ -13,8 +13,9 @@ lawyer's review before the first customer. Items only the owner can supply are m
   Ark. For that content Ark is the company's **processor**, and the company is the controller. Ark
   therefore needs a **data processing agreement** to offer those customers. **[owner]** (the standard
   clauses are short; the substance is this page.)
-- **Legal entity, address and contact for privacy requests: [owner].** The data-protection authority
-  that supervises Ark follows from where Ark is established **[owner]**. Whether a Data Protection
+- **The legal entity is Black Ark** (named by the owner, 2026-10-08). Still to supply **[owner]**: the
+  registration number and legal form, the registered address, the mailbox that answers privacy
+  requests, and the country of establishment, which decides which data-protection authority supervises. Whether a Data Protection
   Officer is required depends on scale and should be asked of the lawyer.
 
 ## What Ark holds, and where
@@ -137,10 +138,29 @@ delay. So:
    the controller of their staff's content (the DPA sets the time).
 5. **Learn**: fix the cause and add a test or a check.
 
+## The legal drafts
+
+Written from this page, for a lawyer to review: [the privacy notice](../legal/privacy-notice.md) (shown in
+the app at `/privacy`, which is also the address Google's sign-in consent screen asks for) and a
+[data processing agreement template](../legal/data-processing-agreement.md) for Team and Enterprise
+customers. There are no terms of service yet; the plan terms the agreement refers to are still to be written.
+
+**Statements in those drafts that must be true on the day they are published.** Each is a promise to
+customers, so check each one rather than assume it:
+
+- [ ] Staff sign in with multi-factor authentication (an Entra conditional-access policy; security
+      review O9).
+- [ ] The audit trail is kept 365 days (`AUDIT_RETENTION_DAYS`, set in `values-azure.yaml`).
+- [ ] Server logs are kept 90 days and backups 35 days (the `prod` sizing).
+- [ ] A restore has been rehearsed (13-azure-hosting.md).
+- [ ] Composio's location and terms are known and a data processing agreement is in place.
+- [ ] The Azure contracting entity named in the sub-processor table matches the agreement.
+- [ ] If the breach-notice time in the agreement template is changed from 48 hours, the breach
+      procedure above agrees with it.
+
 ## Before the first customer
 
-- [ ] Privacy notice written from this page, with the legal entity, contact and authority **[owner/lawyer]**.
-- [ ] Data processing agreement for Team and Enterprise customers **[owner/lawyer]**.
+- [ ] Privacy notice and data processing agreement reviewed by a lawyer; their [bracketed] items filled in.
 - [ ] Microsoft's data protection addendum, Paddle's terms, Composio's DPA and each default model
       provider's DPA in place; standard contractual clauses for any transfer outside the EEA.
 - [ ] A named person and mailbox who answers privacy requests within the month.
