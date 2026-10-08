@@ -92,6 +92,7 @@ import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
 import type { AccountStore } from "./accounts/store";
 import { manualBilling } from "./billing/manual";
 import type { BillingProvider } from "./billing/provider";
+import { sandboxCheckoutRoutes } from "./billing/sandbox-routes";
 import type { BillingWebhook } from "./billing/webhook";
 import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
@@ -570,6 +571,17 @@ export function createApp(
         audit,
       }),
     );
+    // The stand-in payment page, only for the sandbox provider. See billing/sandbox-routes.ts.
+    if (billing.id === "sandbox") {
+      app.route(
+        "/api/billing/sandbox",
+        sandboxCheckoutRoutes({
+          requireUser,
+          accounts: accountServices.store,
+          appUrl: config.appUrl,
+        }),
+      );
+    }
     // Not behind a session: the caller is a payment provider, and its signature is its credential.
     const webhook = accountServices.webhook;
     if (webhook) {

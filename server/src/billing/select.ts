@@ -32,7 +32,10 @@ export function billingFromEnvironment(
       /\/+$/,
       "",
     );
-    return sandboxBilling({ secret, checkoutBase: `${base}/billing/sandbox` });
+    return sandboxBilling({
+      secret,
+      checkoutBase: `${base}/api/billing/sandbox/checkout`,
+    });
   }
   throw new Error(
     `ARK_BILLING_PROVIDER=${name} is not a billing provider this version knows. Use manual or sandbox.`,

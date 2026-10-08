@@ -2,6 +2,7 @@ import {
   IconArrowLeft,
   IconBuildingBank,
   IconCode,
+  IconCreditCard,
   IconDeviceDesktop,
   IconFileText,
   IconKey,
@@ -95,6 +96,11 @@ const GROUPS: {
         title: "People",
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
+      },
+      {
+        title: "Accounts",
+        icon: IconCreditCard,
+        linkOptions: { to: "/admin/accounts" },
       },
       {
         title: "Identity providers",

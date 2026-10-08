@@ -11,6 +11,7 @@ import {
   sandboxBilling,
   signSandboxBody,
 } from "../src/billing/sandbox";
+import { sandboxCheckoutRoutes } from "../src/billing/sandbox-routes";
 import { createBillingWebhook } from "../src/billing/webhook";
 import { createDatabase } from "../src/db/client";
 import {
@@ -247,6 +248,58 @@ describe("a notification from the payment provider", () => {
     expect(await webhook.handle("sandbox", headers, body)).toMatchObject({
       applied: 1,
     });
+  });
+});
+
+describe("the sandbox payment page", () => {
+  const appFor2 = (who: { id: string; email: string }) =>
+    new Hono().route(
+      "/api/billing/sandbox",
+      sandboxCheckoutRoutes({
+        requireUser: async (context, next) => {
+          context.set("actor", { id: who.id, email: who.email, role: "user" });
+          await next();
+        },
+        accounts,
+        appUrl: "https://ark.test",
+      }),
+    );
+
+  test("marks the caller's own account as paid and sends them back to the plan page", async () => {
+    const ann = await person();
+    const response = await appFor2(ann).request(
+      `/api/billing/sandbox/checkout?plan=team&tenant=${ann.tenantId}`,
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "https://ark.test/settings/plan",
+    );
+    expect(await accounts.entitlementFor(ann.id)).toMatchObject({
+      planId: "team",
+      canRun: true,
+    });
+  });
+
+  test("will not pay for somebody else's account or for a plan that is not sold", async () => {
+    const ann = await person();
+    const bob = await person();
+    const app = appFor2(ann);
+    expect(
+      (
+        await app.request(
+          `/api/billing/sandbox/checkout?plan=team&tenant=${bob.tenantId}`,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await app.request(
+          `/api/billing/sandbox/checkout?plan=internal&tenant=${ann.tenantId}`,
+        )
+      ).status,
+    ).toBe(400);
+    expect((await accounts.entitlementFor(bob.id)).canRun).toBe(false);
+    expect((await accounts.entitlementFor(ann.id)).canRun).toBe(false);
   });
 });
 

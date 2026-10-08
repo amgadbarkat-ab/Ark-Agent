@@ -1,6 +1,7 @@
 import {
   IconArrowLeft,
   IconCpu,
+  IconCreditCard,
   IconLayoutGrid,
   IconPlug,
   IconSettings,
@@ -44,6 +45,12 @@ const ITEMS: {
     title: "Models",
     icon: IconCpu,
     linkOptions: { to: "/settings/models" },
+  },
+  {
+    /* What is bought, and how many coworkers it lets work at once. */
+    title: "Plan",
+    icon: IconCreditCard,
+    linkOptions: { to: "/settings/plan" },
   },
   {
     /*

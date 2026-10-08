@@ -1,5 +1,6 @@
 import {
   IconBuildingBank,
+  IconCreditCard,
   IconChevronRight,
   IconCode,
   IconDeviceDesktop,
@@ -117,6 +118,13 @@ const SECTIONS: {
           "Everybody who has signed in, who administers this deployment, and whose access has been removed.",
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
+      },
+      {
+        title: "Accounts",
+        description:
+          "Every customer account: its plan, how much is in use, and whether it may run.",
+        icon: IconCreditCard,
+        linkOptions: { to: "/admin/accounts" },
       },
       {
         title: "Identity providers",
