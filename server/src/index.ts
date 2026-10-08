@@ -115,6 +115,7 @@ import {
 } from "./tenant-package";
 import { createUserInstructionsStore } from "./user-instructions";
 import { createModelConnectionStore } from "./models/connections";
+import { createModelForActor } from "./models/for-actor";
 import { createUserPreferencesStore } from "./user-preferences";
 import { repeatAfterEach } from "./work/loop";
 import {
@@ -909,6 +910,12 @@ const routineRunner = createRoutineRunner({
  * invisible: it runs, and quietly holds different tools or a different role from the one the person
  * is talking to.
  */
+const modelConnectionStore = createModelConnectionStore(
+  database,
+  config.keyEncryptionKey,
+);
+const modelForActor = createModelForActor(modelConnectionStore, agentFetch);
+
 const copilotRuntime = mountCopilotRuntime(
   config,
   runtimeModel,
@@ -1014,6 +1021,8 @@ const copilotRuntime = mountCopilotRuntime(
   // And that those files went out in a send, written by the person who sent them and only for rows
   // they uploaded. See markAttachmentsSentForActor.
   markAttachmentsSentForActor,
+  // The model this person chose for themselves, if they chose one. See models/for-actor.ts.
+  modelForActor,
 );
 
 /**
@@ -1340,7 +1349,7 @@ const app = createApp(
     channels: channelStore,
   },
   {
-    store: createModelConnectionStore(database, config.keyEncryptionKey),
+    store: modelConnectionStore,
     fetchImpl: agentFetch,
     allowPrivateHosts: config.computer?.allowPrivateHosts === true,
     ...(config.agentEndpointAllowedHosts

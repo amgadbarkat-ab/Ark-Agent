@@ -34,6 +34,7 @@ import type { DeploymentConfig } from "./config";
 import { observeModelConnection } from "./desktop-connection-failure";
 import { desktopTelemetryProperties } from "./desktop-telemetry";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
+import type { ConnectionLanguageModel } from "./models/language-model";
 import type { SelectableSkill, Selection } from "./plugins/selection";
 import {
   latestUserText,
@@ -161,6 +162,14 @@ export type RuntimeModel = {
   provider: "openai" | "anthropic";
   defaultModel: string;
   plan?: PlanModelConfig;
+  /**
+   * The model the person asking has chosen for themselves, already built for this request.
+   *
+   * Set per request by `createRequestAgents`, never at boot: it holds that person's key. When it is
+   * present it wins over the deployment's model and over a plan, because choosing a connection is
+   * the more recent and more specific decision.
+   */
+  connection?: ConnectionLanguageModel;
 };
 
 /** Optional desktop environment values may be present but blank; SDKs treat them as URLs. */
@@ -354,7 +363,7 @@ export function builtInAgentConfiguration(
   standingInstructions?: string | null,
   planModel?: PlanModel,
 ): BuiltInAgentConfiguration {
-  if (!apiKey && !planModel) {
+  if (!apiKey && !planModel && !model.connection) {
     return {
       type: "custom",
       // biome-ignore lint/correctness/useYield: this agent must fail when iteration starts.
@@ -369,7 +378,10 @@ export function builtInAgentConfiguration(
   const standing = standingInstructionsGuidance(standingInstructions);
 
   return {
-    model: planModel ?? `${model.provider}/${model.defaultModel}`,
+    model:
+      model.connection ??
+      planModel ??
+      `${model.provider}/${model.defaultModel}`,
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
      * holds, then the computer.
@@ -918,7 +930,7 @@ async function buildAgent(
         computerGuidance,
         connectedVendors,
         standingInstructions,
-        model.plan && input
+        !model.connection && model.plan && input
           ? new PlanModel(
               model.plan,
               agent.id,
@@ -933,7 +945,7 @@ async function buildAgent(
     );
 
   const whole = withTools(granted);
-  if (!narrowing && !handoff && !model.plan) return whole;
+  if (!narrowing && !handoff && (!model.plan || model.connection)) return whole;
 
   return new RunBuiltAgent(
     { agentId: agent.id, description: agent.name },
@@ -954,7 +966,7 @@ async function buildAgent(
       const tools = passing.length > 0 ? [...offered, ...passing] : offered;
       // Nothing added and nothing narrowed means nothing to rebuild, and reusing the agent already
       // built for this request keeps that path allocation-for-allocation what it was.
-      return !model.plan &&
+      return (!model.plan || model.connection) &&
         tools.length === granted.length &&
         passing.length === 0
         ? whole
@@ -1807,6 +1819,18 @@ export type SignRun = (
   threadId: string,
 ) => string;
 
+/**
+ * The model one person chose for themselves, built for this request, or undefined when they have
+ * not chosen one.
+ *
+ * A connection that exists but cannot be opened must REJECT, with a sentence the person can act on,
+ * rather than answer undefined: undefined means "use the deployment's model", and quietly spending
+ * the deployment's key because a person's own stopped working is not a fallback anyone agreed to.
+ */
+export type ModelForActor = (
+  actorId: string,
+) => Promise<ConnectionLanguageModel | undefined>;
+
 /** Who is asking. Agent visibility is decided per person, so a run has to know this first. */
 export type IdentifyActor = (request: Request) => Promise<AgentActor>;
 
@@ -1890,12 +1914,19 @@ export function createRequestAgents(
    * nothing is recorded.
    */
   markAttachmentsSentForActor?: (actorId: string) => MarkAttachmentsSent,
+  /**
+   * The model this person has chosen for themselves, if they have. Appended last, positionally.
+   * Absent, or answering undefined, leaves the deployment's own model in place, which is what every
+   * run did before people could choose.
+   */
+  modelForActor?: ModelForActor,
 ) {
   return async ({ request }: { request: Request }) => {
     const actor = await identifyActor(request);
+    const personal = await modelForActor?.(actor.id);
     return resolveRuntimeAgents(
       () => loadAgents(actor),
-      model,
+      personal ? { ...model, connection: personal } : model,
       resolveModelApiKey,
       stallGuard,
       loadToolsForActor?.(actor.id),
@@ -2064,6 +2095,11 @@ export function mountCopilotRuntime(
    * write is scoped to rows that person uploaded. Appended last. Absent means nothing is recorded.
    */
   markAttachmentsSentForActor?: (actorId: string) => MarkAttachmentsSent,
+  /**
+   * The model a person chose for themselves, so a routine or a handed-off turn runs on the same one
+   * their own message would have. Appended last. Absent means the deployment's model.
+   */
+  modelForActor?: ModelForActor,
 ) {
   const { intelligence } = config.runtime;
 
@@ -2091,9 +2127,10 @@ export function mountCopilotRuntime(
     initiator?: AuditInitiator;
   }): Promise<AbstractAgent | null> => {
     const { actor } = input;
+    const personal = await modelForActor?.(actor.id);
     const agents = await resolveRuntimeAgents(
       () => loadAgents(actor),
-      model,
+      personal ? { ...model, connection: personal } : model,
       resolveModelApiKey,
       stallGuard,
       loadToolsForActor?.(actor.id, input.initiator),
@@ -2188,6 +2225,7 @@ export function mountCopilotRuntime(
       loadInstructionsForActor,
       loadAttachmentForActor,
       markAttachmentsSentForActor,
+      modelForActor,
     ) as never,
   });
 
