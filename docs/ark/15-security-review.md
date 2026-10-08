@@ -23,6 +23,7 @@ customer account unless stated.
 | F9 | **Secrets in the pipeline.** | Medium | The deploy workflow has no stored secret. It proves who it is with a short-lived token GitHub issues and Azure exchanges for access; actions are pinned to a commit; images are built in Azure's registry; the pipeline cannot read the vault. |
 | F10 | **The database reachable from the internet.** | Medium | It has no public address and sits in a subnet only the cluster can reach; network policy is enforced in the cluster. |
 | F11 | **No way to rotate the data encryption key.** One key sealed every credential, model key and directory secret, with nothing recording which key sealed what, so a leaked key had no clean recovery and scheduled rotation was impossible. | High | Every sealed value now names the key that sealed it (a short fingerprint). The server holds a current key and any retired ones, writes only with the current, and reads with either; `server/scripts/rotate-encryption-key.ts` re-seals everything under the current key while the service runs, and its exit code says whether the old key can be removed. Procedure: docs/ark/13-azure-hosting.md. Tested with a real database, including a value changed mid-run and a value no held key opens. |
+| F12 | **Seven weaknesses found by attacking the running application**: no origin check on the application's own writes and socket handshakes, no cap on request bodies, names resolving to internal addresses, carrier-grade NAT treated as public, server errors on hostile ids, token-printing sign-in routes, the hub's API published to the internet. | Low to Medium | All fixed, each held by a check that fails if it reopens. Details: [16-penetration-test.md](16-penetration-test.md). |
 
 ## Already sound in the base code (read, not changed)
 
@@ -39,11 +40,19 @@ customer account unless stated.
 
 ## Open
 
-Ordered by what to do first. **O1 (the independent penetration test) should be closed before the first paying customer.**
+Ordered by what to do first. **O1's remaining part (the bots' computers, a live run, real sign-in) should be closed before the first paying customer, by whoever the owner chooses.**
 
-### O1. Independent penetration test — High
+### O1. Penetration test: done internally, not independently — Medium
 
-Not done. Point the tester at:
+An internal test was carried out and is written up in [16-penetration-test.md](16-penetration-test.md):
+56 attacks on the running server and the conversation hub, kept as a suite that runs in CI. It found
+seven things (P1 to P7), all fixed. It is the same team testing its own work, so it is not independent,
+and it could not reach the bots' computers, a live run with a model attached, real sign-in providers or the
+deployed Azure estate (the report lists these). The owner asked engineering to do all the testing; whether
+an outside tester is also commissioned is the owner's decision, and the surfaces worth giving one are the
+ones the report says it did not reach.
+
+*The original plan, for whoever tests next:*
 1. Sign-in and the administrator rule (F1, F2) with a Microsoft multi-tenant tenant, a Google account
    with an unverified address, and two providers sharing an address.
 2. Cross-customer reads: every list/detail endpoint that takes an id, with an id belonging to
@@ -56,6 +65,8 @@ Not done. Point the tester at:
 5. Billing: webhook forgery, replay, plan change races, getting a higher quota without paying.
 6. Erasure and export: reaching someone else's, replaying a request after it succeeded.
 7. Rate limits and resource use: uploads, long conversations, concurrent runs, WebSocket floods.
+
+Of these, 1 (against real providers), 4, 5 (plan-change races) and 7 (floods) are what is left.
 
 ### O2. Isolation between customers is in the application, not the database — Medium
 
@@ -132,7 +143,7 @@ portal/CLI.
 | Encryption in transit / at rest? | TLS to the browser and the database; Azure encrypts storage at rest; keys and tokens additionally encrypted by the application. |
 | Key management / rotation? | Secrets in Key Vault. Data key rotation is supported without downtime (F11); procedure in docs/ark/13. |
 | SSO / MFA for our staff? | Entra ID; MFA by conditional access (O9). |
-| Penetration test? | **Not yet (O1).** |
+| Penetration test? | Internal test done and repeatable in CI (16); **independent test not yet (O1)**. |
 | Backups and recovery? | 35 days point-in-time, geo-copy; restore drill documented (13); **not yet performed**. |
 | Breach notification? | 72-hour procedure (14). |
 | Data deletion and export on request? | Self-serve, audited (14). |

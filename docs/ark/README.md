@@ -21,6 +21,8 @@ research and plans. Each file says when it was written.
 | [13-azure-hosting.md](13-azure-hosting.md) | Hosting on Azure: why this shape, the day-to-day runbook, backups and the restore drill, secret rotation, the "before customers" checklist, and what has and has not been checked. |
 | [14-data-protection.md](14-data-protection.md) | GDPR: what is held and where, who else sees it, people's rights and how each is met, what is kept after erasure, the breach procedure. |
 | [15-security-review.md](15-security-review.md) | Security self-review: what was found and fixed (including the administrator-takeover flaw), what is open, and what a penetration tester should target. |
+| [16-penetration-test.md](16-penetration-test.md) | The internal penetration test: how it was run, the seven findings and their fixes, what held, what it could not reach, and how to re-run it. |
+| [../legal/](../legal/) | Drafts for a lawyer: privacy notice (also shown in the app at /privacy) and a data processing agreement template. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.
 It no longer needs CopilotKit's hosted Intelligence service: Ark Hub (`hub/`) replaces it.

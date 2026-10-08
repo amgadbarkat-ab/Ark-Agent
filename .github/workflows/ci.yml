@@ -245,6 +245,11 @@ jobs:
       # A passing job must include the expected test floor. Import-time failures can otherwise skip
       # files before their tests are registered.
       - run: bun run test:ci
+      # An attack on the running server, as two customers and an administrator against a database made
+      # for the run: who may reach what, one customer against another, forged sessions and billing
+      # notices, requests from other websites, outbound fetches, hostile input. A failure here is a
+      # hole, not a flaky test. It creates and drops its own databases on the service above.
+      - run: bun run test:security
 
   startup:
     name: startup (${{ matrix.os }})

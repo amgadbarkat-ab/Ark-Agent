@@ -150,7 +150,9 @@ Still to do:
 - [ ] The restore drill, and each alert fired once (13, "Before customers").
 - [x] **Rotation for the data encryption key**: each sealed value names its key; a script re-seals
       everything while the service runs (13, "Rotating the data encryption key").
-- [ ] An **independent penetration test** (15, O1) before the first paying customer.
+- [x] **Internal penetration test**: 56 attacks on the running server and the hub, seven findings fixed,
+      kept as a CI job (16-penetration-test.md). An outside test of what it could not reach (bots'
+      computers, a live run, real sign-in providers, the deployed estate) is the owner's call (15, O1).
 - [ ] A content-security-policy, image scanning, scheduled dependency audit (15, O3–O5).
 - [ ] Legal items only the owner can supply: privacy notice, data processing agreement, the
       sub-processors' agreements (14, "Before the first customer").
