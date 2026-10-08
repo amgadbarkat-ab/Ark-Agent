@@ -49,11 +49,11 @@ Still to do in this phase:
       the settings to hub names.
 - [ ] Automated test that the whole stack runs with `*.copilotkit.ai` unreachable.
 - [ ] Compact long conversations on replay; Postgres `LISTEN/NOTIFY` bus for several hub processes.
-- [ ] **Desktop app still depends on CopilotKit** (found 2026-10-08, while removing the plan
-      sign-ins). It sends usage telemetry to CopilotKit's ingest by default (`desktop/TELEMETRY.md`),
-      its setup wizard signs in to CopilotKit Intelligence to get a key and project
-      (`desktop/src-tauri/src/intelligence.rs`), and it has an organisation sign-in against a
-      CopilotKit authority. All three must go or point at Ark Hub before any desktop release.
+- [x] Desktop usage telemetry to CopilotKit removed (frontend, native emitter, server relay), with a
+      test that the window reports nothing.
+- [ ] **Desktop app still depends on CopilotKit** for its Intelligence sign-in, organisation sign-in,
+      release source and image registry. Not fixable until Ark has a release pipeline, brand assets
+      and signing certificates; the full list and order are in 10-desktop-replatform.md (Phase 6).
 - [ ] Remove CopilotKit and OpenBot names and links from user-facing text (with the brand work).
 - Exit test: the whole app starts and works with no network access to any CopilotKit host.
 

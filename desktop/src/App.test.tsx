@@ -82,12 +82,6 @@ async function renderApp(strictMode = false) {
   return view;
 }
 
-function setupEvents() {
-  return invokeCalls
-    .filter((call) => call.command === "record_setup_event")
-    .map((call) => call.args);
-}
-
 async function enterInstallation(view: Awaited<ReturnType<typeof renderApp>>) {
   await userEvent.click(view.getByRole("button", { name: "Set up OpenBot" }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
@@ -1085,78 +1079,24 @@ test.each(["supervisor", "windows"])(
   },
 );
 
-test("setup records telemetry without a consent gate and deduplicates viewed steps", async () => {
-  setupRootConfiguration("/tmp/private-setup-root", async () =>
-    emptyConfiguration(),
-  );
-  const previous = invokeHandler;
-  invokeHandler = async (command, args) => {
-    if (command === "record_setup_event") return null;
-    return previous(command, args);
-  };
-  let view!: ReturnType<typeof render>;
-  await act(async () => {
-    view = render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    );
-  });
-
-  expect(view.queryByRole("checkbox")).toBeNull();
-  expect(view.queryByRole("switch")).toBeNull();
-  expect(setupEvents()).toEqual([
-    { event: { kind: "step_viewed", step: "welcome" } },
-  ]);
-  await userEvent.click(view.getByRole("button", { name: "Set up OpenBot" }));
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
-
-  expect(setupEvents()).toEqual([
-    { event: { kind: "step_viewed", step: "welcome" } },
-    { event: { kind: "step_viewed", step: "harness" } },
-    { event: { kind: "harness_chosen", harness: "langgraph" } },
-    { event: { kind: "step_viewed", step: "install" } },
-  ]);
-  await userEvent.click(view.getByRole("button", { name: "Back" }));
-  expect(setupEvents().at(-1)).toEqual({
-    event: { kind: "step_viewed", step: "harness" },
-  });
-});
-
-test("setup records only model categories and reaches Ask when telemetry is unavailable", async () => {
+test("setup reports nothing about the person to anyone, whatever they choose", async () => {
   useCompatibleEndpointSetup({});
-  const previous = invokeHandler;
-  invokeHandler = async (command, args) => {
-    if (command === "record_setup_event") throw new Error("offline");
-    return previous(command, args);
-  };
   const privateUrl = "https://private-model.example/v1";
   const privateKey = "synthetic-secret-endpoint-key";
   const view = await enterCompatibleEndpoint(privateUrl, privateKey);
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
-  expect(setupEvents()).toContainEqual({
-    event: {
-      kind: "model_chosen",
-      provider: "compatible",
-      credential_path: "api_key",
-      custom_base_url: true,
-    },
-  });
   await userEvent.click(view.getByRole("button", { name: "Start OpenBot" }));
   await view.findByRole("button", { name: "Ask" });
-  expect(setupEvents().at(-1)).toEqual({
-    event: { kind: "step_viewed", step: "ask" },
-  });
-  const serialized = JSON.stringify(setupEvents());
-  for (const privateValue of [
-    privateUrl,
-    privateKey,
-    "local-model",
-    "/tmp/openbot-app-test",
-  ]) {
-    expect(serialized).not.toContain(privateValue);
-  }
-  expect(view.queryByText(/Nothing here leaves this computer/)).toBeNull();
+  // No command the window sends is a usage report, and none of what was typed went anywhere but the
+  // commands that set the stack up.
+  expect(
+    invokeCalls.filter((call) =>
+      /telemetry|setup_event|analytics/i.test(call.command),
+    ),
+  ).toEqual([]);
+  // And there is no wording promising or asking about it.
+  expect(view.queryByRole("checkbox")).toBeNull();
+  expect(view.queryByText(/telemetry|usage data|analytics/i)).toBeNull();
 });
 
 type StartStackPayload = {

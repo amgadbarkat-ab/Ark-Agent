@@ -17,12 +17,6 @@ import {
   ProviderPicker,
   recordedModel,
 } from "./ProviderPicker";
-import {
-  harnessChoiceEvent,
-  modelChoiceEvent,
-  recordSetupEvent,
-  type SetupStep,
-} from "./telemetry";
 import { Welcome } from "./Welcome";
 
 type EngineStatus = {
@@ -31,6 +25,15 @@ type EngineStatus = {
   engine_socket: string | null;
   detail: string;
 };
+
+/** Where in setup the person is. */
+type SetupStep =
+  | "welcome"
+  | "harness"
+  | "install"
+  | "model"
+  | "connect"
+  | "ask";
 
 type Blocker =
   | "wsl-absent"
@@ -197,22 +200,6 @@ export function App() {
     preparation?.key === installationKey && preparation.status === "complete";
   const returningToInstallation = savedLaunch.current === installationKey;
   const [running, setRunning] = useState(false);
-  const visibleSetupStep =
-    checkingResume ||
-    resuming ||
-    blockerFailure ||
-    blocker ||
-    (running && step !== "ask")
-      ? null
-      : step;
-  const lastViewedStep = useRef<SetupStep | null>(null);
-  useEffect(() => {
-    if (visibleSetupStep === lastViewedStep.current) return;
-    lastViewedStep.current = visibleSetupStep;
-    if (visibleSetupStep !== null) {
-      recordSetupEvent({ kind: "step_viewed", step: visibleSetupStep });
-    }
-  }, [visibleSetupStep]);
   const configuredRunRef = useRef(0);
   /*
    * A failure, in both registers.
@@ -703,9 +690,6 @@ export function App() {
             setHarness(choice);
           }}
           onContinue={() => {
-            recordSetupEvent(
-              harnessChoiceEvent(harness?.id ?? DEFAULT_HARNESS),
-            );
             setHarness((choice) =>
               choice?.id === "byo-url"
                 ? { ...choice, agentUrl: choice.agentUrl?.trim() }
@@ -839,7 +823,6 @@ export function App() {
           returning={returningToInstallation}
           busy={busy}
           onChoose={(choice) => {
-            recordSetupEvent(modelChoiceEvent(choice));
             setModel(choice);
             if (returningToInstallation) void start(choice);
             else setStep("connect");

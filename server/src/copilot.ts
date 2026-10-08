@@ -26,7 +26,6 @@ import {
 import type { AgentFetch, StallGuard } from "./channels/stall-guard";
 import type { DeploymentConfig } from "./config";
 import { observeModelConnection } from "./desktop-connection-failure";
-import { desktopTelemetryProperties } from "./desktop-telemetry";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
 import type { ConnectionLanguageModel } from "./models/language-model";
 import type { SelectableSkill, Selection } from "./plugins/selection";
@@ -2215,7 +2214,6 @@ export function mountCopilotRuntime(
     // other deployment's. Adds no events of its own.
     telemetryProperties: {
       ...(config.accessibility ? { accessibility_title: "OpenBot" } : {}),
-      ...desktopTelemetryProperties(),
     },
     /*
      * What lets a Bot answer with an interface it wrote itself.

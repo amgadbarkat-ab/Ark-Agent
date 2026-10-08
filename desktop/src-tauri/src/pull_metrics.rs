@@ -10,7 +10,15 @@ use serde::Deserialize;
 
 use crate::engine::Address;
 use crate::problem::Problem;
-use crate::telemetry::Outcome;
+use serde::Serialize;
+
+/// How an image download ended.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Success,
+    Failure,
+}
 
 /// No image names, layer IDs, engine output, or credentials cross this boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -482,7 +490,7 @@ Executing external compose provider
         let result = run(command, None, true, |metrics| reports.push(metrics));
         assert!(result.is_err());
         assert_eq!(reports.len(), 1);
-        assert_eq!(reports[0].outcome, crate::telemetry::Outcome::Failure);
+        assert_eq!(reports[0].outcome, Outcome::Failure);
         assert_eq!(reports[0].bytes, Some(12));
     }
 
@@ -495,7 +503,7 @@ Executing external compose provider
         let input = br#"{"id":"layer","parent_id":"image","text":"Downloading","current":9}"#;
         assert!(run(command, Some(input), true, |metrics| reports.push(metrics)).is_ok());
         assert_eq!(reports.len(), 1);
-        assert_eq!(reports[0].outcome, crate::telemetry::Outcome::Success);
+        assert_eq!(reports[0].outcome, Outcome::Success);
         assert!(reports[0].duration_ms >= 10);
         assert_eq!(reports[0].bytes, Some(9));
     }
@@ -508,7 +516,7 @@ Executing external compose provider
         let mut reports = Vec::new();
         let input = br#"{"id":"layer","parent_id":"image","text":"Downloading","current":9}"#;
         assert!(run(command, Some(input), false, |metrics| reports.push(metrics)).is_ok());
-        assert_eq!(reports[0].outcome, crate::telemetry::Outcome::Success);
+        assert_eq!(reports[0].outcome, Outcome::Success);
         assert_eq!(reports[0].bytes, None);
     }
 
@@ -518,7 +526,7 @@ Executing external compose provider
         let mut reports = Vec::new();
         assert!(run(command, None, true, |metrics| reports.push(metrics)).is_err());
         assert_eq!(reports.len(), 1);
-        assert_eq!(reports[0].outcome, crate::telemetry::Outcome::Failure);
+        assert_eq!(reports[0].outcome, Outcome::Failure);
         assert_eq!(reports[0].bytes, None);
     }
 }
