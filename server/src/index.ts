@@ -1,3 +1,5 @@
+// Must stay first: it decides, before the SDK loads, that nothing is reported to its vendor.
+import "./no-telemetry";
 import { randomUUID } from "node:crypto";
 import {
   CopilotKitIntelligence,

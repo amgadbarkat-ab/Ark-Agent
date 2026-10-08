@@ -35,6 +35,12 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
     <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
       credentials="include"
+      /*
+       * The SDK's development inspector is switched off. It draws a floating widget over the
+       * product and, to do so, fetches announcements from the SDK vendor's servers on every page
+       * load. This product does not contact third parties on a person's behalf.
+       */
+      enableInspector={false}
       {...a2uiProviderOptions(capabilities?.generativeUi)}
       /*
        * Passed only when this deployment actually has the capability, and this is the load-bearing
