@@ -4,6 +4,7 @@ import {
   type BillingEvent,
   type BillingProvider,
   BillingSignatureError,
+  BillingChargeUncertain,
   BillingUnavailableError,
 } from "./provider";
 
@@ -41,6 +42,11 @@ export type PaddleConfig = {
   prices: Readonly<Record<string, string>>;
   /** Our checkout page, absolute. It must be an approved domain in Paddle. */
   checkoutUrl: string;
+  /**
+   * The Paddle product that usage charges (a month of cloud running) are filed under, "pro_...".
+   * Absent means usage cannot be charged, which `charge` says rather than guesses.
+   */
+  cloudProductId?: string;
   /** How far a notification's timestamp may be from now. Replays are also stopped by event id. */
   toleranceSeconds?: number;
   fetchImpl?: typeof fetch;
@@ -87,6 +93,14 @@ export function paddleConfigProblems(config: PaddleConfig): string[] {
         `The price for plan "${plan}" is not a Paddle price id ("pri_...").`,
       );
     }
+  }
+  if (
+    config.cloudProductId !== undefined &&
+    !/^pro_[a-z0-9]+$/.test(config.cloudProductId)
+  ) {
+    problems.push(
+      'PADDLE_PRODUCT_CLOUD is not a Paddle product id ("pro_...").',
+    );
   }
   if (Object.keys(config.prices).length === 0) {
     problems.push(
@@ -304,6 +318,88 @@ export function paddleBilling(config: PaddleConfig): BillingProvider {
           ? "next_billing_period"
           : "immediately",
       });
+    },
+
+    async charge(subscriptionId, request) {
+      if (!SUBSCRIPTION_ID.test(subscriptionId)) {
+        throw new BillingUnavailableError(
+          "There is no subscription to charge.",
+        );
+      }
+      if (!config.cloudProductId) {
+        throw new BillingUnavailableError(
+          "Usage charges are not set up with the payment service (PADDLE_PRODUCT_CLOUD).",
+        );
+      }
+      if (
+        !Number.isInteger(request.amountCents) ||
+        request.amountCents < 1 ||
+        request.amountCents > 1_000_000
+      ) {
+        throw new BillingUnavailableError(
+          "That is not an amount that can be charged.",
+        );
+      }
+      /*
+       * NOT `call`. Everything `call` throws is "try again", and for a charge that is the one
+       * answer that must not be given when it is not known to be true. A request that was sent and
+       * never answered may have been taken, and asking again takes the money twice.
+       *
+       * `external` tax mode: the amount is what Ark must receive to cover its cost, with tax added on
+       * top for the customer. Left to the account's own setting it might be "tax included", and then
+       * the tax would come out of an amount that was worked out to cover costs.
+       */
+      let response: Response;
+      try {
+        response = await fetchImpl(
+          `${API[config.environment]}/subscriptions/${subscriptionId}/charge`,
+          {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${config.apiKey}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              effective_from: "immediately",
+              // If the card is refused, nothing is applied and nothing is taken: a definite no.
+              on_payment_failure: "prevent_change",
+              items: [
+                {
+                  quantity: 1,
+                  price: {
+                    description: request.description,
+                    name: "Ark cloud running",
+                    product_id: config.cloudProductId,
+                    unit_price: {
+                      amount: String(request.amountCents),
+                      currency_code: "EUR",
+                    },
+                    tax_mode: "external",
+                  },
+                },
+              ],
+            }),
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          },
+        );
+      } catch (error) {
+        throw new BillingChargeUncertain({ cause: error });
+      }
+      if (response.ok) {
+        return { reference: `paddle:${subscriptionId}:${request.description}` };
+      }
+      const detail = await response.text().catch(() => "");
+      const refused = new BillingUnavailableError(
+        "The payment service refused that charge.",
+        {
+          cause: new Error(
+            `Paddle ${response.status}: ${detail.slice(0, 500)}`,
+          ),
+        },
+      );
+      // A client error is a definite no. Anything else (a server error) may have happened.
+      if (response.status >= 400 && response.status < 500) throw refused;
+      throw new BillingChargeUncertain({ cause: refused });
     },
 
     async changePlan(subscriptionId, planId, options) {

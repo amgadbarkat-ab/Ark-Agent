@@ -39,6 +39,12 @@ export const SUBSCRIBED_EVENTS = [
 
 export type PaddleSetupResult = {
   productId: string;
+  /**
+   * The product usage charges are filed under (a month of cloud running), for `PADDLE_PRODUCT_CLOUD`.
+   * It carries no price: each month's amount is worked out from what was used and sent with the
+   * charge, so there is nothing here that could drift from a table.
+   */
+  cloudProductId: string;
   /** Price id by plan, for `PADDLE_PRICE_<PLAN>`. */
   prices: Record<string, string>;
   /** What was made in this run, as opposed to found. */
@@ -178,7 +184,26 @@ export async function setupPaddle(options: {
     created.push(`price:${plan.id}`);
   }
 
-  // 3. Where Paddle sends events.
+  // 3. The product a month of cloud running is charged under. No price: the amount is different every
+  // month and is sent with the charge (server/src/billing/paddle.ts `charge`).
+  let cloudProduct = products.find(
+    (row) => tagged(row, "ark", "cloud") && row.status !== "archived",
+  );
+  if (!cloudProduct) {
+    cloudProduct = (
+      (await call("POST", "/products", {
+        name: "Ark cloud running",
+        description:
+          "Time a digital employee runs on Ark's computers, charged monthly at cost.",
+        tax_category: "standard",
+        custom_data: { ark: "cloud" },
+      })) as { data: Json }
+    ).data;
+    created.push("product:cloud");
+  }
+  const cloudProductId = String(cloudProduct.id);
+
+  // 4. Where Paddle sends events.
   const settings = rows((await call("GET", "/notification-settings")).data);
   let setting = settings.find((row) => row.destination === webhookUrl);
   let madeSetting = false;
@@ -203,6 +228,7 @@ export async function setupPaddle(options: {
 
   return {
     productId,
+    cloudProductId,
     prices,
     created,
     drift,

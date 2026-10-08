@@ -8,6 +8,7 @@ import {
   statusFromPaddle,
 } from "../src/billing/paddle";
 import {
+  BillingChargeUncertain,
   BillingSignatureError,
   BillingUnavailableError,
 } from "../src/billing/provider";
@@ -435,6 +436,138 @@ describe("managing a subscription", () => {
         },
       ],
     ]);
+  });
+});
+
+describe("charging for what was used", () => {
+  const request = { amountCents: 1234, description: "Cloud running 2026-09" };
+  const cloud = { cloudProductId: "pro_cloud01" };
+
+  test("asks Paddle to charge the subscription once, immediately, for the exact amount, tax added on top", async () => {
+    const paddle = fakePaddle();
+    const p = provider(cloud, paddle.fetchImpl);
+    const result = await p.charge?.("sub_01abc", request);
+    expect(result?.reference).toContain("sub_01abc");
+    expect(paddle.calls).toHaveLength(1);
+    const [call] = paddle.calls;
+    expect(call?.method).toBe("POST");
+    expect(new URL(call?.url ?? "").pathname).toBe(
+      "/subscriptions/sub_01abc/charge",
+    );
+    expect(call?.headers.get("authorization")).toBe(
+      `Bearer ${baseConfig.apiKey}`,
+    );
+    expect(call?.body).toEqual({
+      effective_from: "immediately",
+      // A refused card applies nothing: a definite no, never a half-done charge.
+      on_payment_failure: "prevent_change",
+      items: [
+        {
+          quantity: 1,
+          price: {
+            description: "Cloud running 2026-09",
+            name: "Ark cloud running",
+            product_id: "pro_cloud01",
+            unit_price: { amount: "1234", currency_code: "EUR" },
+            // The amount was worked out to cover cost; tax must not come out of it.
+            tax_mode: "external",
+          },
+        },
+      ],
+    });
+  });
+
+  test("a refusal from Paddle (a 4xx) is a definite no that is safe to try again later", async () => {
+    const paddle = fakePaddle(() =>
+      Response.json(
+        { error: { code: "forbidden", detail: "Card declined" } },
+        { status: 422 },
+      ),
+    );
+    const failure = await provider(cloud, paddle.fetchImpl)
+      .charge?.("sub_01abc", request)
+      .catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(BillingUnavailableError);
+    expect(failure).not.toBeInstanceOf(BillingChargeUncertain);
+    expect(String((failure as Error).cause)).toContain("Card declined");
+  });
+
+  test("a server error is not a no: the money may have been taken, so it is uncertain", async () => {
+    const paddle = fakePaddle(() => new Response("oops", { status: 502 }));
+    const failure = await provider(cloud, paddle.fetchImpl)
+      .charge?.("sub_01abc", request)
+      .catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(BillingChargeUncertain);
+  });
+
+  test("a request that was sent and never answered is uncertain, never refused", async () => {
+    const fetchImpl = (async () => {
+      throw new Error("socket hang up");
+    }) as unknown as typeof fetch;
+    const failure = await provider(cloud, fetchImpl)
+      .charge?.("sub_01abc", request)
+      .catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(BillingChargeUncertain);
+  });
+
+  test("without a usage product, nothing is sent and the answer is a definite no", async () => {
+    const paddle = fakePaddle();
+    const failure = await provider({}, paddle.fetchImpl)
+      .charge?.("sub_01abc", request)
+      .catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(BillingUnavailableError);
+    expect(paddle.calls).toEqual([]);
+  });
+
+  test("an amount that is not whole cents in range, or a subscription id that is not one, sends nothing", async () => {
+    const paddle = fakePaddle();
+    const p = provider(cloud, paddle.fetchImpl);
+    for (const amountCents of [0, -5, 12.5, Number.NaN, 1_000_001]) {
+      await expect(
+        p.charge?.("sub_01abc", { ...request, amountCents }),
+      ).rejects.toBeInstanceOf(BillingUnavailableError);
+    }
+    await expect(p.charge?.("../customers", request)).rejects.toBeInstanceOf(
+      BillingUnavailableError,
+    );
+    expect(paddle.calls).toEqual([]);
+  });
+
+  test("a usage product id that is not one is a configuration problem", () => {
+    expect(
+      paddleConfigProblems({ ...baseConfig, cloudProductId: "oops" }),
+    ).toContain('PADDLE_PRODUCT_CLOUD is not a Paddle product id ("pro_...").');
+    expect(
+      paddleConfigProblems({ ...baseConfig, cloudProductId: "pro_cloud01" }),
+    ).not.toContain(
+      'PADDLE_PRODUCT_CLOUD is not a Paddle product id ("pro_...").',
+    );
+  });
+
+  test("PADDLE_PRODUCT_CLOUD is read from the environment, and is optional", () => {
+    const env = {
+      ARK_BILLING_PROVIDER: "paddle",
+      PADDLE_API_KEY: "pdl_sdbx_apikey_01testkey",
+      PADDLE_WEBHOOK_SECRET: SECRET,
+      PADDLE_CLIENT_TOKEN: "test_1234567890abcdef",
+      PADDLE_PRICE_AGENT: "pri_agent",
+    };
+    const deployment = { appUrl: "https://ark.example.test/" };
+    expect(typeof billingFromEnvironment(env, deployment).charge).toBe(
+      "function",
+    );
+    expect(() =>
+      billingFromEnvironment(
+        { ...env, PADDLE_PRODUCT_CLOUD: "oops" },
+        deployment,
+      ),
+    ).toThrow(/PADDLE_PRODUCT_CLOUD/);
+    expect(
+      billingFromEnvironment(
+        { ...env, PADDLE_PRODUCT_CLOUD: "pro_cloud01" },
+        deployment,
+      ).id,
+    ).toBe("paddle");
   });
 });
 

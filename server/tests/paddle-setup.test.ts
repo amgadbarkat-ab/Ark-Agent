@@ -67,8 +67,16 @@ describe("setting Paddle up", () => {
       "price:agent",
       "price:team",
       "price:enterprise",
+      "product:cloud",
       "notification",
     ]);
+    // Usage is charged under a product of its own, with no price: each month's amount is sent with
+    // the charge.
+    expect(result.cloudProductId).toMatch(/^pro_/);
+    expect(result.cloudProductId).not.toBe(result.productId);
+    expect(
+      paddle.state.prices.some((p) => p.product_id === result.cloudProductId),
+    ).toBe(false);
     expect(Object.keys(result.prices)).toEqual(["agent", "team", "enterprise"]);
     // The amounts are the plan table's, in cents, in euro, monthly.
     const amounts = paddle.state.prices.map((p) => [
@@ -102,7 +110,8 @@ describe("setting Paddle up", () => {
 
     expect(second.created).toEqual([]);
     expect(second.prices).toEqual(first.prices);
-    expect(paddle.state.products).toHaveLength(1);
+    expect(paddle.state.products).toHaveLength(2);
+    expect(second.cloudProductId).toBe(first.cloudProductId);
     expect(paddle.state.prices).toHaveLength(3);
     expect(paddle.state.settings).toHaveLength(1);
   });

@@ -69,6 +69,7 @@ export function billingFromEnvironment(
       const value = environment[key]?.trim();
       if (value) prices[plan] = value;
     }
+    const cloudProduct = environment.PADDLE_PRODUCT_CLOUD?.trim();
     const tolerance = Number(environment.PADDLE_WEBHOOK_TOLERANCE_SECONDS);
     return paddleBilling({
       apiKey,
@@ -76,6 +77,7 @@ export function billingFromEnvironment(
       clientToken: need("PADDLE_CLIENT_TOKEN"),
       environment: paddleEnvironment,
       prices,
+      ...(cloudProduct ? { cloudProductId: cloudProduct } : {}),
       checkoutUrl: `${deployment.appUrl.replace(/\/+$/, "")}/api/billing/checkout`,
       ...(Number.isFinite(tolerance) && tolerance > 0
         ? { toleranceSeconds: tolerance }

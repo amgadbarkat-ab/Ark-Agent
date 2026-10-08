@@ -71,11 +71,14 @@ export function createCloudGate(deps: {
   const addOn = hosted && config.mode === "metered";
 
   async function status(tenantId: string): Promise<CloudStatus> {
-    const [rates, account, usage] = await Promise.all([
+    const [rates, account] = await Promise.all([
       store.rates(),
       store.account(tenantId),
-      meter.usageFor(tenantId, periodOf(now())),
     ]);
+    // What is held against the limit starts when the person agreed to the prices, not before.
+    const usage = await meter.usageFor(tenantId, periodOf(now()), {
+      ...(addOn && account.consentedAt ? { since: account.consentedAt } : {}),
+    });
     const cap = account.monthlyCapCents ?? config.defaultCapCents;
     const charge = rates ? chargeCents(usage, rates) : 0;
     return {
@@ -138,7 +141,9 @@ export function createCloudGate(deps: {
       }
       const cap = account.monthlyCapCents ?? config.defaultCapCents;
       const charge = chargeCents(
-        await meter.usageFor(tenantId, periodOf(now())),
+        await meter.usageFor(tenantId, periodOf(now()), {
+          ...(account.consentedAt ? { since: account.consentedAt } : {}),
+        }),
         rates,
       );
       if (charge >= cap) {

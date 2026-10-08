@@ -1,5 +1,5 @@
 /**
- * Create Ark's product, prices and notification destination in a Paddle account.
+ * Create Ark's products, prices and notification destination in a Paddle account.
  *
  *   PADDLE_SETUP_API_KEY=pdl_sdbx_apikey_... PADDLE_ENVIRONMENT=sandbox APP_URL=https://ark.example.com \
  *     bun server/scripts/paddle-setup.ts [--vault <key-vault-name>]
@@ -52,6 +52,8 @@ console.info("\nSettings for the server (not secret):");
 for (const [plan, id] of Object.entries(result.prices)) {
   console.info(`PADDLE_PRICE_${plan.toUpperCase()}=${id}`);
 }
+
+console.info(`PADDLE_PRODUCT_CLOUD=${result.cloudProductId}`);
 
 if (result.notification.secret) {
   if (vault) {

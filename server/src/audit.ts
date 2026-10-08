@@ -464,6 +464,19 @@ export const auditEventTypes = [
   "marketplace.listing_rejected",
   /** Staff took a listing down, whether after a report or on their own. */
   "marketplace.listing_removed",
+  /** Staff set what a unit of cloud running costs. The row holds the new rates. */
+  "cloud.rates_set",
+  /** An account switched cloud running on, having seen the prices, with a monthly limit. */
+  "cloud.enabled",
+  "cloud.disabled",
+  /** An account changed its monthly limit for cloud running. */
+  "cloud.cap_changed",
+  /** A month of cloud running was charged to an account. */
+  "cloud.charged",
+  /** A month could not be charged, or may have been; the row says which, and staff decide. */
+  "cloud.charge_failed",
+  /** Staff settled a month by hand: charged elsewhere, or waived. */
+  "cloud.charge_settled",
   "marketplace.listing_installed",
   "marketplace.report_filed",
   "marketplace.report_dismissed",

@@ -45,6 +45,21 @@ export class BillingUnavailableError extends Error {
   }
 }
 
+/**
+ * The payment provider may or may not have taken a payment: it was asked, and the answer was lost
+ * (a timeout, a dropped connection, a server error). The one thing that must never happen next is
+ * asking again.
+ */
+export class BillingChargeUncertain extends Error {
+  constructor(options?: ErrorOptions) {
+    super(
+      "The payment service did not say whether the charge went through.",
+      options,
+    );
+    this.name = "BillingChargeUncertain";
+  }
+}
+
 export class BillingSignatureError extends Error {
   constructor() {
     super("That billing notification could not be verified.");
@@ -84,6 +99,19 @@ export type BillingProvider = {
     providerSubscriptionId: string,
     options: { atPeriodEnd: boolean },
   ) => Promise<void>;
+  /**
+   * Charge a subscription's customer once, for something used rather than subscribed to (a month of
+   * cloud running). The amount is whole cents of euro, before tax.
+   *
+   * Three outcomes, and the difference between them is the whole design. It RETURNS when the provider
+   * took the charge. It THROWS {@link BillingUnavailableError} when the provider definitely did not
+   * (refused, no such subscription, not set up), which is safe to try again later. It THROWS
+   * {@link BillingChargeUncertain} when it cannot know, which is never tried again by a machine.
+   */
+  charge?: (
+    providerSubscriptionId: string,
+    request: { amountCents: number; description: string },
+  ) => Promise<{ reference: string }>;
   /**
    * Check a webhook delivery really came from the provider, and read it.
    *
