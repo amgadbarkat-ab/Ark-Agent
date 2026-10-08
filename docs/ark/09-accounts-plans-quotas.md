@@ -130,7 +130,8 @@ have their own rules for selling subscriptions inside an app (open question 3).
   12-paddle.md comes first). Invoices and VAT are Paddle's.
 - Queue order is "whoever polls first", not first come first served, and the queue is not durable
   across a server restart (a queued run is a live request). Fine at this scale; revisit with load.
-- The cloud add-on (Phase 4): metering what a cloud-run bot uses, priced to cover cost.
+- The cloud add-on (Phase 4) is built (17-cloud-runtime.md); what is left is measuring cost, setting
+  the prices, and running it against a real Paddle and cluster.
 - "Hired" versus "installed": settled in Phase 5 without a separate step. Installing a coworker from
   the marketplace costs nothing against the limit (it is just a coworker in the account); a coworker
   counts only while it has a run in progress, which is what "hired" was meant to say (D4).

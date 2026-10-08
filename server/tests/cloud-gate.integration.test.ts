@@ -8,7 +8,7 @@ import {
 } from "@ag-ui/client";
 import { eq } from "drizzle-orm";
 import { Observable, type Subscriber } from "rxjs";
-import type { CloudRates } from "../../shared/cloud-pricing";
+import { chargeCents, type CloudRates } from "../../shared/cloud-pricing";
 import { RunGateAgent } from "../src/accounts/run-gate";
 import { createRunSlots } from "../src/accounts/run-slots";
 import { createAccountStore } from "../src/accounts/store";
@@ -197,6 +197,7 @@ describe("the rules", () => {
     await store.enable(who.tenantId, {
       monthlyCapCents: 200,
       shownRates: RATES,
+      at: new Date("2026-10-01T00:00:00Z"),
     });
     const now = new Date("2026-10-15T12:00:00Z");
     const gate = gateFor("metered", true, () => now);
@@ -240,6 +241,7 @@ describe("the rules", () => {
     await store.enable(mine.tenantId, {
       monthlyCapCents: 200,
       shownRates: RATES,
+      at: new Date("2026-10-01T00:00:00Z"),
     });
     await meter.runStarted({
       tenantId: theirs.tenantId,
@@ -289,6 +291,154 @@ describe("agreeing to the prices", () => {
     expect(account.consentedRates?.computeCentsPerHour).toBe(60);
     expect(account.monthlyCapCents).toBe(1500);
     expect(account.consentedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("when staff change the prices", () => {
+  const DEARER = { ...RATES, computeCentsPerHour: 120 };
+  const OCTOBER = new Date("2026-10-01T00:00:00Z");
+  const hour = async (tenantId: string, runId: string, day: string) => {
+    await meter.runStarted({
+      tenantId,
+      botId: "bot",
+      runId,
+      at: new Date(`${day}T10:00:00Z`),
+    });
+    await meter.runEnded(runId, new Date(`${day}T11:00:00Z`));
+  };
+
+  test("nothing new runs until the person has agreed to the new prices", async () => {
+    const who = await person();
+    await store.setRates(RATES, who.id);
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: RATES,
+      at: OCTOBER,
+    });
+    const gate = gateFor(
+      "metered",
+      true,
+      () => new Date("2026-10-15T12:00:00Z"),
+    );
+    expect(await gate.check({ tenantId: who.tenantId, botId: "bot" })).toEqual({
+      ok: true,
+    });
+
+    await store.setRates(DEARER, who.id);
+    const decision = await gate.check({ tenantId: who.tenantId, botId: "bot" });
+    expect(decision).toMatchObject({ ok: false, code: "rates_changed" });
+    expect((decision as { reason: string }).reason).toContain("/settings/plan");
+    expect((await gate.status(who.tenantId)).ratesChanged).toBe(true);
+
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: DEARER,
+      at: new Date("2026-10-15T00:00:00Z"),
+    });
+    expect(await gate.check({ tenantId: who.tenantId, botId: "bot" })).toEqual({
+      ok: true,
+    });
+    expect((await gate.status(who.tenantId)).ratesChanged).toBe(false);
+  });
+
+  test("what was used before they agreed to the new prices stays at the old ones, and counts against the limit at them", async () => {
+    const who = await person();
+    await store.setRates(RATES, who.id);
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: RATES,
+      at: OCTOBER,
+    });
+    await hour(who.tenantId, "before", "2026-10-05");
+    await store.setRates(DEARER, who.id);
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: DEARER,
+      at: new Date("2026-10-10T00:00:00Z"),
+    });
+    await hour(who.tenantId, "after", "2026-10-12");
+
+    const status = await gateFor(
+      "metered",
+      true,
+      () => new Date("2026-10-15T12:00:00Z"),
+    ).status(who.tenantId);
+    // One hour at 60 and one at 120, with one fee: not two hours at either.
+    const oneHour = {
+      computeSeconds: 3600,
+      storageByteSeconds: 0,
+      egressBytes: 0,
+    };
+    expect(status.hours).toBe(2);
+    expect(status.chargeSoFarCents).toBe(
+      Math.ceil((60 + 120 + RATES.paymentFeeFixedCents) / 0.95),
+    );
+    expect(status.chargeSoFarCents).not.toBe(
+      chargeCents({ ...oneHour, computeSeconds: 7200 }, RATES),
+    );
+    expect(status.chargeSoFarCents).not.toBe(
+      chargeCents({ ...oneHour, computeSeconds: 7200 }, DEARER),
+    );
+  });
+
+  test("agreeing again to the same prices is not a new agreement", async () => {
+    const who = await person();
+    await store.setRates(RATES, who.id);
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: RATES,
+      at: OCTOBER,
+    });
+    await store.disable(who.tenantId);
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 3000,
+      shownRates: RATES,
+      at: new Date("2026-10-20T00:00:00Z"),
+    });
+    const account = await store.account(who.tenantId);
+    expect(account.agreements).toHaveLength(1);
+    expect(account.agreements[0]?.from).toEqual(OCTOBER);
+    expect(account.agreements[0]?.until).toBeNull();
+  });
+
+  test("agreeing to different prices closes the old agreement where the new one begins", async () => {
+    const who = await person();
+    await store.setRates(RATES, who.id);
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: RATES,
+      at: OCTOBER,
+    });
+    await store.setRates(DEARER, who.id);
+    const second = new Date("2026-10-10T00:00:00Z");
+    await store.enable(who.tenantId, {
+      monthlyCapCents: 5000,
+      shownRates: DEARER,
+      at: second,
+    });
+    const { agreements } = await store.account(who.tenantId);
+    expect(agreements).toHaveLength(2);
+    expect(agreements[0]).toMatchObject({ from: OCTOBER, until: second });
+    expect(agreements[0]?.rates.computeCentsPerHour).toBe(60);
+    expect(agreements[1]).toMatchObject({ from: second, until: null });
+    expect(agreements[1]?.rates.computeCentsPerHour).toBe(120);
+  });
+
+  test("an add-on never agreed to has nothing chargeable, whatever was recorded before it was one", async () => {
+    const who = await person();
+    await store.setRates(RATES, who.id);
+    await hour(who.tenantId, "earlier", "2026-10-05");
+    const status = await gateFor(
+      "metered",
+      true,
+      () => new Date("2026-10-15T12:00:00Z"),
+    ).status(who.tenantId);
+    expect(status).toMatchObject({
+      hours: 0,
+      chargeSoFarCents: 0,
+      enabled: false,
+      ratesChanged: false,
+    });
   });
 });
 

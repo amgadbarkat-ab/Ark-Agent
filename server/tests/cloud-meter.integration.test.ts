@@ -233,6 +233,56 @@ describe("storage", () => {
     );
   });
 
+  test("counts only what happened inside the window asked for, from the agreement and until the next one", async () => {
+    const who = { tenantId: await account() };
+    // Ten to eleven, and fourteen to sixteen, on the same day.
+    await meter.runStarted({
+      tenantId: who.tenantId,
+      botId: "b",
+      runId: "w1",
+      at: new Date("2026-09-10T10:00:00Z"),
+    });
+    await meter.runEnded("w1", new Date("2026-09-10T11:00:00Z"));
+    await meter.runStarted({
+      tenantId: who.tenantId,
+      botId: "b",
+      runId: "w2",
+      at: new Date("2026-09-10T14:00:00Z"),
+    });
+    await meter.runEnded("w2", new Date("2026-09-10T16:00:00Z"));
+    const noon = new Date("2026-09-10T12:00:00Z");
+    const before = await meter.usageFor(who.tenantId, "2026-09", {
+      until: noon,
+    });
+    const after = await meter.usageFor(who.tenantId, "2026-09", {
+      since: noon,
+    });
+    expect(before.computeSeconds).toBe(3600);
+    expect(after.computeSeconds).toBe(7200);
+    // The two windows that meet at an instant add up to the month, with nothing counted twice.
+    const month = await meter.usageFor(who.tenantId, "2026-09");
+    expect(before.computeSeconds + after.computeSeconds).toBe(
+      month.computeSeconds,
+    );
+    // A run that straddles the instant is split at it.
+    await meter.runStarted({
+      tenantId: who.tenantId,
+      botId: "c",
+      runId: "w3",
+      at: new Date("2026-09-11T11:30:00Z"),
+    });
+    await meter.runEnded("w3", new Date("2026-09-11T12:30:00Z"));
+    const cut = new Date("2026-09-11T12:00:00Z");
+    expect(
+      (
+        await meter.usageFor(who.tenantId, "2026-09", {
+          since: cut,
+          until: new Date("2026-09-12T00:00:00Z"),
+        })
+      ).computeSeconds,
+    ).toBe(1800);
+  });
+
   test("never adds compute: storage held while nothing runs is not working time", async () => {
     const tenant = await account();
     await meter.storageSeen({

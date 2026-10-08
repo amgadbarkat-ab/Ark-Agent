@@ -259,11 +259,17 @@ Tick each one with the date and who did it. Nothing here is optional.
 - [ ] Privacy notice and the processor list in [14-data-protection.md](14-data-protection.md) are
       published, and the data processing agreements with Microsoft, Paddle, the model providers and
       Composio are signed or accepted.
-- [x] **Penetration test, internal**: done 2026-10-08, 56 attacks, seven findings fixed
+- [x] **Penetration test, internal**: done 2026-10-08, 56 attacks (66 now, with the cloud-running routes), seven findings fixed
       ([16-penetration-test.md](16-penetration-test.md)), and it runs in CI on every change. Re-run
       `bun run test:security` against any release candidate. **Still open, and the owner's call:** an
       outside tester for what the report says it could not reach (the bots' computers, a live run with a
       model attached, the real sign-in providers, this deployment as built).
+- [ ] **Cloud running is a deliberate choice.** Either leave `cloud.mode: included` (the default:
+      nothing asked, nothing charged, usage recorded), or, to sell it: cost measured on the real cluster,
+      prices set in Admin → Cloud costs, `PADDLE_PRODUCT_CLOUD` set, `cloud.mode: metered` and
+      `cloud.charging.enabled: true`, and step 10 of the Paddle sandbox run done
+      ([17-cloud-runtime.md](17-cloud-runtime.md) sections 5 to 7). Never turn `metered` on with
+      prices nobody has measured.
 - [ ] DNS for the two names points at the ingress; HSTS is on (it is, once the address is `https://`).
 - [ ] **LAST: the Paddle sandbox run**, by the owner, once everything above is done and the sandbox
       is wired to the real `dev` deployment: a purchase end to end, following the checklist in

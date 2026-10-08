@@ -290,6 +290,13 @@ describe("OpenBot database schema", () => {
         hasDefault: false,
         primary: false,
       },
+      // Where it runs: Ark's cloud (the default) or the person's own computer (decision D5).
+      {
+        name: "run_location",
+        notNull: true,
+        hasDefault: true,
+        primary: false,
+      },
       {
         name: "deleted_at",
         notNull: false,

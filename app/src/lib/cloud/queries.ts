@@ -24,6 +24,8 @@ export type CloudStatus = {
   priced: boolean;
   rates: CloudRates | null;
   enabled: boolean;
+  /** They agreed to prices that have since changed: nothing new runs in the cloud until they agree again. */
+  ratesChanged: boolean;
   monthlyCapCents: number;
   defaultCapCents: number;
   /** The calendar month in UTC, "2026-10". */

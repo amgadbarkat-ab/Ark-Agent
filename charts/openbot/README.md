@@ -398,6 +398,13 @@ PostgreSQL with `select ... for update skip locked`, so whichever pod runs the s
 nobody else holds, and one that dies mid-suspend hands its work back when the lease expires. The
 decision is re-checked at the moment of acting, because somebody may have come back in between.
 
+Cloud running is configured by `cloud.mode` (`included` by default: nothing asked or charged, usage
+recorded; `metered`: a paid add-on; `off`), `cloud.volumeGb` and `cloud.defaultCapEur`. Turning on
+`cloud.charging.enabled` adds the `cloud-charge` CronJob that charges closed months through the payment
+provider, once each, on the second of the month (`cloud.charging.schedule`); the chart refuses it unless
+`cloud.mode` is `metered`. The job reads the provider's key and `PADDLE_PRODUCT_CLOUD` from
+`config.extraEnv`, like the server. See [docs/ark/17-cloud-runtime.md](../../docs/ark/17-cloud-runtime.md).
+
 A second CronJob shares that same mechanism for a different job: `routines.enabled` turns on the
 sweep that fires standing instructions a Bot was asked to carry out on a schedule, on
 `routines.schedule`. It needs `secrets.workerSharedSecret` — the credential it presents to the API

@@ -18,7 +18,12 @@ import {
   uuid,
   boolean,
 } from "drizzle-orm/pg-core";
-import type { CloudRates, CloudUsage } from "../../../../shared/cloud-pricing";
+import type {
+  AgreementSegment,
+  ChargePart,
+  CloudRates,
+  CloudUsage,
+} from "../../../../shared/cloud-pricing";
 import { users } from "./core";
 import { tenants } from "./tenants";
 
@@ -55,6 +60,15 @@ export const cloudAccounts = pgTable("cloud_accounts", {
   consentedAt: timestamp("consented_at", { withTimezone: true }),
   /** The rates on the screen when they said yes: what they agreed to, whatever they are later set to. */
   consentedRates: jsonb("consented_rates").$type<CloudRates>(),
+  /**
+   * Agreements that were replaced, oldest first: each is the prices the person had agreed to and the
+   * stretch of time they applied. Staff changing the prices ends an agreement and asks again; what was
+   * used in the meantime is still priced at what was agreed for it.
+   */
+  agreementHistory: jsonb("agreement_history")
+    .$type<AgreementSegment[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
   updatedAt: updatedAt(),
 });
 
@@ -145,6 +159,8 @@ export const cloudCharges = pgTable(
     costCents: numeric("cost_cents", { precision: 16, scale: 4 }).notNull(),
     /** What was (or will be) charged, in whole cents. Zero for carried and waived. */
     amountCents: integer("amount_cents").notNull().default(0),
+    /** What the month was made of, one part for each agreement it touched. Null before parts existed. */
+    parts: jsonb("parts").$type<ChargePart[]>(),
     providerRef: text("provider_ref"),
     note: text("note"),
     createdAt: createdAt(),

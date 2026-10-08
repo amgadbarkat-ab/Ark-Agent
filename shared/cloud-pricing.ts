@@ -104,15 +104,71 @@ export function chargeCents(
   rates: CloudRates,
   carriedCostCents = 0,
 ): number {
-  const cost = costOf(usage, rates).costCents + carriedCostCents;
+  return chargeForParts([{ usage, rates }], carriedCostCents);
+}
+
+/**
+ * Usage priced at the rates somebody agreed to for the stretch of time it happened in.
+ *
+ * A person agrees to a set of prices. If staff later change them, the person is asked again, and what
+ * they used before they agreed to the new ones is still priced at the old ones. A month in which that
+ * happened is therefore more than one part, each at its own rates.
+ */
+export type PricedUsage = { usage: CloudUsage; rates: CloudRates };
+
+/**
+ * `chargeCents` for a month made of several agreements.
+ *
+ * Each part's cost carries the margin of the rates it was agreed under. The payment fee, which is
+ * what the provider keeps of the one charge that is actually made, is the newest agreement's:
+ * `closing` (defaulting to the last part's rates), because that is the price list the person agreed
+ * to most recently and the one in force when the month is charged.
+ */
+export function chargeForParts(
+  parts: readonly PricedUsage[],
+  carriedCostCents = 0,
+  closing?: CloudRates,
+): number {
+  const last = closing ?? parts.at(-1)?.rates;
+  if (!last) return 0;
+  let cost = carriedCostCents;
+  let withMargin = carriedCostCents * (1 + last.marginPercent / 100);
+  for (const part of parts) {
+    const partCost = costOf(part.usage, part.rates).costCents;
+    cost += partCost;
+    withMargin += partCost * (1 + part.rates.marginPercent / 100);
+  }
   if (cost <= 0) return 0;
-  const feeShare = rates.paymentFeePercent / 100;
-  const wanted =
-    (cost * (1 + rates.marginPercent / 100) + rates.paymentFeeFixedCents) /
-    (1 - feeShare);
+  const feeShare = last.paymentFeePercent / 100;
+  const wanted = (withMargin + last.paymentFeeFixedCents) / (1 - feeShare);
   // A hair of tolerance, so that floating point noise on an exact multiple does not cost a cent.
   return Math.ceil(wanted - 1e-9);
 }
+
+/** Whether two sets of prices are the same prices. */
+export function sameRates(a: CloudRates, b: CloudRates): boolean {
+  const keys = Object.keys(RATE_LIMITS) as (keyof CloudRates)[];
+  return keys.every((key) => a[key] === b[key]);
+}
+
+/**
+ * A stretch of time during which somebody had agreed to one set of prices, as it is stored: the
+ * agreement began at `from` and, if it is a closed one, was replaced by a newer agreement at `until`.
+ */
+export type AgreementSegment = {
+  from: string;
+  until: string;
+  rates: CloudRates;
+};
+
+/** What one part of a charged month was made of, kept so the charge can always be explained. */
+export type ChargePart = {
+  from: string;
+  until: string | null;
+  usage: CloudUsage;
+  rates: CloudRates;
+  costCents: number;
+};
 
 /** Whether a month's charge is big enough to send, or goes into the next month. */
 export function isBelowMinimum(cents: number, rates: CloudRates): boolean {

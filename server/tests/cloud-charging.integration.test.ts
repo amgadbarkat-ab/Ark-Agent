@@ -144,6 +144,88 @@ const rowsOf = (tenantId: string) =>
     .from(cloudCharges)
     .where(eq(cloudCharges.tenantId, tenantId));
 
+describe("a month in which the prices changed", () => {
+  const DEARER: CloudRates = { ...RATES, computeCentsPerHour: 200 };
+
+  test("prices each stretch at the prices agreed for it, with one fee, and keeps the parts", async () => {
+    const who = await customer({ consent: null });
+    await database.insert(cloudAccounts).values({
+      tenantId: who.tenantId,
+      enabled: true,
+      monthlyCapCents: 100_000,
+      consentedAt: new Date("2026-10-15T00:00:00Z"),
+      consentedRates: DEARER,
+      agreementHistory: [
+        {
+          from: "2026-10-01T00:00:00.000Z",
+          until: "2026-10-15T00:00:00.000Z",
+          rates: RATES,
+        },
+      ],
+    });
+    await store.setRates(DEARER, who.id);
+    await work(who.tenantId, "2026-10-10", 3); // 3 hours at 100
+    await work(who.tenantId, "2026-10-20", 2); // 2 hours at 200
+    const { billing, charges } = fakeBilling();
+
+    await chargePeriod(deps(billing), "2026-10", who.tenantId);
+
+    expect(charges).toHaveLength(1);
+    expect(charges[0]?.amountCents).toBe(Math.ceil((300 + 400 + 50) / 0.95));
+    const [row] = await rowsOf(who.tenantId);
+    expect(row?.parts).toHaveLength(2);
+    expect(row?.parts?.map((part) => part.rates.computeCentsPerHour)).toEqual([
+      100, 200,
+    ]);
+    expect(row?.parts?.map((part) => part.usage.computeSeconds)).toEqual([
+      3 * 3600,
+      2 * 3600,
+    ]);
+    expect(row?.usage.computeSeconds).toBe(5 * 3600);
+  });
+
+  test("a customer who never agreed to the new prices is charged the ones they agreed to", async () => {
+    const who = await customer(); // agreed to RATES from 1 September
+    await store.setRates(RATES, who.id);
+    await work(who.tenantId, "2026-10-10", 6);
+    // Staff raise the price afterwards. The customer has not been asked, and has not agreed.
+    await store.setRates(DEARER, who.id);
+    const { billing, charges } = fakeBilling();
+
+    await chargePeriod(deps(billing), "2026-10", who.tenantId);
+
+    expect(charges[0]?.amountCents).toBe(Math.ceil((600 + 50) / 0.95));
+    const [row] = await rowsOf(who.tenantId);
+    expect(row?.rates.computeCentsPerHour).toBe(100);
+  });
+
+  test("time before the first agreement is never charged, however many agreements follow", async () => {
+    const who = await customer({ consent: null });
+    await database.insert(cloudAccounts).values({
+      tenantId: who.tenantId,
+      enabled: true,
+      monthlyCapCents: 100_000,
+      consentedAt: new Date("2026-10-15T00:00:00Z"),
+      consentedRates: DEARER,
+      agreementHistory: [
+        {
+          from: "2026-10-10T00:00:00.000Z",
+          until: "2026-10-15T00:00:00.000Z",
+          rates: RATES,
+        },
+      ],
+    });
+    await store.setRates(DEARER, who.id);
+    await work(who.tenantId, "2026-10-05", 6); // before they ever agreed
+    await work(who.tenantId, "2026-10-12", 5); // under the first agreement
+    const { billing, charges } = fakeBilling();
+
+    await chargePeriod(deps(billing), "2026-10", who.tenantId);
+
+    expect(charges[0]?.amountCents).toBe(Math.ceil((500 + 50) / 0.95));
+  });
+});
+
 describe("a month", () => {
   test("is charged once, at the amount that covers its cost and the payment fee", async () => {
     const who = await customer();

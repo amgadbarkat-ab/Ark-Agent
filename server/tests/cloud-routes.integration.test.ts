@@ -139,6 +139,15 @@ const call = (
       : { body: typeof body === "string" ? body : JSON.stringify(body) }),
   });
 
+const mine = async (who: Who) =>
+  (await call(who, "GET", "/api/account/cloud")).json() as Promise<{
+    cloud: {
+      enabled: boolean;
+      ratesChanged: boolean;
+      rates: CloudRates;
+    };
+  }>;
+
 afterEach(async () => {
   events.length = 0;
   for (const id of made.splice(0)) {
@@ -328,6 +337,52 @@ describe("switching cloud running on", () => {
       first?.getTime() ?? 0,
     );
     expect(second.consentedRates).toEqual(newer);
+  });
+});
+
+describe("when staff change the prices under a switch that is on", () => {
+  test("the customer is told, can agree to the new ones, and what they agreed to before is kept", async () => {
+    const staff = await priced();
+    const ann = await person();
+    await call(ann, "POST", "/api/account/cloud/enable", {
+      monthlyCapCents: 5000,
+      shownRates: RATES,
+    });
+    const dearer = { ...RATES, computeCentsPerHour: 90 };
+    await store.setRates(dearer, staff.id);
+
+    const status = await mine(ann);
+    expect(status.cloud).toMatchObject({ enabled: true, ratesChanged: true });
+    expect(status.cloud.rates.computeCentsPerHour).toBe(90);
+
+    // The old prices can no longer be agreed to; the new ones can.
+    expect(
+      (
+        await call(ann, "POST", "/api/account/cloud/enable", {
+          monthlyCapCents: 5000,
+          shownRates: RATES,
+        })
+      ).status,
+    ).toBe(409);
+    events.length = 0;
+    expect(
+      (
+        await call(ann, "POST", "/api/account/cloud/enable", {
+          monthlyCapCents: 5000,
+          shownRates: dearer,
+        })
+      ).status,
+    ).toBe(200);
+    expect(events[0]).toMatchObject({
+      eventType: "cloud.enabled",
+      payload: { wasEnabled: true, rates: dearer },
+    });
+    expect((await mine(ann)).cloud.ratesChanged).toBe(false);
+    const { agreements } = await store.account(ann.tenantId);
+    expect(agreements.map((a) => a.rates.computeCentsPerHour)).toEqual([
+      60, 90,
+    ]);
+    expect(agreements[0]?.until).toEqual(agreements[1]?.from);
   });
 });
 

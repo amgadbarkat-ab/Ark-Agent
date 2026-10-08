@@ -9,7 +9,7 @@ what it cannot reach.
 The attacks are kept as an automated suite, so they run again on every change:
 
 ```sh
-bun run test:security      # 56 checks, about 20 seconds; needs only the test PostgreSQL
+bun run test:security      # 66 checks, about 20 seconds; needs only the test PostgreSQL
 ```
 
 It is also a job in CI (`.github/workflows/ci.yml`), so a pull request that opens a hole fails.
@@ -57,6 +57,7 @@ Each of these was attacked and the defence held. The number is the checks that k
 | **One customer against another**: every route carrying an id, with the other customer's id; 27 well-formed attacks (edit, delete, report, install, set a model on, pause, read a transcript, use a connection, grant a folder, run as their coworker); 17 lists | Never an answer containing the other's data; 404 or 403 each time; the other customer's coworker, routine, channel, file and listing unchanged afterwards. |
 | **Mass assignment**: owner, account, id, package and system flags in a create | Ignored; the coworker is the caller's and "public" means public to their own account only. |
 | **Buying more than was paid for**: `internal`, `enterprise`, a path-ish plan name | Refused; plan unchanged. |
+| **Cloud running, which is charged for** (added with Phase 4): a customer setting a price or settling a month; agreeing to prices that are not the ones in force; a limit of nothing, negative, fractional, text or ten thousand and one euro; a stray `tenantId` in the body; reading or changing another customer's switch, limit or bill; settling a month twice | 403 for the staff routes (and 401 with no session); 409 for forged prices; 400 for every bad limit and stray field; each customer sees only their own agreement and months, without the payment service's reference or our notes; a settled month stays settled. The money routes are asserted to be on the list the unauthenticated and administrator sweeps walk. |
 | **Sessions**: a cookie not signed by this server (wrong signature, no signature, garbage, 10 KB, another person's token), an expired session, a person an administrator has just removed | 401 each; removal takes effect on the next request. |
 | **The sign-in library's own routes**: change email to the administrator's, update-user, sign-up, password sign-in and reset, register a way to sign in as a company domain, delete-user, a callback sent to another website | All refused (email cannot change; no passwords exist; registering a provider is administrators only; callbacks are checked). |
 | **Forged payment notices**: no signature, wrong secret, stale, future, altered body, empty or garbage header, thousands of signatures, a signature of zeros | 400 or 431, account unchanged. A correctly signed notice applies once, a replay is ignored, an older one never overwrites a newer state. Only the configured provider has a door. |

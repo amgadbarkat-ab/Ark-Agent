@@ -1,8 +1,7 @@
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import {
-  chargeCents,
+  chargeForParts,
   type CloudRates,
-  costOf,
   isBelowMinimum,
 } from "../../../shared/cloud-pricing";
 import type { AccountStore } from "../accounts/store";
@@ -14,6 +13,7 @@ import {
 } from "../billing/provider";
 import type { Database } from "../db/client";
 import { cloudCharges } from "../db/schema";
+import { billableFor, chargePartsOf } from "./billable";
 import { periodBounds, periodOf } from "./intervals";
 import type { CloudMeter } from "./meter";
 import type { CloudStore } from "./store";
@@ -132,23 +132,30 @@ export async function chargePeriod(
     }
 
     const account = await store.account(tenantId);
-    // Only what happened after they agreed to the prices, and only for accounts that did.
-    if (!account.consentedAt) {
+    // Only accounts that agreed to a price, and only for what happened after they agreed, at the
+    // prices they agreed to for that time. What staff have set since is what a person is offered,
+    // not what they owe.
+    if (account.agreements.length === 0) {
       report.skipped += 1;
       continue;
     }
-    const usage = await meter.usageFor(tenantId, period, {
-      since: account.consentedAt,
-    });
+    const billable = await billableFor(meter, tenantId, period, account);
     const carried = await carriedBefore(database, tenantId, period);
-    const cost = costOf(usage, rates).costCents;
+    const cost = billable.costCents;
     if (cost + carried.costCents <= 0) {
       report.skipped += 1;
       continue;
     }
-    const amountCents = chargeCents(usage, rates, carried.costCents);
+    const closing = billable.closing as CloudRates;
+    const amountCents = chargeForParts(
+      billable.parts,
+      carried.costCents,
+      closing,
+    );
+    const usage = billable.usage;
+    const parts = chargePartsOf(billable);
 
-    if (isBelowMinimum(amountCents, rates) && !existing) {
+    if (isBelowMinimum(amountCents, closing) && !existing) {
       await database
         .insert(cloudCharges)
         .values({
@@ -156,7 +163,8 @@ export async function chargePeriod(
           period,
           status: "carried",
           usage,
-          rates,
+          rates: closing,
+          parts,
           costCents: String(cost),
           amountCents: 0,
           note: "Under the minimum, so it is added to the next month that is charged.",
@@ -176,7 +184,8 @@ export async function chargePeriod(
           period,
           status: "charging",
           usage,
-          rates,
+          rates: closing,
+          parts,
           costCents: String(cost + carried.costCents),
           amountCents,
         })

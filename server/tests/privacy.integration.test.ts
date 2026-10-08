@@ -863,6 +863,7 @@ describe("what a person is sent", () => {
     expect(file.cloudRunning.agreement.agreedToPrices.computeCentsPerHour).toBe(
       60,
     );
+    expect(file.cloudRunning.agreement.earlierAgreements).toEqual([]);
     expect(file.cloudRunning.months).toEqual([
       expect.objectContaining({
         month: "2026-09",

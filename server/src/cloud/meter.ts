@@ -55,7 +55,7 @@ export type CloudMeter = {
   usageFor: (
     tenantId: string,
     period: string,
-    options?: { since?: Date },
+    options?: { since?: Date; until?: Date },
   ) => Promise<CloudUsage>;
   /** Which accounts used anything in a month. */
   tenantsWithUsage: (period: string) => Promise<string[]>;
@@ -187,11 +187,14 @@ export function createCloudMeter(database: Database): CloudMeter {
 
     async usageFor(tenantId, period, options) {
       const bounds = periodBounds(period);
-      const { end } = bounds;
-      // Only what happened after `since`: what a person is charged for starts when they agreed to it.
+      // Only what happened after `since` and before `until`: what a person is charged for starts when
+      // they agreed to it, and, if they later agreed to other prices, ends when they did.
       const start = options?.since
         ? new Date(Math.max(bounds.start.getTime(), options.since.getTime()))
         : bounds.start;
+      const end = options?.until
+        ? new Date(Math.min(bounds.end.getTime(), options.until.getTime()))
+        : bounds.end;
       const window: Span = { start: start.getTime(), end: end.getTime() };
       const rows = await database
         .select({

@@ -333,3 +333,20 @@ This template renders nothing.
 {{- fail "routines.enabled but externalSecrets.data does not name worker-shared-secret. The API server reads it to recognise the worker and the CronJob reads it to be one, so every pod that mounts it fails to start." }}
 {{- end }}
 {{- end }}
+
+{{- /*
+  Cloud running, which is money.
+
+  A mode the server does not know would stop it starting, so it is refused here with the values named.
+  Charging months nobody agreed to pay for is the other mistake: the sweep does nothing unless the
+  mode is `metered`, so enabling it elsewhere would be a CronJob that reports "skipped" every month
+  and looks like it works.
+*/}}
+{{- if (.Values.cloud).mode }}
+{{- if not (has .Values.cloud.mode (list "included" "metered" "off")) }}
+{{- fail "cloud.mode is included, metered or off." }}
+{{- end }}
+{{- end }}
+{{- if and (.Values.cloud).charging (.Values.cloud).charging.enabled (ne ((.Values.cloud).mode | default "included") "metered") }}
+{{- fail "cloud.charging.enabled charges months of cloud running, which only exists when cloud.mode is metered. Set cloud.mode: metered, or leave charging off." }}
+{{- end }}

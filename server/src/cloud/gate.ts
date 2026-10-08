@@ -1,13 +1,16 @@
 import {
   chargeCents,
+  chargeForParts,
   type CloudRates,
   type CloudUsage,
+  NO_USAGE,
 } from "../../../shared/cloud-pricing";
 import type { RunLocation } from "../agents/profile-types";
 import type { CloudConfig } from "../config";
+import { billableFor } from "./billable";
 import { periodOf } from "./intervals";
 import type { CloudMeter } from "./meter";
-import type { CloudStore } from "./store";
+import { type CloudStore, ratesChangedFor } from "./store";
 
 /**
  * Whether a run may use the cloud, and what a person is shown about it.
@@ -26,7 +29,13 @@ export type CloudDecision =
   | { ok: true }
   | {
       ok: false;
-      code: "off" | "on_device" | "no_rates" | "not_enabled" | "cap_reached";
+      code:
+        | "off"
+        | "on_device"
+        | "no_rates"
+        | "not_enabled"
+        | "rates_changed"
+        | "cap_reached";
       reason: string;
     };
 
@@ -40,6 +49,11 @@ export type CloudStatus = {
   priced: boolean;
   rates: CloudRates | null;
   enabled: boolean;
+  /**
+   * The person agreed to prices that staff have since changed. What they already used is priced at
+   * what they agreed to; nothing new runs in the cloud until they agree to the new ones.
+   */
+  ratesChanged: boolean;
   monthlyCapCents: number;
   defaultCapCents: number;
   period: string;
@@ -72,17 +86,44 @@ export function createCloudGate(deps: {
   const now = deps.now ?? (() => new Date());
   const addOn = hosted && config.mode === "metered";
 
+  /**
+   * What this month costs the account so far: what they agreed to, for the time after they agreed.
+   * Where it is not an add-on there is no agreement and nothing is charged, but the time is still
+   * counted so that a company can see what the cloud costs.
+   */
+  async function monthSoFar(
+    tenantId: string,
+    account: Awaited<ReturnType<CloudStore["account"]>>,
+    rates: CloudRates | null,
+  ): Promise<{ usage: CloudUsage; chargeCents: number }> {
+    const period = periodOf(now());
+    if (!addOn) {
+      const usage = await meter.usageFor(tenantId, period);
+      return { usage, chargeCents: rates ? chargeCents(usage, rates) : 0 };
+    }
+    // An add-on that was never agreed to has nothing chargeable, whatever was recorded before.
+    if (account.agreements.length === 0) {
+      return { usage: { ...NO_USAGE }, chargeCents: 0 };
+    }
+    const billable = await billableFor(meter, tenantId, period, account);
+    return {
+      usage: billable.usage,
+      chargeCents: chargeForParts(
+        billable.parts,
+        0,
+        billable.closing ?? undefined,
+      ),
+    };
+  }
+
   async function status(tenantId: string): Promise<CloudStatus> {
     const [rates, account] = await Promise.all([
       store.rates(),
       store.account(tenantId),
     ]);
-    // What is held against the limit starts when the person agreed to the prices, not before.
-    const usage = await meter.usageFor(tenantId, periodOf(now()), {
-      ...(addOn && account.consentedAt ? { since: account.consentedAt } : {}),
-    });
+    const month = await monthSoFar(tenantId, account, rates);
     const cap = account.monthlyCapCents ?? config.defaultCapCents;
-    const charge = rates ? chargeCents(usage, rates) : 0;
+    const charge = month.chargeCents;
     return {
       mode: config.mode,
       hosted,
@@ -90,11 +131,12 @@ export function createCloudGate(deps: {
       priced: rates !== null,
       rates,
       enabled: account.enabled,
+      ratesChanged: addOn && ratesChangedFor(account, rates),
       monthlyCapCents: cap,
       defaultCapCents: config.defaultCapCents,
       period: periodOf(now()),
-      usage,
-      hours: usage.computeSeconds / 3600,
+      usage: month.usage,
+      hours: month.usage.computeSeconds / 3600,
       chargeSoFarCents: charge,
       nearCap: addOn && cap > 0 && charge >= cap * 0.8,
       atCap: addOn && charge >= cap,
@@ -142,13 +184,15 @@ export function createCloudGate(deps: {
           reason: `Running in Ark's cloud is an add-on, priced at what it costs. [See the prices and switch it on](${planPath}), or run this digital employee on your own computer.`,
         };
       }
+      if (ratesChangedFor(account, rates)) {
+        return {
+          ok: false,
+          code: "rates_changed",
+          reason: `The prices for running in Ark's cloud changed, so this was not started. [See the new prices and agree to them](${planPath}), or run this digital employee on your own computer.`,
+        };
+      }
       const cap = account.monthlyCapCents ?? config.defaultCapCents;
-      const charge = chargeCents(
-        await meter.usageFor(tenantId, periodOf(now()), {
-          ...(account.consentedAt ? { since: account.consentedAt } : {}),
-        }),
-        rates,
-      );
+      const charge = (await monthSoFar(tenantId, account, rates)).chargeCents;
       if (charge >= cap) {
         return {
           ok: false,

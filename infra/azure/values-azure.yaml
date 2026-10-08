@@ -62,6 +62,12 @@ config:
       value: pri_REPLACE
     - name: PADDLE_PRICE_ENTERPRISE
       value: pri_REPLACE
+    # Add this when cloud running is switched to `metered` (see `cloud:` below): the product a month of
+    # it is charged under, printed by server/scripts/paddle-setup.ts. Left out until then on purpose,
+    # so a placeholder that was never replaced cannot stop the server starting.
+    #
+    # - name: PADDLE_PRODUCT_CLOUD
+    #   value: pro_xxxxxxxxxxxxxxxxxxxxxxxxxx
     - name: PADDLE_API_KEY
       valueFrom:
         secretKeyRef:
@@ -122,9 +128,21 @@ server:
 routines:
   enabled: true
 
-# One browser for every bot, run by this chart. A browser each (the cloud runtime) is Phase 4.
+# One browser for every bot, run by this chart. A browser each (the cloud runtime) needs the
+# agent-sandbox controller on the cluster; see docs/ark/17-cloud-runtime.md.
 computers:
   mode: shared
+
+# Running in Ark's cloud is an add-on customers pay for at cost. It stays `included` (nothing asked,
+# nothing charged) until real cost has been measured and staff have set the prices in Admin, Cloud
+# costs; then set `metered` and turn charging on. The steps are in docs/ark/17-cloud-runtime.md.
+#
+# Charging also needs PADDLE_PRODUCT_CLOUD (the product `paddle-setup` prints) in `config.extraEnv`
+# above, and the same Paddle key the server holds.
+cloud:
+  mode: included
+  charging:
+    enabled: false
 
 # Fence the pods in. The database is on the private network the default rules cut out, so it is named:
 # the subnet is `databaseSubnetPrefix` from the deployment, and the ingress controller's namespace is

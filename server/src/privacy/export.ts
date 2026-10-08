@@ -141,6 +141,7 @@ export function exportPerson(
           monthlyLimitCents: cloudAccounts.monthlyCapCents,
           agreedAt: cloudAccounts.consentedAt,
           agreedToPrices: cloudAccounts.consentedRates,
+          earlierAgreements: cloudAccounts.agreementHistory,
         })
         .from(cloudAccounts)
         .where(eq(cloudAccounts.tenantId, tenantId))
@@ -155,6 +156,7 @@ export function exportPerson(
             chargedCents: cloudCharges.amountCents,
             usage: cloudCharges.usage,
             prices: cloudCharges.rates,
+            parts: cloudCharges.parts,
           })
           .from(cloudCharges)
           .where(eq(cloudCharges.tenantId, tenantId))

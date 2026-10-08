@@ -104,12 +104,22 @@ Still to do in this phase:
 - [ ] Per-owner skill names (known cross-customer name clash, 09).
 - [ ] A fair queue order, if load ever needs one.
 
-### Phase 4. Bot runtime: device or Ark cloud (L)
-- Local: the existing desktop stack runs the bot on the user's machine.
-- Cloud: reuse the supervisor and bot-computer containers on our infrastructure, one per active
-  bot, with usage metering (compute hours, storage, network).
-- Add-on billing priced at 100% of measured cost (D5). Needs real cost data first.
-- Per-bot choice of where it runs, and moving a bot between the two.
+### Phase 4. Bot runtime: device or Ark cloud (L): built 2026-10-08, not yet run on real infrastructure
+See 17-cloud-runtime.md.
+- [x] Per-coworker choice of where it runs (Ark's cloud or the person's own computer); one set to its
+      own computer is never run in the cloud behind the person's back.
+- [x] Metering: runs, a coworker's computer being up, and its storage, as intervals; merged so an hour
+      counts once; a crash is a short charge, not an endless one.
+- [x] The add-on: off by default (`ARK_CLOUD_MODE=included`, behaviour unchanged), or `metered`: the
+      customer sees the prices, agrees to them, sets a monthly limit; new runs stop at the limit; a
+      change of prices asks again and old usage stays at the old prices.
+- [x] Priced at cost: `charge = (cost × (1 + margin) + fixed fee) ÷ (1 − fee%)`, margin starting at zero.
+- [x] Charged monthly through Paddle by a CronJob, with a ledger that cannot charge a month twice.
+- [x] Screens: Settings → Plan → Cloud running; the coworker's "Where it runs"; Admin → Cloud costs.
+- [ ] **Measure real cost and set the prices** (needs the cluster running coworkers; procedure in
+      17-cloud-runtime.md section 5).
+- [ ] Run the charge against Paddle's sandbox (12-paddle.md, step 10).
+- [ ] The per-coworker computer on AKS (agent-sandbox controller); egress metering.
 
 ### Phase 5. Marketplace (M): done 2026-10-08
 Built and verified; see 11-marketplace.md.
@@ -171,5 +181,5 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 2. **Next to build, needs nothing from the owner:** a report-only content-security-policy (15, O3), a
    scheduled dependency audit (15, O4). A first deployment to `dev` needs an Azure subscription to
    deploy into.
-3. **Then:** Phase 4 (cloud runtime and metering, needs measured cost) and Phase 6 (desktop
-   re-platform and mobile, needs brand assets and signing certificates).
+3. **Then:** measure the cloud's real cost and set its prices (Phase 4's open items), and Phase 6
+   (desktop re-platform and mobile, needs brand assets and signing certificates).

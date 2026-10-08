@@ -1,0 +1,81 @@
+{{- if and (.Values.cloud).charging (.Values.cloud).charging.enabled }}
+{{- $component := "cloud-charge" -}}
+{{/*
+Charging the cloud running of months that have ended.
+
+A CronJob rather than a timer in the API, for the reason the sweeps beside it are: an interval in the
+server fires in every replica. Charging is the one place that is not merely wasteful but dangerous to
+repeat, so this is belt and braces. The script itself cannot charge a month twice, whatever starts it
+or how often (a row is written before the payment service is asked, and is unique per account and
+month: server/src/cloud/charging.ts), and `concurrencyPolicy: Forbid` keeps two of them from even
+trying at once.
+
+Monthly, early on the second, so the whole of the last month is in the record and nothing is waiting
+on the first. The script looks back three months, which is how a month that was refused (a card that
+failed) is tried again at the next run without anybody scheduling it.
+
+It needs the payment service's key to charge, which it gets the way the server does: from
+`config.extraEnv`, through `openbot.commonEnv`. Nothing here is a second copy of a secret.
+*/}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  {{- /* Fifty-two characters, not sixty-three; see `openbot.cronJobName`. */}}
+  name: {{ include "openbot.cronJobName" (dict "root" . "component" $component) }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" $component) | indent 4 }}
+spec:
+  {{- $schedule := "30 3 2 * *" -}}
+  {{- if not (kindIs "invalid" .Values.cloud.charging.schedule) -}}
+  {{- $schedule = .Values.cloud.charging.schedule -}}
+  {{- end }}
+  # 03:30 UTC on the second. The fallback matches values.yaml, and is only reached on an upgrade that
+  # reuses values from before this key existed.
+  schedule: {{ $schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 6
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      # A retry is safe, which is the point of the ledger: a run that died after asking the payment
+      # service and before writing down the answer leaves a row that is never sent again.
+      backoffLimit: 1
+      {{- /* A ceiling, because `Forbid` turns a hung run into a charge that never happens again. */}}
+      {{- $deadline := 900 -}}
+      {{- if not (kindIs "invalid" .Values.cloud.charging.activeDeadlineSeconds) -}}
+      {{- $deadline = .Values.cloud.charging.activeDeadlineSeconds -}}
+      {{- end }}
+      activeDeadlineSeconds: {{ $deadline }}
+      template:
+        metadata:
+          labels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 12 }}
+            {{- if .Values.postgresql.enabled }}
+            {{ .Release.Name }}-postgresql-client: "true"
+            {{- end }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "openbot.serviceAccountName" . }}
+          {{- /* It reads the database and calls the payment service; it never asks the cluster for anything. */}}
+          automountServiceAccountToken: false
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+          containers:
+            - name: cloud-charge
+              image: {{ include "openbot.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              workingDir: /app/server
+              command: ["/usr/local/bin/bun", "scripts/charge-cloud-usage.ts"]
+              env:
+{{ include "openbot.databaseUrlEnv" . | indent 16 }}
+{{ include "openbot.commonEnv" . | indent 16 }}
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+{{- end }}

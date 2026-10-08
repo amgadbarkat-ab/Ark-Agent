@@ -162,6 +162,19 @@ Most gateways publish a model list, which is the way to check a name before conf
 
 Two things are worth knowing before pointing a deployment at any gateway. Not every catalogue entry accepts tools, and a Bot without tool calling cannot drive its computer; the model list says which do. And `BOT_RESPONSES_API=true` needs an endpoint that implements the Responses API, not only chat completions.
 
+## Running in Ark's cloud
+
+Whether a coworker may run on Ark's computers, and whether that is an add-on a customer pays for. The
+default changes nothing. How it works, how to set the prices from measured cost, and how a month is
+charged are in [ark/17-cloud-runtime.md](ark/17-cloud-runtime.md).
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ARK_CLOUD_MODE` | `included` | `included`: nothing is asked or charged, usage is recorded. `metered`: an opt-in add-on charged monthly at cost (hosted service only). `off`: nobody runs in the cloud. |
+| `ARK_CLOUD_VOLUME_GB` | `0` | The storage each coworker's computer holds, in GB. `0` means storage is not metered. |
+| `ARK_CLOUD_DEFAULT_CAP_EUR` | `20` | The monthly limit offered, in euro, when a customer switches cloud running on. |
+| `PADDLE_PRODUCT_CLOUD` | | The Paddle product a month of cloud running is charged under (`pro_...`). Needed for `metered`. |
+
 ## Voice dictation
 
 Dictation inserts recorded speech into the composer for review before sending. It works with any

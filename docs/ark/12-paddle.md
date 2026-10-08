@@ -115,6 +115,16 @@ the rest of the setup above is by hand.
 9. Make a payment fail (Paddle's failing test card); the account shows "payment did not go through" and
    keeps running; fix the card and it returns to normal.
 
+10. **Only once cloud running is going to be sold** (17-cloud-runtime.md): with `ARK_CLOUD_MODE=metered`,
+    prices set, and a sandbox customer who has switched cloud running on and run a coworker for a few
+    minutes, run `bun server/scripts/charge-cloud-usage.ts --period <the month>` (the month must have
+    ended, so use a past one with usage recorded for the test). Check in Paddle: one charge on the
+    subscription, for the amount the ledger row says, tax added on top, on the customer's invoice.
+    Run it again: nothing is charged twice. Then make the card fail (Paddle's failing test card): the
+    month shows as refused and is tried again at the next run. If Paddle rejects the request, the body
+    in the error (`Paddle 4xx: ...`) says which field; fix `charge` in `server/src/billing/paddle.ts`
+    with a test that reproduces it.
+
 Anything that differs from this list is a bug in the adapter, to be fixed in `server/src/billing/paddle.ts`
 with a test that reproduces the real notice.
 
@@ -127,6 +137,8 @@ with a test that reproduces the real notice.
   suspend an account by hand in the meantime.
 - Prices exist in two places (Paddle, and `shared/plans.ts`). A check that compares them through
   Paddle's price API would stop them drifting apart.
-- The cloud add-on (Phase 4) is a usage charge on top of the plan. How to bill it through Paddle
-  (a one-off charge each period, or usage reporting) is decided when Phase 4 has cost data.
+- The cloud add-on (Phase 4) is a usage charge on top of the plan: once a month, a one-off charge on
+  the customer's subscription under a product of its own ("Ark cloud running", made by
+  `paddle-setup.ts`, id in `PADDLE_PRODUCT_CLOUD`). Paddle's usage-based reporting was not used.
+  Details, and what is unverified, are in 17-cloud-runtime.md.
 - Prefilling the customer's email in Paddle's checkout (it asks for it instead).

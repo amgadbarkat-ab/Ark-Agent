@@ -4,9 +4,11 @@ import {
   type CloudRates,
   checkRates,
   chargeCents,
+  chargeForParts,
   costOf,
   isBelowMinimum,
   NO_USAGE,
+  sameRates,
 } from "./cloud-pricing";
 
 const RATES: CloudRates = {
@@ -98,6 +100,79 @@ describe("the charge", () => {
     expect(isBelowMinimum(120, RATES)).toBe(true);
     expect(isBelowMinimum(500, RATES)).toBe(false);
     expect(isBelowMinimum(0, RATES)).toBe(false);
+  });
+});
+
+describe("a month that straddles a change of prices", () => {
+  const hours = (n: number) => ({
+    computeSeconds: n * 3600,
+    storageByteSeconds: 0,
+    egressBytes: 0,
+  });
+  const DEARER: CloudRates = { ...RATES, computeCentsPerHour: 20 };
+
+  test("one part is exactly the single-agreement charge", () => {
+    expect(chargeForParts([{ usage: hours(7), rates: RATES }])).toBe(
+      chargeCents(hours(7), RATES),
+    );
+    expect(chargeForParts([{ usage: hours(7), rates: RATES }], 130)).toBe(
+      chargeCents(hours(7), RATES, 130),
+    );
+  });
+
+  test("each part is priced at the rates agreed for it, and the fee is paid once", () => {
+    // 3 hours at 10 = 30, 2 hours at 20 = 40: cost 70, then one fee of 5% + 50.
+    expect(
+      chargeForParts([
+        { usage: hours(3), rates: RATES },
+        { usage: hours(2), rates: DEARER },
+      ]),
+    ).toBe(Math.ceil((70 + 50) / 0.95));
+  });
+
+  test("is neither the old prices for everything nor the new prices for everything", () => {
+    const mixed = chargeForParts([
+      { usage: hours(3), rates: RATES },
+      { usage: hours(2), rates: DEARER },
+    ]);
+    expect(mixed).toBeGreaterThan(chargeCents(hours(5), RATES));
+    expect(mixed).toBeLessThan(chargeCents(hours(5), DEARER));
+  });
+
+  test("each part carries the margin it was agreed with", () => {
+    const margin: CloudRates = { ...RATES, marginPercent: 50 };
+    // 30 plain, 2 hours at 10 plus half again = 30, fee on 60.
+    expect(
+      chargeForParts([
+        { usage: hours(3), rates: RATES },
+        { usage: hours(2), rates: margin },
+      ]),
+    ).toBe(Math.ceil((30 + 20 * 1.5 + 50) / 0.95));
+  });
+
+  test("the newest agreement's fee and margin close the month, including on what was carried", () => {
+    const newer: CloudRates = {
+      ...RATES,
+      paymentFeePercent: 10,
+      paymentFeeFixedCents: 30,
+      marginPercent: 20,
+    };
+    expect(
+      chargeForParts([{ usage: hours(3), rates: RATES }], 100, newer),
+    ).toBe(Math.ceil((30 + 100 * 1.2 + 30) / 0.9));
+  });
+
+  test("nothing used and nothing carried is nothing, not the fixed fee", () => {
+    expect(chargeForParts([], 0, RATES)).toBe(0);
+    expect(chargeForParts([{ usage: NO_USAGE, rates: RATES }])).toBe(0);
+    expect(chargeForParts([])).toBe(0);
+  });
+
+  test("prices are the same prices only if every one is", () => {
+    expect(sameRates(RATES, { ...RATES })).toBe(true);
+    for (const key of Object.keys(RATES) as (keyof CloudRates)[]) {
+      expect(sameRates(RATES, { ...RATES, [key]: RATES[key] + 1 })).toBe(false);
+    }
   });
 });
 

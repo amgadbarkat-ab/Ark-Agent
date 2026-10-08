@@ -437,6 +437,22 @@ and in whatever holds the release, which is not where `KEY_ENCRYPTION_KEY` belon
   override whatever `extraEnv` set, which turns the escape hatch into a trap for the one variable
   someone would need it for.
 */}}
+{{- /*
+  Running in Ark's cloud. Written only when the operator chose something, so a deployment that never
+  mentions it gets no variable and the server's own defaults (`included`, no storage metered).
+*/}}
+{{- if (.Values.cloud).mode }}
+- name: ARK_CLOUD_MODE
+  value: {{ .Values.cloud.mode | quote }}
+{{- end }}
+{{- if not (kindIs "invalid" (.Values.cloud).volumeGb) }}
+- name: ARK_CLOUD_VOLUME_GB
+  value: {{ .Values.cloud.volumeGb | quote }}
+{{- end }}
+{{- if not (kindIs "invalid" (.Values.cloud).defaultCapEur) }}
+- name: ARK_CLOUD_DEFAULT_CAP_EUR
+  value: {{ .Values.cloud.defaultCapEur | quote }}
+{{- end }}
 {{- if (.Values.routines).enabled }}
 - name: WORKER_SHARED_SECRET
   valueFrom:

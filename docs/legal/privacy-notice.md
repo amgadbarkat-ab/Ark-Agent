@@ -27,6 +27,7 @@ your apps, and running tasks on a schedule. To do that, we hold what you tell th
 | --- | --- | --- |
 | **Your sign-in details**: your name, email address and profile picture from the account you sign in with (Google, or Microsoft for our staff); when you signed in; your session | To let you in and tell people apart | Contract: providing Ark to you |
 | **Your plan and billing status**: which plan you have, whether it is active, and the identifiers Paddle gives your subscription | To provide and limit the service you bought | Contract |
+| **Cloud running**, if you choose to run your digital employees on our computers: that you switched it on, your monthly limit, the prices you agreed to and when, the months we charged and what for, and a record of when your digital employees ran | To charge you for what you chose to use, at the prices you agreed to, and to keep you to your limit | Contract |
 | **What you create**: your coworkers (names, instructions, settings), skills, routines, preferences | To make Ark behave as you asked | Contract |
 | **Your conversations and files**: what you say to a coworker, what it answers, tool results, and files you attach | To show them back to you and for the coworker to continue the work | Contract |
 | **Voice**: a transcript and length of a voice session you start | To show it back to you. We do not keep the audio. | Contract |

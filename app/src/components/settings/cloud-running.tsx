@@ -172,6 +172,9 @@ function summary(cloud: CloudOverview["cloud"]): string {
   if (!cloud.priced || !cloud.rates) {
     return "Not available yet. For now, run your coworkers on your own computer.";
   }
+  if (cloud.enabled && cloud.ratesChanged) {
+    return "The prices changed. Cloud runs are paused until you agree to the new ones.";
+  }
   if (cloud.enabled) {
     return `On. Up to ${formatEur(cloud.monthlyCapCents)} a month, charged once a month.`;
   }
@@ -280,6 +283,11 @@ function CloudForm({
   const setCap = useMutation(setCloudCapMutationOptions(queryClient));
   const disable = useMutation(disableCloudMutationOptions(queryClient));
   const cents = capCents(typed, limits);
+  /*
+   * Agreeing is needed to switch on, and again when the prices changed under a switch that was on.
+   * What was already used stays priced at what was agreed for it; only new runs wait.
+   */
+  const needsAgreement = !cloud.enabled || cloud.ratesChanged;
   const busy = enable.isPending || setCap.isPending || disable.isPending;
   const failure = (enable.error ?? setCap.error ?? disable.error)?.message;
   const rates = cloud.rates;
@@ -288,7 +296,11 @@ function CloudForm({
     <>
       <DialogHeader>
         <DialogTitle>
-          {cloud.enabled ? "Cloud running" : "Switch on cloud running"}
+          {cloud.enabled
+            ? cloud.ratesChanged
+              ? "The prices changed"
+              : "Cloud running"
+            : "Switch on cloud running"}
         </DialogTitle>
         <DialogDescription>
           You pay what it costs us to run your coworkers for you, and nothing
@@ -332,7 +344,7 @@ function CloudForm({
               {formatEur(limits.minCents)} and {formatEur(limits.maxCents)}.
             </FieldDescription>
           </Field>
-          {cloud.enabled ? null : (
+          {needsAgreement ? (
             <div className="flex items-start gap-2 text-sm">
               <Checkbox
                 checked={agreed}
@@ -346,7 +358,7 @@ function CloudForm({
                 time my coworkers run in Ark's cloud.
               </label>
             </div>
-          )}
+          ) : null}
         </FieldGroup>
         {typed.trim() !== "" && cents === null ? (
           <p className="mt-3 text-destructive text-sm" role="alert">
@@ -365,29 +377,27 @@ function CloudForm({
           Close
         </Button>
         {cloud.enabled ? (
-          <>
-            <Button
-              disabled={busy}
-              onClick={() => disable.mutate(undefined, { onSuccess: onDone })}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {disable.isPending ? "Switching off…" : "Switch off"}
-            </Button>
-            <Button
-              disabled={
-                busy || cents === null || cents === cloud.monthlyCapCents
-              }
-              onClick={() =>
-                cents !== null && setCap.mutate(cents, { onSuccess: onDone })
-              }
-              size="sm"
-              type="button"
-            >
-              {setCap.isPending ? "Saving…" : "Save limit"}
-            </Button>
-          </>
+          <Button
+            disabled={busy}
+            onClick={() => disable.mutate(undefined, { onSuccess: onDone })}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {disable.isPending ? "Switching off…" : "Switch off"}
+          </Button>
+        ) : null}
+        {cloud.enabled && !cloud.ratesChanged ? (
+          <Button
+            disabled={busy || cents === null || cents === cloud.monthlyCapCents}
+            onClick={() =>
+              cents !== null && setCap.mutate(cents, { onSuccess: onDone })
+            }
+            size="sm"
+            type="button"
+          >
+            {setCap.isPending ? "Saving…" : "Save limit"}
+          </Button>
         ) : (
           <Button
             disabled={busy || !rates || !agreed || cents === null}
@@ -402,7 +412,11 @@ function CloudForm({
             size="sm"
             type="button"
           >
-            {enable.isPending ? "Switching on…" : "Switch on"}
+            {enable.isPending
+              ? "Saving…"
+              : cloud.enabled
+                ? "Agree to the new prices"
+                : "Switch on"}
           </Button>
         )}
       </DialogFooter>

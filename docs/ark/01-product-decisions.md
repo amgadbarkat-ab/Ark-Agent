@@ -48,6 +48,8 @@ allowance.
 - In Ark's cloud (optional add-on). It is metered and priced so the extra charge covers **100% of
   Ark's cost** for that usage (compute, storage, network, payment fees and tax handling). Any margin
   on top is a separate business decision. We need real cost data before setting prices.
+  *Built (Phase 4, 17-cloud-runtime.md): metered, opt-in with the prices shown and a monthly limit,
+  charged monthly through Paddle. No prices are set yet; they come from measured cost.*
 
 **D6. LLM providers.** Local and free providers are the default, so a user pays Ark and nothing
 else. Users may connect their own provider by signing in or with their own key, and switch at any
@@ -70,7 +72,8 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 ## Open questions
 
-1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set.
+1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set. The mechanism
+   is built; the procedure for setting the prices from cost is in 17-cloud-runtime.md.
 2. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
    digital goods are sold. Check current terms before choosing how mobile users pay.
 

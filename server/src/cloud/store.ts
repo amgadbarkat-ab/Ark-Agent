@@ -1,5 +1,10 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
-import type { CloudRates, CloudUsage } from "../../../shared/cloud-pricing";
+import {
+  type AgreementSegment,
+  type CloudRates,
+  type CloudUsage,
+  sameRates,
+} from "../../../shared/cloud-pricing";
 import type { Database } from "../db/client";
 import { cloudAccounts, cloudCharges, cloudRates, tenants } from "../db/schema";
 
@@ -25,12 +30,38 @@ export class CloudRatesChanged extends Error {
   }
 }
 
+/** One set of prices a person agreed to, and the stretch of time it applied. Open while it is current. */
+export type Agreement = {
+  from: Date;
+  /** Null for the agreement in force now. */
+  until: Date | null;
+  rates: CloudRates;
+};
+
 export type CloudAccount = {
   enabled: boolean;
   monthlyCapCents: number | null;
   consentedAt: Date | null;
   consentedRates: CloudRates | null;
+  /** Every agreement, oldest first, the last of them the one in force. Empty if they never agreed. */
+  agreements: Agreement[];
 };
+
+/**
+ * Whether the person agreed to prices that are no longer the prices. They stay agreed to for what was
+ * already used, but nothing new runs in the cloud until they agree to the new ones.
+ */
+export function ratesChangedFor(
+  account: CloudAccount,
+  current: CloudRates | null,
+): boolean {
+  return (
+    account.enabled &&
+    current !== null &&
+    account.consentedRates !== null &&
+    !sameRates(account.consentedRates, current)
+  );
+}
 
 export type CloudChargeStatus =
   | "charging"
@@ -62,7 +93,12 @@ export type CloudStore = {
   /** `shownRates` are the rates the person saw; they must still be the current ones. */
   enable: (
     tenantId: string,
-    input: { monthlyCapCents: number; shownRates: CloudRates },
+    input: {
+      monthlyCapCents: number;
+      shownRates: CloudRates;
+      /** When the agreement is made, if not now. For tests, which choose their own dates. */
+      at?: Date;
+    },
   ) => Promise<void>;
   setCap: (tenantId: string, monthlyCapCents: number) => Promise<void>;
   disable: (tenantId: string) => Promise<void>;
@@ -76,15 +112,12 @@ export type CloudStore = {
   tenantNames: (tenantIds: string[]) => Promise<Map<string, string>>;
 };
 
-const same = (a: CloudRates, b: CloudRates) =>
-  (Object.keys(a) as (keyof CloudRates)[]).every((key) => a[key] === b[key]) &&
-  Object.keys(a).length === Object.keys(b).length;
-
 const NOTHING: CloudAccount = {
   enabled: false,
   monthlyCapCents: null,
   consentedAt: null,
   consentedRates: null,
+  agreements: [],
 };
 
 export function createCloudStore(database: Database): CloudStore {
@@ -104,11 +137,24 @@ export function createCloudStore(database: Database): CloudStore {
       .where(eq(cloudAccounts.tenantId, tenantId))
       .limit(1);
     if (!row) return NOTHING;
+    const agreements: Agreement[] = row.agreementHistory.map((segment) => ({
+      from: new Date(segment.from),
+      until: new Date(segment.until),
+      rates: segment.rates,
+    }));
+    if (row.consentedAt && row.consentedRates) {
+      agreements.push({
+        from: row.consentedAt,
+        until: null,
+        rates: row.consentedRates,
+      });
+    }
     return {
       enabled: row.enabled,
       monthlyCapCents: row.monthlyCapCents,
       consentedAt: row.consentedAt,
       consentedRates: row.consentedRates,
+      agreements,
     };
   }
 
@@ -127,22 +173,40 @@ export function createCloudStore(database: Database): CloudStore {
 
     account,
 
-    async enable(tenantId, { monthlyCapCents, shownRates }) {
+    async enable(tenantId, { monthlyCapCents, shownRates, at }) {
       const rates = await current();
       if (!rates) throw new CloudRatesNotSet();
-      if (!same(rates, shownRates)) throw new CloudRatesChanged();
-      const now = new Date();
+      if (!sameRates(rates, shownRates)) throw new CloudRatesChanged();
+      const now = at ?? new Date();
+      const before = await account(tenantId);
       /*
        * Agreeing again to prices already agreed to is not a new agreement. Moving the date forward
        * would quietly drop whatever was used since the first one (a run still going when it was
        * switched off and on again) from what the person is charged, and from the limit they set.
+       *
+       * Agreeing to DIFFERENT prices is. The agreement being replaced is closed at this moment and
+       * kept, so that what was used under it is still priced at what was agreed for it, and the new
+       * one starts now.
        */
-      const before = await account(tenantId);
       const sameAgreement =
         before.consentedAt !== null &&
         before.consentedRates !== null &&
-        same(before.consentedRates, rates);
+        sameRates(before.consentedRates, rates);
       const consentedAt = sameAgreement ? (before.consentedAt as Date) : now;
+      const closed: AgreementSegment[] = before.agreements
+        .filter((agreement) => agreement.until !== null)
+        .map((agreement) => ({
+          from: agreement.from.toISOString(),
+          until: (agreement.until as Date).toISOString(),
+          rates: agreement.rates,
+        }));
+      if (!sameAgreement && before.consentedAt && before.consentedRates) {
+        closed.push({
+          from: before.consentedAt.toISOString(),
+          until: now.toISOString(),
+          rates: before.consentedRates,
+        });
+      }
       await database
         .insert(cloudAccounts)
         .values({
@@ -151,6 +215,7 @@ export function createCloudStore(database: Database): CloudStore {
           monthlyCapCents,
           consentedAt,
           consentedRates: rates,
+          agreementHistory: closed,
         })
         .onConflictDoUpdate({
           target: cloudAccounts.tenantId,
@@ -159,6 +224,7 @@ export function createCloudStore(database: Database): CloudStore {
             monthlyCapCents,
             consentedAt,
             consentedRates: rates,
+            agreementHistory: closed,
             updatedAt: now,
           },
         });

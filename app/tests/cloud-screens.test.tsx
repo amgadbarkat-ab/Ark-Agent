@@ -83,6 +83,7 @@ function cloud(
       priced: true,
       rates: RATES,
       enabled: false,
+      ratesChanged: false,
       monthlyCapCents: 2000,
       defaultCapCents: 2000,
       period: "2026-10",
@@ -328,6 +329,45 @@ test("when it is on, it shows the month so far against the limit, and the months
     screen.getByText(/Being confirmed with the payment service/),
   ).toBeTruthy();
   expect(screen.getByText(/added to the next month/)).toBeTruthy();
+});
+
+test("when the prices changed under a switch that is on, it says runs are paused and asks for the new agreement", async () => {
+  const calls: Call[] = [];
+  const newer = { ...RATES, computeCentsPerHour: 90 };
+  serve(
+    { current: cloud({ enabled: true, ratesChanged: true, rates: newer }) },
+    { calls },
+  );
+  const screen = renderPlan();
+  const user = userEvent.setup({ document });
+  expect(
+    await screen.findByText(
+      /The prices changed\. Cloud runs are paused/,
+      {},
+      SLOW,
+    ),
+  ).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: /Run in Ark's cloud/ }));
+  const dialog = await screen.findByRole("dialog");
+  // The new prices are what is shown, and they have to be agreed to; the limit cannot be saved
+  // around them.
+  expect(within(dialog).getByText("€0.90")).toBeTruthy();
+  expect(
+    within(dialog).queryByRole("button", { name: "Save limit" }),
+  ).toBeNull();
+  const agree = within(dialog).getByRole("button", {
+    name: "Agree to the new prices",
+  });
+  expect((agree as HTMLButtonElement).disabled).toBe(true);
+  await user.click(within(dialog).getByRole("checkbox"));
+  await user.click(agree);
+  await waitFor(() =>
+    expect(
+      calls.find((call) => call.url.endsWith("/cloud/enable")),
+    ).toMatchObject({
+      body: { monthlyCapCents: 2000, shownRates: newer },
+    }),
+  );
 });
 
 test("at the limit it says that no more cloud runs will start", async () => {
