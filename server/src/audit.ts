@@ -359,6 +359,12 @@ export const auditEventTypes = [
   "session.signed_in",
   "session.refused",
   "person.admin_by_configuration",
+  /**
+   * An address named in `INITIAL_ADMIN_EMAILS` signed in through something that cannot vouch for it
+   * (a multi-tenant Microsoft directory, where the address is whatever that tenant's administrator
+   * wrote), so the configuration did not make it an administrator. See auth/provider-trust.ts.
+   */
+  "person.admin_withheld",
   /*
    * A company's own identity provider, added or taken away.
    *

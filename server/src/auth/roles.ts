@@ -86,6 +86,13 @@ export async function applyConfiguredAdmin(
   database: Database,
   userId: string,
   initialAdminEmails: readonly string[],
+  /**
+   * Whether this person arrived through something that can vouch for their address. Absent means
+   * every sign-in can, which is what a deployment with a single company directory has always meant.
+   * Given, a person it says no to is not promoted, because the address that matched the list was
+   * not theirs to claim (see provider-trust.ts).
+   */
+  canVouchFor?: (userId: string) => Promise<boolean>,
 ): Promise<boolean> {
   // Nothing configured cannot promote anybody, so there is no reason to read the user back.
   if (initialAdminEmails.length === 0) return false;
@@ -101,6 +108,7 @@ export async function applyConfiguredAdmin(
   if (!user) return false;
 
   if (!isConfiguredAdmin(user.email, initialAdminEmails)) return false;
+  if (canVouchFor && !(await canVouchFor(userId))) return false;
 
   const [already] = await database
     .select({ role: userRoles.role })

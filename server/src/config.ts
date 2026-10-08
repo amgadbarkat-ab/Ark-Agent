@@ -673,7 +673,7 @@ const MULTI_TENANT_AUDIENCES = new Set([
   "consumers",
 ]);
 
-function namesNoDirectory(tenantId: string | undefined): boolean {
+export function namesNoDirectory(tenantId: string | undefined): boolean {
   return (
     tenantId !== undefined &&
     MULTI_TENANT_AUDIENCES.has(tenantId.trim().toLowerCase())
@@ -796,6 +796,27 @@ function authConfig(
   ) {
     console.warn(
       "MICROSOFT_OAUTH_TENANT_ID is unset, so it is `common` and any Microsoft account may sign in, including personal ones, and SIGNIN_ALLOWED_EMAIL_DOMAINS names no domain either. Set your directory GUID, or name the domains you admit.",
+    );
+  }
+
+  /*
+   * An administrator has to arrive through something that can vouch for their address.
+   *
+   * The role is granted by address, and a multi-tenant Microsoft sign-in takes the address from a
+   * claim the signing-in tenant's own administrator writes: anybody can make a directory and put
+   * `ceo@yourcompany.com` in it. So such a sign-in is never given the administrator role, however the
+   * list reads (see auth/provider-trust.ts). A deployment whose only providers are of that kind could
+   * therefore never have an administrator at all, which is worth saying while it is being started and
+   * not when somebody first finds the admin screens missing.
+   */
+  if (
+    isProduction(environment) &&
+    !google &&
+    !okta &&
+    (!microsoft || namesNoDirectory(microsoft.tenantId))
+  ) {
+    console.warn(
+      "No identity provider here can vouch for an address: Microsoft is multi-tenant (MICROSOFT_OAUTH_TENANT_ID is `common`, `organizations` or `consumers`) and neither Google nor Okta is configured. Nobody named in INITIAL_ADMIN_EMAILS will be made an administrator by signing in this way. Set your directory GUID as MICROSOFT_OAUTH_TENANT_ID, or register your own directory as an identity provider.",
     );
   }
 

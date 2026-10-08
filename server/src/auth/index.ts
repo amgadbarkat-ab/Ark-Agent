@@ -18,7 +18,13 @@ import {
 } from "../db/schema";
 import { DOMAIN_REFUSAL_MESSAGE, emailDomainAllowed } from "./email-domain";
 import { encryptSsoConfig } from "./encrypt-sso-config";
-import { applyConfiguredAdmin, seedRole } from "./roles";
+import { createProviderTrust } from "./provider-trust";
+import {
+  applyConfiguredAdmin,
+  isConfiguredAdmin,
+  seedRole,
+  setRole,
+} from "./roles";
 
 /**
  * Write a row about a sign-in, and never let the writing of it stop one.
@@ -151,6 +157,7 @@ export function createAuth(
    * They converge again at the browser: `signIn.social({ provider })` starts all three, so the
    * sign-in screen has one code path and does not need to know which kind each provider is.
    */
+  const trust = createProviderTrust(database, authConfig);
   const plugins = [
     electron({ clientID: "openbot-desktop", codeExpiresIn: 120 }),
     ...(authConfig.okta
@@ -231,6 +238,16 @@ export function createAuth(
        * accounts of everybody who has already signed in.
        */
       encryptOAuthTokens: true,
+      /*
+       * One provider, one person; never merged by address.
+       *
+       * Linking attaches a second way of signing in to an existing account when the addresses match.
+       * That is only safe when the address means the same person on both ends, and for a multi-tenant
+       * directory it does not (see provider-trust.ts): somebody could register an address first and
+       * be inside the account when its owner arrives by another route. Off, the owner is told to use
+       * the way they signed in before, which is a message and not a takeover.
+       */
+      accountLinking: { enabled: false },
     },
     plugins,
     socialProviders: {
@@ -299,12 +316,12 @@ export function createAuth(
              * deployment mid-migration has the same person arriving through Entra one week and
              * Okta the next, and they are the same person to this list.
              */
-            await seedRole(
-              database,
-              user.id,
-              user.email,
-              authConfig.initialAdminEmails,
-            );
+            /*
+             * An ordinary person, always. The configured list is applied when the session is made,
+             * a moment later, because only then is there a record of which provider vouched for the
+             * address, and the list must not grant the role to an address nobody vouched for.
+             */
+            await setRole(database, user.id, "user");
           },
         },
       },
@@ -373,6 +390,7 @@ export function createAuth(
               database,
               session.userId,
               authConfig.initialAdminEmails,
+              trust.canVouchFor,
             );
 
             const [user] = await database
@@ -380,6 +398,30 @@ export function createAuth(
               .from(users)
               .where(eq(users.id, session.userId))
               .limit(1);
+
+            /*
+             * The refusal, on the trail. An address the list names signed in through something that
+             * cannot vouch for it. It is either a person on the wrong provider, or somebody
+             * borrowing an address, and the two look the same from here, so it is written down.
+             */
+            if (
+              user &&
+              isConfiguredAdmin(user.email, authConfig.initialAdminEmails) &&
+              !promoted &&
+              !(await trust.canVouchFor(session.userId))
+            ) {
+              await record(auditStore, {
+                eventType: "person.admin_withheld",
+                targetType: "person",
+                targetId: session.userId,
+                actorUserId: session.userId,
+                payload: {
+                  email: user.email,
+                  reason:
+                    "this address is named in INITIAL_ADMIN_EMAILS but this sign-in cannot vouch for it",
+                },
+              });
+            }
 
             /*
              * The promotion, on the trail.

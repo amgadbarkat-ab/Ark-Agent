@@ -432,6 +432,77 @@ describe("deployment configuration", () => {
     );
   });
 
+  /*
+   * An administrator has to arrive through something that can vouch for their address, and a
+   * deployment whose only provider is a multi-tenant Microsoft one has nothing that can. Said at
+   * start-up, because otherwise it is found when nobody can see the admin screens.
+   */
+  describe("administrators and providers that cannot vouch for an address", () => {
+    const microsoft = {
+      MICROSOFT_OAUTH_CLIENT_ID: "entra-client-id",
+      MICROSOFT_OAUTH_CLIENT_SECRET: "entra-client-secret",
+    };
+    const warnings = (environment: Record<string, string>) => {
+      const consoleWarn = spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        loadConfig({
+          ...withoutSignIn,
+          ...SESSION,
+          ...environment,
+          NODE_ENV: "production",
+          KEY_ENCRYPTION_KEY: productionEnvironment.KEY_ENCRYPTION_KEY,
+        });
+        return consoleWarn.mock.calls.map((call) => String(call[0]));
+      } finally {
+        consoleWarn.mockRestore();
+      }
+    };
+    const said = (list: string[]) =>
+      list.some((line) => line.includes("can vouch for an address"));
+
+    test("warns when Microsoft is multi-tenant and nothing else is configured", () => {
+      expect(said(warnings(microsoft))).toBe(true);
+      expect(
+        said(
+          warnings({
+            ...microsoft,
+            MICROSOFT_OAUTH_TENANT_ID: "organizations",
+          }),
+        ),
+      ).toBe(true);
+    });
+
+    test("is quiet when Microsoft names a directory, or Google or Okta is there", () => {
+      expect(
+        said(
+          warnings({
+            ...microsoft,
+            MICROSOFT_OAUTH_TENANT_ID: "8f2c1e40-0000-0000-0000-000000000000",
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        said(
+          warnings({
+            ...microsoft,
+            GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+            GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        said(
+          warnings({
+            ...microsoft,
+            OKTA_OAUTH_CLIENT_ID: "okta-client-id",
+            OKTA_OAUTH_CLIENT_SECRET: "okta-client-secret",
+            OKTA_OAUTH_ISSUER: "https://example.okta.com/oauth2/default",
+          }),
+        ),
+      ).toBe(false);
+    });
+  });
+
   test("enables Okta against its issuer", () => {
     const config = loadConfig({
       ...withoutSignIn,
