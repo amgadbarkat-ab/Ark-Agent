@@ -25,12 +25,28 @@ contained.
 Run the unmodified stack once to confirm it works and to have something to compare against. Needs
 the Anthropic key. Uses the temporary Intelligence key, then we drop it in Phase 1.
 
-### Phase 1. Independence from CopilotKit (L)
-- Implement our own thread and memory store behind the same interface the server already uses:
-  Postgres for the cloud, SQLite for the local desktop stack.
-- Remove the `INTELLIGENCE_*` requirements, the licence verifier, and the sign-in step.
-- Remove CopilotKit and OpenBot names, logos and links from user-facing text.
-- Add our NOTICE file and run the dependency licence scan.
+### Phase 1. Independence from CopilotKit (L) — in progress
+Approach, decided after reading the SDK: build **Ark Hub** (`hub/`), a self-hosted service that
+speaks the protocol the SDK already uses, so the app and server run unchanged and only point at the
+hub. The protocol is defined by the MIT SDK's own client code, so no proprietary code is copied.
+
+Done:
+- [x] Hub: threads, event log, run locks, join tokens, REST API, Phoenix gateway (`hub/`, 32 tests,
+      including the real SDK client, runner and browser client driving it).
+- [x] Whole app verified end to end against the hub with no CopilotKit service: send a message in
+      the UI, the answer streams back, reload in a fresh browser and the conversation is restored.
+
+Still to do in this phase:
+- [ ] Start, stop and package the hub with the rest of the stack (`scripts/start.sh`,
+      `docker-compose.yml`, `Dockerfile`, Helm chart) and make it the default in `.env.example`.
+- [ ] Remove every phone-home found in the audit: SDK telemetry to `telemetry.copilotkit.ai`
+      (set `COPILOTKIT_TELEMETRY_DISABLED`, then enforce it in code), the inspector widget's
+      `cdn.copilotkit.ai` calls, and Google Fonts (self-host the fonts).
+- [ ] Drop the licence-token and "Intelligence is required" wording from config and docs; rename
+      the settings to hub names.
+- [ ] Automated test that the whole stack runs with `*.copilotkit.ai` unreachable.
+- [ ] Compact long conversations on replay; Postgres `LISTEN/NOTIFY` bus for several hub processes.
+- [ ] Remove CopilotKit and OpenBot names and links from user-facing text (with the brand work).
 - Exit test: the whole app starts and works with no network access to any CopilotKit host.
 
 ### Phase 2. Provider layer (M)
