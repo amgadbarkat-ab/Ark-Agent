@@ -1,5 +1,6 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
+import { createLimiter } from "../rate-limit";
 import {
   checkConnectionInput,
   LOCAL_MODELS,
@@ -43,25 +44,6 @@ const probeBody = z.strictObject({
   baseUrl: address.optional(),
   apiKey: key.nullish(),
 });
-
-/** A fixed window per person: enough to try a few providers, little enough to be no scanner. */
-function createLimiter(limit: number, windowMs: number) {
-  const seen = new Map<string, { count: number; resetAt: number }>();
-  return (who: string, now = Date.now()) => {
-    const entry = seen.get(who);
-    if (!entry || entry.resetAt <= now) {
-      seen.set(who, { count: 1, resetAt: now + windowMs });
-      if (seen.size > 10_000) {
-        for (const [name, value] of seen) {
-          if (value.resetAt <= now) seen.delete(name);
-        }
-      }
-      return true;
-    }
-    entry.count += 1;
-    return entry.count <= limit;
-  };
-}
 
 const LOCAL_ON_HOSTED =
   "This server cannot reach models on your own computer. Use the Ark desktop app for local models, or choose a hosted provider.";

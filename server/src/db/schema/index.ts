@@ -4,6 +4,7 @@ export * from "./components";
 export * from "./computer";
 export * from "./core";
 export * from "./coworker";
+export * from "./marketplace";
 export * from "./models";
 export * from "./plugins";
 export * from "./tenants";

@@ -442,6 +442,18 @@ export const auditEventTypes = [
   "account.resumed",
   /** The customer changed their own plan or cancelled, through the billing provider. */
   "account.subscription_changed",
+  /** Somebody put a coworker of theirs forward as a shared listing, or changed one. */
+  "marketplace.listing_submitted",
+  /** A shared listing was withdrawn by the person who shared it. */
+  "marketplace.listing_withdrawn",
+  /** Staff approved a listing, so everyone can now read it. */
+  "marketplace.listing_approved",
+  "marketplace.listing_rejected",
+  /** Staff took a listing down, whether after a report or on their own. */
+  "marketplace.listing_removed",
+  "marketplace.listing_installed",
+  "marketplace.report_filed",
+  "marketplace.report_dismissed",
 ] as const;
 
 export type AuditEventType = (typeof auditEventTypes)[number];

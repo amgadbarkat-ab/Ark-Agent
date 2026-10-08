@@ -112,6 +112,7 @@ import type { BillingProvider } from "./billing/provider";
 import { createBillingWebhook } from "./billing/webhook";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
+import { createMarketplaceStore } from "./marketplace/store";
 import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
@@ -217,6 +218,13 @@ const agentProfileStore = createAgentProfileStore(
   agentVault,
   accountStore,
 );
+// Ark's own digital employees, written to the database on every start so the catalogue in code is the
+// catalogue on screen.
+const marketplaceStore = createMarketplaceStore(database, {
+  accounts: accountStore,
+  profiles: agentProfileStore,
+});
+await marketplaceStore.syncOfficial();
 // Read here rather than beside the synchronise below, because the package names the deployment and
 // the channel store needs that name before it can mint a thread id.
 const tenantPackage = await loadTenantPackage(config.tenantPackageDirectory);
@@ -1407,6 +1415,7 @@ const app = createApp(
       providers: new Map([[billing.id, billing]]),
     }),
   },
+  marketplaceStore,
 );
 
 /**

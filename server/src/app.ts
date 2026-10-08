@@ -90,6 +90,12 @@ import type { UserPreferencesStore } from "./user-preferences";
 import { withAccountProvisioning } from "./accounts/provisioning";
 import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
 import type { AccountStore } from "./accounts/store";
+import {
+  adminMarketplaceRoutes,
+  type MarketplaceAudit,
+  marketplaceRoutes,
+} from "./marketplace/routes";
+import type { MarketplaceStore } from "./marketplace/store";
 import { manualBilling } from "./billing/manual";
 import type { BillingProvider } from "./billing/provider";
 import { sandboxCheckoutRoutes } from "./billing/sandbox-routes";
@@ -357,6 +363,11 @@ export function createApp(
     billing?: BillingProvider;
     webhook?: BillingWebhook;
   },
+  /**
+   * The marketplace. Appended last, for the positional reason above. Absent leaves `/api/marketplace`
+   * unmounted, which is what every deployment did before.
+   */
+  marketplace?: MarketplaceStore,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -605,6 +616,27 @@ export function createApp(
           : context.json({ error: outcome.error }, outcome.status);
       });
     }
+  }
+
+  if (marketplace) {
+    const audit: MarketplaceAudit = async (event) => {
+      if (!auditStore) return;
+      await recordAuditEvent(auditStore, {
+        eventType: event.eventType,
+        targetType: "marketplace",
+        targetId: event.targetId,
+        actorUserId: event.actorUserId,
+        payload: event.payload,
+      }).catch(() => undefined);
+    };
+    app.route(
+      "/api/marketplace",
+      marketplaceRoutes({ requireUser, market: marketplace, audit }),
+    );
+    app.route(
+      "/api/admin/marketplace",
+      adminMarketplaceRoutes({ requireUser, market: marketplace, audit }),
+    );
   }
 
   app.get("/api/me", requireUser, async (context) =>
