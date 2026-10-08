@@ -42,9 +42,12 @@ Still to do in this phase:
 - [x] Phone-home removed: SDK telemetry is forced off in code, the SDK inspector widget (which
       called `cdn.copilotkit.ai` and loaded Google Fonts) is off. A browser audit now shows no
       outside hosts.
-- [ ] Package the hub into the one-container image (`Dockerfile`, `docker/s6`), the compose file
-      and the Helm chart. Not started: image builds cannot run in the current sandbox (its proxy
-      breaks TLS inside containers), and the hosting target is not chosen yet.
+- [x] The hub is packaged for hosting: its own image (`hub/Dockerfile`), a Helm chart section that
+      runs it with its own ingress, network policy and secrets (`hub.enabled`), and the application
+      image's workspace copy fixed so the lockfile still installs. **Not built into an image here**
+      (Docker Hub's rate limit blocks builds in the sandbox); the first `az acr build` is the first
+      real build (13-azure-hosting.md). Still not done: the one-container image (`docker/s6`) and the
+      compose file do not run the hub; hosting does not need them.
 - [ ] Drop the licence-token and "Intelligence is required" wording from config and docs; rename
       the settings to hub names.
 - [ ] Automated test that the whole stack runs with `*.copilotkit.ai` unreachable.
@@ -93,8 +96,10 @@ Done:
 - [x] Settings > Plan, Admin > Accounts, and the sign-up gate; verified in a real browser.
 
 Still to do in this phase:
-- [ ] Choose the payment provider (open question 2; recommendation in 09) and write its adapter,
-      invoices and VAT.
+- [x] Payment provider chosen: **Paddle**, a merchant of record that collects VAT and sends invoices.
+      Adapter, webhook, plan change, cancel, billing portal and the Plan screen are built and tested
+      against a fake Paddle (12-paddle.md). **Still to do by the owner:** the sandbox run in that
+      file, before live keys go in.
 - [ ] Per-owner skill names (known cross-customer name clash, 09).
 - [ ] A fair queue order, if load ever needs one.
 
@@ -117,10 +122,36 @@ Built and verified; see 11-marketplace.md.
 - Evaluate Tauri 2's mobile support against a native or React Native client before committing.
 - Mobile store subscription rules to be settled first (open question 6).
 
-### Phase 7. Production hosting and hardening (M)
-- Pick the hosting target and deploy with the Helm charts; backups, monitoring, secrets.
-- Replace single-user mode with real sign-in (Microsoft Entra ID for staff), real encryption keys.
-- Security review, penetration test, data-protection documents (GDPR).
+### Phase 7. Production hosting and hardening (M) — built, not yet deployed
+Hosting target confirmed: Microsoft Azure, with Microsoft Entra ID for staff sign-in (D9).
+
+Done:
+- [x] **Sign-in trust** (the critical finding): the administrator role only goes to a person who
+      arrived through a sign-in that can vouch for the address; implicit account linking is off
+      (15-security-review.md F1, F2).
+- [x] **Azure infrastructure as code** (`infra/azure`): network, private PostgreSQL Flexible Server,
+      AKS with Entra-only sign-in and workload identity, registry, Key Vault, monitoring and alerts,
+      a monthly budget; two sizes (`dev`, `prod`); compiles with no warnings.
+- [x] **Secrets** in Key Vault, read by the cluster through External Secrets; a bootstrap script that
+      generates what can be generated and never prints a secret.
+- [x] **Deploy pipeline** (`.github/workflows/ark-deploy.yml`): manual, no stored secret, builds in
+      Azure's registry, upgrades the chart atomically, checks health.
+- [x] **GDPR**: a person can download everything held about them and delete their account (Settings →
+      Your data); staff can do both for somebody who wrote to us; erasure is ordered so a failure
+      leaves the person untouched (14-data-protection.md).
+- [x] **Browser protections** on every response; **dependency patches** (67 → 32 reported
+      vulnerabilities, none critical).
+- [x] **Documents**: the runbook with restore drill and rotation table (13), the data map,
+      sub-processors, rights and breach procedure (14), the security review (15).
+
+Still to do:
+- [ ] **A first real deployment to `dev`**, which will find the small things a schema check cannot.
+- [ ] The restore drill, and each alert fired once (13, "Before customers").
+- [ ] **Key rotation for the data encryption key** (15, O1) and an **independent penetration test**
+      (15, O2): both before the first paying customer.
+- [ ] A content-security-policy, image scanning, scheduled dependency audit (15, O4–O6).
+- [ ] Legal items only the owner can supply: privacy notice, data processing agreement, the
+      sub-processors' agreements (14, "Before the first customer").
 
 ## Order and dependencies
 
@@ -130,7 +161,11 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 
 ## Immediate next steps
 
-1. The remaining open questions in 01-product-decisions.md (cloud price list, payments and tax,
-   mobile store rules, OpenAI approval) do not block Phase 1.
-2. Anthropic API key, then Phase 0 baseline run.
-3. Start Phase 1.
+1. **Owner:** run the Paddle sandbox checklist (12-paddle.md); create the Entra staff application, the
+   Google client, the Paddle products and the DNS names (infra/azure/README.md); supply the legal
+   documents (14-data-protection.md).
+2. **Next to build, needs nothing from the owner:** rotation for the data encryption key (15, O1), a
+   report-only content-security-policy (15, O4), a scheduled dependency audit (15, O5). A first
+   deployment to `dev` needs an Azure subscription to deploy into.
+3. **Then:** Phase 4 (cloud runtime and metering, needs measured cost) and Phase 6 (desktop
+   re-platform and mobile, needs brand assets and signing certificates).
