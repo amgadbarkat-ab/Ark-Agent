@@ -25,9 +25,12 @@ import type { Sql } from "./db";
  *
  * LOSS. NOTIFY is not delivered to a connection that is not listening. If this process's connection is
  * lost and comes back, whatever was said in between is gone, and so is nothing that matters: every
- * event is also in the event log, and the gateway answers a gap by replaying the log to its open
- * conversations (`onResync`). What cannot be replayed is a stop request or a thread-list update sent
- * in the gap, which is at worst a stop that has to be pressed again and a list that refreshes on the
+ * event is also in the event log. The gateway answers a gap in two ways. Each stored event names its
+ * predecessor (`prev`), so a socket that is told of an event whose predecessor it never sent reads the
+ * log to catch up, in order, before going on; and when this bus reconnects it tells every open
+ * conversation to do the same (`onResync`), which covers the end of a run whose last announcement was
+ * lost and nothing followed. What cannot be replayed is a stop request or a thread-list update sent in
+ * the gap, which is at worst a stop that has to be pressed again and a list that refreshes on the
  * next change.
  *
  * The channel is named for the schema, so two hubs sharing a database in different schemas (the

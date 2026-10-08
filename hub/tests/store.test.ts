@@ -131,6 +131,39 @@ describe("threads", () => {
     expect(all.threads.map((t) => t.id)).toContain("list-p3");
   });
 
+  test("pages through threads created within the same millisecond without skipping one", async () => {
+    // Microseconds apart, which a JavaScript Date cannot hold: a cursor that went through one would
+    // round them all to the same moment and skip the ones between the pages. (The offset is computed
+    // in SQL because the driver would round a timestamp passed as a parameter, too.)
+    for (const [id, micros] of [
+      ["same-ms-1", 100],
+      ["same-ms-2", 200],
+      ["same-ms-3", 300],
+      ["same-ms-4", 400],
+    ] as const) {
+      await database.sql`
+        insert into hub_threads (id, user_id, agent_id, created_at, updated_at)
+        values (
+          ${id}, 'fay', 'a',
+          timestamptz '2026-01-01 00:00:00+00' + ${micros}::int * interval '1 microsecond',
+          timestamptz '2026-01-01 00:00:00+00' + ${micros}::int * interval '1 microsecond'
+        )`;
+    }
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const result = await store.listThreads({
+        userId: "fay",
+        limit: 1,
+        ...(cursor ? { cursor } : {}),
+      });
+      seen.push(...result.threads.map((t) => t.id));
+      if (!result.nextCursor) break;
+      cursor = result.nextCursor;
+    }
+    expect(seen).toEqual(["same-ms-4", "same-ms-3", "same-ms-2", "same-ms-1"]);
+  });
+
   test("lists only the requested agent's threads", async () => {
     await store.createThread({ threadId: "ag-1", userId: "eve", agentId: "x" });
     await store.createThread({ threadId: "ag-2", userId: "eve", agentId: "y" });

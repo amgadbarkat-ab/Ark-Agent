@@ -315,6 +315,46 @@ describe("a runner on one hub and a person on another", () => {
     ]);
   });
 
+  test("an announcement that never arrived is made up from the log before the next one, in order", async () => {
+    const threadId = "scale-missed-1";
+    await viaFirst.createThread({
+      threadId,
+      userId: "ann",
+      agentId: "general",
+    });
+    const view = watchOnSecond(await joinTokenFor(threadId), threadId);
+    await withTimeout(view.joined);
+    await Bun.sleep(100);
+
+    const event = (type: string, extra: Record<string, unknown> = {}) => ({
+      type,
+      ...extra,
+      metadata: { cpki_event_id: `${threadId}-${type}-${extra.delta ?? ""}` },
+    });
+    // The first two are stored but their announcements are lost on the way (never published).
+    await first.hub.store.appendEvents(threadId, "run-1", [
+      event("RUN_STARTED", { threadId, runId: "run-1" }),
+      event("TEXT_MESSAGE_START", { messageId: "m", role: "assistant" }),
+    ]);
+    // The third is stored and announced, as it would be. It names its predecessor, which the
+    // watcher has not seen.
+    const [third] = await first.hub.store.appendEvents(threadId, "run-1", [
+      event("TEXT_MESSAGE_CONTENT", { messageId: "m", delta: "hi" }),
+    ]);
+    first.hub.bus.publish(`thread:${threadId}`, "stored", third);
+
+    const start = Date.now();
+    while (view.events.length < 3 && Date.now() - start < 8000) {
+      await Bun.sleep(20);
+    }
+    view.close();
+    expect(view.events.map((e) => e.type)).toEqual([
+      "RUN_STARTED",
+      "TEXT_MESSAGE_START",
+      "TEXT_MESSAGE_CONTENT",
+    ]);
+  });
+
   test("a stop pressed on one hub reaches the runner on the other", async () => {
     const threadId = "scale-stop-1";
     await viaFirst.createThread({

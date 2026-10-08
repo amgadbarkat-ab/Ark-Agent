@@ -229,12 +229,81 @@ export function createGateway(hub: Hub) {
       lastEventId = event.eventId;
       ws.send(pushFrame(topic, "ag_ui_event", event.payload));
     };
+
+    const baseReplay = {
+      ...(mode === "run" && runId ? { runId } : {}),
+      ...(mode === "connect" && afterEventId ? { afterEventId } : {}),
+    };
+    let syncing = false;
+    let again = false;
+    // Set once the join itself is done, and an `idle` that arrives while catching up later is kept.
+    let joined = false;
+    let idleHeld = false;
+    /**
+     * Brings this socket up to date from the log, in order, then lets live events through again.
+     *
+     * The same thing a join does, and the only way events are ever sent out of the log's order is
+     * avoided: while this runs, live events are held, then sent after the log's, with anything already
+     * sent skipped. Used at the join, when a live event shows one was missed, and when the bus says it
+     * lost its connection.
+     */
+    const catchUp = async (): Promise<number> => {
+      if (syncing) {
+        again = true;
+        return 0;
+      }
+      syncing = true;
+      live = false;
+      let sent = 0;
+      try {
+        do {
+          again = false;
+          const before = lastSeq;
+          const options = lastEventId
+            ? { afterEventId: lastEventId }
+            : baseReplay;
+          for (const event of await store.eventsForReplay(threadId, options)) {
+            send(event);
+          }
+          for (const event of buffered.splice(0)) send(event);
+          if (lastSeq !== before) sent += 1;
+        } while (again);
+      } finally {
+        live = true;
+        syncing = false;
+      }
+      if (idleHeld) {
+        idleHeld = false;
+        ws.send(
+          pushFrame(topic, "stream_idle", {
+            latest_event_id: lastEventId ?? null,
+          }),
+        );
+      }
+      return sent;
+    };
+
     const dispose = bus.subscribe(topic, (event, body) => {
       if (event === "stored") {
-        if (live) send(body as StoredEvent);
-        else buffered.push(body as StoredEvent);
-      } else if (event === "idle" && live) {
-        ws.send(pushFrame(topic, "stream_idle", body));
+        const stored = body as StoredEvent;
+        if (!live) {
+          buffered.push(stored);
+        } else if (
+          // An event whose predecessor is not the last one sent: one was missed, so read the log.
+          stored.prev !== undefined &&
+          stored.seq > lastSeq &&
+          stored.prev !== lastSeq
+        ) {
+          buffered.push(stored);
+          void catchUp().catch((error) => {
+            console.error("hub could not catch a conversation up", error);
+          });
+        } else {
+          send(stored);
+        }
+      } else if (event === "idle") {
+        if (live) ws.send(pushFrame(topic, "stream_idle", body));
+        else if (joined) idleHeld = true;
       }
     });
     ws.data.joins.get(topic)?.dispose();
@@ -245,27 +314,31 @@ export function createGateway(hub: Hub) {
         conversations.delete(join);
       },
       threadId,
-      // Only once the join has caught up: before that, the join itself is reading the log.
+      // The bus lost its connection and got it back: whatever was said in between is in the log.
       resync: async () => {
-        if (!live) return;
-        const missed = await store.eventsForReplay(
-          threadId,
-          lastEventId ? { afterEventId: lastEventId } : {},
-        );
-        for (const event of missed) send(event);
+        if (!live && !syncing) return; // still being joined: the join itself reads the log
+        const sent = await catchUp();
+        // A run that ended while the bus was away leaves nothing to say it ended, so say so.
+        if (sent > 0 && !(await store.activeLock(threadId))) {
+          ws.send(
+            pushFrame(topic, "stream_idle", {
+              latest_event_id: lastEventId ?? null,
+            }),
+          );
+        }
       },
     };
     conversations.add(join);
     ws.data.joins.set(topic, join);
     ws.send(replyFrame(joinRef, ref, topic, "ok", {}));
 
-    const replay = await store.eventsForReplay(threadId, {
-      ...(mode === "run" && runId ? { runId } : {}),
-      ...(mode === "connect" && afterEventId ? { afterEventId } : {}),
-    });
-    for (const event of replay) send(event);
-    for (const event of buffered) send(event);
-    live = true;
+    // Read before the replay, so nothing stored after it is mistaken for old.
+    const tail = await store.latestSeq(threadId);
+    await catchUp();
+    // Nothing was sent: a new conversation, or a cursor at the end. Either way the log is known up to
+    // `tail`, so the next live event has to name that as its predecessor or one was missed.
+    if (lastSeq === 0) lastSeq = tail;
+    joined = true;
 
     const latest =
       (await store.latestEventId(threadId)) ?? afterEventId ?? null;

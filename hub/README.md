@@ -81,7 +81,7 @@ runner and Phoenix browser client against the hub. If the SDK is upgraded, run i
 - **Several hub processes are supported** (`HUB_BUS=postgres`, the default; `src/shared-bus.ts`). Live
   events cross between processes by `LISTEN/NOTIFY` (one extra connection per process); an event too
   big for a notification (8000 bytes) goes through a short-lived table. A lost connection is answered
-  by replaying the event log to every open conversation. What is not replayed is a stop request or a
+  by the conversation sockets themselves: every stored event names its predecessor, so a socket told of an event whose predecessor it never sent reads the log and catches up in order (and does the same for every open conversation when the bus reconnects). What is not replayed is a stop request or a
   thread-list update sent in the gap: at worst a stop that has to be pressed again and a list that
   refreshes on its next change. The processes must share one database and one schema
   (the channel is named for the schema). Tested with two hubs on one database

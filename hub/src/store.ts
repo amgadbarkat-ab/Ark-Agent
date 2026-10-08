@@ -19,6 +19,14 @@ export interface StoredEvent {
   eventId: string;
   runId: string | null;
   payload: Record<string, unknown> & { type?: string };
+  /**
+   * The sequence number of the conversation's event just before this one (0 for the first), set on
+   * an event as it is stored and passed along the live bus. A socket that is sent events as they
+   * happen compares it with the last it sent: if they differ it missed one (the bus can lose an
+   * announcement when a connection drops) and reads the log to catch up before going on. Absent on
+   * events read back from the log, which are in order by construction.
+   */
+  prev?: number;
 }
 
 export interface LockGrant {
@@ -80,8 +88,15 @@ const TERMINAL = new Set(["RUN_FINISHED", "RUN_ERROR"]);
 export const isTerminalEvent = (event: { type?: string }) =>
   TERMINAL.has(event.type ?? "");
 
-const encodeCursor = (at: Date, id: string) =>
-  Buffer.from(JSON.stringify({ at: iso(at), id })).toString("base64url");
+/**
+ * `at` is the sort time to the MICROSECOND, as text from the database. A JavaScript Date holds
+ * milliseconds, and a cursor rounded to the millisecond skips any thread created in the same
+ * millisecond as the last one on the page (the comparison is on the exact value in the database).
+ * It goes back to the database as text and is cast there (`::text::timestamptz`): the driver turns
+ * anything it is told is a timestamp into a Date first, which rounds it again.
+ */
+const encodeCursor = (at: string, id: string) =>
+  Buffer.from(JSON.stringify({ at, id })).toString("base64url");
 
 function decodeCursor(cursor: string): { at: string; id: string } | null {
   try {
@@ -133,14 +148,19 @@ export class HubStore {
   }): Promise<{ threads: ThreadSummary[]; nextCursor: string | null }> {
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
     const after = input.cursor ? decodeCursor(input.cursor) : null;
-    const rows = await this.sql<ThreadRow[]>`
-      select * from hub_threads
+    const rows = await this.sql<(ThreadRow & { cursor_at: string })[]>`
+      select *,
+        to_char(
+          coalesce(last_run_at, created_at) at time zone 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+        ) as cursor_at
+      from hub_threads
       where user_id = ${input.userId}
         and (${input.agentId ?? null}::text is null or agent_id = ${input.agentId ?? null})
         and (${!!input.includeArchived} or not archived)
         and (
           ${after === null}
-          or (coalesce(last_run_at, created_at), id) < (${after?.at ?? null}::timestamptz, ${after?.id ?? null}::text)
+          or (coalesce(last_run_at, created_at), id) < (${after?.at ?? null}::text::timestamptz, ${after?.id ?? null}::text)
         )
       order by coalesce(last_run_at, created_at) desc, id desc
       limit ${limit + 1}`;
@@ -150,7 +170,7 @@ export class HubStore {
       threads: page.map(summarize),
       nextCursor:
         rows.length > limit && last
-          ? encodeCursor(last.last_run_at ?? last.created_at, last.id)
+          ? encodeCursor(last.cursor_at, last.id)
           : null,
     };
   }
@@ -278,6 +298,11 @@ export class HubStore {
   ): Promise<StoredEvent[]> {
     const stored: StoredEvent[] = [];
     await this.sql.begin(async (tx) => {
+      // Appended by one run at a time (the conversation's lock), so nothing else is adding between
+      // this read and the inserts below.
+      const [tail] = await tx<{ seq: string | null }[]>`
+        select max(seq) as seq from hub_events where thread_id = ${threadId}`;
+      let previous = Number(tail?.seq ?? 0);
       for (const payload of events) {
         const metadata = payload.metadata as
           | { cpki_event_id?: unknown }
@@ -292,7 +317,9 @@ export class HubStore {
           on conflict (thread_id, event_id) do nothing
           returning seq`;
         if (rows[0]) {
-          stored.push({ seq: Number(rows[0].seq), eventId, runId, payload });
+          const seq = Number(rows[0].seq);
+          stored.push({ seq, eventId, runId, payload, prev: previous });
+          previous = seq;
         }
       }
       if (stored.length > 0) {
@@ -314,12 +341,24 @@ export class HubStore {
    *   to everything, because replaying too much is safe and replaying too little is not.
    * - neither: the whole conversation.
    */
+  /** The sequence number of the conversation's newest event, or 0 if it has none. */
+  async latestSeq(threadId: string): Promise<number> {
+    const [row] = await this.sql<{ seq: string | null }[]>`
+      select max(seq) as seq from hub_events where thread_id = ${threadId}`;
+    return Number(row?.seq ?? 0);
+  }
+
   async eventsForReplay(
     threadId: string,
-    options: { runId?: string; afterEventId?: string | null } = {},
+    options: {
+      runId?: string;
+      afterEventId?: string | null;
+      /** Only events after this sequence number. Takes the place of `afterEventId` when both are given. */
+      afterSeq?: number;
+    } = {},
   ): Promise<StoredEvent[]> {
-    let afterSeq = 0;
-    if (options.afterEventId) {
+    let afterSeq = options.afterSeq ?? 0;
+    if (options.afterSeq === undefined && options.afterEventId) {
       const cursor = await this.sql<{ seq: string }[]>`
         select seq from hub_events
         where thread_id = ${threadId} and event_id = ${options.afterEventId}`;
