@@ -1,5 +1,5 @@
 /**
- * Draws the OpenBot architecture as a hand-drawn SVG, one file per colour scheme.
+ * Draws the Ark architecture as a hand-drawn SVG, one file per colour scheme.
  *
  * rough.js is the same engine Excalidraw draws with, so the shapes get the wobble of a whiteboard
  * rather than the machine-perfect boxes of a Mermaid render. The seed is fixed, so regenerating
@@ -429,7 +429,7 @@ function render(t: Theme): string {
 
   const intX = 622;
   box(intX, dbY, 226, 118, t, { stroke: t.ink });
-  text(intX + 18, dbY + 32, "CopilotKit Intelligence", {
+  text(intX + 18, dbY + 32, "Ark Hub", {
     size: 14.5,
     weight: 650,
     fill: t.ink,
@@ -437,7 +437,7 @@ function render(t: Theme): string {
   lines(
     intX + 18,
     dbY + 58,
-    ["durable threads", "memory", "external service"],
+    ["durable threads", "memory", "our own service"],
     t,
     12.5,
     19,
@@ -526,13 +526,13 @@ function render(t: Theme): string {
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img">`,
-    `<title>OpenBot architecture</title>`,
+    `<title>Ark architecture</title>`,
     `<desc>A turn goes from the app to the server, which sends it to a Bot over AG-UI. Every tool call ` +
       `the Bot makes returns through the gateway, which resolves the target, decides it against the ` +
       `configured policy, records an audit row, and only then acts, or refuses and names the rule. ` +
       `Allowed actions reach that Bot's own computer, one container each holding its own Chromium, ` +
       `logins and workspace, created by the supervisor. Every decision lands in PostgreSQL; threads ` +
-      `and memory live in CopilotKit Intelligence.</desc>`,
+      `and memory live in Ark Hub, the conversation service.</desc>`,
     ...out,
     `</svg>`,
   ].join("\n");

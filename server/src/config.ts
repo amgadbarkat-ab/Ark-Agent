@@ -1,7 +1,7 @@
 /**
- * What the runtime can do. There is exactly one answer because CopilotKit Intelligence is required
- * for durable threads and memory. Configuration the product cannot function without belongs at the
- * boot boundary.
+ * What the runtime can do. There is exactly one answer because a conversation service (Ark Hub) is
+ * required for durable threads and memory. Configuration the product cannot function without belongs
+ * at the boot boundary.
  */
 import { type CspMode, parseCspMode } from "./csp";
 import { singleUserEnabled } from "./auth/dev-actor";
@@ -22,11 +22,12 @@ export type RuntimeCapabilities = {
 };
 
 /**
- * The Intelligence contract. Three values are required; see runtimeCapabilities.
+ * The conversation-service contract (the names are historical: the SDK the server is built on reads
+ * them). Three values are required; see runtimeCapabilities.
  *
- * `licenseToken` is optional. Managed Intelligence derives entitlement from the project key, and
- * `@copilotkit/runtime` declares `licenseToken` optional with a `COPILOTKIT_LICENSE_TOKEN` fallback
- * of its own. A deployment that still holds one keeps passing it; nothing here requires it.
+ * `licenseToken` is optional and unused with Ark Hub. `@copilotkit/runtime` declares it optional with a
+ * `COPILOTKIT_LICENSE_TOKEN` fallback of its own, and a deployment that still holds one keeps passing
+ * it; nothing here requires it.
  */
 export type IntelligenceSettings = {
   apiUrl: string;
@@ -1011,7 +1012,7 @@ function runtimeCapabilities(environment: Environment): RuntimeCapabilities {
 
   if (missing.length > 0) {
     throw new Error(
-      `CopilotKit Intelligence is required and is not configured. Missing: ${missing.join(", ")}`,
+      `A conversation service is required and is not configured. Missing: ${missing.join(", ")}. Ark runs its own (Ark Hub, in hub/): scripts/hub.sh starts it locally and sets these for you, and the chart's hub.enabled runs it in a cluster.`,
     );
   }
 

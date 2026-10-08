@@ -1,10 +1,10 @@
 # Architecture
 
-OpenBot combines a React app, a Hono API server, PostgreSQL, CopilotKit Intelligence, AG-UI Bot endpoints, and governed browser computers.
+Ark combines a React app, a Hono API server, PostgreSQL, Ark Hub (the conversation service, `hub/`), AG-UI Bot endpoints, and governed browser computers.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../assets/architecture-dark.svg">
-  <img src="../assets/architecture-light.svg" alt="A turn goes from the app to the server, which sends it to a Bot over AG-UI. Every tool call the Bot makes returns through the gateway, which resolves the target, decides it against the configured policy, records an audit row, and only then acts, or refuses and names the rule. Allowed actions reach that Bot's own computer, one container each holding its own Chromium, logins and workspace, created by the supervisor. Every decision lands in PostgreSQL; threads and memory live in CopilotKit Intelligence.">
+  <img src="../assets/architecture-light.svg" alt="A turn goes from the app to the server, which sends it to a Bot over AG-UI. Every tool call the Bot makes returns through the gateway, which resolves the target, decides it against the configured policy, records an audit row, and only then acts, or refuses and names the rule. Allowed actions reach that Bot's own computer, one container each holding its own Chromium, logins and workspace, created by the supervisor. Every decision lands in PostgreSQL; threads and memory live in Ark Hub, the conversation service.">
 </picture>
 
 Regenerate it with `bun run diagram` after changing anything it shows.
@@ -21,7 +21,7 @@ Regenerate it with `bun run diagram` after changing anything it shows.
 | `agent-harness`          | 4202                       | The Bot framework harness chosen during setup, one of the `agent-<framework>` images, behind the `harness` compose profile.                 |
 | `supervisor`             | 4500 host / 4300 container | Creates, stops, resets, and lists per-Bot computer containers.                                                                              |
 | PostgreSQL with pgvector | 5432                       | Product data, audit rows, credentials, policy, grants, channels, and components.                                           |
-| CopilotKit Intelligence  | external                   | Durable threads, memory, and realtime gateway.                                                                                              |
+| Ark Hub (`hub/`)         | our own service            | Durable threads, memory, and realtime gateway. Speaks the protocol the SDK expects, so the server reads it through the historical `INTELLIGENCE_*` settings. |
 
 `scripts/start.sh` starts PostgreSQL, `agent-computer`, `agent-bot`, `agent-langgraph`, and the supervisor through Docker Compose, then starts `server` and `app` on the host.
 
@@ -34,7 +34,7 @@ The compose file also defines optional SPIRE services. `start.sh` does not start
 3. CopilotKit runtime sends the turn to the configured AG-UI endpoint.
 4. The surface registers available frontend tools: browser tools, MCP tools, and components granted to that Bot.
 5. Acting browser/file/MCP calls return to the server for authorization and audit.
-6. The server streams results back to the app and Intelligence thread.
+6. The server streams results back to the app and the conversation thread.
 
 ## Browser action governance
 
@@ -147,7 +147,7 @@ A coworker is a durable Bot profile:
 - `agent_profiles` stores name, title, role, owner, visibility, and deletion state.
 - `agent_preferences` stores per-user roster state.
 
-A channel is a conversation with one coworker and a CopilotKit Intelligence thread mapping. Starting a new channel creates a new thread.
+A channel is a conversation with one coworker and a conversation-service thread mapping. Starting a new channel creates a new thread.
 
 Who may reach one is decided by membership: every channel route resolves the caller in
 `channel_memberships` and refuses without a row. `channels.allowed_groups` is declared in the

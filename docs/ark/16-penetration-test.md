@@ -9,7 +9,7 @@ what it cannot reach.
 The attacks are kept as an automated suite, so they run again on every change:
 
 ```sh
-bun run test:security      # 66 checks, about 20 seconds; needs only the test PostgreSQL
+bun run test:security      # 70 checks, about 20 seconds; needs only the test PostgreSQL
 ```
 
 It is also a job in CI (`.github/workflows/ci.yml`), so a pull request that opens a hole fails.
@@ -73,6 +73,7 @@ Each of these was attacked and the defence held. The number is the checks that k
 | **Browser protections** on every kind of answer (200, 401, 404, a webhook refusal); no `Server` or `X-Powered-By` | Present everywhere. |
 | **No internals in an error**: stack frames, file paths, query text, connection strings | None, in 4 kinds of failure. |
 | **The conversation hub**: its API with no key and 6 wrong spellings of the key; a browser socket with a missing, malformed, wrongly signed, expired or tampered token; a token for one conversation joining another, a path trick, another person's thread list; the runner socket with a guess, the wrong key, a browser's token | 401 at the handshake or "unauthorized" at the join, each time; the right key and the right token do work, so the refusals mean something. |
+| **Phoning home** (added after the test): the server run behind a tripwire for the whole suite; the tripwire's own probe by `fetch`, URL, web socket and name lookup | Nothing reached or tried to reach a CopilotKit host; the probe is refused by all four routes, so the empty record means something. |
 | **Secrets in the repository** | None committed (the only matches are the fake keys in the scanner's own tests); `.env` is ignored by git and by Docker. |
 
 ## What this does not show

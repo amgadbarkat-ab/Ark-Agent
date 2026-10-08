@@ -536,12 +536,12 @@ secrets:
   modelApiKey: ""
   computerToken: ""
   supervisorToken: ""
-  # From the CopilotKit CLI: `npx --yes copilotkit@latest project select` prints the runtime key.
-  # The chart refuses to install without it, because there is no mode where this runs with
-  # Intelligence missing.
+  # The key the server presents to the conversation service named by `config.intelligence.*`, when that
+  # is not Ark Hub (with `hub.enabled`, `hubApiKey` below is used instead). The chart refuses to install
+  # without one or the other, because there is no mode where this runs without a conversation service.
   intelligenceApiKey: ""
-  # Optional. Managed Intelligence issues no licence token; set this only for a self-hosted
-  # Intelligence that has one, and it is passed to the server as COPILOTKIT_LICENSE_TOKEN.
+  # Optional and unused with Ark Hub. Forwarded to the runtime as COPILOTKIT_LICENSE_TOKEN for a
+  # conversation service that issues one.
   licenseToken: ""
   # Ark Hub (`hub.enabled`). The API key is what the API and the runs present to it; the join secret
   # signs the short-lived tokens a browser opens its live connection with; the database URL is its

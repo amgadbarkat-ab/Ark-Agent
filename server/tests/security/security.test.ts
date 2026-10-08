@@ -1715,3 +1715,47 @@ run("the content-security-policy and its report door", () => {
     );
   });
 });
+
+/**
+ * LAST ON PURPOSE. The tripwire (tripwire.ts) has been in front of the server's network for every
+ * request the suite above made, signed in as customers and staff, with webhooks, uploads, the
+ * runtime and the gateway all driven. What it recorded is what this asks about.
+ */
+run("nothing phones home", () => {
+  test("in a whole run of the suite the server never tried to reach a CopilotKit host", async () => {
+    expect(await target.tripwire()).toEqual([]);
+  });
+
+  test("and the tripwire itself works: a process behind it is refused the host, by every route", async () => {
+    const probe = Bun.spawnSync(
+      [
+        "bun",
+        "--no-env-file",
+        "--preload",
+        `${import.meta.dir}/tripwire.ts`,
+        "-e",
+        `
+        const out = [];
+        const attempt = async (name, run) => { try { await run(); out.push(name + ":reached"); } catch (e) { out.push(name + ":" + (String(e).includes("tripwire") ? "refused" : "other")); } };
+        await attempt("fetch", () => fetch("https://telemetry.copilotkit.ai/ingest", { method: "POST" }));
+        await attempt("fetch-url", () => fetch(new URL("https://cdn.copilotkit.ai/announcements.json")));
+        await attempt("websocket", async () => new WebSocket("wss://api.cloud.copilotkit.ai/socket"));
+        await attempt("dns", () => new Promise((resolve, reject) => require("node:dns").lookup("intelligence.copilotkit.ai", (e) => e ? reject(e) : resolve())));
+        console.log(out.join(" "));
+        `,
+      ],
+      {
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: process.env.HOME ?? "",
+          ARK_TRIPWIRE_LOG: "/dev/null",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    expect(new TextDecoder().decode(probe.stdout).trim()).toBe(
+      "fetch:refused fetch-url:refused websocket:refused dns:refused",
+    );
+  });
+});

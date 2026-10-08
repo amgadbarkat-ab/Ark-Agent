@@ -66,6 +66,8 @@ export type Target = {
       headers?: Record<string, string>;
     },
   ) => Promise<{ status: number; headers: Headers; text: string }>;
+  /** What the server tried to reach that it must never reach (CopilotKit's hosts), one per line. */
+  tripwire: () => Promise<string[]>;
   stop: () => Promise<void>;
 };
 
@@ -183,14 +185,24 @@ export async function startTarget(
     `ark-routes-${randomUUID().slice(0, 8)}.json`,
   );
   const logFile = join("/tmp", `ark-server-${randomUUID().slice(0, 8)}.log`);
+  // Where the tripwire (tripwire.ts) writes any attempt to reach a CopilotKit host.
+  const tripwireFile = join(
+    "/tmp",
+    `ark-tripwire-${randomUUID().slice(0, 8)}.log`,
+  );
   const url = `http://localhost:${port}`;
   const server = Bun.spawn(
-    ["sh", "-c", `exec bun --no-env-file src/index.ts > ${logFile} 2>&1`],
+    [
+      "sh",
+      "-c",
+      `exec bun --no-env-file --preload ${join(import.meta.dir, "tripwire.ts")} src/index.ts > ${logFile} 2>&1`,
+    ],
     {
       cwd: SERVER_DIR,
       env: {
         ...environment,
         ARK_DUMP_ROUTES: routesFile,
+        ARK_TRIPWIRE_LOG: tripwireFile,
         PORT: String(port),
         SERVER_PORT: String(port),
         NODE_ENV: "development",
@@ -296,6 +308,12 @@ export async function startTarget(
     database,
     call,
     makePerson: async (name) => withCookie(await person(name)),
+    tripwire: async () => {
+      const file = Bun.file(tripwireFile);
+      return (await file.exists())
+        ? (await file.text()).split("\n").filter(Boolean)
+        : [];
+    },
     stop: async () => {
       server.kill();
       await server.exited;

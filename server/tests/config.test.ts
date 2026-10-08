@@ -113,7 +113,7 @@ describe("deployment configuration", () => {
     delete environment[name];
 
     expect(() => loadConfig(environment)).toThrow(
-      `CopilotKit Intelligence is required and is not configured. Missing: ${name}`,
+      `A conversation service is required and is not configured. Missing: ${name}`,
     );
   });
 
@@ -156,7 +156,7 @@ describe("deployment configuration", () => {
         MANAGED_AGENT_AG_UI_URL: baseEnvironment.MANAGED_AGENT_AG_UI_URL,
         MANAGED_AGENT_TOKEN: baseEnvironment.MANAGED_AGENT_TOKEN,
       }),
-    ).toThrow("CopilotKit Intelligence is required and is not configured");
+    ).toThrow("A conversation service is required and is not configured");
   });
 
   test("rejects incomplete OAuth client configuration", () => {

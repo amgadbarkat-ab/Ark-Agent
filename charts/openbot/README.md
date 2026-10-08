@@ -38,18 +38,12 @@ rolled (see `hub:` in `values.yaml` for why). `ci/aks-values.yaml` is the worked
 The rest of this section applies only when the conversation service runs somewhere else
 (`hub.enabled: false`, `config.intelligence.*`):
 
-**Intelligence credentials.** The chart then refuses to
-install without `secrets.intelligenceApiKey`. It comes from the CLI, on any machine with a browser:
-
-```sh
-npx --yes copilotkit@latest login           # browser sign-in
-npx --yes copilotkit@latest project select  # prints the cpk-... runtime key
-```
-
-That key is the only Intelligence credential a managed install needs; the free plan is enough.
-`secrets.licenseToken` is optional and exists for a self-hosted Intelligence that issues its own
-licence. `npx --yes copilotkit@latest license --print` prints one without writing it to a local
-`.env`, which is what you want for something you are about to paste into a Secret.
+**The conversation service's key.** The chart then refuses to install without
+`secrets.intelligenceApiKey`, the key the server presents to the service you point `config.intelligence.*`
+at. If that is a CopilotKit-hosted Intelligence project, the key comes from its CLI; if it is any other
+service that speaks the same protocol, it is whatever that service issues. Ark does not need either: it
+runs its own (`hub.enabled`, above), which is the supported way. `secrets.licenseToken` is optional and
+only forwarded to the runtime, for a service that issues one.
 
 **A default StorageClass**, or a named one. Both a Bot's computer and the bundled database ask for
 a volume, and a fresh cluster often has no class marked default. See

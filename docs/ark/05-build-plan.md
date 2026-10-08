@@ -48,9 +48,17 @@ Still to do in this phase:
       (Docker Hub's rate limit blocks builds in the sandbox); the first `az acr build` is the first
       real build (13-azure-hosting.md). Still not done: the one-container image (`docker/s6`) and the
       compose file do not run the hub; hosting does not need them.
-- [ ] Drop the licence-token and "Intelligence is required" wording from config and docs; rename
-      the settings to hub names.
-- [ ] Automated test that the whole stack runs with `*.copilotkit.ai` unreachable.
+- [x] The licence-token and "Intelligence is required" wording is gone from the configuration docs,
+      the chart values, the start-up error and the architecture diagram. The `INTELLIGENCE_*`
+      setting names stay, because the SDK the server is built on reads them (said where they are
+      documented). Remaining upstream wording is in OpenBot's own docs that Ark does not use (the
+      README and `docs/` pages that describe the original product), left for the brand work.
+- [x] Automated check that the stack runs with `*.copilotkit.ai` unreachable: the security suite
+      starts the real server behind a tripwire (`server/tests/security/tripwire.ts`) that refuses and
+      records any `fetch`, web socket, socket or name lookup to a CopilotKit host, drives the whole
+      suite through it, and fails if anything was recorded. `scripts/csp-walk.mjs` does the same for
+      the browser (21 screens: no host but the deployment's own). Not covered: the desktop app, and the
+      hub process (its own code makes no outside calls; nothing checks that by machine).
 - [ ] Compact long conversations on replay; Postgres `LISTEN/NOTIFY` bus for several hub processes.
 - [x] Desktop usage telemetry to CopilotKit removed (frontend, native emitter, server relay), with a
       test that the window reports nothing.

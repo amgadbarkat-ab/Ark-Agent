@@ -45,7 +45,7 @@ Ordered by what to do first. **O1's remaining part (the bots' computers, a live 
 ### O1. Penetration test: done internally, not independently — Medium
 
 An internal test was carried out and is written up in [16-penetration-test.md](16-penetration-test.md):
-66 attacks on the running server and the conversation hub (56 when it was written; ten more were added with the cloud-running routes), kept as a suite that runs in CI. It found
+70 attacks on the running server and the conversation hub (56 when it was written; fourteen more were added with the cloud-running routes, the content policy and the phone-home tripwire), kept as a suite that runs in CI. It found
 seven things (P1 to P7), all fixed. It is the same team testing its own work, so it is not independent,
 and it could not reach the bots' computers, a live run with a model attached, real sign-in providers or the
 deployed Azure estate (the report lists these). The owner asked engineering to do all the testing; whether

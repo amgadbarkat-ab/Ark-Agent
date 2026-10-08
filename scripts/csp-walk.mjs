@@ -63,6 +63,11 @@ const adminScreens = [
   "/admin/plugins",
 ];
 const POLICY = /Content.Security.Policy|\[Report Only\]|Refused to/i;
+// Every host the pages asked for that is not the deployment itself (or a page-local data/blob
+// address). Anything listed is the app talking to somebody else; for Ark that should be nothing at all
+// on these screens, and above all never a CopilotKit host.
+const outside = new Map();
+const own = new URL(url).host;
 
 async function walk(who, header, screens) {
   const [name, ...rest] = header.split("=");
@@ -75,6 +80,15 @@ async function walk(who, header, screens) {
   const seen = new Map();
   for (const path of screens) {
     const page = await context.newPage();
+    page.on("request", (request) => {
+      try {
+        const u = new URL(request.url());
+        if (!["http:", "https:", "ws:", "wss:"].includes(u.protocol)) return;
+        if (u.host !== own && !outside.has(u.host)) outside.set(u.host, path);
+      } catch {
+        // Not an address.
+      }
+    });
     page.on("console", (message) => {
       const text = message.text().replace(/\s+/g, " ").slice(0, 260);
       if (POLICY.test(text) && !seen.has(text)) seen.set(text, path);
@@ -100,6 +114,11 @@ if (adminCookie) {
   for (const [text, path] of await walk("staff", adminCookie, adminScreens))
     reports.set(text, path);
 }
+console.log(
+  `\noutside hosts the pages contacted: ${outside.size === 0 ? "none" : ""}`,
+);
+for (const [host, path] of outside)
+  console.log(`  ${host}  (first on ${path})`);
 console.log(`\npolicy reports: ${reports.size}`);
 for (const [text, path] of reports) console.log(`[${path}] ${text}`);
 await browser.close();
