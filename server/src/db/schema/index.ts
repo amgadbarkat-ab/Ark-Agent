@@ -6,5 +6,6 @@ export * from "./core";
 export * from "./coworker";
 export * from "./models";
 export * from "./plugins";
+export * from "./tenants";
 export * from "./work";
 export * from "./voice";

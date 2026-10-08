@@ -106,6 +106,9 @@ import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
+import { RunGateAgent } from "./accounts/run-gate";
+import { createRunSlots } from "./accounts/run-slots";
+import { billingModeFrom, createAccountStore } from "./accounts/store";
 import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
@@ -928,6 +931,12 @@ const routineRunner = createRoutineRunner({
  */
 const modelForActor = createModelForActor(modelConnectionStore, agentFetch);
 
+const accountStore = createAccountStore(database, {
+  billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
+});
+const runSlots = createRunSlots(database);
+const runGateOptions = { accounts: accountStore, slots: runSlots };
+
 const copilotRuntime = mountCopilotRuntime(
   config,
   runtimeModel,
@@ -1035,6 +1044,9 @@ const copilotRuntime = mountCopilotRuntime(
   markAttachmentsSentForActor,
   // The model this person chose for themselves, if they chose one. See models/for-actor.ts.
   modelForActor,
+  // The plan's limit on how many Bots work at once. See accounts/run-gate.ts.
+  (actor) => (botId, agent) =>
+    new RunGateAgent(agent, { actorId: actor.id, botId }, runGateOptions),
 );
 
 /**

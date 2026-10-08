@@ -1821,6 +1821,28 @@ export type PersonalModels = {
   forBot: ReadonlyMap<string, ConnectionLanguageModel>;
 };
 
+/**
+ * Puts a plan's limit in front of each Bot a person can run. Built per person, applied per Bot.
+ * Absent means no limit, which is what every deployment did before plans existed.
+ */
+export type RunGateForActor = (
+  actor: AgentActor,
+) => (botId: string, agent: AbstractAgent) => AbstractAgent;
+
+function gated(
+  agents: Record<string, AbstractAgent>,
+  gate: ((botId: string, agent: AbstractAgent) => AbstractAgent) | undefined,
+): Record<string, AbstractAgent> {
+  if (!gate) return agents;
+  return Object.fromEntries(
+    Object.entries(agents).map(([botId, agent]) => [
+      botId,
+      // A Bot that cannot run at all refuses on its own; there is nothing to count.
+      agent instanceof UnavailableAgent ? agent : gate(botId, agent),
+    ]),
+  );
+}
+
 /** The deployment's model with a person's choices laid over it, for the request they made. */
 export function withPersonalModels(
   model: RuntimeModel,
@@ -1925,11 +1947,13 @@ export function createRequestAgents(
    * run did before people could choose.
    */
   modelForActor?: ModelForActor,
+  /** The plan's limit on how many Bots work at once. Appended last. Absent means no limit. */
+  runGateForActor?: RunGateForActor,
 ) {
   return async ({ request }: { request: Request }) => {
     const actor = await identifyActor(request);
     const personal = await modelForActor?.(actor.id);
-    return resolveRuntimeAgents(
+    const agents = await resolveRuntimeAgents(
       () => loadAgents(actor),
       withPersonalModels(model, personal),
       resolveModelApiKey,
@@ -1950,6 +1974,7 @@ export function createRequestAgents(
       loadAttachmentForActor?.(actor.id),
       markAttachmentsSentForActor?.(actor.id),
     );
+    return gated(agents, runGateForActor?.(actor));
   };
 }
 
@@ -2105,6 +2130,12 @@ export function mountCopilotRuntime(
    * their own message would have. Appended last. Absent means the deployment's model.
    */
   modelForActor?: ModelForActor,
+  /**
+   * The plan's limit, applied on this path for the same reason as on the request path: a routine's
+   * turn at three in the morning and a hand-off from another Bot are runs like any other, and a
+   * limit that only a person typing could hit would not be a limit.
+   */
+  runGateForActor?: RunGateForActor,
 ) {
   const { intelligence } = config.runtime;
 
@@ -2154,7 +2185,7 @@ export function mountCopilotRuntime(
       loadAttachmentForActor?.(actor.id),
       markAttachmentsSentForActor?.(actor.id),
     );
-    return agents[input.botId] ?? null;
+    return gated(agents, runGateForActor?.(actor))[input.botId] ?? null;
   };
 
   /*
@@ -2231,6 +2262,7 @@ export function mountCopilotRuntime(
       loadAttachmentForActor,
       markAttachmentsSentForActor,
       modelForActor,
+      runGateForActor,
     ) as never,
   });
 

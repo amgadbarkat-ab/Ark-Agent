@@ -337,6 +337,13 @@
       "when": 1791463428835,
       "tag": "0047_bot_model_choices",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791464394971,
+      "tag": "0048_tenants_and_plans",
+      "breakpoints": true
     }
   ]
 }
