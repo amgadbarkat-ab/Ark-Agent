@@ -590,8 +590,9 @@ describe("the thread list", () => {
     const seen: Array<{ operation: string; threadId: string }> = [];
     view.channel.on(
       "thread_metadata",
-      (p: { operation: string; threadId: string }) =>
-        seen.push({ operation: p.operation, threadId: p.threadId }),
+      (p: { operation: string; threadId: string }) => {
+        seen.push({ operation: p.operation, threadId: p.threadId });
+      },
     );
 
     await intelligence.createThread({
