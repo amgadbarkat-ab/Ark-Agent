@@ -29,12 +29,13 @@ setting and goes in the file where somebody can read it.
 pub fn is_secret(key: &str) -> bool {
     matches!(
         key,
-        // Somebody's own credentials, pasted or signed in for.
+        // Somebody's own credentials, pasted.
         "INTELLIGENCE_API_KEY"
             | "OPENAI_API_KEY"
             | "ANTHROPIC_API_KEY"
+            // Retired chat-plan credentials (see `retired_plan`), and still classed as secrets so
+            // one found on a machine that ran an older version is never written into the file.
             | "CLAUDE_CODE_OAUTH_TOKEN"
-            // Retired, and still swept up: a machine that ran an older version has one of these.
             | "CHATGPT_OAUTH_TOKEN"
             // Generated here, and no less a credential for it. These are what the services prove
             // themselves to each other with, and what a Bot's computer is driven with.

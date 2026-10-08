@@ -70,17 +70,6 @@ struct Shell {
         Mutex<Option<openbot_desktop_lib::intelligence::SigningInToIntelligence>>,
     /// The credential that sign-in produced, held so a project can be chosen with it.
     intelligence_credential: Mutex<Option<String>>,
-    /// A ChatGPT sign-in waiting for the browser redirect to complete it.
-    ///
-    /// Held for the same reason the Claude one is: a person leaves and comes back in the middle.
-    /// Unlike that one, nothing is typed here — the callback finishes it.
-    signing_in_to_chatgpt: Mutex<Option<openbot_desktop_lib::plan::SigningInToChatGpt>>,
-    /// A plan sign-in waiting for the code from the browser.
-    ///
-    /// Held across two commands because a person has to leave and approve in the middle of it, and
-    /// the flow that showed the URL is the only one that can redeem the code: each start mints its
-    /// own PKCE challenge and state, so a second start invalidates the first.
-    signing_in: Mutex<Option<openbot_desktop_lib::plan::SigningIn>>,
     /// The configured setup destination, resolved using Tauri's build mode and platform.
     /// WebView2's current URL can still be about:blank during startup; it is never a setup source.
     setup_url: Mutex<Option<String>>,
@@ -215,8 +204,6 @@ struct SavedModelApiKeys {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SavedModelSessions {
-    openai: Option<bool>,
-    anthropic: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     google: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -507,12 +494,6 @@ async fn prepare_installation(
             .and_then(|picked| picked.installed_port())
             .is_some();
         let mut images = stack::installation_images(&address, &root, installed, &settings)?;
-        for published in [
-            openbot_desktop_lib::plan::SIGN_IN_IMAGE,
-            openbot_desktop_lib::plan::CHATGPT_SIGN_IN_IMAGE,
-        ] {
-            images.push(deployment::reference(&root, published)?);
-        }
         images.sort();
         images.dedup();
         for (index, image) in images.iter().enumerate() {
@@ -777,36 +758,6 @@ async fn deployment_ready<R: tauri::Runtime>(
     Ok(())
 }
 
-/// The reference for an image the shell runs directly, rather than through Compose.
-///
-/// Require completed local installation before starting an authentication container.
-fn prepared_sign_in(root: &Path, published: &str) -> Result<(engine::Address, String), Problem> {
-    let status = engine::detect();
-    let address = status
-        .address
-        .filter(|_| status.responding)
-        .ok_or_else(|| preparation::required(status.detail))?
-        .pin()?;
-    preparation::require(root, None, &address)?;
-    let image = sign_in_reference(root, published, deployment::reference)?;
-    preparation::require_images(&address, std::slice::from_ref(&image))?;
-    Ok((address, image))
-}
-
-fn sign_in_reference(
-    root: &Path,
-    published: &str,
-    reference: impl FnOnce(&Path, &str) -> Result<String, String>,
-) -> Result<String, Problem> {
-    reference(root, published).map_err(|error| {
-        Problem::with(
-            "This version of OpenBot cannot sign in to that plan. Use an API key instead, or \
-             update OpenBot.",
-            error,
-        )
-    })
-}
-
 /// What the model screen chose, as the window sends it.
 ///
 /// Deliberately not the same type as `ModelCredential`: this is whatever arrived over the bridge,
@@ -821,8 +772,6 @@ struct ChosenModel {
     base_url: Option<String>,
     container_base_url: Option<String>,
     model: Option<String>,
-    /// Minted by signing in, never typed. Absent for every path but a plan.
-    token: Option<String>,
     /// A saved credential/session indicator chosen in the window. The value is resolved here.
     saved: Option<bool>,
 }
@@ -873,42 +822,6 @@ impl ChosenModel {
                     return Err("That saved Anthropic API key is no longer available.".into());
                 }
                 Ok(openbot_env::ModelCredential::Anthropic { api_key })
-            }
-            ("anthropic", "plan") => {
-                let token = if saved {
-                    saved_secret(root, "CLAUDE_CODE_OAUTH_TOKEN")?
-                } else {
-                    given(self.token)
-                };
-                if token.is_empty() {
-                    // Said rather than written blank. A plan with no token produces a stack that
-                    // comes up and a Bot that cannot answer, which reads as a broken product.
-                    return Err("That Claude plan was not signed in to.".into());
-                }
-                Ok(openbot_env::ModelCredential::ClaudePlan { token })
-            }
-            /*
-             * The sign-in hands back the vendor's whole token store, not one token, and it travels
-             * in the same field the Claude plan uses. See `ModelCredential::ChatGptPlan`: the
-             * refresh token in there is what keeps the Bot answering past the first hour.
-             */
-            ("openai", "plan") => {
-                let store = if saved {
-                    openbot_env::read_plan_store(root)
-                        .map_err(|error| {
-                            Problem::with(
-                                "OpenBot could not read the saved ChatGPT sign-in.",
-                                format!("{}: {error}", root.join(openbot_env::CHATGPT_STORE_FILE).display()),
-                            )
-                        })?
-                        .unwrap_or_default()
-                } else {
-                    given(self.token)
-                };
-                if store.is_empty() {
-                    return Err("That ChatGPT plan was not signed in to.".into());
-                }
-                Ok(openbot_env::ModelCredential::ChatGptPlan { store })
             }
             ("openai-compatible", "endpoint") => {
                 let base_url = given(self.base_url);
@@ -1267,34 +1180,9 @@ async fn start_stack_inner<R: tauri::Runtime>(
     // and reading the model screen twice could not be relied on to give the same answer.
     let credential = start_stack_credential(&root, model)?;
 
-    /*
-     * A PLAN CHOOSES ITS OWN BOT, because only one Bot can spend it.
-     *
-     * Every harness takes any model through a key, so the Bot step and the model step are
-     * independent there. A subscription is not: it buys that vendor's own models through a path
-     * that speaks that vendor's subscription auth, and nothing else. Signing in to a Claude plan
-     * and keeping the default Bot produced a clean start and a Bot whose log said "Missing
-     * credentials. Please pass an `api_key`" — the person had answered both screens correctly and
-     * had no way to know which answer to change.
-     *
-     * Nobody is asked to know this, which is the audience rule. The plan re-points the Bot, and
-     * the window says which Bot it will be while there is still a screen to say it on.
-     */
+    // The Bot step and the model step are independent: every harness takes its model through a key
+    // or an endpoint, so nothing chosen on the model screen re-points the Bot.
     let requested_harness = harness.clone();
-    let harness =
-        match &credential {
-            openbot_env::ModelCredential::ClaudePlan { .. } => harness::speaking_for("anthropic")
-                .map(|id| harness::HarnessChoice {
-                    id: id.into(),
-                    agent_url: None,
-                }),
-            openbot_env::ModelCredential::ChatGptPlan { .. } => harness::speaking_for("openai")
-                .map(|id| harness::HarnessChoice {
-                    id: id.into(),
-                    agent_url: None,
-                }),
-            _ => harness,
-        };
     let picked = harness::picked(harness.as_ref(), &root).map_err(|error| {
         // Two registers, because one of these refusals is about a release and the other is
         // about a pick. "OpenBot v0.0.8 does not include agent-langgraph-agui" is the
@@ -2776,7 +2664,10 @@ fn already_configured<R: tauri::Runtime>(
 fn already_configured_for_root(root: String) -> AlreadyConfigured {
     let root = stack::root_from(&root);
     let env_file = root.join(".env");
-    let mut values = openbot_desktop_lib::vault::already_given_file_only(
+    // Whatever an older version left of a chat-plan sign-in goes now, not at the next Start. This
+    // reads nothing back and changes nothing on a machine that never had one.
+    let _ = openbot_desktop_lib::retired_plan::purge(&root);
+    let values = openbot_desktop_lib::vault::already_given_file_only(
         &env_file,
         &[
             "INTELLIGENCE_API_KEY",
@@ -2796,7 +2687,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
             "OPENAI_BASE_URL",
             "OPENAI_CONTAINER_BASE_URL",
             "BOT_MODEL",
-            "CLAUDE_CODE_OAUTH_TOKEN",
         ],
     );
 
@@ -2805,7 +2695,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
     let hint = |category, file_present| {
         (file_present || intent.categories.contains(&category)).then_some(true)
     };
-    let claude_plan = values.remove("CLAUDE_CODE_OAUTH_TOKEN").is_some();
     AlreadyConfigured {
         launch: preparation::launch(&root),
         installation: preparation::installation(&root),
@@ -2830,11 +2719,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
                     .then_some(true),
             },
             model_sessions: SavedModelSessions {
-                openai: hint(
-                    Category::ChatGptPlan,
-                    openbot_env::saved_chatgpt_plan_store(&root),
-                ),
-                anthropic: hint(Category::ClaudePlan, claude_plan),
                 google: hint(Category::GoogleOauth, false),
                 xai: hint(Category::XaiOauth, false),
             },
@@ -2848,127 +2732,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
 #[tauri::command]
 fn harnesses() -> Vec<harness::Harness> {
     harness::catalogue()
-}
-
-/// Start a Claude plan sign-in and return the address a browser has to open.
-///
-/// Blocking work on a blocking thread: it starts a container and waits on its output, and doing
-/// that on the UI thread is a window that stops repainting mid-setup.
-#[tauri::command]
-async fn begin_claude_sign_in(app: tauri::AppHandle, root: String) -> Result<String, Problem> {
-    let root = stack::root_from(&root);
-    remember_selected_root(&app.state::<Shell>(), &root);
-    /*
-     * The image is decided here, not by the window, and it is the Claude Agent SDK harness whatever
-     * harness the person picked. It is not being used as a Bot: it is the container that happens to
-     * carry Anthropic's bundled CLI, which is what does the OAuth. Letting the screen name an image
-     * would make the sign-in depend on a choice that has nothing to do with it.
-     */
-    #[cfg(target_os = "linux")]
-    let service_app = app.clone();
-    let (signing, url) = tauri::async_runtime::spawn_blocking(move || {
-        let (address, image) = prepared_sign_in(&root, openbot_desktop_lib::plan::SIGN_IN_IMAGE)?;
-        #[cfg(target_os = "linux")]
-        {
-            let shell = service_app.state::<Shell>();
-            let _startup = shell.startup.lock().unwrap();
-            ensure_linux_podman_api(&shell, &address)?;
-        }
-        openbot_desktop_lib::plan::SigningIn::begin(&address, &image).map_err(Problem::from)
-    })
-    .await
-    .map_err(|error| {
-        Problem::with(
-            "The sign-in did not start. Try again.",
-            format!("the sign-in task did not run: {error}"),
-        )
-    })??;
-    *app.state::<Shell>().signing_in.lock().unwrap() = Some(signing);
-
-    /*
-     * Opened here rather than by the window, because the window would need the shell plugin's JS
-     * half for the one call. The URL is returned as well, and the screen shows it: on Linux without
-     * a registered browser, and in a session where the open silently does nothing, a link somebody
-     * can copy is the difference between a stuck screen and a finished sign-in.
-     */
-    let _ = tauri_plugin_opener::OpenerExt::opener(&app).open_url(&url, None::<&str>);
-    Ok(url)
-}
-
-/**
-Redeem the code from the browser and return the plan token.
-
-The token crosses to the window and comes back in the model choice, which is the same path a typed
-key takes. It is never logged, and the failure messages never carry the command's output: see
-`SigningIn::gave_up`.
-*/
-#[tauri::command]
-async fn finish_claude_sign_in(app: tauri::AppHandle, code: String) -> Result<String, String> {
-    // Taken, not borrowed. A sign-in is single-use, and leaving it in place would let a second
-    // attempt write a code into a flow that has already finished.
-    let signing = app
-        .state::<Shell>()
-        .signing_in
-        .lock()
-        .unwrap()
-        .take()
-        .ok_or_else(|| "That sign-in is no longer running. Start it again.".to_string())?;
-    tauri::async_runtime::spawn_blocking(move || signing.finish(&code))
-        .await
-        .map_err(|error| format!("The sign-in did not finish: {error}"))?
-}
-
-/// Start a ChatGPT plan sign-in and return the address a browser has to open.
-#[tauri::command]
-async fn begin_chatgpt_sign_in(
-    app: tauri::AppHandle,
-    root: String,
-) -> Result<String, openbot_desktop_lib::problem::Problem> {
-    let root = stack::root_from(&root);
-    remember_selected_root(&app.state::<Shell>(), &root);
-    #[cfg(target_os = "linux")]
-    let service_app = app.clone();
-    let (signing, url) = tauri::async_runtime::spawn_blocking(move || {
-        let (address, image) =
-            prepared_sign_in(&root, openbot_desktop_lib::plan::CHATGPT_SIGN_IN_IMAGE)?;
-        #[cfg(target_os = "linux")]
-        {
-            let shell = service_app.state::<Shell>();
-            let _startup = shell.startup.lock().unwrap();
-            ensure_linux_podman_api(&shell, &address)?;
-        }
-        openbot_desktop_lib::plan::SigningInToChatGpt::begin(&address, &image)
-    })
-    .await
-    .map_err(|error| {
-        Problem::with(
-            "The sign-in did not start. Try again.",
-            format!("the sign-in task did not run: {error}"),
-        )
-    })??;
-    *app.state::<Shell>().signing_in_to_chatgpt.lock().unwrap() = Some(signing);
-    let _ = tauri_plugin_opener::OpenerExt::opener(&app).open_url(&url, None::<&str>);
-    Ok(url)
-}
-
-/**
-Wait for the ChatGPT redirect to land, and return the plan token.
-
-Nothing is sent: the browser's callback is what finishes it. So this is a wait rather than a
-redemption, which is why there is no code field on that half of the screen.
-*/
-#[tauri::command]
-async fn finish_chatgpt_sign_in(app: tauri::AppHandle) -> Result<String, String> {
-    let signing = app
-        .state::<Shell>()
-        .signing_in_to_chatgpt
-        .lock()
-        .unwrap()
-        .take()
-        .ok_or_else(|| "That sign-in is no longer running. Start it again.".to_string())?;
-    tauri::async_runtime::spawn_blocking(move || signing.finish())
-        .await
-        .map_err(|error| format!("The sign-in did not finish: {error}"))?
 }
 
 /// Start signing in to Intelligence and return the address a browser has to open.
@@ -3599,13 +3362,9 @@ fn main() {
             harnesses,
             providers,
             already_configured,
-            begin_claude_sign_in,
-            finish_claude_sign_in,
-            begin_chatgpt_sign_in,
             begin_model_oauth,
             finish_model_oauth,
             cancel_model_oauth,
-            finish_chatgpt_sign_in,
             begin_intelligence_sign_in,
             finish_intelligence_sign_in,
             intelligence_key_for,
@@ -4298,42 +4057,6 @@ mod tests {
     }
 
     #[test]
-    fn plan_sign_in_boundary_uses_selected_root_for_reference_without_acquisition() {
-        let default = temp_root("signin-default-root");
-        let selected = temp_root("signin-selected-root");
-        std::fs::create_dir_all(&default).unwrap();
-        std::fs::create_dir_all(&selected).unwrap();
-        std::fs::write(default.join("manifest.json"), "poisoned-default").unwrap();
-        let reference_root = std::cell::RefCell::new(None);
-
-        let image = sign_in_reference(
-            &selected,
-            openbot_desktop_lib::plan::CHATGPT_SIGN_IN_IMAGE,
-            |root, published| {
-                *reference_root.borrow_mut() = Some((root.to_path_buf(), published.to_string()));
-                Ok(format!("{}@{}", published, root.display()))
-            },
-        )
-        .unwrap();
-
-        assert_eq!(
-            reference_root.into_inner(),
-            Some((
-                selected.clone(),
-                openbot_desktop_lib::plan::CHATGPT_SIGN_IN_IMAGE.to_string()
-            ))
-        );
-        assert!(image.contains(&selected.to_string_lossy().to_string()));
-        assert!(!image.contains(&default.to_string_lossy().to_string()));
-        assert_eq!(
-            std::fs::read_to_string(default.join("manifest.json")).unwrap(),
-            "poisoned-default"
-        );
-        let _ = std::fs::remove_dir_all(default);
-        let _ = std::fs::remove_dir_all(selected);
-    }
-
-    #[test]
     fn command_roots_trim_paste_padding_and_preserve_interior_spaces() {
         let root = temp_root("openbot-command-root My Files");
         std::fs::create_dir_all(&root).unwrap();
@@ -4401,12 +4124,6 @@ mod tests {
             "INTELLIGENCE_API_KEY=file-cpk\nOPENAI_API_KEY=file-openai\nOPENAI_BASE_URL=https://models.example/v1\n",
         )
         .unwrap();
-        std::fs::create_dir_all(root.join(".langchain")).unwrap();
-        std::fs::write(
-            root.join(openbot_env::CHATGPT_STORE_FILE),
-            "{\"refresh_token\":\"stored\"}\n",
-        )
-        .unwrap();
 
         let configured = already_configured_for_root(root.to_string_lossy().into_owned());
 
@@ -4420,13 +4137,13 @@ mod tests {
         );
         assert_eq!(configured.saved.intelligence_api_key, Some(true));
         assert_eq!(configured.saved.model_api_keys.openai, Some(true));
-        assert_eq!(configured.saved.model_sessions.openai, Some(true));
-        assert_eq!(configured.saved.model_sessions.anthropic, None);
+        assert_eq!(configured.saved.model_sessions.google, None);
+        assert_eq!(configured.saved.model_sessions.xai, None);
         let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
-    fn already_configured_reports_legacy_anthropic_plan_without_returning_token() {
+    fn already_configured_never_returns_or_reports_a_legacy_claude_plan_token() {
         let root = temp_root("openbot-already-configured-anthropic-session");
         std::fs::create_dir_all(&root).unwrap();
 
@@ -4437,8 +4154,11 @@ mod tests {
         .unwrap();
         let configured = already_configured_for_root(root.to_string_lossy().into_owned());
 
-        assert_eq!(configured.saved.model_sessions.anthropic, Some(true));
         assert!(!configured.values.contains_key("CLAUDE_CODE_OAUTH_TOKEN"));
+        assert!(!serde_json::to_string(&configured)
+            .unwrap()
+            .contains("synthetic-legacy-plan"));
+        assert_eq!(configured.saved.model, None);
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -4490,7 +4210,7 @@ mod tests {
             }
             let unknown = already_configured_for_root(root.to_string_lossy().into_owned());
             assert_eq!(unknown.saved.intelligence_api_key, None);
-            assert_eq!(unknown.saved.model_sessions.anthropic, None);
+            assert_eq!(unknown.saved.model_sessions.google, None);
         }
         std::fs::write(
             root.join(openbot_desktop_lib::saved_intent::FILE),
@@ -4499,16 +4219,16 @@ mod tests {
         .unwrap();
         let recorded = already_configured_for_root(root.to_string_lossy().into_owned());
         assert_eq!(recorded.saved.intelligence_api_key, Some(true));
-        assert_eq!(recorded.saved.model_sessions.anthropic, Some(true));
+        // A plan an older version recorded is not offered again.
+        assert_eq!(recorded.saved.model, None);
         assert_eq!(recorded.saved.model_api_keys.anthropic, None);
-        assert_eq!(recorded.saved.model_sessions.openai, None);
         assert!(recorded.values.is_empty());
         let fresh = already_configured_for_root(
             temp_root("different-public-root")
                 .to_string_lossy()
                 .into_owned(),
         );
-        assert_eq!(fresh.saved.model_sessions.anthropic, None);
+        assert_eq!(fresh.saved.model_sessions.google, None);
         std::fs::write(
             root.join(".env"),
             "ANTHROPIC_API_KEY=synthetic-legacy-anthropic\n",
@@ -4525,7 +4245,6 @@ mod tests {
         for (provider, login, expected) in [
             ("openai", "api-key", "OPENAI_API_KEY"),
             ("anthropic", "api-key", "ANTHROPIC_API_KEY"),
-            ("anthropic", "plan", "CLAUDE_CODE_OAUTH_TOKEN"),
         ] {
             for denied in [false, true] {
                 let mut calls = Vec::new();
@@ -4536,7 +4255,6 @@ mod tests {
                     base_url: None,
                     container_base_url: None,
                     model: None,
-                    token: None,
                     saved: Some(true),
                 };
                 let result = start_stack_credential_with(&root, choice, |_, key| {
@@ -4573,28 +4291,25 @@ mod tests {
                 Some(openbot_desktop_lib::problem::Connection::Intelligence)
             );
         }
-        // A missing or unreadable ChatGPT file is an action error; no API-key resolver is called.
-        std::fs::create_dir_all(&root).unwrap();
-        for unreadable in [false, true] {
-            if unreadable {
-                std::fs::create_dir_all(root.join(openbot_env::CHATGPT_STORE_FILE)).unwrap();
-            }
+        // A chat-plan sign-in is not a way in. It is refused by name, and no resolver is asked for
+        // anything, so a window that still offers one cannot make this side spend a stored key.
+        for provider in ["openai", "anthropic"] {
             let choice = ChosenModel {
-                provider: "openai".into(),
+                provider: provider.into(),
                 login: "plan".into(),
                 api_key: Some("synthetic-unselected-key".into()),
                 base_url: None,
                 container_base_url: None,
                 model: None,
-                token: None,
                 saved: Some(true),
             };
-            assert!(start_stack_credential_with(&root, choice, |_, _| panic!(
-                "plan must not fall back to an API key"
-            ))
-            .is_err());
+            let problem = start_stack_credential_with(&root, choice, |_, _| {
+                panic!("a plan must not resolve any stored key")
+            })
+            .expect_err("a chat plan is not accepted");
+            assert!(problem.said.contains("cannot be connected by plan"));
         }
-        std::fs::remove_dir_all(root).unwrap();
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
@@ -4612,7 +4327,6 @@ mod tests {
                 base_url: None,
                 container_base_url: None,
                 model: Some("chosen-model".into()),
-                token: None,
                 saved: Some(true),
             };
             let credential = start_stack_credential_with(&root, choice, |_, _| {
@@ -4666,7 +4380,6 @@ mod tests {
                 base_url: None,
                 container_base_url: None,
                 model: None,
-                token: None,
                 saved: Some(true),
             },
             saved_secret,
@@ -4707,7 +4420,6 @@ mod tests {
                 base_url: None,
                 container_base_url: None,
                 model: None,
-                token: None,
                 saved: Some(true),
             },
         )
@@ -5294,7 +5006,6 @@ mod tests {
                     base_url: None,
                     container_base_url: None,
                     model: None,
-                    token: None,
                     saved: Some(true),
                 },
                 |_, key| {
@@ -5335,7 +5046,6 @@ mod tests {
                     base_url: None,
                     container_base_url: None,
                     model: None,
-                    token: None,
                     saved: Some(true),
                 },
                 |_, key| {
@@ -5376,7 +5086,6 @@ mod tests {
             base_url: base_url.map(String::from),
             container_base_url: None,
             model: model.map(String::from),
-            token: None,
             saved: None,
         }
     }
@@ -7368,7 +7077,6 @@ fn main() {
                 base_url: None,
                 container_base_url: None,
                 model: None,
-                token: None,
                 saved: Some(false),
             },
             None,
@@ -7447,7 +7155,6 @@ fn main() {
                 base_url: None,
                 container_base_url: None,
                 model: None,
-                token: None,
                 saved: Some(false),
             },
             None,

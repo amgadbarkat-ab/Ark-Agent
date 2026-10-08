@@ -497,7 +497,7 @@ export function App() {
         gatewayWsUrl: wsUrl,
         apiKey,
         // The whole answer from the model screen, so the Rust side decides which keys that
-        // implies. Sending a bare key here is what made `ANTHROPIC_API_KEY` and a plan token
+        // implies. Sending a bare key here is what made two different providers' keys
         // expressible at the same time.
         model: nextModel,
         // By id only. The image, the port and how it is dialled are facts about the harness, and
@@ -575,7 +575,7 @@ export function App() {
     if (model.provider !== "openai" && model.provider !== "anthropic") {
       return false;
     }
-    return model.login === "plan" || model.login === "api-key";
+    return model.login === "api-key";
   }
 
   async function stop() {

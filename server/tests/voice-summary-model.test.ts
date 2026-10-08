@@ -3,7 +3,6 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
-import type { RunAgentInput } from "@ag-ui/client";
 import { runtimeModelForEnvironment } from "../src/copilot";
 import {
   encryptSecret,
@@ -116,81 +115,6 @@ test.each(["openai", "anthropic"] as const)(
   },
 );
 
-test.each(["claude", "chatgpt"] as const)(
-  "voice summaries use the authenticated %s plan without an API key and isolate each call",
-  async (provider) => {
-    const requests: RunAgentInput[] = [];
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      async fetch(request) {
-        expect(new URL(request.url).pathname).toBe(
-          provider === "claude" ? "/model" : "/",
-        );
-        expect(request.headers.get("x-openbot-agent-token")).toBe(
-          "owned-harness-token",
-        );
-        expect(request.headers.get("authorization")).toBeNull();
-        const body: RunAgentInput = await request.json();
-        requests.push(body);
-        return new Response(
-          [
-            { type: "RUN_STARTED", threadId: body.threadId, runId: body.runId },
-            {
-              type: "TEXT_MESSAGE_START",
-              messageId: "reply",
-              role: "assistant",
-            },
-            { type: "TEXT_MESSAGE_CONTENT", messageId: "reply", delta: answer },
-            { type: "TEXT_MESSAGE_END", messageId: "reply" },
-            {
-              type: "RUN_FINISHED",
-              threadId: body.threadId,
-              runId: body.runId,
-            },
-          ]
-            .map((event) => `data: ${JSON.stringify(event)}\n\n`)
-            .join(""),
-          { headers: { "content-type": "text/event-stream" } },
-        );
-      },
-    });
-    try {
-      const summarize = summarizer(
-        {
-          ...(provider === "claude"
-            ? { CLAUDE_CODE_OAUTH_TOKEN: "synthetic-plan-token" }
-            : { CHATGPT_AUTH_FILE: "/synthetic/auth.json" }),
-          PICKED_HARNESS_IMAGE:
-            provider === "claude"
-              ? "agent-claude-sdk:test"
-              : "agent-langgraph-agui:test",
-          PICKED_HARNESS_URL: server.url.origin,
-          MANAGED_AGENT_TOKEN: "owned-harness-token",
-        },
-        {
-          readModelSecret: async () => {
-            throw new Error("Plan summaries must not look for an API key");
-          },
-        },
-      );
-      expect(await summarize(transcript)).toBe(answer);
-      expect(await summarize(transcript)).toBe(answer);
-      expect(requests).toHaveLength(2);
-      expect(requests[0]?.threadId).not.toBe(requests[1]?.threadId);
-      for (const request of requests) {
-        expect(request.tools).toEqual([]);
-        expect(request.forwardedProps.openbotModelOnly).toBe(true);
-        expect(JSON.stringify(request.context)).toContain("untrusted");
-        expect(JSON.stringify(request.messages)).toContain("Plan the launch.");
-        expect(JSON.stringify(request)).not.toContain("synthetic-plan-token");
-      }
-    } finally {
-      await server.stop(true);
-    }
-  },
-);
-
 test.each(["google", "xai"] as const)(
   "voice summaries reuse the authenticated native %s OAuth proxy",
   async (provider) => {
@@ -282,84 +206,4 @@ test.each(["google", "xai"] as const)(
       await rm(root, { recursive: true, force: true });
     }
   },
-);
-
-test.each(["claude", "chatgpt"] as const)(
-  "voice summaries reject %s plan errors and abort stalled streams",
-  async (provider) => {
-    let fail = true;
-    let cancelled = 0;
-    let closed = false;
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      async fetch(request) {
-        if (new URL(request.url).pathname.endsWith("/cancel")) {
-          cancelled++;
-          return Response.json({ ok: true });
-        }
-        const body: RunAgentInput = await request.json();
-        const events = fail
-          ? [{ type: "RUN_ERROR", message: "Synthetic plan refusal" }]
-          : [
-              {
-                type: "RUN_STARTED",
-                threadId: body.threadId,
-                runId: body.runId,
-              },
-            ];
-        const stream = new ReadableStream<Uint8Array>({
-          start(controller) {
-            for (const event of events)
-              controller.enqueue(
-                new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
-              );
-            if (fail) controller.close();
-            else
-              request.signal.addEventListener(
-                "abort",
-                () => {
-                  closed = true;
-                  controller.close();
-                },
-                { once: true },
-              );
-          },
-        });
-        return new Response(stream, {
-          headers: { "content-type": "text/event-stream" },
-        });
-      },
-    });
-    try {
-      const summarize = summarizer({
-        ...(provider === "claude"
-          ? { CLAUDE_CODE_OAUTH_TOKEN: "synthetic-plan-token" }
-          : { CHATGPT_AUTH_FILE: "/synthetic/auth.json" }),
-        PICKED_HARNESS_IMAGE:
-          provider === "claude"
-            ? "agent-claude-sdk:test"
-            : "agent-langgraph-agui:test",
-        PICKED_HARNESS_URL: server.url.origin,
-        MANAGED_AGENT_TOKEN: "owned-harness-token",
-      });
-      await expect(summarize(transcript)).rejects.toThrow(
-        "Synthetic plan refusal",
-      );
-      fail = false;
-      await expect(summarize(transcript)).rejects.toThrow();
-      // Observe the abort at the fixture boundary, not only a rejected local promise.
-      for (
-        let i = 0;
-        i < 50 && (!closed || (provider === "claude" && cancelled < 2));
-        i++
-      )
-        await Bun.sleep(10);
-      expect(closed).toBe(true);
-      expect(cancelled).toBe(provider === "claude" ? 2 : 0);
-    } finally {
-      await server.stop(true);
-    }
-  },
-  5000,
 );

@@ -1,12 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "./ExternalLink";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
 import { Mark } from "./Mark";
 import { asProblem, InlineFailure, type Problem } from "./Problem";
 
-export type Login = "plan" | "api-key" | "endpoint" | "oauth";
+export type Login = "api-key" | "endpoint" | "oauth";
 
 export type Provider = {
   id: string;
@@ -22,8 +21,6 @@ export type ModelChoice = {
   provider: string;
   login: Login;
   apiKey?: string;
-  /** Minted by signing in, never typed. Only a plan has one. */
-  token?: string;
   /** Explicit intent to try a saved value; only Start checks whether it is available. */
   saved?: boolean;
   baseUrl?: string;
@@ -35,8 +32,6 @@ export type SavedConfiguration = {
   model?:
     | "open-ai-api-key"
     | "anthropic-api-key"
-    | "claude-plan"
-    | "chat-gpt-plan"
     | "compatible-endpoint"
     | "google-oauth"
     | "xai-oauth"
@@ -45,9 +40,7 @@ export type SavedConfiguration = {
   modelApiKeys?: Partial<
     Record<"openai" | "anthropic" | "compatible", boolean | null>
   >;
-  modelSessions?: Partial<
-    Record<"openai" | "anthropic" | "google" | "xai", boolean | null>
-  >;
+  modelSessions?: Partial<Record<"google" | "xai", boolean | null>>;
 };
 
 export type HeldConfiguration = {
@@ -104,10 +97,6 @@ export function recordedModel(held: HeldConfiguration): ModelChoice | null {
       return { provider: "openai", login: "api-key", saved: true };
     case "anthropic-api-key":
       return { provider: "anthropic", login: "api-key", saved: true };
-    case "claude-plan":
-      return { provider: "anthropic", login: "plan", saved: true };
-    case "chat-gpt-plan":
-      return { provider: "openai", login: "plan", saved: true };
     case "google-oauth":
     case "xai-oauth":
       return {
@@ -133,8 +122,10 @@ export function recordedModel(held: HeldConfiguration): ModelChoice | null {
 /**
  * Connect a model.
  *
- * Plans remain the default wherever supported. Google and xAI use the same endpoint credential
- * route as custom models, while their named rows supply the address for the user.
+ * Ark never signs in to a chat subscription on a person's behalf: Anthropic does not allow it, and
+ * OpenAI allows it in a paid app only through its own approved programme (docs/ark/04). So the ways
+ * in are an API key, an endpoint (a local model, or any OpenAI-compatible server) and, for Google and
+ * xAI, their own sign-in.
  */
 export function ProviderPicker({
   chosen,
@@ -187,27 +178,14 @@ export function ProviderPicker({
   /*
    * The sign-in, mid-flight.
    *
-   * `url` present means the browser has been sent somewhere and a code is expected back. Kept here
-   * rather than in the Rust side's head because the screen has to show the link: an open that
-   * silently did nothing leaves somebody staring at a code box with no idea where the code comes
-   * from.
+   * `url` present means the browser has been sent somewhere and the sign-in is waiting for the
+   * person to approve it. Kept here rather than in the Rust side's head because the screen has to
+   * show the link: an open that silently did nothing leaves somebody staring at a wait with no idea
+   * where to go.
    */
   const [signInUrl, setSignInUrl] = useState<string | null>(null);
-  const [code, setCode] = useState("");
-  const [tokens, setTokens] = useState<Record<string, string>>(
-    initialChoice?.provider && initialChoice.token
-      ? { [initialChoice.provider]: initialChoice.token }
-      : {},
-  );
   const [busy, setBusy] = useState(false);
-  /*
-   * What the sign-in is doing, while it is doing it.
-   *
-   * Local software is already installed before this screen. A plan sign-in starts its prepared
-   * container, and progress explains what is happening while its browser session opens.
-   */
-  const [progress, setProgress] = useState<string | null>(null);
-  // A problem, not a string: a sign-in failure carries the container's own output, and
+  // A problem, not a string: a sign-in failure carries the underlying output, and
   // stringifying it printed "[object Object]" where the diagnosis should have been.
   const [failure, setFailure] = useState<Problem | null>(null);
   const openRef = useRef(open);
@@ -307,107 +285,14 @@ export function ProviderPicker({
     openRef.current = open;
   }, [open]);
 
-  /*
-   * The two plans sign in differently, and the screen has to know which.
-   *
-   * Anthropic's CLI wants a code typed back, so that half shows a field. ChatGPT's login finishes
-   * itself when the browser redirect reaches its callback, so that half shows only a wait. Offering
-   * a code box for a flow that never produces one is how a person concludes it is broken.
-   */
-  async function beginSignIn() {
-    if (!row) return;
-    const providerId = row.id;
-    const run = signInRunRef.current + 1;
-    signInRunRef.current = run;
-    const stillCurrent = () =>
-      signInRunRef.current === run && openRef.current === providerId;
-    setReuse(null);
-    setBusy(true);
-    setFailure(null);
-    setProgress(null);
-    try {
-      const start =
-        providerId === "anthropic"
-          ? "begin_claude_sign_in"
-          : "begin_chatgpt_sign_in";
-      const nextSignInUrl = await invoke<string>(start, { root: root.trim() });
-      if (!stillCurrent()) return;
-      setSignInUrl(nextSignInUrl);
-      // ChatGPT needs no code, so the wait starts straight away.
-      if (providerId !== "anthropic") {
-        const nextToken = await invoke<string>("finish_chatgpt_sign_in");
-        if (stillCurrent()) {
-          setTokens((previous) => ({ ...previous, [providerId]: nextToken }));
-          setSignInUrl(null);
-        }
-      }
-    } catch (error) {
-      if (stillCurrent()) {
-        setFailure(asProblem(error));
-        setSignInUrl(null);
-      }
-    } finally {
-      if (stillCurrent()) {
-        setBusy(false);
-        setProgress(null);
-      }
-    }
-  }
-
-  async function finishSignIn() {
-    if (!row) return;
-    const providerId = row.id;
-    const run = signInRunRef.current + 1;
-    signInRunRef.current = run;
-    const stillCurrent = () =>
-      signInRunRef.current === run && openRef.current === providerId;
-    setBusy(true);
-    setFailure(null);
-    try {
-      // Held, not shown. It goes on to `start_stack` the same way a typed key does.
-      const nextToken = await invoke<string>("finish_claude_sign_in", { code });
-      if (stillCurrent()) {
-        setTokens((previous) => ({ ...previous, [providerId]: nextToken }));
-        setSignInUrl(null);
-        setCode("");
-      }
-    } catch (error) {
-      if (stillCurrent()) {
-        setFailure(asProblem(error));
-        // The flow is single-use, so a refused code means starting again rather than retyping.
-        setSignInUrl(null);
-      }
-    } finally {
-      if (stillCurrent()) setBusy(false);
-    }
-  }
-
   useEffect(() => {
     invoke<Provider[]>("providers")
       .then(setRows)
       .catch(() => undefined);
   }, []);
 
-  // The same event the setup screen's step list is built from. Only the newest line is kept: this
-  // is one sentence under a button, not a second copy of that list.
-  useEffect(() => {
-    const stop = listen<{ step: string; ok: boolean; detail: string }>(
-      "setup:progress",
-      (event) => setProgress(event.payload.detail),
-    );
-    return () => {
-      stop.then((off) => off());
-    };
-  }, []);
-
   const row = rows.find((r) => r.id === open) ?? null;
   const preset = row ? endpointPresets[row.id] : undefined;
-  const token = row ? (tokens[row.id] ?? "") : "";
-  const savedPlan =
-    row?.id === "openai" || row?.id === "anthropic"
-      ? held.saved?.modelSessions?.[row.id] === true ||
-        (reuse?.provider === row.id && reuse.login === "plan")
-      : false;
   const savedApiKey =
     row?.id === "openai" || row?.id === "anthropic"
       ? held.saved?.modelApiKeys?.[row.id] === true ||
@@ -427,7 +312,6 @@ export function ProviderPicker({
     (login === "oauth" &&
       oauthSignedIn === row?.id &&
       model.trim().length > 0) ||
-    (login === "plan" && (token.trim().length > 0 || savedPlan)) ||
     (login === "api-key" && (apiKey.trim().length > 0 || savedApiKey)) ||
     /*
      * An endpoint needs an address and a model name. NOT A KEY: this row's own summary names
@@ -444,7 +328,6 @@ export function ProviderPicker({
   function continueWithChoice() {
     if (!row || !login || !ready) return;
     const trimmedApiKey = apiKey.trim();
-    const trimmedToken = token.trim();
     const trimmedBaseUrl = baseUrl.trim();
     const trimmedModel = model.trim();
     const trimmedContainerBaseUrl = containerBaseUrl.trim();
@@ -454,10 +337,8 @@ export function ProviderPicker({
       ...((login === "api-key" || login === "endpoint") && trimmedApiKey
         ? { apiKey: trimmedApiKey }
         : {}),
-      ...(login === "plan" && trimmedToken ? { token: trimmedToken } : {}),
       ...(login === "oauth" ? { saved: true } : {}),
-      ...((login === "plan" && !trimmedToken && savedPlan) ||
-      (login === "api-key" && !trimmedApiKey && savedApiKey) ||
+      ...((login === "api-key" && !trimmedApiKey && savedApiKey) ||
       (login === "endpoint" && !trimmedApiKey && savedEndpointKey)
         ? { saved: true }
         : {}),
@@ -476,7 +357,7 @@ export function ProviderPicker({
       {!returning && <p className="steps-of">Step 3 of 4</p>}
       <h1>{returning ? "Refresh your AI connection" : "Connect your AI"}</h1>
       <p className="lede">
-        Connect your provider with a supported plan or an API key.
+        Connect your provider with an API key, or a model on your own computer.
       </p>
 
       <fieldset className="picker providers">
@@ -501,10 +382,7 @@ export function ProviderPicker({
                 // complaint about the address just typed.
                 setFailure(null);
                 setSignInUrl(null);
-                setCode("");
                 setBusy(false);
-                setProgress(null);
-                // The first way in is the default, which is the plan wherever there is one.
                 setLogin(r.logins[0] ?? null);
                 // Fill from what is already on this machine, if anything.
                 const kept =
@@ -558,11 +436,7 @@ export function ProviderPicker({
                     setLogin(option);
                   }}
                 >
-                  {option === "plan"
-                    ? "Sign in with my plan"
-                    : option === "oauth"
-                      ? "Sign in"
-                      : "Use an API key"}
+                  {option === "oauth" ? "Sign in" : "Use an API key"}
                 </button>
               ))}
             </div>
@@ -613,109 +487,6 @@ export function ProviderPicker({
               </div>
             </>
           )}
-
-          {login === "plan" &&
-            (token || (savedPlan && !signInUrl && !busy) ? (
-              <>
-                <p className="lede">
-                  {token
-                    ? `Signed in to ${row.name}.`
-                    : `A saved ${row.name} sign-in will be checked when you start.`}{" "}
-                  Your plan will be used.
-                </p>
-                {!token && (
-                  <button type="button" disabled={busy} onClick={beginSignIn}>
-                    Sign in again with {row.name}
-                  </button>
-                )}
-                {/*
-                 * Said here because it changes an answer the person already gave.
-                 *
-                 * A subscription only works through the one Bot that speaks that vendor's
-                 * sign-in, so choosing a plan re-points the Bot. Doing that silently would leave
-                 * somebody looking at a Bot they did not choose with no idea why; see
-                 * `harness::speaking_for` for the failure that came of not saying it at all.
-                 */}
-                <p className="footnote">
-                  Your Bot will be{" "}
-                  {row.id === "anthropic" ? "Claude Agent SDK" : "LangGraph"},
-                  which is the one that can use this plan.
-                </p>
-              </>
-            ) : signInUrl ? (
-              <>
-                <p className="lede">
-                  {row.id === "anthropic"
-                    ? "Approve the request in your browser, then paste the code it shows you."
-                    : `Approve the request in your browser. ${row.name} will finish this on its own.`}
-                </p>
-                {/* Shown as well as opened. On a machine with no registered
-                    browser the open does nothing and says nothing, and a code
-                    box with no link is then a dead end. */}
-                <p className="fallback">
-                  Didn't open?{" "}
-                  <a href={signInUrl} target="_blank" rel="noreferrer">
-                    Open the sign-in page
-                  </a>
-                </p>
-                {row.id === "anthropic" ? (
-                  <>
-                    <div className="field">
-                      <label htmlFor="code">Code from your browser</label>
-                      <input
-                        id="code"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={busy || code.trim().length === 0}
-                      onClick={finishSignIn}
-                    >
-                      {busy ? "Checking…" : "Finish signing in"}
-                    </button>
-                  </>
-                ) : (
-                  <p className="footnote" style={{ margin: 0 }}>
-                    Waiting for you to approve it…
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="lede">
-                  Opens {row.name} in your browser. Nothing is typed here and no
-                  key is stored.
-                </p>
-                <div className="provider-sign-in-actions">
-                  <button type="button" disabled={busy} onClick={beginSignIn}>
-                    {busy ? "Starting…" : `Sign in with ${row.name}`}
-                  </button>
-                  {!busy &&
-                    (row.id === "openai" || row.id === "anthropic") &&
-                    held.saved?.modelSessions?.[row.id] !== false && (
-                      <button
-                        type="button"
-                        className="quiet"
-                        onClick={() =>
-                          setReuse({ provider: row.id, login: "plan" })
-                        }
-                      >
-                        Use a saved{" "}
-                        {row.id === "anthropic" ? "Claude" : "ChatGPT"} sign-in
-                      </button>
-                    )}
-                </div>
-                {busy && progress && (
-                  <p className="footnote" style={{ marginBottom: 0 }}>
-                    {progress}
-                  </p>
-                )}
-              </>
-            ))}
 
           {login === "api-key" && (
             <>

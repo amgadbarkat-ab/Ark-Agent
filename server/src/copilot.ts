@@ -15,12 +15,6 @@ import {
   PROVENANCE_GUIDANCE,
 } from "../../shared/bot-prompt";
 import { sanitizeSeededHistory } from "./agents/history-sanitize";
-import {
-  PLAN_RUN_COMPLETED,
-  PlanModel,
-  type PlanModelConfig,
-  planModelForEnvironment,
-} from "./agents/plan-model";
 import type { AgentActor } from "./agents/profile-types";
 import type { AuditInitiator } from "./audit";
 import {
@@ -161,7 +155,6 @@ export function standingRoleMessage(
 export type RuntimeModel = {
   provider: "openai" | "anthropic";
   defaultModel: string;
-  plan?: PlanModelConfig;
   /**
    * The model the person asking has chosen for themselves, already built for this request.
    *
@@ -216,7 +209,6 @@ export function runtimeModelForEnvironment(
       !!environment.OPENAI_BASE_URL?.trim());
   return {
     provider,
-    plan: planModelForEnvironment(environment),
     defaultModel:
       selectedModelApplies && selectedModel ? selectedModel : defaultModel,
   };
@@ -361,9 +353,8 @@ export function builtInAgentConfiguration(
    * none, which is most people on most days and costs the prompt nothing.
    */
   standingInstructions?: string | null,
-  planModel?: PlanModel,
 ): BuiltInAgentConfiguration {
-  if (!apiKey && !planModel && !model.connection) {
+  if (!apiKey && !model.connection) {
     return {
       type: "custom",
       // biome-ignore lint/correctness/useYield: this agent must fail when iteration starts.
@@ -378,10 +369,7 @@ export function builtInAgentConfiguration(
   const standing = standingInstructionsGuidance(standingInstructions);
 
   return {
-    model:
-      model.connection ??
-      planModel ??
-      `${model.provider}/${model.defaultModel}`,
+    model: model.connection ?? `${model.provider}/${model.defaultModel}`,
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
      * holds, then the computer.
@@ -410,7 +398,7 @@ export function builtInAgentConfiguration(
         : []),
       ...(computerGuidance ? [computerGuidance] : []),
     ].join("\n\n"),
-    ...(planModel ? {} : { apiKey: apiKey ?? undefined }),
+    apiKey: apiKey ?? undefined,
     /*
      * A run stops after one step unless told otherwise, which for a Bot with tools means it calls
      * one and never speaks: the tool executes, the result arrives, and the run ends before the model
@@ -916,11 +904,7 @@ async function buildAgent(
    * the message is known. The guidance it is given is generated from the tools passed here, which is
    * what keeps a narrowed run from being told it holds something it was not offered.
    */
-  const withTools = (
-    tools: GrantedTool[],
-    input?: RunAgentInput,
-    signal?: AbortSignal,
-  ) =>
+  const withTools = (tools: GrantedTool[]) =>
     new BuiltInAgentWithSaneHistory(
       builtInAgentConfiguration(
         agent,
@@ -930,22 +914,13 @@ async function buildAgent(
         computerGuidance,
         connectedVendors,
         standingInstructions,
-        !model.connection && model.plan && input
-          ? new PlanModel(
-              model.plan,
-              agent.id,
-              input,
-              new Set(input.tools.map((tool) => tool.name)),
-              signal,
-            )
-          : undefined,
       ),
       loadAttachment,
       markAttachmentsSent,
     );
 
   const whole = withTools(granted);
-  if (!narrowing && !handoff && (!model.plan || model.connection)) return whole;
+  if (!narrowing && !handoff) return whole;
 
   return new RunBuiltAgent(
     { agentId: agent.id, description: agent.name },
@@ -966,11 +941,9 @@ async function buildAgent(
       const tools = passing.length > 0 ? [...offered, ...passing] : offered;
       // Nothing added and nothing narrowed means nothing to rebuild, and reusing the agent already
       // built for this request keeps that path allocation-for-allocation what it was.
-      return (!model.plan || model.connection) &&
-        tools.length === granted.length &&
-        passing.length === 0
+      return tools.length === granted.length && passing.length === 0
         ? whole
-        : withTools(tools, input, signal);
+        : withTools(tools);
     },
   );
 }
@@ -1657,7 +1630,7 @@ class RunBuiltAgent extends AbstractAgent {
         takeUntil(fromEvent(signal, "abort")),
         finalize(() => {
           if (this.active === active) this.active = undefined;
-          active.controller.abort(PLAN_RUN_COMPLETED);
+          active.controller.abort();
         }),
       );
     });

@@ -16,7 +16,10 @@ pub enum Category {
     Intelligence,
     OpenAiApiKey,
     AnthropicApiKey,
+    /// Retired: a record written by an older version may still name it. Read, then dropped by
+    /// `SavedIntent::read`; never written. See `retired_plan`.
     ClaudePlan,
+    /// Retired, as above.
     ChatGptPlan,
     CompatibleEndpointApiKey,
     GoogleOauth,
@@ -29,7 +32,9 @@ pub enum Category {
 pub enum ModelIntent {
     OpenAiApiKey,
     AnthropicApiKey,
+    /// Retired: see `Category::ClaudePlan`.
     ClaudePlan,
+    /// Retired: see `Category::ClaudePlan`.
     ChatGptPlan,
     CompatibleEndpoint,
     GoogleOauth,
@@ -67,12 +72,24 @@ impl SavedIntent {
     }
 
     /// Missing, unreadable and invalid records are unknown. Never discover or migrate secrets here.
+    ///
+    /// A plan an older version recorded is dropped on the way in, so nothing above this ever sees
+    /// one: the rest of the record (other keys, the endpoint) is kept.
     pub fn read(root: &Path) -> Self {
-        std::fs::read(root.join(FILE))
+        let mut record = std::fs::read(root.join(FILE))
             .ok()
             .and_then(|bytes| serde_json::from_slice::<Self>(&bytes).ok())
             .filter(|record| record.version == 1)
-            .unwrap_or_default()
+            .unwrap_or_default();
+        record.categories.remove(&Category::ClaudePlan);
+        record.categories.remove(&Category::ChatGptPlan);
+        if matches!(
+            record.model,
+            Some(ModelIntent::ClaudePlan | ModelIntent::ChatGptPlan)
+        ) {
+            record.model = None;
+        }
+        record
     }
 
     fn record(&mut self, secrets: &BTreeMap<String, String>, credential: &ModelCredential) {
@@ -80,7 +97,6 @@ impl SavedIntent {
             ("INTELLIGENCE_API_KEY", Category::Intelligence),
             ("OPENAI_API_KEY", Category::OpenAiApiKey),
             ("ANTHROPIC_API_KEY", Category::AnthropicApiKey),
-            ("CLAUDE_CODE_OAUTH_TOKEN", Category::ClaudePlan),
         ] {
             if let Some(value) = secrets.get(key) {
                 if value.trim().is_empty() {
@@ -104,8 +120,6 @@ impl SavedIntent {
                 self.compatible_endpoint = Some(base_url.trim().to_string());
             }
         }
-        // write_plan_store persists the selected plan, and clears it for other selections.
-        self.categories.remove(&Category::ChatGptPlan);
         self.categories.remove(&Category::GoogleOauth);
         self.categories.remove(&Category::XaiOauth);
         if matches!(credential, ModelCredential::ProviderOAuth { .. }) {
@@ -119,13 +133,6 @@ impl SavedIntent {
             ModelCredential::None => unreachable!("no model selection was handled above"),
             ModelCredential::OpenAi { .. } => ModelIntent::OpenAiApiKey,
             ModelCredential::Anthropic { .. } => ModelIntent::AnthropicApiKey,
-            ModelCredential::ClaudePlan { .. } => ModelIntent::ClaudePlan,
-            ModelCredential::ChatGptPlan { store } => {
-                if !store.trim().is_empty() {
-                    self.categories.insert(Category::ChatGptPlan);
-                }
-                ModelIntent::ChatGptPlan
-            }
             ModelCredential::Compatible { .. } => ModelIntent::CompatibleEndpoint,
             ModelCredential::ProviderOAuth { provider, .. } => {
                 if provider == "google" {
@@ -171,7 +178,7 @@ pub fn compatible_key_from_record(base_url: &str, record: &str) -> Result<String
     }
 }
 
-/// Start's credential transaction: protected writes, plan file, durable hints, then legacy purge.
+/// Start's credential transaction: protected writes, retired-plan removal, durable hints, then legacy purge.
 /// On any persistence failure the old .env remains migration input for an explicit retry.
 pub fn persist_configuration(
     root: &Path,
@@ -223,12 +230,8 @@ fn persist_configuration_with(
         scoped_secrets.insert(COMPATIBLE_CREDENTIAL.into(), record);
     }
     remember(root, &scoped_secrets)?;
-    crate::env::write_plan_store(root, credential).map_err(|error| {
-        Problem::with(
-            "OpenBot could not save the model sign-in. Try Start again.",
-            error.to_string(),
-        )
-    })?;
+    // Every start, whatever was chosen: a plan credential an older version left is never wanted.
+    crate::retired_plan::purge(root)?;
     let mut intent = SavedIntent::read(root);
     intent.record(secrets, credential);
     intent.write(root).map_err(|error| Problem::with(
@@ -285,14 +288,11 @@ mod tests {
 
     #[test]
     fn each_persistence_failure_preserves_legacy_input_and_can_be_retried() {
-        for failure in ["first-store", "later-store", "plan-file", "metadata"] {
+        for failure in ["first-store", "later-store", "metadata"] {
             let (root, secrets, legacy) = fixture(failure);
-            let credential = ModelCredential::ChatGptPlan {
-                store: "{\"refresh_token\":\"synthetic-plan\"}".into(),
+            let credential = ModelCredential::OpenAi {
+                api_key: "synthetic-model".into(),
             };
-            if failure == "plan-file" {
-                std::fs::write(root.join(".langchain"), "synthetic blocker").unwrap();
-            }
             if failure == "metadata" {
                 std::fs::create_dir(root.join(FILE)).unwrap();
             }
@@ -328,12 +328,6 @@ mod tests {
             assert!(!problem.said.is_empty());
             assert_eq!(std::fs::read_to_string(root.join(".env")).unwrap(), legacy);
             assert!(!root.join(FILE).is_file());
-            if failure.ends_with("store") {
-                assert!(!root.join(crate::env::CHATGPT_STORE_FILE).exists());
-            }
-            if failure == "plan-file" {
-                std::fs::remove_file(root.join(".langchain")).unwrap();
-            }
             if failure == "metadata" {
                 std::fs::remove_dir(root.join(FILE)).unwrap();
             }
@@ -355,24 +349,24 @@ mod tests {
             assert!(!written.contains("synthetic"));
             assert_eq!(
                 SavedIntent::read(&root).model,
-                Some(ModelIntent::ChatGptPlan)
+                Some(ModelIntent::OpenAiApiKey)
             );
             assert!(SavedIntent::read(&root)
                 .categories
-                .contains(&Category::ChatGptPlan));
-            assert!(crate::env::saved_chatgpt_plan_store(&root));
+                .contains(&Category::OpenAiApiKey));
             std::fs::remove_dir_all(root).unwrap();
         }
     }
 
     #[test]
-    fn secure_stage_refusal_preserves_existing_plan_intent_and_legacy_bytes() {
+    fn secure_stage_refusal_preserves_existing_intent_and_legacy_bytes() {
         for failure in ["first-save", "later-save", "delete", "restore-policy"] {
             let (root, mut secrets, legacy) = fixture(failure);
-            let credential = ModelCredential::ChatGptPlan {
-                store: "synthetic-new-plan".into(),
+            let credential = ModelCredential::OpenAi {
+                api_key: "synthetic-model".into(),
             };
-            let plan = root.join(crate::env::CHATGPT_STORE_FILE);
+            // What an older version left. A refused save must not remove it as a side effect.
+            let plan = root.join(crate::retired_plan::CHATGPT_STORE_FILE);
             std::fs::create_dir_all(plan.parent().unwrap()).unwrap();
             std::fs::write(&plan, "synthetic-original-plan").unwrap();
             std::fs::write(root.join(FILE), "synthetic-original-intent").unwrap();
@@ -471,22 +465,6 @@ mod tests {
                 Category::AnthropicApiKey,
                 ModelIntent::AnthropicApiKey,
             ),
-            (
-                ModelCredential::ClaudePlan {
-                    token: "synthetic-claude".into(),
-                },
-                "CLAUDE_CODE_OAUTH_TOKEN",
-                Category::ClaudePlan,
-                ModelIntent::ClaudePlan,
-            ),
-            (
-                ModelCredential::ChatGptPlan {
-                    store: "{\"refresh_token\":\"synthetic-chatgpt\"}".into(),
-                },
-                "",
-                Category::ChatGptPlan,
-                ModelIntent::ChatGptPlan,
-            ),
         ] {
             let root = temp_root("recorded-reuse");
             std::fs::create_dir_all(&root).unwrap();
@@ -524,14 +502,6 @@ mod tests {
                 use std::os::unix::fs::PermissionsExt;
                 assert_eq!(
                     std::fs::metadata(root.join(FILE))
-                        .unwrap()
-                        .permissions()
-                        .mode()
-                        & 0o777,
-                    0o600
-                );
-                assert_eq!(
-                    std::fs::metadata(root.join(crate::env::CHATGPT_STORE_FILE))
                         .unwrap()
                         .permissions()
                         .mode()
@@ -594,7 +564,6 @@ mod tests {
         let recorded = SavedIntent::read(&root);
         assert_eq!(recorded.model, None);
         assert!(!recorded.categories.contains(&Category::OpenAiApiKey));
-        assert!(!recorded.categories.contains(&Category::ChatGptPlan));
         let json = std::fs::read_to_string(root.join(FILE)).unwrap();
         assert!(!json.contains("open-ai-api-key"), "{json}");
         let _ = std::fs::remove_dir_all(root);
@@ -701,10 +670,9 @@ mod tests {
     fn saved_credentials_remain_recorded_if_later_settings_write_fails() {
         let root = temp_root("post-persistence-settings-failure");
         std::fs::create_dir_all(root.join(".env")).unwrap();
-        let secrets =
-            BTreeMap::from([("CLAUDE_CODE_OAUTH_TOKEN".into(), "synthetic-claude".into())]);
-        let credential = ModelCredential::ClaudePlan {
-            token: "synthetic-claude".into(),
+        let secrets = BTreeMap::from([("ANTHROPIC_API_KEY".into(), "synthetic-claude".into())]);
+        let credential = ModelCredential::Anthropic {
+            api_key: "synthetic-claude".into(),
         };
         let problem = persist_configuration_with(
             &root,
@@ -721,11 +689,60 @@ mod tests {
         assert_eq!(problem.said, "OpenBot could not write its settings.");
         assert_eq!(
             SavedIntent::read(&root).model,
-            Some(ModelIntent::ClaudePlan)
+            Some(ModelIntent::AnthropicApiKey)
         );
         assert!(SavedIntent::read(&root)
             .categories
-            .contains(&Category::ClaudePlan));
+            .contains(&Category::AnthropicApiKey));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// A record an older version wrote can name a plan. Reading it drops the plan and keeps the
+    /// rest, so nothing above this ever offers to reuse one.
+    #[test]
+    fn a_plan_recorded_by_an_older_version_is_dropped_and_the_rest_is_kept() {
+        for retired in ["claude-plan", "chat-gpt-plan"] {
+            let root = temp_root("recorded-plan");
+            std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(
+                root.join(FILE),
+                format!(
+                    "{{\"version\":1,\"categories\":[\"intelligence\",\"open-ai-api-key\",\"{retired}\"],\"model\":\"{retired}\"}}"
+                ),
+            )
+            .unwrap();
+            let read = SavedIntent::read(&root);
+            assert_eq!(read.model, None, "{retired} was kept as the model");
+            assert_eq!(
+                read.categories,
+                BTreeSet::from([Category::Intelligence, Category::OpenAiApiKey])
+            );
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    /// Start removes what an older version left, whatever was chosen this time.
+    #[test]
+    fn starting_removes_a_retired_plan_credential_left_by_an_older_version() {
+        let (root, secrets, _) = fixture("retired-left-behind");
+        std::fs::create_dir_all(root.join(".langchain")).unwrap();
+        std::fs::write(
+            root.join(crate::retired_plan::CHATGPT_STORE_FILE),
+            "{\"refresh_token\":\"synthetic-old\"}",
+        )
+        .unwrap();
+        persist_configuration_with(
+            &root,
+            &BTreeMap::new(),
+            &secrets,
+            &secrets,
+            &ModelCredential::OpenAi {
+                api_key: "synthetic-model".into(),
+            },
+            |_, _| Ok(()),
+        )
+        .unwrap();
+        assert!(!root.join(crate::retired_plan::CHATGPT_STORE_FILE).exists());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

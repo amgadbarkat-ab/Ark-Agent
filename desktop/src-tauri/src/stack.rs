@@ -53,9 +53,7 @@ impl BundledBots {
             | ModelCredential::Compatible { .. }
             | ModelCredential::ProviderOAuth { .. } => Self::openai_compatible(),
             ModelCredential::Anthropic { .. } => Self::anthropic(),
-            ModelCredential::None
-            | ModelCredential::ClaudePlan { .. }
-            | ModelCredential::ChatGptPlan { .. } => Self::none(),
+            ModelCredential::None => Self::none(),
         }
     }
 

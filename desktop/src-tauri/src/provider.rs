@@ -1,11 +1,13 @@
 //! The model provider screen's list, as data.
 //!
-//! OpenAI and Anthropic offer plan sign-in alongside API keys. Google and xAI use named endpoint
-//! presets with API keys; their official addresses are supplied by the frontend.
+//! OpenAI and Anthropic are connected with an API key. Neither offers a chat-subscription sign-in
+//! here: Anthropic does not allow a product to use plan credentials, and OpenAI allows it in a paid
+//! app only through its approved programme (docs/ark/04-llm-providers.md). Google and xAI use named
+//! endpoint presets with API keys, or their own sign-in; their official addresses are supplied by
+//! the frontend.
 //!
 //! The row that asks for a URL is the last one, and it is the only one that asks. Keeping it there
-//! is what keeps a base URL off the main path, which the audience rule at the top of the build doc
-//! requires: somebody who has never opened a terminal finishes this screen by signing in.
+//! keeps a base URL off the main path.
 //!
 //! Independent of the harness picker, always. No harness on that list is tied to a vendor's models,
 //! so nothing chosen there may narrow what is offered here.
@@ -16,9 +18,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Login {
-    /// Sign in to the plan they already pay for. The default wherever it exists.
-    Plan,
-    /// Paste a key. Offered beside the plan, never behind it.
+    /// Paste a key.
     ApiKey,
     /// A base URL, a key and a model name. The developer row and the everything-else row at once.
     Endpoint,
@@ -56,36 +56,32 @@ pub fn catalogue() -> Vec<Provider> {
         Provider {
             id: "openai".into(),
             name: "OpenAI".into(),
-            summary: "Sign in with ChatGPT Plus, Pro, Team or Enterprise.".into(),
+            summary: "Use an OpenAI API key.".into(),
             /*
-             * A plan first, and this is the row where that is least controversial.
-             *
-             * OpenAI supports subscription OAuth in other people's tools: `codex login` exists for
-             * it, third-party harnesses are a tenth of Codex traffic, and the login yields a token
-             * plus the address to send it to, which is the compatible shape rather than a special
-             * case. Of the two named providers it is the better-supported one, not the weaker.
+             * No ChatGPT plan sign-in. OpenAI's official "Sign in with ChatGPT" programme is the
+             * only route for a paid app, and it needs OpenAI's approval first; the Codex CLI's own
+             * login is not ours to reuse. It returns here, as its own row, once approved.
              */
-            logins: vec![Login::Plan, Login::ApiKey],
+            logins: vec![Login::ApiKey],
             mark: Some("openai".into()),
             caution: None,
         },
         Provider {
             id: "anthropic".into(),
             name: "Anthropic".into(),
-            summary: "Sign in with a Claude Pro, Max, Team or Enterprise plan.".into(),
-            logins: vec![Login::Plan, Login::ApiKey],
-            mark: Some("anthropic".into()),
+            summary: "Use an Anthropic API key.".into(),
             /*
-             * The one provider that can stop working part-way through a month for somebody who has
-             * done nothing wrong, so it is said before it happens rather than diagnosed after. It
-             * changes nothing else: same default, same flow, same list.
+             * An API key only. Anthropic does not permit a product to offer Claude plan sign-in or
+             * to route requests through plan credentials; a person who wants to use their plan does
+             * that in their own, unmodified Claude Code.
              */
+            logins: vec![Login::ApiKey],
+            mark: Some("anthropic".into()),
             caution: Some(Caution {
-                says: "A Claude plan carries a separate monthly pool of Agent SDK credits. \
-                       When that pool is empty, Bots stop until it renews or you add API credits."
+                says: "A Claude.ai plan cannot be used here. Use an API key from the Anthropic \
+                       Console; it is billed to you by Anthropic."
                     .into(),
-                reads_more_at: "https://support.anthropic.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan"
-                    .into(),
+                reads_more_at: "https://code.claude.com/docs/en/legal-and-compliance".into(),
             }),
         },
         Provider {
@@ -121,37 +117,29 @@ pub fn catalogue() -> Vec<Provider> {
 mod tests {
     use super::*;
 
-    /// Named endpoint presets use API keys and never claim support for a subscription sign-in.
+    /// No row, now or by accident, offers a chat-subscription sign-in. The `Login` type has no such
+    /// way in; this keeps a future one from arriving without somebody deciding it should.
     #[test]
-    fn endpoint_providers_do_not_offer_plan_sign_in() {
-        let asking: Vec<String> = catalogue()
-            .into_iter()
-            .filter(|p| p.logins.contains(&Login::Endpoint))
-            .map(|p| p.id)
-            .collect();
-        assert_eq!(asking, vec!["google", "xai", "openai-compatible"]);
-        for provider in catalogue()
-            .into_iter()
-            .filter(|provider| provider.logins.contains(&Login::Endpoint))
-        {
-            assert!(!provider.logins.contains(&Login::Plan));
-        }
-    }
-
-    /// Where a plan can stand in for a key, it is the default. Reordering these is a product change
-    /// and has to look like one.
-    #[test]
-    fn a_plan_is_offered_before_a_key() {
+    fn no_provider_offers_a_chat_plan_sign_in() {
+        let allowed = [Login::ApiKey, Login::Endpoint, Login::Oauth];
         for provider in catalogue() {
-            if provider.logins.contains(&Login::Plan) {
-                assert_eq!(
-                    provider.logins.first(),
-                    Some(&Login::Plan),
-                    "{} offers a plan but not first",
-                    provider.id
-                );
+            for login in &provider.logins {
+                assert!(allowed.contains(login), "{} offers {login:?}", provider.id);
             }
         }
+        let serialised = serde_json::to_string(&catalogue()).unwrap();
+        assert!(!serialised.contains("\"plan\""));
+    }
+
+    /// Only Google and xAI sign in; for them it is their own model API, not a chat subscription.
+    #[test]
+    fn only_google_and_xai_sign_in() {
+        let signing_in: Vec<String> = catalogue()
+            .into_iter()
+            .filter(|p| p.logins.contains(&Login::Oauth))
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(signing_in, vec!["google", "xai"]);
     }
 
     /// Named providers stay ahead of the custom endpoint escape hatch.
@@ -177,16 +165,16 @@ mod tests {
         }
     }
 
-    /// The Anthropic sentence is required, because it is the one thing about that plan a person
-    /// cannot discover until their Bots stop answering.
+    /// The Anthropic caution is required: someone who pays for Claude will look for the plan
+    /// sign-in, and has to be told why it is not there.
     #[test]
-    fn anthropic_says_what_the_plan_actually_buys() {
+    fn anthropic_says_why_a_claude_plan_cannot_be_used() {
         let anthropic = catalogue()
             .into_iter()
             .find(|p| p.id == "anthropic")
             .expect("anthropic is not offered");
         let caution = anthropic.caution.expect("anthropic carries no caution");
-        assert!(caution.says.contains("Agent SDK credits"));
+        assert!(caution.says.contains("plan cannot be used"));
         assert!(caution.reads_more_at.starts_with("https://"));
     }
 }

@@ -59,12 +59,12 @@ export function modelChoiceEvent(
   const { provider, login } = choice;
   if (
     (provider === "openai" || provider === "anthropic") &&
-    (login === "plan" || login === "api-key")
+    login === "api-key"
   ) {
     return {
       kind: "model_chosen",
       provider,
-      credential_path: login === "plan" ? "subscription" : "api_key",
+      credential_path: "api_key",
       custom_base_url: Boolean(choice.baseUrl?.trim()),
     };
   }

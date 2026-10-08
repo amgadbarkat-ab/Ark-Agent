@@ -106,6 +106,7 @@ import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
+import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
 import {
@@ -547,6 +548,11 @@ const stallGuard = createStallGuard({
   auditStore: bootAuditStore,
 });
 
+for (const name of dropRetiredPlanCredentials()) {
+  console.warn(
+    `${name} is set but Ark no longer uses chat-plan credentials. It was ignored; remove it from the environment.`,
+  );
+}
 normalizeModelBaseUrls();
 const runtimeModel = runtimeModelForEnvironment(tenantPackage.model);
 

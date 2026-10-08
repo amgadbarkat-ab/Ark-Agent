@@ -24,20 +24,6 @@ use rand::RngCore;
 
 use crate::engine::EngineStatus;
 
-/**
-Where a signed-in ChatGPT plan's token store lives, on this machine and inside the harness.
-
-Two paths for one file, joined by a directory bind mount `docker-compose.yml` declares. It has to be
-a file rather than a setting because the harness's provider WRITES to it: when the access token
-expires it renews and saves, and the mount is what makes that renewal outlast the container.
-
-The host file is always written, even when nobody signed in to a plan. That keeps the mounted
-directory in the shape the provider expects and avoids leaving a stale plan token behind after
-somebody switches away from the plan.
-*/
-pub const CHATGPT_STORE_FILE: &str = ".langchain/chatgpt-auth.json";
-pub const CHATGPT_STORE_INSIDE: &str = "/root/.langchain/chatgpt-auth.json";
-
 /// Host ports, persisted in this deployment's .env and reused while they remain available.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ports {
@@ -389,18 +375,18 @@ pub fn compose(
             "OPENAI_BASE_URL",
             "OPENAI_CONTAINER_BASE_URL",
             "ANTHROPIC_API_KEY",
-            "CLAUDE_CODE_OAUTH_TOKEN",
-            "CHATGPT_AUTH_FILE",
             "OPENBOT_MODEL_OAUTH_FILE",
             "BOT_PROVIDER",
-            /*
-             * Retired, and cleared for exactly that reason. An earlier version put the ChatGPT
-             * plan's access token here; nothing reads it now, and `write` preserves what it does
-             * not own, so without this line a machine that ran that version would keep somebody's
-             * plan token in a file forever with nothing ever using it again.
-             */
-            "CHATGPT_OAUTH_TOKEN",
         ] {
+            env.insert(key.into(), String::new());
+        }
+        /*
+         * Retired plan credentials, cleared for exactly that reason. An earlier version wrote a
+         * Claude plan token or a ChatGPT plan's store path here; nothing reads them now, and
+         * `write` preserves what it does not own, so without this a machine that ran that version
+         * would keep somebody's plan credential in a file forever with nothing ever using it.
+         */
+        for key in crate::retired_plan::KEYS {
             env.insert(key.into(), String::new());
         }
         /*
@@ -442,21 +428,6 @@ pub fn compose(
             insert_if_given(&mut env, "ANTHROPIC_API_KEY", api_key);
             env.insert("BOT_PROVIDER".into(), "anthropic".into());
             env.insert("BOT_MODEL".into(), "claude-sonnet-4-5".into());
-        }
-        ModelCredential::ClaudePlan { token } => {
-            insert_if_given(&mut env, "CLAUDE_CODE_OAUTH_TOKEN", token);
-        }
-        /*
-         * A path, not the credential. The store itself goes to a file beside this one, because the
-         * harness's provider does not merely read it: it writes the renewed tokens back. Through a
-         * bind mount that renewal lands on this machine and survives the container; carried as an
-         * environment variable it would be lost on every restart, and the refresh token it replaced
-         * would already have been spent.
-         */
-        ModelCredential::ChatGptPlan { store } => {
-            if !store.trim().is_empty() {
-                env.insert("CHATGPT_AUTH_FILE".into(), CHATGPT_STORE_INSIDE.into());
-            }
         }
         ModelCredential::ProviderOAuth {
             path,
@@ -815,9 +786,10 @@ pub struct Model {
 /// How this deployment reaches a model.
 ///
 /// One type rather than a bag of optional strings, because the combinations that must never be
-/// written are the whole point. `ANTHROPIC_API_KEY` takes precedence over the plan's OAuth token in
-/// the Claude Agent SDK, so writing both silently bills a person who signed in to a plan they
-/// already pay for. Two fields cannot express "never both"; a choice can.
+/// written are the whole point: two providers' keys at once would leave it to whichever a harness
+/// reads first to decide who is billed. Two fields cannot express "never both"; a choice can.
+///
+/// There is no variant for a chat-subscription plan, deliberately. See `retired_plan`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum ModelCredential {
     /// Nothing chosen. Written as nothing at all rather than as empty strings: an empty key set is
@@ -828,27 +800,6 @@ pub enum ModelCredential {
     OpenAi { api_key: String },
     /// A key typed for Anthropic.
     Anthropic { api_key: String },
-    /// A Claude plan, signed in to. The token is minted by `claude setup-token` and never typed.
-    ClaudePlan { token: String },
-    /**
-    A ChatGPT plan, signed in to.
-
-    NOT the compatible shape below, and that distinction is load-bearing. A plan token is a bearer
-    for `https://chatgpt.com/backend-api/codex`, and `langchain-openai` PINS that address and
-    refuses a caller-supplied one, deliberately, so a token cannot be aimed at somebody else's
-    server and handed over. Writing this as `OPENAI_BASE_URL` plus a key would be us hand-rolling
-    the thing the library exists to prevent, and the Codex path also shapes its requests
-    differently, so it would not have worked anyway.
-
-    THE WHOLE STORE, NOT THE ACCESS TOKEN. The token in it lasts under an hour and nothing can
-    renew it; the refresh token beside it is what keeps the Bot answering tomorrow. Carrying one
-    field would produce a Bot that works this morning and fails this afternoon with an auth error,
-    which is the hardest kind of fault for somebody to report.
-
-    The harness picks its model class from the presence of this store. See the harness note in the
-    build doc.
-    */
-    ChatGptPlan { store: String },
     /// A native-held OAuth session; the local proxy owns access-token refresh.
     ProviderOAuth {
         provider: String,
@@ -857,9 +808,6 @@ pub enum ModelCredential {
         model: String,
     },
     /// Anything that speaks the OpenAI wire format, at an address the person gave.
-    ///
-    /// Also where a signed-in ChatGPT plan lands, because that login yields a token and the address
-    /// to send it to, which is this shape and not a special case.
     Compatible {
         base_url: String,
         container_base_url: Option<String>,
@@ -977,29 +925,6 @@ pub fn already_set(path: &Path, keys: &[&str]) -> BTreeMap<String, String> {
     read_already_set(path, keys).unwrap_or_default()
 }
 
-/**
-Lay down the token store a signed-in ChatGPT plan reads from, beside the `.env`.
-
-Always written, and see `CHATGPT_STORE_FILE` for why: a directory bind mount needs the file already
-present inside it before the harness starts. Answering the model screen with anything else clears
-it, on the same reasoning as the keys the writer empties. A plan that was signed out of should not
-leave a credential on disk for a later run to pick up.
-
-Not called when the screen was not answered at all, which is the one case that must not disturb what
-is already there.
-*/
-pub fn write_plan_store(dir: &Path, credential: &ModelCredential) -> std::io::Result<()> {
-    let store = match credential {
-        ModelCredential::ChatGptPlan { store } if !store.trim().is_empty() => store.trim(),
-        _ => "{}",
-    };
-    let path = dir.join(CHATGPT_STORE_FILE);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    write_private_file(&path, format!("{store}\n").as_bytes())
-}
-
 /// Replace a credential or its intent record only after an owner-only temporary file is durable.
 /// A failed write leaves the previous copy available for an explicit retry.
 pub(crate) fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -1028,28 +953,6 @@ pub(crate) fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<(
         let _ = std::fs::remove_file(temporary);
     }
     result
-}
-
-pub fn saved_chatgpt_plan_store(dir: &Path) -> bool {
-    read_plan_store(dir)
-        .ok()
-        .flatten()
-        .is_some_and(|store| store.trim() != "{}")
-}
-
-pub fn read_plan_store(dir: &Path) -> std::io::Result<Option<String>> {
-    let path = dir.join(CHATGPT_STORE_FILE);
-    let store = match std::fs::read_to_string(path) {
-        Ok(store) => store,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let trimmed = store.trim();
-    if trimmed.is_empty() || trimmed == "{}" {
-        Ok(None)
-    } else {
-        Ok(Some(trimmed.to_string()))
-    }
 }
 
 pub fn write(
@@ -2011,34 +1914,6 @@ mod model_tests {
         assert_eq!(env.get("OPENAI_API_KEY"), Some(&String::new()));
     }
 
-    /// The must-not case, and the reason `ModelCredential` is a choice rather than two fields.
-    ///
-    /// `ANTHROPIC_API_KEY` wins over the plan's OAuth token in the Claude Agent SDK, so a stack
-    /// carrying both bills a person who signed in to a plan they already pay for. The key is
-    /// written EMPTY rather than left out, because `write` preserves lines it does not own and an
-    /// older key would otherwise survive.
-    #[test]
-    fn a_claude_plan_never_leaves_an_anthropic_key_in_place() {
-        let env = compose(
-            &intelligence(),
-            &Model {
-                credential: ModelCredential::ClaudePlan {
-                    token: "oauth-token".into(),
-                },
-            },
-            &engine(),
-            &Ports::default(),
-            &pinned(),
-            None,
-            &BTreeMap::new(),
-        );
-        assert_eq!(
-            env.get("CLAUDE_CODE_OAUTH_TOKEN"),
-            Some(&"oauth-token".to_string())
-        );
-        assert_eq!(env.get("ANTHROPIC_API_KEY"), Some(&String::new()));
-    }
-
     /// The kind is written the way the package spells it, and the address is the image's own port
     /// on loopback because the server is a host process rather than a container.
     ///
@@ -2193,72 +2068,9 @@ mod model_tests {
         }
     }
 
-    /// The must-not case for the other plan. A ChatGPT plan token is not an OpenAI key and is not
-    /// aimed with a base URL: the library pins the Codex address precisely so a token cannot be
-    /// pointed at somebody else's server, and a leftover key would outrank the plan.
+    /// A credential this app has stopped using is emptied, not left holding it forever.
     #[test]
-    fn a_chatgpt_plan_writes_no_key_and_aims_at_nothing() {
-        let env = compose(
-            &intelligence(),
-            &Model {
-                credential: ModelCredential::ChatGptPlan {
-                    store: "{\"access_token\":\"a\",\"refresh_token\":\"r\"}".into(),
-                },
-            },
-            &engine(),
-            &Ports::default(),
-            &pinned(),
-            None,
-            &BTreeMap::new(),
-        );
-        assert_eq!(
-            env.get("CHATGPT_AUTH_FILE"),
-            Some(&CHATGPT_STORE_INSIDE.to_string())
-        );
-        assert_eq!(env.get("OPENAI_API_KEY"), Some(&String::new()));
-        assert_eq!(env.get("OPENAI_BASE_URL"), Some(&String::new()));
-    }
-
-    #[test]
-    fn the_chatgpt_store_host_path_stays_inside_the_mounted_langchain_directory() {
-        let path = Path::new(CHATGPT_STORE_FILE);
-        assert_eq!(path.parent(), Some(Path::new(".langchain")));
-        assert_eq!(
-            path.file_name().and_then(|name| name.to_str()),
-            Some("chatgpt-auth.json")
-        );
-        assert_eq!(CHATGPT_STORE_INSIDE, "/root/.langchain/chatgpt-auth.json");
-    }
-
-    /// THE CREDENTIAL ITSELF NEVER REACHES THE `.env`, only the path of the file holding it.
-    ///
-    /// Worth asserting rather than assuming: the `.env` is the file a person is most likely to open
-    /// or paste, and a refresh token in it is a standing grant on somebody's ChatGPT subscription.
-    #[test]
-    fn the_plan_store_is_not_written_into_the_env() {
-        let secret = "refresh-token-that-must-not-appear";
-        let env = compose(
-            &intelligence(),
-            &Model {
-                credential: ModelCredential::ChatGptPlan {
-                    store: format!("{{\"refresh_token\":\"{secret}\"}}"),
-                },
-            },
-            &engine(),
-            &Ports::default(),
-            &pinned(),
-            None,
-            &BTreeMap::new(),
-        );
-        assert!(
-            !env.values().any(|value| value.contains(secret)),
-            "the plan's store reached the .env"
-        );
-    }
-
-    /// A key this app has stopped using is emptied, not left holding a credential forever.
-    #[test]
-    fn the_retired_plan_token_is_cleared() {
+    fn the_retired_plan_credentials_are_cleared() {
         let env = compose(
             &intelligence(),
             &Model {
@@ -2272,45 +2084,13 @@ mod model_tests {
             None,
             &BTreeMap::new(),
         );
-        assert_eq!(env.get("CHATGPT_OAUTH_TOKEN"), Some(&String::new()));
-    }
-
-    /// The file is laid down even with no plan, because a missing mount source becomes a directory.
-    #[test]
-    fn the_store_file_is_written_whatever_the_choice() {
-        let dir = temp_root("store");
-        std::fs::create_dir_all(&dir).unwrap();
-
-        write_plan_store(
-            &dir,
-            &ModelCredential::OpenAi {
-                api_key: "sk-x".into(),
-            },
-        )
-        .unwrap();
-        let path = dir.join(CHATGPT_STORE_FILE);
-        assert_eq!(std::fs::read_to_string(&path).unwrap().trim(), "{}");
-
-        write_plan_store(
-            &dir,
-            &ModelCredential::ChatGptPlan {
-                store: "{\"refresh_token\":\"r\"}".into(),
-            },
-        )
-        .unwrap();
-        assert!(std::fs::read_to_string(&path).unwrap().contains("\"r\""));
-
-        // And signing out of the plan clears it, on the same reasoning as the keys that get emptied.
-        write_plan_store(&dir, &ModelCredential::None).unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap().trim(), "{}");
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&path).unwrap().permissions().mode();
-            assert_eq!(mode & 0o777, 0o600, "the store was readable by others");
+        for retired in crate::retired_plan::KEYS {
+            assert_eq!(
+                env.get(retired),
+                Some(&String::new()),
+                "{retired} was not cleared"
+            );
         }
-        std::fs::remove_dir_all(&dir).ok();
     }
 
     /**
@@ -2434,17 +2214,16 @@ mod model_tests {
 
     /// Switching provider does not leave the last one's key behind.
     ///
-    /// Measured, not imagined: a run that signed in to a Claude plan still carried the
-    /// OPENAI_API_KEY written by the run before it, and every harness was handed both. Whichever a
-    /// harness reads first then decides what the person is billed for, which is the whole thing the
-    /// plan path exists to avoid.
+    /// Measured, not imagined: a run that switched provider still carried the OPENAI_API_KEY written
+    /// by the run before it, and every harness was handed both. Whichever a harness reads first then
+    /// decides what the person is billed for.
     #[test]
     fn answering_the_model_screen_clears_the_keys_it_does_not_imply() {
         let env = compose(
             &intelligence(),
             &Model {
-                credential: ModelCredential::ClaudePlan {
-                    token: "oauth-token".into(),
+                credential: ModelCredential::OpenAi {
+                    api_key: "sk-new".into(),
                 },
             },
             &engine(),
@@ -2453,12 +2232,8 @@ mod model_tests {
             None,
             &BTreeMap::new(),
         );
-        assert_eq!(
-            env.get("CLAUDE_CODE_OAUTH_TOKEN"),
-            Some(&"oauth-token".to_string())
-        );
+        assert_eq!(env.get("OPENAI_API_KEY"), Some(&"sk-new".to_string()));
         for cleared in [
-            "OPENAI_API_KEY",
             "OPENAI_BASE_URL",
             "OPENAI_CONTAINER_BASE_URL",
             "ANTHROPIC_API_KEY",
@@ -2467,7 +2242,7 @@ mod model_tests {
             assert_eq!(
                 env.get(cleared),
                 Some(&String::new()),
-                "{cleared} survived a switch to a Claude plan"
+                "{cleared} survived a switch to an OpenAI key"
             );
         }
     }

@@ -485,19 +485,24 @@ test("provider sign-in retries and Back reuse the completed local installation",
     if (command === "providers")
       return [
         {
-          id: "openai",
-          name: "OpenAI",
-          summary: "Use OpenAI",
-          logins: ["plan"],
+          id: "xai",
+          name: "xAI",
+          summary: "Use xAI",
+          logins: ["oauth"],
           mark: null,
           caution: null,
         },
       ];
-    if (command === "begin_chatgpt_sign_in") {
+    if (command === "begin_model_oauth") {
       if (++signIns === 1) throw { said: "Sign-in was interrupted." };
-      return "https://sign-in.example";
+      return {
+        attemptId: "attempt-1",
+        url: "https://sign-in.example",
+        userCode: null,
+      };
     }
-    if (command === "finish_chatgpt_sign_in") return "synthetic-token";
+    if (command === "plugin:opener|open_url") return null;
+    if (command === "finish_model_oauth") return null;
     return previous(command, args);
   };
   const view = await renderApp();
@@ -510,15 +515,11 @@ test("provider sign-in retries and Back reuse the completed local installation",
   await userEvent.click(
     view.getByRole("button", { name: "Continue to sign in" }),
   );
-  await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
-  await userEvent.click(
-    view.getByRole("button", { name: "Sign in with OpenAI" }),
-  );
+  await userEvent.click(await view.findByRole("radio", { name: /xAI/ }));
+  await userEvent.click(view.getByRole("button", { name: "Sign in with xAI" }));
   await view.findByText("Sign-in was interrupted.");
-  await userEvent.click(
-    view.getByRole("button", { name: "Sign in with OpenAI" }),
-  );
-  await view.findByText(/Signed in to OpenAI/);
+  await userEvent.click(view.getByRole("button", { name: "Sign in with xAI" }));
+  await view.findByText(/Signed in to xAI/);
   expect(signIns).toBe(2);
   expect(installationCalls()).toHaveLength(1);
 });
@@ -536,25 +537,23 @@ test("a completed installation can be repaired after a provider reports missing 
     if (command === "providers")
       return [
         {
-          id: "openai",
-          name: "OpenAI",
-          summary: "Use OpenAI",
-          logins: ["plan"],
+          id: "xai",
+          name: "xAI",
+          summary: "Use xAI",
+          logins: ["oauth"],
           mark: null,
           caution: null,
         },
       ];
-    if (command === "begin_chatgpt_sign_in")
+    if (command === "begin_model_oauth")
       throw { said: "Return to Install and try again." };
     return previous(command, args);
   };
   const view = await renderApp();
   await enterInstallation(view);
   await completeInstallation(view);
-  await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
-  await userEvent.click(
-    view.getByRole("button", { name: "Sign in with OpenAI" }),
-  );
+  await userEvent.click(await view.findByRole("radio", { name: /xAI/ }));
+  await userEvent.click(view.getByRole("button", { name: "Sign in with xAI" }));
   await view.findByText("Return to Install and try again.");
   await userEvent.click(view.getByRole("button", { name: "Back" }));
   await userEvent.click(view.getByText("Installation options"));
@@ -2806,216 +2805,8 @@ test("custom compatible endpoint startup submits an explicitly typed endpoint ke
 for (const provider of [
   { id: "openai", name: "OpenAI" },
   { id: "anthropic", name: "Anthropic" },
-] as const) {
-  test.each(["fresh", "saved"])(
-    `${provider.name} %s plan startup omits a key typed before switching login tabs`,
-    async (session) => {
-      const planToken = `synthetic-${provider.id}-plan-token`;
-      const hiddenKey = `sk-synthetic-${provider.id}-hidden`;
-      setupRootConfiguration("/tmp/openbot-app-test", async () => ({
-        ...emptyConfiguration(),
-        saved: {
-          ...emptyConfiguration().saved,
-          intelligenceApiKey: true,
-          modelSessions: { [provider.id]: session === "saved" },
-        },
-      }));
-      const setupHandler = invokeHandler;
-      invokeHandler = async (command, args) => {
-        if (command === "providers") {
-          return [
-            {
-              ...provider,
-              summary: `Use ${provider.name}.`,
-              logins: ["plan", "api-key"],
-              mark: null,
-              caution: null,
-            },
-          ];
-        }
-        if (session === "fresh") {
-          const signIn = provider.id === "openai" ? "chatgpt" : "claude";
-          if (command === `begin_${signIn}_sign_in`)
-            return "https://sign-in.example";
-          if (command === `finish_${signIn}_sign_in`) return planToken;
-        }
-        return setupHandler(command, args);
-      };
-
-      const view = await renderApp();
-      await userEvent.click(
-        await view.findByRole("button", { name: "Set up OpenBot" }),
-      );
-      await userEvent.click(
-        await view.findByRole("button", { name: "Continue" }),
-      );
-      await completeInstallation(view);
-      await userEvent.click(
-        await view.findByRole("radio", { name: new RegExp(provider.name) }),
-      );
-      await userEvent.click(view.getByRole("tab", { name: "Use an API key" }));
-      await userEvent.type(
-        view.getByLabelText(`${provider.name} API key`),
-        hiddenKey,
-      );
-      await userEvent.click(
-        view.getByRole("tab", { name: "Sign in with my plan" }),
-      );
-      if (session === "fresh") {
-        await userEvent.click(
-          view.getByRole("button", { name: `Sign in with ${provider.name}` }),
-        );
-        if (provider.id === "anthropic") {
-          await userEvent.type(
-            await view.findByLabelText("Code from your browser"),
-            "synthetic-code",
-          );
-          await userEvent.click(
-            view.getByRole("button", { name: "Finish signing in" }),
-          );
-        }
-      }
-      await view.findByText(
-        new RegExp(
-          session === "saved"
-            ? `A saved ${provider.name} sign-in will be checked`
-            : `Signed in to ${provider.name}`,
-        ),
-      );
-      await userEvent.click(view.getByRole("button", { name: "Continue" }));
-      await userEvent.click(
-        await view.findByRole("button", { name: "Start OpenBot" }),
-      );
-
-      const payload = getStartStackPayload();
-      expect(payload.model).not.toHaveProperty("apiKey");
-      expect(payload.model).toEqual({
-        provider: provider.id,
-        login: "plan",
-        ...(session === "saved" ? { saved: true } : { token: planToken }),
-      });
-      expect(JSON.stringify(payload)).not.toContain(hiddenKey);
-    },
-  );
-
-  test(`saved ${provider.name} plan session enables Start without raw protected secrets on mount`, async () => {
-    invokeHandler = async (command) => {
-      if (command === "prepare_installation") return null;
-      if (command === "detect_engine") {
-        return {
-          engine: "docker",
-          responding: true,
-          engine_socket: null,
-          detail: "Docker is answering.",
-        };
-      }
-      if (command === "default_root") return "/tmp/openbot-app-test";
-      if (command === "already_configured") {
-        return {
-          values: {},
-          saved: {
-            intelligenceApiKey: true,
-            modelApiKeys: { openai: false, anthropic: false },
-            modelSessions: {
-              openai: provider.id === "openai",
-              anthropic: provider.id === "anthropic",
-            },
-          },
-        };
-      }
-      if (command === "already_running") return false;
-      if (command === "windows_blocker") return null;
-      if (command === "last_failure") return null;
-      if (command === "harnesses") {
-        return [
-          {
-            id: "langgraph",
-            name: "LangGraph",
-            summary: "Default Bot",
-            image: null,
-            health_path: null,
-            credential: "any-provider",
-            maintainer: "first-party",
-            mark: null,
-            port: 8000,
-          },
-        ];
-      }
-      if (command === "providers") {
-        return [
-          {
-            id: provider.id,
-            name: provider.name,
-            summary: `Use ${provider.name}.`,
-            logins: ["plan", "api-key"],
-            mark: null,
-            caution: null,
-          },
-        ];
-      }
-      if (command === "start_stack") return null;
-      throw new Error(`unexpected command ${command}`);
-    };
-
-    const view = await renderApp();
-
-    await userEvent.click(
-      await view.findByRole("button", { name: "Set up OpenBot" }),
-    );
-    await userEvent.click(
-      await view.findByRole("button", { name: "Continue" }),
-    );
-    await completeInstallation(view);
-    await userEvent.click(
-      await view.findByRole("radio", { name: new RegExp(provider.name) }),
-    );
-    expect(
-      view.getByText(
-        new RegExp(`A saved ${provider.name} sign-in will be checked`),
-      ),
-    ).toBeTruthy();
-    await userEvent.click(view.getByRole("button", { name: "Continue" }));
-
-    await waitFor(() =>
-      expect(
-        view.getByRole("button", { name: "Start OpenBot" }),
-      ).toHaveProperty("disabled", false),
-    );
-    await userEvent.click(view.getByRole("button", { name: "Start OpenBot" }));
-
-    expect(
-      invokeCalls.filter((call) => call.command === "already_configured"),
-    ).toEqual([
-      {
-        command: "already_configured",
-        args: { root: "/tmp/openbot-app-test" },
-      },
-    ]);
-    for (const call of invokeCalls) {
-      const args = JSON.stringify(call.args ?? {});
-      expect(args).not.toContain("OPENAI_API_KEY");
-      expect(args).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
-    }
-    expect(
-      invokeCalls.find((call) => call.command === "start_stack")?.args,
-    ).toMatchObject({
-      root: "/tmp/openbot-app-test",
-      apiKey: "",
-      model: {
-        provider: provider.id,
-        login: "plan",
-        saved: true,
-      },
-      harness: { id: "langgraph" },
-    });
-  });
-}
-
-for (const provider of [
-  { id: "openai", name: "OpenAI", plan: "ChatGPT" },
-  { id: "anthropic", name: "Anthropic", plan: "Claude" },
 ]) {
-  for (const login of ["plan", "api-key"] as const) {
+  for (const login of ["api-key"] as const) {
     test(`unknown legacy ${provider.name} ${login} and Intelligence reuse stays passive until Start`, async () => {
       setupRootConfiguration("/tmp/synthetic-legacy-root", async () => ({
         values: {},
@@ -3028,7 +2819,7 @@ for (const provider of [
             {
               ...provider,
               summary: "Synthetic provider",
-              logins: ["plan", "api-key"],
+              logins: ["api-key"],
               mark: null,
               caution: null,
             },
@@ -3051,16 +2842,9 @@ for (const provider of [
       await userEvent.click(
         await view.findByRole("radio", { name: new RegExp(provider.name) }),
       );
-      if (login === "api-key")
-        await userEvent.click(
-          view.getByRole("tab", { name: "Use an API key" }),
-        );
       await userEvent.click(
         view.getByRole("button", {
-          name:
-            login === "plan"
-              ? `Use a saved ${provider.plan} sign-in`
-              : `Use a saved ${provider.name} API key`,
+          name: `Use a saved ${provider.name} API key`,
         }),
       );
       await userEvent.click(view.getByRole("button", { name: "Continue" }));

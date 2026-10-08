@@ -1,5 +1,4 @@
 import type { VoiceTranscriptEntry } from "../../../shared/voice-session";
-import { PlanModel } from "../agents/plan-model";
 import type { TitlerOptions } from "../channels/titler";
 import type { RuntimeModel } from "../copilot";
 import { anthropicMessagesUrl, chatCompletionsUrl } from "../routing/model";
@@ -29,43 +28,6 @@ export function createVoiceSummarizer(
     const content = JSON.stringify(
       transcript.map(({ role, text }) => ({ role, text })),
     );
-    if (options.model.plan) {
-      // Reuse the authenticated owned-harness transport, with no tools or shared conversation state.
-      const controller = new AbortController();
-      // HttpAgent handles AbortError cancellation; a TimeoutError from AbortSignal.timeout
-      // is rethrown by its stream cleanup as an unhandled rejection.
-      const timer = setTimeout(
-        () => controller.abort(),
-        options.timeoutMs ?? 20_000,
-      );
-      const abortSignal = controller.signal;
-      const model = new PlanModel(
-        options.model.plan,
-        "voice-summary",
-        { threadId: crypto.randomUUID() },
-        new Set(),
-        abortSignal,
-      );
-      try {
-        const result = await model.doGenerate({
-          prompt: [
-            { role: "system", content: INSTRUCTION },
-            { role: "user", content: [{ type: "text", text: content }] },
-          ],
-          maxOutputTokens: 768,
-          abortSignal,
-        });
-        return validatedSummary(
-          result.content
-            .flatMap((part) => (part.type === "text" ? [part.text] : []))
-            .join(""),
-        );
-      } finally {
-        clearTimeout(timer);
-        controller.abort();
-      }
-    }
-
     const apiKey = await options.resolveApiKey();
     if (!apiKey) throw new Error("Voice summary model is not configured.");
     const anthropic = options.model.provider === "anthropic";

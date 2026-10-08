@@ -21,20 +21,8 @@ test("harness telemetry admits catalogue enums and excludes URLs and unknown IDs
 });
 
 test.each(["openai", "anthropic"])(
-  "%s subscription and API-key telemetry contain only closed categories",
+  "%s API-key telemetry contains only closed categories",
   (provider) => {
-    expect(
-      modelChoiceEvent({
-        provider,
-        login: "plan",
-        token: "synthetic-private-token",
-      }),
-    ).toEqual({
-      kind: "model_chosen",
-      provider,
-      credential_path: "subscription",
-      custom_base_url: false,
-    });
     expect(
       modelChoiceEvent({
         provider,
