@@ -80,6 +80,7 @@ import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
+import { securityHeaders } from "./security-headers";
 import type { PackageStatusReader } from "./tenant-package";
 import {
   INSTRUCTIONS_LIMIT,
@@ -381,6 +382,12 @@ export function createApp(
   privacy?: ErasureDependencies,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
+  app.use(
+    "*",
+    securityHeaders({
+      https: (config.publicUrl ?? config.appUrl ?? "").startsWith("https://"),
+    }),
+  );
   mountDesktopConnectionFailure(app, desktopHostToken);
   mountProviderOAuthProxy(app, modelProviderProxy);
 
