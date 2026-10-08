@@ -79,7 +79,8 @@ per-person connected accounts, routines, voice sessions. The admin screens are f
 
 **Known gap, not fixed:** a skill's `/name` is unique across the whole deployment, so a customer who
 picks a name another customer has used is told it is taken. That reveals that the name exists and
-nothing else. It needs per-owner names, which belongs with the marketplace work (Phase 5).
+nothing else. It needs per-owner names. The marketplace (Phase 5) did not need it and did not change
+it, so it is still open.
 
 ## Billing
 
@@ -129,7 +130,8 @@ have their own rules for selling subscriptions inside an app (open question 3).
 - Queue order is "whoever polls first", not first come first served, and the queue is not durable
   across a server restart (a queued run is a live request). Fine at this scale; revisit with load.
 - The cloud add-on (Phase 4): metering what a cloud-run bot uses, priced to cover cost.
-- "Hired" versus "installed" (Phase 5): until the marketplace exists every coworker a person can run
-  is hired.
+- "Hired" versus "installed": settled in Phase 5 without a separate step. Installing a coworker from
+  the marketplace costs nothing against the limit (it is just a coworker in the account); a coworker
+  counts only while it has a run in progress, which is what "hired" was meant to say (D4).
 - Per-owner skill names (above), and shared seats (the model allows them; nothing sells or manages them).
 - Mobile subscription rules.

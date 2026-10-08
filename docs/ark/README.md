@@ -16,6 +16,7 @@ research and plans. Each file says when it was written.
 | [08-openai-application.md](08-openai-application.md) | Draft application to OpenAI for ChatGPT plan sign-in, ready for the owner to submit. |
 | [09-accounts-plans-quotas.md](09-accounts-plans-quotas.md) | Accounts, the three plans, the run quota with queue-and-upgrade, isolation between customers, billing. |
 | [10-desktop-replatform.md](10-desktop-replatform.md) | What still ties the desktop app to CopilotKit and the order to remove it. |
+| [11-marketplace.md](11-marketplace.md) | The marketplace: Ark's installable digital employees, view-only shared coworkers, what is kept out, review and reports. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.
 It no longer needs CopilotKit's hosted Intelligence service: Ark Hub (`hub/`) replaces it.

@@ -105,10 +105,11 @@ Still to do in this phase:
 - Add-on billing priced at 100% of measured cost (D5). Needs real cost data first.
 - Per-bot choice of where it runs, and moving a bot between the two.
 
-### Phase 5. Marketplace (M)
-- Ark official digital employees: installable, versioned, reviewed by us.
+### Phase 5. Marketplace (M): done 2026-10-08
+Built and verified; see 11-marketplace.md.
+- Ark official digital employees: installable, versioned, curated in code.
 - User-shared bots: **view-only** pages (D7). No import, install, clone or export endpoints for these.
-  Strip secrets and private data before publishing, with a review step and report/takedown.
+  Secrets and private data are refused before publishing, with a review step and report/takedown.
 - Search, categories, publisher profiles.
 
 ### Phase 6. Mobile apps (L)

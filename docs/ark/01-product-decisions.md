@@ -88,5 +88,7 @@ is the working assumption and is to be confirmed with the owner before anything 
 - At the limit, a task that wants to start is queued and the user is offered an upgrade. (2026-10-08)
 - Build the accounts so shared seats can be added later. (2026-10-08)
 - Idle bots and bots installed but not hired do not count toward the limit. (2026-10-08)
+- "Hired" is not a separate step: a bot counts while it has a run in progress, and installing one from
+  the marketplace costs nothing against the limit. Built in Phase 5. (2026-10-08)
 - Every plan is per single user, no shared seats, including Ark Team. (2026-10-08)
 - Enterprise at EUR 250 for 500 bots is intended, with bots mostly on customers' machines. (2026-10-08)
