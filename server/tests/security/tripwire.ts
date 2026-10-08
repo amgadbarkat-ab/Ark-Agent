@@ -63,7 +63,7 @@ net.Socket.prototype.connect = function (this: net.Socket, ...args: unknown[]) {
 } as typeof net.Socket.prototype.connect;
 
 const realLookup = dns.lookup;
-dns.lookup = function (hostname: string, ...rest: unknown[]) {
+dns.lookup = ((hostname: string, ...rest: unknown[]) => {
   try {
     trip("dns", hostname);
   } catch (error) {
@@ -77,4 +77,4 @@ dns.lookup = function (hostname: string, ...rest: unknown[]) {
     throw error;
   }
   return (realLookup as (...a: unknown[]) => unknown)(hostname, ...rest);
-} as typeof dns.lookup;
+}) as typeof dns.lookup;
