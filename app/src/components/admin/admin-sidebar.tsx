@@ -1,6 +1,7 @@
 import {
   IconArrowLeft,
   IconBuildingBank,
+  IconBuildingStore,
   IconCode,
   IconCreditCard,
   IconDeviceDesktop,
@@ -101,6 +102,11 @@ const GROUPS: {
         title: "Accounts",
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
+      },
+      {
+        title: "Marketplace",
+        icon: IconBuildingStore,
+        linkOptions: { to: "/admin/marketplace" },
       },
       {
         title: "Identity providers",

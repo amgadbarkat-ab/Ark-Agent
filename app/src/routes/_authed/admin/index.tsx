@@ -1,5 +1,6 @@
 import {
   IconBuildingBank,
+  IconBuildingStore,
   IconCreditCard,
   IconChevronRight,
   IconCode,
@@ -125,6 +126,13 @@ const SECTIONS: {
           "Every customer account: its plan, how much is in use, and whether it may run.",
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
+      },
+      {
+        title: "Marketplace",
+        description:
+          "Shared coworkers waiting for review, and the ones people have reported.",
+        icon: IconBuildingStore,
+        linkOptions: { to: "/admin/marketplace" },
       },
       {
         title: "Identity providers",

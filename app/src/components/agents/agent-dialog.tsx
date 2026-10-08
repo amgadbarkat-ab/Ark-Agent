@@ -14,6 +14,7 @@ import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
+import { ShareDialog } from "@/components/marketplace/share-dialog";
 import { RoutinesList } from "@/components/routines/routines-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -694,6 +695,7 @@ function ManageSection({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const setHidden = useMutation(setAgentHiddenMutationOptions(queryClient));
   const duplicateAgent = useMutation(
     duplicateAgentMutationOptions(queryClient),
@@ -761,6 +763,27 @@ function ManageSection({
           </ItemActions>
         </Item>
 
+        {profile.mine && !profile.systemOwned ? (
+          <Item variant="muted">
+            <ItemContent>
+              <ItemTitle>Share</ItemTitle>
+              <ItemDescription>
+                Put it in the marketplace as a guide others can read. They
+                cannot install, copy or export it.
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                onClick={() => setSharing(true)}
+                size="sm"
+                variant="outline"
+              >
+                Share
+              </Button>
+            </ItemActions>
+          </Item>
+        ) : null}
+
         {profile.canManage ? (
           <Item variant="muted">
             <ItemContent>
@@ -785,6 +808,12 @@ function ManageSection({
           {actionError.message}
         </p>
       ) : null}
+
+      <ShareDialog
+        agent={{ id: agentId, name: profile.name, title: profile.title }}
+        onOpenChange={setSharing}
+        open={sharing}
+      />
 
       {/* Stacked over the agent dialog: destroying something deserves its own moment, and the
           question keeps the name in it so the wrong tab cannot delete the wrong coworker. */}

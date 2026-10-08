@@ -26,6 +26,7 @@ import { Route as AuthedAdminBoundariesRouteImport } from './routes/_authed/admi
 import { Route as AuthedAdminComputersRouteImport } from './routes/_authed/admin/computers'
 import { Route as AuthedAdminCredentialsRouteImport } from './routes/_authed/admin/credentials'
 import { Route as AuthedAdminIdentityProvidersRouteImport } from './routes/_authed/admin/identity-providers'
+import { Route as AuthedAdminMarketplaceRouteImport } from './routes/_authed/admin/marketplace'
 import { Route as AuthedAdminPeopleRouteImport } from './routes/_authed/admin/people'
 import { Route as AuthedAdminPlaygroundRouteImport } from './routes/_authed/admin/playground'
 import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/skills'
@@ -35,6 +36,9 @@ import { Route as AuthedSettingsPlanRouteImport } from './routes/_authed/setting
 import { Route as AuthedAppAgentsIndexRouteImport } from './routes/_authed/_app/agents/index'
 import { Route as AuthedAppChannelChannelIdRouteImport } from './routes/_authed/_app/channel/$channelId'
 import { Route as AuthedAppChannelNewRouteImport } from './routes/_authed/_app/channel/new'
+import { Route as AuthedAppMarketplaceIndexRouteImport } from './routes/_authed/_app/marketplace/index'
+import { Route as AuthedAppMarketplaceSlugRouteImport } from './routes/_authed/_app/marketplace/$slug'
+import { Route as AuthedAppMarketplaceMineRouteImport } from './routes/_authed/_app/marketplace/mine'
 import { Route as AuthedAdminComponentsIndexRouteImport } from './routes/_authed/admin/components/index'
 import { Route as AuthedAdminComponentsNameRouteImport } from './routes/_authed/admin/components/$name'
 import { Route as AuthedAdminPluginsIndexRouteImport } from './routes/_authed/admin/plugins/index'
@@ -44,6 +48,7 @@ import { Route as AuthedSettingsComponentsGalleryIndexRouteImport } from './rout
 import { Route as AuthedSettingsComponentsGalleryNameRouteImport } from './routes/_authed/settings/components-gallery/$name'
 import { Route as AuthedSettingsConnectedAccountsIndexRouteImport } from './routes/_authed/settings/connected-accounts/index'
 import { Route as AuthedSettingsConnectedAccountsKeyRouteImport } from './routes/_authed/settings/connected-accounts/$key'
+import { Route as AuthedAppMarketplacePublishersIdRouteImport } from './routes/_authed/_app/marketplace/publishers.$id'
 import { Route as AuthedAdminPluginsKeyBotsAgentIdRouteImport } from './routes/_authed/admin/plugins/$key_.bots.$agentId'
 import { Route as AuthedAdminPluginsKeyToolsToolRouteImport } from './routes/_authed/admin/plugins/$key_.tools.$tool'
 
@@ -131,6 +136,11 @@ const AuthedAdminIdentityProvidersRoute =
     path: '/identity-providers',
     getParentRoute: () => AuthedAdminRouteRoute,
   } as any)
+const AuthedAdminMarketplaceRoute = AuthedAdminMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => AuthedAdminRouteRoute,
+} as any)
 const AuthedAdminPeopleRoute = AuthedAdminPeopleRouteImport.update({
   id: '/people',
   path: '/people',
@@ -177,6 +187,24 @@ const AuthedAppChannelNewRoute = AuthedAppChannelNewRouteImport.update({
   path: '/channel/new',
   getParentRoute: () => AuthedAppRoute,
 } as any)
+const AuthedAppMarketplaceIndexRoute =
+  AuthedAppMarketplaceIndexRouteImport.update({
+    id: '/marketplace/',
+    path: '/marketplace/',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
+const AuthedAppMarketplaceSlugRoute =
+  AuthedAppMarketplaceSlugRouteImport.update({
+    id: '/marketplace/$slug',
+    path: '/marketplace/$slug',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
+const AuthedAppMarketplaceMineRoute =
+  AuthedAppMarketplaceMineRouteImport.update({
+    id: '/marketplace/mine',
+    path: '/marketplace/mine',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
 const AuthedAdminComponentsIndexRoute =
   AuthedAdminComponentsIndexRouteImport.update({
     id: '/components/',
@@ -229,6 +257,12 @@ const AuthedSettingsConnectedAccountsKeyRoute =
     path: '/connected-accounts/$key',
     getParentRoute: () => AuthedSettingsRouteRoute,
   } as any)
+const AuthedAppMarketplacePublishersIdRoute =
+  AuthedAppMarketplacePublishersIdRouteImport.update({
+    id: '/marketplace/publishers/$id',
+    path: '/marketplace/publishers/$id',
+    getParentRoute: () => AuthedAppRoute,
+  } as any)
 const AuthedAdminPluginsKeyBotsAgentIdRoute =
   AuthedAdminPluginsKeyBotsAgentIdRouteImport.update({
     id: '/plugins/$key_/bots/$agentId',
@@ -257,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/admin/computers': typeof AuthedAdminComputersRoute
   '/admin/credentials': typeof AuthedAdminCredentialsRoute
   '/admin/identity-providers': typeof AuthedAdminIdentityProvidersRoute
+  '/admin/marketplace': typeof AuthedAdminMarketplaceRoute
   '/admin/people': typeof AuthedAdminPeopleRoute
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
@@ -266,16 +301,20 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
   '/channel/new': typeof AuthedAppChannelNewRoute
+  '/marketplace/$slug': typeof AuthedAppMarketplaceSlugRoute
+  '/marketplace/mine': typeof AuthedAppMarketplaceMineRoute
   '/admin/components/$name': typeof AuthedAdminComponentsNameRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
   '/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
   '/settings/connected-accounts/$key': typeof AuthedSettingsConnectedAccountsKeyRoute
   '/agents/': typeof AuthedAppAgentsIndexRoute
+  '/marketplace/': typeof AuthedAppMarketplaceIndexRoute
   '/admin/components/': typeof AuthedAdminComponentsIndexRoute
   '/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
   '/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
+  '/marketplace/publishers/$id': typeof AuthedAppMarketplacePublishersIdRoute
   '/admin/plugins/$key/bots/$agentId': typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   '/admin/plugins/$key/tools/$tool': typeof AuthedAdminPluginsKeyToolsToolRoute
 }
@@ -292,6 +331,7 @@ export interface FileRoutesByTo {
   '/admin/computers': typeof AuthedAdminComputersRoute
   '/admin/credentials': typeof AuthedAdminCredentialsRoute
   '/admin/identity-providers': typeof AuthedAdminIdentityProvidersRoute
+  '/admin/marketplace': typeof AuthedAdminMarketplaceRoute
   '/admin/people': typeof AuthedAdminPeopleRoute
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
@@ -301,16 +341,20 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
   '/channel/new': typeof AuthedAppChannelNewRoute
+  '/marketplace/$slug': typeof AuthedAppMarketplaceSlugRoute
+  '/marketplace/mine': typeof AuthedAppMarketplaceMineRoute
   '/admin/components/$name': typeof AuthedAdminComponentsNameRoute
   '/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
   '/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
   '/settings/connected-accounts/$key': typeof AuthedSettingsConnectedAccountsKeyRoute
   '/agents': typeof AuthedAppAgentsIndexRoute
+  '/marketplace': typeof AuthedAppMarketplaceIndexRoute
   '/admin/components': typeof AuthedAdminComponentsIndexRoute
   '/admin/plugins': typeof AuthedAdminPluginsIndexRoute
   '/settings/components-gallery': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/settings/connected-accounts': typeof AuthedSettingsConnectedAccountsIndexRoute
+  '/marketplace/publishers/$id': typeof AuthedAppMarketplacePublishersIdRoute
   '/admin/plugins/$key/bots/$agentId': typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   '/admin/plugins/$key/tools/$tool': typeof AuthedAdminPluginsKeyToolsToolRoute
 }
@@ -331,6 +375,7 @@ export interface FileRoutesById {
   '/_authed/admin/computers': typeof AuthedAdminComputersRoute
   '/_authed/admin/credentials': typeof AuthedAdminCredentialsRoute
   '/_authed/admin/identity-providers': typeof AuthedAdminIdentityProvidersRoute
+  '/_authed/admin/marketplace': typeof AuthedAdminMarketplaceRoute
   '/_authed/admin/people': typeof AuthedAdminPeopleRoute
   '/_authed/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
@@ -341,16 +386,20 @@ export interface FileRoutesById {
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/_app/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
   '/_authed/_app/channel/new': typeof AuthedAppChannelNewRoute
+  '/_authed/_app/marketplace/$slug': typeof AuthedAppMarketplaceSlugRoute
+  '/_authed/_app/marketplace/mine': typeof AuthedAppMarketplaceMineRoute
   '/_authed/admin/components/$name': typeof AuthedAdminComponentsNameRoute
   '/_authed/admin/plugins/$key': typeof AuthedAdminPluginsKeyRoute
   '/_authed/admin/plugins/composio': typeof AuthedAdminPluginsComposioRoute
   '/_authed/settings/components-gallery/$name': typeof AuthedSettingsComponentsGalleryNameRoute
   '/_authed/settings/connected-accounts/$key': typeof AuthedSettingsConnectedAccountsKeyRoute
   '/_authed/_app/agents/': typeof AuthedAppAgentsIndexRoute
+  '/_authed/_app/marketplace/': typeof AuthedAppMarketplaceIndexRoute
   '/_authed/admin/components/': typeof AuthedAdminComponentsIndexRoute
   '/_authed/admin/plugins/': typeof AuthedAdminPluginsIndexRoute
   '/_authed/settings/components-gallery/': typeof AuthedSettingsComponentsGalleryIndexRoute
   '/_authed/settings/connected-accounts/': typeof AuthedSettingsConnectedAccountsIndexRoute
+  '/_authed/_app/marketplace/publishers/$id': typeof AuthedAppMarketplacePublishersIdRoute
   '/_authed/admin/plugins/$key_/bots/$agentId': typeof AuthedAdminPluginsKeyBotsAgentIdRoute
   '/_authed/admin/plugins/$key_/tools/$tool': typeof AuthedAdminPluginsKeyToolsToolRoute
 }
@@ -371,6 +420,7 @@ export interface FileRouteTypes {
     | '/admin/computers'
     | '/admin/credentials'
     | '/admin/identity-providers'
+    | '/admin/marketplace'
     | '/admin/people'
     | '/admin/playground'
     | '/admin/skills'
@@ -380,16 +430,20 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/channel/$channelId'
     | '/channel/new'
+    | '/marketplace/$slug'
+    | '/marketplace/mine'
     | '/admin/components/$name'
     | '/admin/plugins/$key'
     | '/admin/plugins/composio'
     | '/settings/components-gallery/$name'
     | '/settings/connected-accounts/$key'
     | '/agents/'
+    | '/marketplace/'
     | '/admin/components/'
     | '/admin/plugins/'
     | '/settings/components-gallery/'
     | '/settings/connected-accounts/'
+    | '/marketplace/publishers/$id'
     | '/admin/plugins/$key/bots/$agentId'
     | '/admin/plugins/$key/tools/$tool'
   fileRoutesByTo: FileRoutesByTo
@@ -406,6 +460,7 @@ export interface FileRouteTypes {
     | '/admin/computers'
     | '/admin/credentials'
     | '/admin/identity-providers'
+    | '/admin/marketplace'
     | '/admin/people'
     | '/admin/playground'
     | '/admin/skills'
@@ -415,16 +470,20 @@ export interface FileRouteTypes {
     | '/settings'
     | '/channel/$channelId'
     | '/channel/new'
+    | '/marketplace/$slug'
+    | '/marketplace/mine'
     | '/admin/components/$name'
     | '/admin/plugins/$key'
     | '/admin/plugins/composio'
     | '/settings/components-gallery/$name'
     | '/settings/connected-accounts/$key'
     | '/agents'
+    | '/marketplace'
     | '/admin/components'
     | '/admin/plugins'
     | '/settings/components-gallery'
     | '/settings/connected-accounts'
+    | '/marketplace/publishers/$id'
     | '/admin/plugins/$key/bots/$agentId'
     | '/admin/plugins/$key/tools/$tool'
   id:
@@ -444,6 +503,7 @@ export interface FileRouteTypes {
     | '/_authed/admin/computers'
     | '/_authed/admin/credentials'
     | '/_authed/admin/identity-providers'
+    | '/_authed/admin/marketplace'
     | '/_authed/admin/people'
     | '/_authed/admin/playground'
     | '/_authed/admin/skills'
@@ -454,16 +514,20 @@ export interface FileRouteTypes {
     | '/_authed/settings/'
     | '/_authed/_app/channel/$channelId'
     | '/_authed/_app/channel/new'
+    | '/_authed/_app/marketplace/$slug'
+    | '/_authed/_app/marketplace/mine'
     | '/_authed/admin/components/$name'
     | '/_authed/admin/plugins/$key'
     | '/_authed/admin/plugins/composio'
     | '/_authed/settings/components-gallery/$name'
     | '/_authed/settings/connected-accounts/$key'
     | '/_authed/_app/agents/'
+    | '/_authed/_app/marketplace/'
     | '/_authed/admin/components/'
     | '/_authed/admin/plugins/'
     | '/_authed/settings/components-gallery/'
     | '/_authed/settings/connected-accounts/'
+    | '/_authed/_app/marketplace/publishers/$id'
     | '/_authed/admin/plugins/$key_/bots/$agentId'
     | '/_authed/admin/plugins/$key_/tools/$tool'
   fileRoutesById: FileRoutesById
@@ -594,6 +658,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAdminIdentityProvidersRouteImport
       parentRoute: typeof AuthedAdminRouteRoute
     }
+    '/_authed/admin/marketplace': {
+      id: '/_authed/admin/marketplace'
+      path: '/marketplace'
+      fullPath: '/admin/marketplace'
+      preLoaderRoute: typeof AuthedAdminMarketplaceRouteImport
+      parentRoute: typeof AuthedAdminRouteRoute
+    }
     '/_authed/admin/people': {
       id: '/_authed/admin/people'
       path: '/people'
@@ -655,6 +726,27 @@ declare module '@tanstack/react-router' {
       path: '/channel/new'
       fullPath: '/channel/new'
       preLoaderRoute: typeof AuthedAppChannelNewRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
+    '/_authed/_app/marketplace/': {
+      id: '/_authed/_app/marketplace/'
+      path: '/marketplace'
+      fullPath: '/marketplace/'
+      preLoaderRoute: typeof AuthedAppMarketplaceIndexRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
+    '/_authed/_app/marketplace/$slug': {
+      id: '/_authed/_app/marketplace/$slug'
+      path: '/marketplace/$slug'
+      fullPath: '/marketplace/$slug'
+      preLoaderRoute: typeof AuthedAppMarketplaceSlugRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
+    '/_authed/_app/marketplace/mine': {
+      id: '/_authed/_app/marketplace/mine'
+      path: '/marketplace/mine'
+      fullPath: '/marketplace/mine'
+      preLoaderRoute: typeof AuthedAppMarketplaceMineRouteImport
       parentRoute: typeof AuthedAppRoute
     }
     '/_authed/admin/components/': {
@@ -720,6 +812,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsConnectedAccountsKeyRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/_app/marketplace/publishers/$id': {
+      id: '/_authed/_app/marketplace/publishers/$id'
+      path: '/marketplace/publishers/$id'
+      fullPath: '/marketplace/publishers/$id'
+      preLoaderRoute: typeof AuthedAppMarketplacePublishersIdRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
     '/_authed/admin/plugins/$key_/bots/$agentId': {
       id: '/_authed/admin/plugins/$key_/bots/$agentId'
       path: '/plugins/$key/bots/$agentId'
@@ -744,6 +843,7 @@ interface AuthedAdminRouteRouteChildren {
   AuthedAdminComputersRoute: typeof AuthedAdminComputersRoute
   AuthedAdminCredentialsRoute: typeof AuthedAdminCredentialsRoute
   AuthedAdminIdentityProvidersRoute: typeof AuthedAdminIdentityProvidersRoute
+  AuthedAdminMarketplaceRoute: typeof AuthedAdminMarketplaceRoute
   AuthedAdminPeopleRoute: typeof AuthedAdminPeopleRoute
   AuthedAdminPlaygroundRoute: typeof AuthedAdminPlaygroundRoute
   AuthedAdminSkillsRoute: typeof AuthedAdminSkillsRoute
@@ -764,6 +864,7 @@ const AuthedAdminRouteRouteChildren: AuthedAdminRouteRouteChildren = {
   AuthedAdminComputersRoute: AuthedAdminComputersRoute,
   AuthedAdminCredentialsRoute: AuthedAdminCredentialsRoute,
   AuthedAdminIdentityProvidersRoute: AuthedAdminIdentityProvidersRoute,
+  AuthedAdminMarketplaceRoute: AuthedAdminMarketplaceRoute,
   AuthedAdminPeopleRoute: AuthedAdminPeopleRoute,
   AuthedAdminPlaygroundRoute: AuthedAdminPlaygroundRoute,
   AuthedAdminSkillsRoute: AuthedAdminSkillsRoute,
@@ -814,7 +915,11 @@ interface AuthedAppRouteChildren {
   AuthedAppIndexRoute: typeof AuthedAppIndexRoute
   AuthedAppChannelChannelIdRoute: typeof AuthedAppChannelChannelIdRoute
   AuthedAppChannelNewRoute: typeof AuthedAppChannelNewRoute
+  AuthedAppMarketplaceSlugRoute: typeof AuthedAppMarketplaceSlugRoute
+  AuthedAppMarketplaceMineRoute: typeof AuthedAppMarketplaceMineRoute
   AuthedAppAgentsIndexRoute: typeof AuthedAppAgentsIndexRoute
+  AuthedAppMarketplaceIndexRoute: typeof AuthedAppMarketplaceIndexRoute
+  AuthedAppMarketplacePublishersIdRoute: typeof AuthedAppMarketplacePublishersIdRoute
 }
 
 const AuthedAppRouteChildren: AuthedAppRouteChildren = {
@@ -824,7 +929,11 @@ const AuthedAppRouteChildren: AuthedAppRouteChildren = {
   AuthedAppIndexRoute: AuthedAppIndexRoute,
   AuthedAppChannelChannelIdRoute: AuthedAppChannelChannelIdRoute,
   AuthedAppChannelNewRoute: AuthedAppChannelNewRoute,
+  AuthedAppMarketplaceSlugRoute: AuthedAppMarketplaceSlugRoute,
+  AuthedAppMarketplaceMineRoute: AuthedAppMarketplaceMineRoute,
   AuthedAppAgentsIndexRoute: AuthedAppAgentsIndexRoute,
+  AuthedAppMarketplaceIndexRoute: AuthedAppMarketplaceIndexRoute,
+  AuthedAppMarketplacePublishersIdRoute: AuthedAppMarketplacePublishersIdRoute,
 }
 
 const AuthedAppRouteWithChildren = AuthedAppRoute._addFileChildren(
