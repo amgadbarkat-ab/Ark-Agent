@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { sessions } from "../../src/db/schema";
+import { mintModelGrant } from "../../src/models/grant";
 import {
   type Person,
   type Seeded,
@@ -619,6 +620,248 @@ run("proving who you are", () => {
       );
       expect(answer.status).toBe(403);
     }
+  });
+});
+
+run("credentials that are not a person's cookie", () => {
+  const KEY = Buffer.alloc(32, 7).toString("base64");
+  const WRONG_KEY = Buffer.alloc(32, 9).toString("base64");
+
+  test("the model gateway accepts only a grant this deployment signed, for now, for a connection that exists", async () => {
+    const connection = alice.connectionId;
+    const ask = (token: string | null) =>
+      target.call(null, "POST", "/api/model-gateway/anthropic/v1/messages", {
+        body: {
+          model: "claude",
+          max_tokens: 1,
+          messages: [{ role: "user", content: "hi" }],
+        },
+        headers: token ? { "x-api-key": token } : {},
+      });
+    const now = Date.now();
+    const refused = [
+      await ask(null),
+      await ask("sk-ant-api03-guess"),
+      await ask("not.a.grant"),
+      await ask(
+        mintModelGrant(
+          { actorId: target.a.id, connectionId: connection },
+          WRONG_KEY,
+        ),
+      ),
+      await ask(
+        mintModelGrant(
+          { actorId: target.a.id, connectionId: connection },
+          KEY,
+          now - 3 * 60 * 60 * 1000,
+        ),
+      ),
+      // A person's session token, or any other signed value, is not a grant.
+      await ask(decodeURIComponent(target.a.cookie.split("=")[1] ?? "")),
+    ];
+    for (const answer of refused) expect(answer.status).toBe(401);
+
+    // Signed by the deployment, but for somebody else's connection: the grant names the owner, so it
+    // cannot be used to spend another person's key.
+    const crossed = await ask(
+      mintModelGrant(
+        { actorId: target.a.id, connectionId: bob.connectionId },
+        KEY,
+      ),
+    );
+    expect(crossed.status).not.toBe(200);
+    expect(crossed.text).not.toContain("sk-BOBSECRET");
+  });
+
+  test("a bot's own tool call needs its own token and a run signed by this deployment", async () => {
+    const call = (headers: Record<string, string>, run?: unknown) =>
+      target.call(null, "POST", "/api/agent-tools/call", {
+        body: {
+          name: "gmail__send",
+          args: {},
+          ...(run !== undefined ? { run } : {}),
+        },
+        headers,
+      });
+    for (const answer of [
+      await call({}),
+      await call({ "x-openbot-agent-token": "guess" }),
+      await call({ "x-openbot-agent-token": "x".repeat(10_000) }, "x.y"),
+      await call(
+        { "x-openbot-agent-token": "guess" },
+        { botId: bob.agentId, actorId: target.b.id },
+      ),
+    ]) {
+      expect(answer.status).toBe(401);
+    }
+  });
+
+  test("the routines endpoint answers a guess exactly as it answers nobody", async () => {
+    const without = await target.call(null, "POST", "/internal/routines/run", {
+      body: {},
+    });
+    const wrong = await target.call(null, "POST", "/internal/routines/run", {
+      body: {},
+      headers: { authorization: "Bearer guess" },
+    });
+    expect([without.status, wrong.status]).toEqual([401, 401]);
+    expect(without.text).toBe(wrong.text);
+    // A customer's session is not the worker's secret.
+    expect(
+      (
+        await target.call(target.a, "POST", "/internal/routines/run", {
+          body: {},
+        })
+      ).status,
+    ).toBe(401);
+  });
+
+  test("a vendor's redirect carrying a forged state does nothing and goes nowhere but home", async () => {
+    for (const query of [
+      "?state=forged&code=x",
+      "?error=access_denied",
+      "",
+      "?state=%00&code=%00",
+      `?state=${"a".repeat(5000)}&code=x`,
+    ]) {
+      const answer = await target.call(
+        target.a,
+        "GET",
+        `/api/plugins/oauth/callback${query}`,
+      );
+      expect([query.slice(0, 20), answer.status < 500]).toEqual([
+        query.slice(0, 20),
+        true,
+      ]);
+      const location = answer.headers.get("location") ?? "";
+      expect(
+        location === "" ||
+          location.startsWith("/") ||
+          location.startsWith(target.url),
+      ).toBe(true);
+      expect(answer.headers.get("set-cookie")).toBeNull();
+    }
+  });
+
+  test("the desktop's door is shut to anybody without its token", async () => {
+    for (const [method, path] of [
+      ["GET", "/api/host-access/desktop/next"],
+      ["POST", "/api/host-access/desktop/result"],
+    ] as const) {
+      for (const headers of [
+        {},
+        { authorization: "Bearer guess" },
+        { "x-openbot-desktop-token": "guess" },
+      ]) {
+        const answer = await target.call(null, method, path, {
+          body: method === "POST" ? {} : undefined,
+          headers,
+        });
+        expect([401, 403, 503]).toContain(answer.status);
+      }
+    }
+  });
+});
+
+run("the files the server hands out", () => {
+  const built = Bun.file(
+    new URL("../../../app/dist/index.html", import.meta.url).pathname,
+  );
+
+  test("a path cannot be bent into reading anything outside the built app", async () => {
+    if (!(await built.exists())) return; // Needs `bun run build`; reported as skipped by absence.
+    const attempts = [
+      "/..%2f..%2f..%2fetc%2fpasswd",
+      "/%2e%2e/%2e%2e/%2e%2e/etc/passwd",
+      "/assets/../../../../etc/passwd",
+      "/assets/..%2f..%2f..%2f..%2fetc%2fpasswd",
+      "//etc/passwd",
+      "/%5c..%5c..%5cetc%5cpasswd",
+      "/..;/..;/etc/passwd",
+      "/.env",
+      "/..%252f..%252fetc%252fpasswd",
+      "/%00../etc/passwd",
+      "/index.html%00.png",
+    ];
+    for (const path of attempts) {
+      const answer = await target.call(null, "GET", path);
+      expect([path, answer.text.includes("root:x:0:0")]).toEqual([path, false]);
+      expect([path, answer.text.includes("KEY_ENCRYPTION_KEY")]).toEqual([
+        path,
+        false,
+      ]);
+    }
+  });
+
+  test("the built app is served with the browser protections, and an unknown page is the app, never an error page that names the server", async () => {
+    if (!(await built.exists())) return;
+    const page = await target.call(null, "GET", "/marketplace");
+    expect(page.status).toBe(200);
+    expect(page.headers.get("content-security-policy")).toContain(
+      "frame-ancestors",
+    );
+    expect(page.headers.get("x-content-type-options")).toBe("nosniff");
+    // An API path that does not exist is a JSON refusal, not the app's HTML.
+    const missing = await target.call(null, "GET", "/api/definitely-not-here");
+    expect(missing.text).not.toContain("<!doctype html>");
+  });
+});
+
+run("shared coworkers", () => {
+  test("a coworker somebody else shared can be read and reported, and never installed, run, or copied", async () => {
+    // Approved by the reviewer, so that it is public to every signed-in person.
+    const approved = await target.call(
+      target.admin,
+      "POST",
+      `/api/admin/marketplace/listings/${bob.listingId}/approve`,
+      {
+        body: { note: "fine" },
+      },
+    );
+    expect(approved.status).toBe(200);
+
+    const before = JSON.parse(
+      (await target.call(target.a, "GET", "/api/agents")).text,
+    ).agents.length;
+    const view = await target.call(
+      target.a,
+      "GET",
+      `/api/marketplace/listings/${bob.listingSlug}`,
+    );
+    expect(view.status).toBe(200);
+    expect(view.text).not.toContain(target.b.email);
+    expect(view.text).not.toContain(target.b.id);
+    expect(view.text).not.toContain(`sk-BOBSECRET`);
+    // Every way a person might try to take it for their own account.
+    const install = await target.call(
+      target.a,
+      "POST",
+      `/api/marketplace/listings/${bob.listingSlug}/install`,
+    );
+    expect(install.status).toBe(403);
+    for (const [method, path] of [
+      ["POST", `/api/marketplace/listings/${bob.listingSlug}/clone`],
+      ["POST", `/api/marketplace/listings/${bob.listingSlug}/import`],
+      ["GET", `/api/marketplace/listings/${bob.listingSlug}/export`],
+      ["GET", `/api/marketplace/listings/${bob.listingSlug}/download`],
+      ["POST", `/api/agents/${bob.agentId}/duplicate`],
+    ] as const) {
+      const answer = await target.call(target.a, method, path, { body: {} });
+      expect([method, path, answer.status >= 400]).toEqual([
+        method,
+        path,
+        true,
+      ]);
+    }
+    const after = JSON.parse(
+      (await target.call(target.a, "GET", "/api/agents")).text,
+    ).agents.length;
+    expect(after).toBe(before);
+    // The sharer's own coworker is still only theirs, and still private.
+    const own = JSON.parse(
+      (await target.call(target.b, "GET", `/api/agents/${bob.agentId}`)).text,
+    ).agent;
+    expect(own.visibility).toBe("private");
   });
 });
 

@@ -201,6 +201,13 @@ export async function startTarget(): Promise<Target> {
         MANAGED_AGENT_AG_UI_URL: "http://127.0.0.1:1/ag-ui",
         MANAGED_AGENT_TOKEN: "unused",
         TENANT_PACKAGE_DIR: join(SERVER_DIR, "..", "examples", "fintech"),
+        // Serves the built app when there is one, which is how a deployment serves it, so the paths a
+        // browser can ask the static server for are part of what is attacked.
+        ...((await Bun.file(
+          join(SERVER_DIR, "..", "app", "dist", "index.html"),
+        ).exists())
+          ? { APP_DIST_DIR: join(SERVER_DIR, "..", "app", "dist") }
+          : {}),
         ARK_BILLING_MODE: "subscriptions",
         ARK_BILLING_PROVIDER: "paddle",
         APP_URL: url,
@@ -247,7 +254,9 @@ export async function startTarget(): Promise<Target> {
     const headers: Record<string, string> = { ...options.headers };
     if (as) headers.cookie = as.cookie;
     let body: string | undefined;
-    if (options.raw !== undefined) body = options.raw;
+    const bodiless = ["GET", "HEAD", "OPTIONS"].includes(method);
+    if (bodiless) body = undefined;
+    else if (options.raw !== undefined) body = options.raw;
     else if (options.body !== undefined) {
       body = JSON.stringify(options.body);
       headers["content-type"] ??= "application/json";
