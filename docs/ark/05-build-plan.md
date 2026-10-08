@@ -37,11 +37,14 @@ Done:
       the UI, the answer streams back, reload in a fresh browser and the conversation is restored.
 
 Still to do in this phase:
-- [ ] Start, stop and package the hub with the rest of the stack (`scripts/start.sh`,
-      `docker-compose.yml`, `Dockerfile`, Helm chart) and make it the default in `.env.example`.
-- [ ] Remove every phone-home found in the audit: SDK telemetry to `telemetry.copilotkit.ai`
-      (set `COPILOTKIT_TELEMETRY_DISABLED`, then enforce it in code), the inspector widget's
-      `cdn.copilotkit.ai` calls, and Google Fonts (self-host the fonts).
+- [x] Hub started, stopped and configured by the stack's scripts (`scripts/hub.sh`, called from
+      `start.sh` and `stop.sh`), default in `.env.example`, creates its own database.
+- [x] Phone-home removed: SDK telemetry is forced off in code, the SDK inspector widget (which
+      called `cdn.copilotkit.ai` and loaded Google Fonts) is off. A browser audit now shows no
+      outside hosts.
+- [ ] Package the hub into the one-container image (`Dockerfile`, `docker/s6`), the compose file
+      and the Helm chart. Not started: image builds cannot run in the current sandbox (its proxy
+      breaks TLS inside containers), and the hosting target is not chosen yet.
 - [ ] Drop the licence-token and "Intelligence is required" wording from config and docs; rename
       the settings to hub names.
 - [ ] Automated test that the whole stack runs with `*.copilotkit.ai` unreachable.

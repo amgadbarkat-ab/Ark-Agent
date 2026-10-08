@@ -11,7 +11,7 @@ research and plans. Each file says when it was written.
 | [03-licensing.md](03-licensing.md) | What code we may reuse (MIT OpenBot) and what we may not. |
 | [04-llm-providers.md](04-llm-providers.md) | Provider strategy, and the legal check of ChatGPT/Claude/Gemini/Grok plan sign-in. |
 | [05-build-plan.md](05-build-plan.md) | What the code gives us, and the phased plan to turn it into Ark. |
+| [06-dev-notes.md](06-dev-notes.md) | How to run and test it, and the quirks of the web sandbox. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.
-Right now it still needs CopilotKit's hosted Intelligence service to start. Removing that is
-Phase 1.
+It no longer needs CopilotKit's hosted Intelligence service: Ark Hub (`hub/`) replaces it.
