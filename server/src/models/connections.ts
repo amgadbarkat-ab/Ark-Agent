@@ -55,6 +55,8 @@ export type ModelConnectionStore = {
   /** Removing the default hands that role to the person's oldest remaining connection. */
   remove: (userId: string, id: string) => Promise<boolean>;
   setDefault: (userId: string, id: string) => Promise<ModelConnection | null>;
+  /** The person's default connection, without opening its key. */
+  getDefault: (userId: string) => Promise<ModelConnection | null>;
   /** The named connection, or the person's default, with its key opened. */
   open: (userId: string, id?: string) => Promise<ModelConnectionSecret | null>;
 };
@@ -221,6 +223,20 @@ export function createModelConnectionStore(
           .returning();
         return row ? view(row) : null;
       });
+    },
+
+    async getDefault(userId) {
+      const [row] = await database
+        .select()
+        .from(modelConnections)
+        .where(
+          and(
+            eq(modelConnections.userId, userId),
+            eq(modelConnections.isDefault, true),
+          ),
+        )
+        .limit(1);
+      return row ? view(row) : null;
     },
 
     async open(userId, id) {

@@ -12,10 +12,20 @@ import {
 import { ChatOpenAI } from "@langchain/openai";
 import { serve } from "bun";
 import { hasManagedAgentToken } from "../../shared/agent-authorisation";
+import {
+  decodeModelOverride,
+  MODEL_HEADER,
+  type ModelOverride,
+} from "../../shared/model-header";
 import { listenPort } from "../../shared/listen-port";
 import { toLangChainMessages } from "./history";
 import { readReasoningEffort } from "./model-options";
 import { apiKeyOrPlaceholder, KEY_VARIABLE, keyIsRequired } from "./model-key";
+import {
+  buildOverrideModel,
+  messageProviderFor,
+  resolveOverride,
+} from "./model-override";
 import { streamRun } from "./stream";
 import { toolAnswer } from "./tool-answer";
 
@@ -154,16 +164,26 @@ function defaultModelFor(provider: string): string {
  * a missing key should fail in front of whoever is deploying, not as a conversation that errors in
  * front of somebody trying to use it.
  */
+/**
+ * `BOT_PROVIDER=none` is a deployment that supplies no model of its own: every person brings theirs,
+ * and a run with none says so instead of reaching for a key nobody configured. It is its own value
+ * rather than a missing key because a missing key is a mistake, and this is a decision.
+ */
+const NO_DEPLOYMENT_MODEL = PROVIDER === "none";
 const keyVariable = KEY_VARIABLE[PROVIDER];
-if (!keyVariable) {
+if (!keyVariable && !NO_DEPLOYMENT_MODEL) {
   console.error(
-    `BOT_PROVIDER=${PROVIDER} is not one this Bot knows. Use openai, anthropic or google.`,
+    `BOT_PROVIDER=${PROVIDER} is not one this Bot knows. Use openai, anthropic, google or none.`,
   );
   process.exit(1);
 }
-const API_KEY = process.env[keyVariable]?.trim();
+const API_KEY = keyVariable ? process.env[keyVariable]?.trim() : undefined;
 // Unless an endpoint was named to answer instead: see `keyIsRequired`.
-if (!API_KEY && keyIsRequired(PROVIDER, OPENAI_BASE_URL)) {
+if (
+  !NO_DEPLOYMENT_MODEL &&
+  !API_KEY &&
+  keyIsRequired(PROVIDER, OPENAI_BASE_URL)
+) {
   console.error(
     `${keyVariable} is not set, and BOT_PROVIDER=${PROVIDER} needs it. This Bot cannot answer without a model.`,
   );
@@ -193,7 +213,14 @@ function toBoundTools(input: RunAgentInput) {
  * Every one of these binds tools the same way and streams the same way, which is exactly why the
  * rest of this file does not know which one it got.
  */
-function buildModel() {
+function buildModel(override?: ModelOverride) {
+  // The person's own choice for this run wins over what the deployment started with.
+  if (override) return buildOverrideModel(override);
+  if (NO_DEPLOYMENT_MODEL) {
+    throw new Error(
+      "No model is connected yet. Open Settings, then Models, to connect one.",
+    );
+  }
   if (PROVIDER === "anthropic") {
     return new ChatAnthropic({
       model: MODEL,
@@ -326,8 +353,8 @@ function callsTheSurface(
  * Now it answers, calls what it needs, reads the results and answers again, which is what a harness
  * is for. `recursionLimit` bounds a model that would otherwise call tools in a circle.
  */
-function buildGraph(input: RunAgentInput) {
-  const model = buildModel();
+function buildGraph(input: RunAgentInput, override?: ModelOverride) {
+  const model = buildModel(override);
   const run = runAssertionOf(input);
 
   const tools = toBoundTools(input);
@@ -388,7 +415,10 @@ function buildGraph(input: RunAgentInput) {
     .compile();
 }
 
-async function runAgent(input: RunAgentInput): Promise<Response> {
+async function runAgent(
+  input: RunAgentInput,
+  override?: ModelOverride,
+): Promise<Response> {
   const encoder = new EventEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -406,8 +436,13 @@ async function runAgent(input: RunAgentInput): Promise<Response> {
       // is reported as RUN_ERROR through the same path as a failure mid-stream.
       await streamRun(
         async () =>
-          buildGraph(input).streamEvents(
-            { messages: toLangChainMessages(input, PROVIDER) },
+          buildGraph(input, override).streamEvents(
+            {
+              messages: toLangChainMessages(
+                input,
+                messageProviderFor(override, PROVIDER),
+              ),
+            },
             { version: "v2" },
           ),
         input,
@@ -448,7 +483,21 @@ serve({
         return Response.json({ error: "Unauthorized." }, { status: 401 });
       }
       const input = (await request.json()) as RunAgentInput;
-      return runAgent(input);
+      const selection = request.headers.get(MODEL_HEADER);
+      const override = decodeModelOverride(selection);
+      // Absent means this deployment's own model, as every run used before. Present but unreadable
+      // is a deployment asking for a model it cannot name, and answering with the deployment's own
+      // would spend somebody else's key, so it is refused.
+      if (selection && !override) {
+        return Response.json(
+          { error: "The model selection for this run could not be read." },
+          { status: 400 },
+        );
+      }
+      return runAgent(
+        input,
+        override ? resolveOverride(override, TOOL_URL) : undefined,
+      );
     }
 
     return Response.json({ error: "Not found." }, { status: 404 });

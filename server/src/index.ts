@@ -115,7 +115,10 @@ import {
 } from "./tenant-package";
 import { createUserInstructionsStore } from "./user-instructions";
 import { createModelConnectionStore } from "./models/connections";
-import { createModelForActor } from "./models/for-actor";
+import {
+  createModelForActor,
+  createModelHeaderForActor,
+} from "./models/for-actor";
 import { createUserPreferencesStore } from "./user-preferences";
 import { repeatAfterEach } from "./work/loop";
 import {
@@ -231,10 +234,17 @@ const channelActivityListener = await startChannelActivityListener(
   channelEvents,
 );
 const roleRepository = createRoleRepository(database);
+// A person's own model connections. Built here, before the agent loader, because the loader tells the
+// deployment's bot which model the person chose; the routes and the gateway share the same store.
+const modelConnectionStore = createModelConnectionStore(
+  database,
+  config.keyEncryptionKey,
+);
 const loadAgentsForActor = createRuntimeAgentLoader(
   database,
   agentVault,
   config.managedAgent,
+  createModelHeaderForActor(modelConnectionStore, config.keyEncryptionKey),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -910,10 +920,6 @@ const routineRunner = createRoutineRunner({
  * invisible: it runs, and quietly holds different tools or a different role from the one the person
  * is talking to.
  */
-const modelConnectionStore = createModelConnectionStore(
-  database,
-  config.keyEncryptionKey,
-);
 const modelForActor = createModelForActor(modelConnectionStore, agentFetch);
 
 const copilotRuntime = mountCopilotRuntime(
@@ -1350,6 +1356,7 @@ const app = createApp(
   },
   {
     store: modelConnectionStore,
+    encryptionKey: config.keyEncryptionKey,
     fetchImpl: agentFetch,
     allowPrivateHosts: config.computer?.allowPrivateHosts === true,
     ...(config.agentEndpointAllowedHosts

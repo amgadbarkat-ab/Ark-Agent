@@ -87,6 +87,7 @@ import {
   type UserInstructionsStore,
 } from "./user-instructions";
 import type { UserPreferencesStore } from "./user-preferences";
+import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { userPreferencesRoutes } from "./user-preferences-routes";
 
@@ -338,7 +339,7 @@ export function createApp(
   modelConnections?: Omit<
     Parameters<typeof modelConnectionRoutes>[0],
     "requireUser"
-  >,
+  > & { encryptionKey: string },
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   mountDesktopConnectionFailure(app, desktopHostToken);
@@ -572,9 +573,19 @@ export function createApp(
   );
 
   if (modelConnections) {
+    const { encryptionKey, ...routeOptions } = modelConnections;
     app.route(
       "/api/models",
-      modelConnectionRoutes({ requireUser, ...modelConnections }),
+      modelConnectionRoutes({ requireUser, ...routeOptions }),
+    );
+    // Not behind a session: the caller is a bot, and what it holds is a grant minted for one person.
+    app.route(
+      "/api/model-gateway",
+      modelGatewayRoutes({
+        store: routeOptions.store as NonNullable<typeof routeOptions.store>,
+        encryptionKey,
+        fetchImpl: routeOptions.fetchImpl,
+      }),
     );
   }
 
