@@ -251,8 +251,6 @@ Tick each one with the date and who did it. Nothing here is optional.
 - [ ] Entra app registration for staff is **single-directory** (the directory id in the
       configuration is a GUID, never `common`), and an administrator signs in through it.
 - [ ] Customer sign-in with Google works from a fresh account; that account is **not** an administrator.
-- [ ] A purchase in **Paddle's sandbox** end to end, following the checklist in
-      [12-paddle.md](12-paddle.md): checkout, webhook, plan change, cancel, a replayed webhook.
 - [ ] The **restore drill** above, with the time it took.
 - [ ] Each alert fired once on purpose (stop the pods, fill a scratch table, etc.) and reached the mailbox.
 - [ ] A **dependency scan and an image scan** run (see the security review) and nothing critical is open.
@@ -263,9 +261,13 @@ Tick each one with the date and who did it. Nothing here is optional.
       Composio are signed or accepted.
 - [ ] A **penetration test** by someone who is not us, or the owner has accepted in writing going live
       without one.
-- [ ] The Paddle live keys are in the vault, `PADDLE_ENVIRONMENT=production`, and `live_` /
-      `pri_` placeholders in `values-azure.yaml` are replaced.
 - [ ] DNS for the two names points at the ingress; HSTS is on (it is, once the address is `https://`).
+- [ ] **LAST: the Paddle sandbox run**, by the owner, once everything above is done and the sandbox
+      is wired to the real `dev` deployment: a purchase end to end, following the checklist in
+      [12-paddle.md](12-paddle.md) (checkout, webhook, plan change, cancel, a replayed webhook). Only
+      then: the Paddle live keys go in the vault, `PADDLE_ENVIRONMENT=production`, and the `live_` /
+      `pri_` placeholders in `values-azure.yaml` are replaced. Until it does, the payment adapter is proven against a fake
+      Paddle only.
 
 ## What has and has not been checked
 

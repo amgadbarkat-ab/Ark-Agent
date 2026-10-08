@@ -97,6 +97,10 @@ separate address later would remove the question.
 
 ## The sandbox run (about an hour)
 
+**This is the last check before launch**, done by the owner after the rest of the deployment is in
+place (docs/ark/13-azure-hosting.md). The catalogue in step 1 is made by `server/scripts/paddle-setup.ts`;
+the rest of the setup above is by hand.
+
 1. Configure the sandbox as above. Start the server; it must start without complaint.
 2. Sign up as a new customer; choose Ark Team; the Paddle checkout opens over our page. Pay with
    Paddle's test card.

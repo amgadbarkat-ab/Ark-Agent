@@ -98,8 +98,9 @@ Done:
 Still to do in this phase:
 - [x] Payment provider chosen: **Paddle**, a merchant of record that collects VAT and sends invoices.
       Adapter, webhook, plan change, cancel, billing portal and the Plan screen are built and tested
-      against a fake Paddle (12-paddle.md). **Still to do by the owner:** the sandbox run in that
-      file, before live keys go in.
+      against a fake Paddle (12-paddle.md). Catalogue setup is one command (`server/scripts/paddle-setup.ts`).
+      **Still to do by the owner, deliberately the last check before launch:** the sandbox run in
+      that file, before live keys go in.
 - [ ] Per-owner skill names (known cross-customer name clash, 09).
 - [ ] A fair queue order, if load ever needs one.
 
@@ -162,9 +163,9 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 
 ## Immediate next steps
 
-1. **Owner:** run the Paddle sandbox checklist (12-paddle.md); create the Entra staff application, the
-   Google client, the Paddle products and the DNS names (infra/azure/README.md); supply the legal
-   documents (14-data-protection.md).
+1. **Owner:** run the identity script and create the Google client (infra/azure/README.md); give a
+   domain name; review and sign off the legal drafts (docs/legal). **Last of all, the Paddle sandbox
+   run** (12-paddle.md), which the owner will do after everything else is in place.
 2. **Next to build, needs nothing from the owner:** a report-only content-security-policy (15, O3), a
    scheduled dependency audit (15, O4). A first deployment to `dev` needs an Azure subscription to
    deploy into.
