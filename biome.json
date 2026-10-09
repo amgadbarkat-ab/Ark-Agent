@@ -11,6 +11,7 @@
       "!**/target",
       "!brand/brand-tokens.json",
       "!brand/brand-tokens.css",
+      "!brand/logos/logo-icon-bars.svg",
       "!mobile/android/build",
       "!mobile/android/.gradle",
       "!mobile/android/app/build",
