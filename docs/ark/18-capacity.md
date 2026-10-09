@@ -75,6 +75,20 @@ are the first to look at if a customer with several hundred coworkers appears (p
 answered: a median of about 500 and 630 requests a second over five rounds, one process, this sandbox,
 client and server competing for the same CPU. A ceiling for one process on this machine, not a forecast.
 
+## A soak, and a database that drops every connection
+
+- **Memory over time.** Forty-eight thousand requests (a mix of `/api/me`, `/api/agents`,
+  `/api/channels`, `/api/plugins`, `/api/account`) over forty connections to one server process: resident
+  memory 268 MB at start, about 400 MB after the first eight thousand, and then flat (387 to 393 MB) to
+  the end; no failures; about 430 requests a second for that mix, client and server on one machine.
+  There is no leak at this scale. The chart asks for 512 Mi per pod and allows 2 Gi, which fits: size
+  `requests.memory` from a real pod's working set once there is one.
+- **A failover.** Every connection the server holds to the database was terminated three times in a row
+  (`pg_terminate_backend`, which is what a managed database's failover does to its clients). Requests
+  were answered correctly straight afterwards, `/ready` stayed ready, fifty at once right after were all
+  answered, and the three `LISTEN` connections (live conversation activity, policy changes, work offered)
+  were back within half a second. Nothing needed a restart.
+
 ## The hub: one streaming reply, many watchers
 
 A reply streamed a character at a time (2,000 pieces, the worst case for event count), with browsers
@@ -112,7 +126,8 @@ measured separately: a 3,000-piece reply is replayed as one frame (10, replay co
   runs on. The next section is one conversation with many watchers.
 - **The work pool**: runs, the model calls they make, and the cost of a coworker's computer (17).
   This is the number that sets the price of the cloud add-on and has to come from the real cluster.
-- **Long soaks**: memory over days, connection churn, a database failover under traffic.
+- **Long soaks**: memory over days (the soak above is minutes), and a failover that takes the database
+  away for seconds rather than dropping connections to one that is still there.
 
 When the first deployment to `dev` exists: run `scripts/load-profile.ts` against it (point the
 harness at the deployment instead of a local process), then a burst test of the 27 routes at 200
