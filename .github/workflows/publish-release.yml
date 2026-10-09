@@ -501,3 +501,23 @@ jobs:
           # Spaces in a file name become dots on a release page; say plainly what was attached.
           printf 'Attaching %s\n' "${files[@]}"
           gh release upload "$VERSION" "${files[@]}" --clobber
+
+          # The same files under names that never change, because the website's download button links
+          # to them (docs/ark/site/download-button.html): whoever uploads them to the site copies
+          # these as they are and renames nothing.
+          mkdir -p stable
+          for file in "${files[@]}"; do
+            case "$file" in
+              *.exe) cp "$file" stable/ArkAgent-windows-x64-setup.exe ;;
+              *.dmg)
+                arch=x64
+                case "$file" in *aarch64*|*arm64*) arch=arm64 ;; esac
+                cp "$file" "stable/ArkAgent-macos-$arch.dmg"
+                ;;
+              *.AppImage) cp "$file" stable/ArkAgent-linux-x64.AppImage ;;
+              *.deb) cp "$file" stable/ArkAgent-linux-x64.deb ;;
+              *.rpm) cp "$file" stable/ArkAgent-linux-x64.rpm ;;
+            esac
+          done
+          ls -l stable
+          gh release upload "$VERSION" stable/* --clobber

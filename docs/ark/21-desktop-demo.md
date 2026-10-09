@@ -55,37 +55,55 @@ the repository public would make it free.
 else.** The repository and its container packages are private, so a customer's computer could not use GitHub
 anyway. There are two kinds of download, and both come from the website:
 
-1. **The installer** a person clicks (`.exe`, `.dmg`, `.AppImage`/`.deb`). The release attaches all of them
-   to the GitHub Release; the owner copies them to the website, and the website's Download page links to
-   them. Nothing about the installer points at GitHub.
+1. **The installer** a person clicks (`.exe`, `.dmg`, `.AppImage`). The owner chose the way customers get it:
+   a **"Download the ArkAgent app" button on the two product pages**,
+   `https://www.blackark.uk/product-arkagent.html` and `https://www.blackark.uk/product-ark-team.html`.
+   The button's code is in `docs/ark/site/download-button.html`, ready for the site administrator to paste in
+   (it uses the pages' own button styles and picks the right file for the visitor's computer). It links to
+   three files that never change name, because every release attaches them under these names:
+
+   ```
+   https://www.blackark.uk/get/ArkAgent-windows-x64-setup.exe      (about 4 MB)
+   https://www.blackark.uk/get/ArkAgent-macos-arm64.dmg            (about 6 MB; Apple-silicon Macs)
+   https://www.blackark.uk/get/ArkAgent-linux-x64.AppImage         (about 95 MB)
+   ```
+
 2. **The release the installer then fetches**, which is why the installer stays small. The app downloads
-   two files, then starts the stack. The app is built with `ARK_RELEASE_BASE_URL` (a repository **variable**
-   of that name, read by `desktop.yml`) set to the folder that holds them, so it never contacts GitHub.
+   two files, then starts the stack. It is built with `ARK_RELEASE_BASE_URL` (a repository **variable** of
+   that name, read by `desktop.yml`) set to **`https://www.blackark.uk/get/release`**, so it never contacts
+   GitHub.
 
    ```
-   <base>/latest.json                      {"tag_name": "v0.1.0"}      names the newest version
-   <base>/v0.1.0/source.tar.gz             the deployment's files only (docker-compose.yml, server, app, worker,
-                                           shared, examples, scripts and the lockfile: no internal documents)
-   <base>/v0.1.0/container-images.json     the images this version runs, pinned by digest
+   https://www.blackark.uk/get/release/latest.json                      {"tag_name": "v0.1.0"}
+   https://www.blackark.uk/get/release/v0.1.0/source.tar.gz             the deployment's files only (no internal documents)
+   https://www.blackark.uk/get/release/v0.1.0/container-images.json     the images this version runs, pinned by digest
    ```
 
-   The release job produces `source.tar.gz` and `latest.json` beside `container-images.json`, so copying the
-   three files from the release into `<base>/<version>/` (and `latest.json` into `<base>/`) is the whole
-   publishing step; `scripts/release-source.test.ts` keeps the archive's contents equal to what the app
-   unpacks. Any `https` web address works; the app ignores anything else, including `http`.
+   The release job produces `source.tar.gz` and `latest.json` beside `container-images.json`, and the stable
+   installer names above, all attached to the GitHub Release. **Publishing a version is therefore copying
+   files**: from the release into the site's `get/` folder (the three installers), `get/release/` (`latest.json`)
+   and `get/release/<version>/` (the other two). `scripts/release-source.test.ts` keeps the archive's contents
+   equal to what the app unpacks. The app accepts only an `https` address, and the site must serve the files
+   unchanged (no on-the-fly compression of the `.tar.gz`).
+
+   **What the site administrator does, once:** make the folders `get/` and `get/release/` (files are served
+   as they are, no page), and paste `docs/ark/site/download-button.html` into both product pages. **For each
+   release:** upload the files as above. **What the owner does, once:** in the repository's Settings, Secrets
+   and variables, Actions, **Variables**, add `ARK_RELEASE_BASE_URL` with the value above. It has to exist
+   before the release is made, because the installers are built with it.
 
 **One piece is not on the website: the images.** They are large (one is about 500 MB compressed), so they
-are pulled by the container engine from a registry, not downloaded as files. The registry has to allow an
-anonymous pull. Two ways, and I recommend the first:
-
-- **Make the images' GitHub packages public.** A package's visibility is a setting of its own, so the
-  repository stays private. This is the simplest and costs nothing. **I have not confirmed that GitHub allows
-  it for packages made by a private repository on a personal account**; the first release will show it, in
-  each package's settings. Anyone could then pull the application images, which is the same as saying a
-  customer's computer holds them, as it must.
-- **An Azure container registry with anonymous pull switched on**, which would move `publish-release.yml`
-  from GitHub's registry to Azure's. More work, a monthly cost, and it keeps everything under the company's
-  own account.
+are pulled by the container engine from a registry, not downloaded as files, and the registry has to allow an
+anonymous pull. **Decided by the owner (2026-10-09): GitHub's registry, with the packages made public; the
+move to an Azure registry comes later.** A package's visibility is a setting of its own, so the repository
+stays private. After the first release, in GitHub open **your profile, Packages**, and for each of these
+choose **Package settings, Danger Zone, Change visibility, Public**: `ark-server`, `ark-hub`,
+`ark-supervisor`, `ark-agent-computer`, `ark-agent-bot`, `ark-agent-langgraph` (the six the desktop app
+runs; the other `ark-agent-*` packages are for the hosted service and can stay private). GitHub offers no
+way to do this from a script. **I have not confirmed that GitHub allows it for packages made by a private
+repository on a personal account**; the first release will show it, and if it refuses, the fallback is the
+Azure registry. Anyone could then pull these images, which is the same as saying a customer's computer holds
+them, as it must.
 
 Whatever is chosen, **the customer's computer receives the application's source** (the server and app run on
 it as ordinary processes), which is how the product was built. If the company does not want customers to hold
@@ -140,12 +158,11 @@ Not checked, and the first real run will say:
 
 ## What is still open
 
-1. **Merge the pull request into `main`** (approved; opened 2026-10-09). Nothing else can start before this.
-2. **The website's download folder.** Which address will `ARK_RELEASE_BASE_URL` be (for example
-   `https://www.blackark.uk/get`), and who can upload to it? I need the address to set the variable; the
-   files come from the release.
-3. **The images' registry**: public GitHub packages (recommended; the first release will show if GitHub
-   allows it) or an Azure container registry.
-4. **Which AI the demo uses**, and whose key. A key goes into the app's own setup screen on the demo
+1. **Merge the pull request into `main`** (approved and opened 2026-10-09; its checks are being fixed).
+   Nothing else can start before this.
+2. **The site administrator**: the `get/` folders and the button on the two product pages (above).
+3. **The repository variable** `ARK_RELEASE_BASE_URL` (above), before the first release.
+4. **Making the six packages public** after the first release (above).
+5. **Which AI the demo uses**, and whose key. A key goes into the app's own setup screen on the demo
    computer, never into this repository or a message to me.
-5. **Signing**, later: certificates are the long pole for a warning-free install (20-accounts-and-keys.md).
+6. **Signing**, later: certificates are the long pole for a warning-free install (20-accounts-and-keys.md).
