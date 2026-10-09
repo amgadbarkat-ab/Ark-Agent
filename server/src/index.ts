@@ -3,10 +3,11 @@ import "./no-telemetry";
 // Second, and for a reason that is easy to undo by accident. The MCP client the runtime loads is
 // CommonJS and `require`s `eventsource`, which is an ES module with a top-level await. Bun can only
 // `require` such a module once it has finished evaluating, and it loads sibling imports in parallel,
-// so whether it had finished by then depended on the order imports were listed in. Loading the
-// application's graph without this line failed on about three starts in ten ("require() async module
-// is unsupported"), and a harness start failed the same way a few times in fifty. Naming it first makes
-// it finish first. If the error ever returns, this is where to look.
+// so whether it had finished by then depended on the order imports were listed in. The production
+// process gets this from `production-entry.ts`, which imports it before this file; this line is for
+// everything that runs `bun src/index.ts` itself (development, the security suite's server), where the
+// error ("require() async module is unsupported") appeared a few starts in fifty. Loading the
+// application's graph without it failed about three times in ten.
 import "eventsource";
 import { randomUUID } from "node:crypto";
 import {
