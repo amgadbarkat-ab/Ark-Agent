@@ -52,6 +52,26 @@ that port.
 - **`pkill -f` can kill your own shell** if the pattern appears in the command line. Use
   `pkill -f "[b]un ..."` or kill by process id.
 
+## Building the mobile apps in the sandbox
+
+What can be built here and what cannot is in `mobile/README.md` and `docs/ark/19-mobile.md`. The quirks:
+
+- **Android builds fully here.** Java 21 and Gradle are installed; the Android SDK (command-line tools,
+  platform 36, build-tools 36.0.0) is not, and is downloaded from `dl.google.com` into a scratch directory,
+  with `ANDROID_HOME` pointing at it. Check the download against the checksum in
+  `https://dl.google.com/android/repository/repository2-3.xml`.
+- **`repo.maven.apache.org` answers 429** to this sandbox (it rate-limits the proxy's address), which
+  fails the dependency step. The same repository at `https://repo1.maven.org/maven2/` answers, so build
+  with a local init script that lists it first (`./gradlew -I mirror.init.gradle ...`). Do not commit that
+  script: nothing outside this sandbox needs it.
+- **iOS cannot be compiled here** (no Xcode), but Capacitor's CLI makes the Xcode project on Linux, under
+  Bun as well as Node. `bun mobile/scripts/prepare-ios.ts` runs end to end and the generated `Info.plist`
+  can be parsed with Python's `plistlib` as a check.
+- **Browser sign-in pages can be walked** with the security harness's seeded server (`startTarget` in
+  `server/tests/security/harness.ts`, with extra environment such as `ARK_IOS_URL_SCHEME`) and Playwright's
+  Chromium. A custom-scheme navigation (`arkapp://...`) does not load in Chromium, but the navigation
+  request can be observed.
+
 ## Known test failures in this sandbox (not product bugs)
 
 Eight failures remain here and are not product bugs: seven tests (the proxy and websocket handshake

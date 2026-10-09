@@ -1,53 +1,44 @@
 <div align="center">
 
-# OpenBot
+# Ark Agent
 
-**The AI assistant your company can actually own.** Same shape as ChatGPT, Claude or Grok, with one difference that matters: it runs on your infrastructure and you can change anything about it. Any agent stack, through AG-UI.
+**Digital employees your company can put to work.** Each one gets a computer of its own: a real browser with its own logins, its own files, and only the tools you grant. Every action is decided before it happens and recorded after.
 
-Each coworker gets a computer of its own: a real browser with its own logins, its own files, and only the tools you grant. Every action decided before it happens and recorded after.
+[**Quick start**](#quick-start) · [**Product docs**](docs/ark/README.md) · [**Docs**](docs/README.md) · [**Mobile apps**](mobile/README.md)
 
-[**Talk to an engineer**](https://copilotkit.ai/talk-to-an-engineer?ref=openbot_readme) · [**Have us build it with you**](https://copilotkit.ai/talk-to-an-engineer?ref=openbot_readme) · [**copilotkit.ai/openbot**](https://copilotkit.ai/openbot) · [**Quick start**](#quick-start) · [**Docs**](docs/README.md)
-
-[![CI](https://github.com/CopilotKit/openbot/actions/workflows/ci.yml/badge.svg)](https://github.com/CopilotKit/openbot/actions/workflows/ci.yml)
-[![security](https://github.com/CopilotKit/openbot/actions/workflows/security_zizmor.yml/badge.svg)](https://github.com/CopilotKit/openbot/actions/workflows/security_zizmor.yml)
+[![CI](https://github.com/amgadbarkat-ab/Ark-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/amgadbarkat-ab/Ark-Agent/actions/workflows/ci.yml)
+[![security](https://github.com/amgadbarkat-ab/Ark-Agent/actions/workflows/security_zizmor.yml/badge.svg)](https://github.com/amgadbarkat-ab/Ark-Agent/actions/workflows/security_zizmor.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-![Alpha](https://img.shields.io/badge/status-alpha-orange.svg)
-
-[![Trendshift: #3 Repository Of The Day](https://trendshift.io/api/badge/trendshift/repositories/175080/daily)](https://trendshift.io/repositories/175080)
+![In development](https://img.shields.io/badge/status-in%20development-orange.svg)
 
 </div>
-
-https://github.com/user-attachments/assets/535ef7ee-1631-4a69-b839-564c56cf90b4
-
-<div align="center">
 
 Bring any AG-UI agent, written on a framework or by hand, and it arrives as a
 coworker with a channel of its own. Watch it work on its own screen, take the
 wheel when it reaches something it should not do alone, then hand it back. It
-answers with components rather than only prose, and the whole thing runs on
-your own machine.
+answers with components rather than only prose.
 
-</div>
-
-> **A template, not a product.** OpenBot is meant to be cloned and made your own. There is no hosted version to sign up for, and nothing here is published as a package to depend on: every workspace in this repository is private. You take the repository, replace the example tenant package under `examples/` with your own coworkers, channels and skills, and run it. Everything below describes a starting point, not a finished thing somebody operates for you.
-
-> **Alpha, and under active development.** OpenBot is early. Expect rough edges and bugs, and expect things to move. Issues and pull requests are welcome.
-
-> **Runs on your machine.** Everything below is written for a laptop. `.env.example` carries `OPENBOT_SINGLE_USER=true`, which admits every request as one administrator, so a fresh clone reaches the product without registering an OAuth client first. [Sign-in](#sign-in) turns that off, and is required before anybody else can reach the deployment.
-
-> **Do not want to build it yourself?** We will. Our engineers will stand OpenBot up inside your
-> infrastructure, customize it into something that looks like your own product, and hand it back to you to
-> keep changing. [**Start the conversation**](https://copilotkit.ai/talk-to-an-engineer?ref=openbot_readme).
+> **What this is.** Ark Agent is Black Ark's service for running digital employees, built on
+> [OpenBot](https://github.com/CopilotKit/openbot) (MIT, © CopilotKit), which it keeps the notice for. It is
+> built to be sold as monthly plans and hosted by us on Azure, and it also runs inside a company's own
+> infrastructure. It is a **web app**, a **desktop app** (Windows and macOS) that runs the whole thing on
+> a person's own computer, and **Android and iOS apps**. Decisions, plans and what is still waiting on the
+> owner are in [docs/ark](docs/ark/README.md).
+>
+> **In development.** Expect rough edges and things to move. Nothing here has been deployed for customers yet.
+>
+> **Runs on your machine.** Everything below is written for a laptop. `.env.example` carries
+> `OPENBOT_SINGLE_USER=true`, which admits every request as one administrator, so a fresh clone reaches
+> the product without registering an OAuth client first. [Sign-in](#sign-in) turns that off, and is
+> required before anybody else can reach the deployment.
 
 ## What it is
 
-An agent platform that runs inside your own infrastructure. Docker Compose brings up every part of it, the data sits in your PostgreSQL, and the model is yours to choose: no model ships in the box, and an administrator supplies the credential, which is encrypted at rest and never logged.
+An agent platform. Docker Compose brings up every part of it, the data sits in PostgreSQL, and the model is yours to choose: no model ships in the box, and an administrator supplies the credential, which is encrypted at rest and never logged.
 
 Thirteen coworkers ship in the example package, and they are configuration rather than code: **General Assistant** for everyday work and **Knowledge** for company questions, a **Risk Analyst** reached as an endpoint, and ten in `examples/fintech/agents/` that each do one job — reading an expense claim against the policy as written, turning a meeting note into the follow-ups actually in it, drafting release notes from what shipped, triaging a ticket, answering a new starter from the handbook, writing a brief that names what it could not find, writing up an interview, handing an on-call shift over, assembling what is known before a renewal, and grouping customer feedback into themes it can cite. Add your own by dropping a file in that directory, by editing `agents.yaml`, or from `/agents` in the UI.
 
 Anything a Bot does to a computer, a file, an MCP server or a component goes through one gateway that decides and records it. That is the difference between an agent that can use your tools and an agent you can let near them.
-
-More at [copilotkit.ai/openbot](https://copilotkit.ai/openbot).
 
 ## Built on AG-UI
 
@@ -55,21 +46,20 @@ A Bot is any endpoint speaking [AG-UI](https://github.com/ag-ui-protocol/ag-ui),
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
-  <img src="assets/architecture-light.svg" alt="You talk to the server, which sends the turn to a Bot over AG-UI. Every tool call the Bot makes comes back through the gateway, which resolves the target, decides it against your policy, records an audit row, and only then acts, or refuses and names the rule. Allowed browser and file actions reach that Bot's own computer, one container each with its own Chromium, logins and workspace, built by the supervisor. Decisions land in PostgreSQL and threads in CopilotKit Intelligence.">
+  <img src="assets/architecture-light.svg" alt="You talk to the server, which sends the turn to a Bot over AG-UI. Every tool call the Bot makes comes back through the gateway, which resolves the target, decides it against your policy, records an audit row, and only then acts, or refuses and names the rule. Allowed browser and file actions reach that Bot's own computer, one container each with its own Chromium, logins and workspace, built by the supervisor. Decisions land in PostgreSQL and threads in Ark Hub, the conversation service.">
 </picture>
 
 ## Requirements
 
 - Docker, for PostgreSQL and the shipped Bots.
 - [Bun](https://bun.sh) 1.3+, for the app and API server.
-- A CopilotKit Intelligence project and license. A free plan is available, and Intelligence can be self-hosted.
 - A model key. The proof-of-concept Bot uses OpenAI; the LangGraph Bot can use OpenAI, Anthropic, or Google.
 
 ## Quick start
 
 > **Setting up with an AI assistant?** Paste [`prompt.txt`](prompt.txt) into it first. It carries the
-> same steps as below plus the things that are easy to get wrong: which of the ten blank keys in
-> `.env.example` are actually yours to fill (three), which the start script generates for you, and
+> same steps as below plus the things that are easy to get wrong: which blank keys in
+> `.env.example` are actually yours to fill, which the start script generates for you, and
 > what each start-up refusal means. Every claim in it is checked against this repository.
 
 1. Create `.env`:
@@ -78,38 +68,26 @@ A Bot is any endpoint speaking [AG-UI](https://github.com/ag-ui-protocol/ag-ui),
    cp .env.example .env
    ```
 
-2. Get CopilotKit Intelligence credentials:
-
-   ```sh
-   npx --yes copilotkit@latest login
-   npx --yes copilotkit@latest project select
-   ```
-
-   Put the `cpk-...` runtime key from `project select` in `.env` as
-   `INTELLIGENCE_API_KEY`. That is the only Intelligence credential you need:
-   managed Intelligence derives entitlement from the project key, so there is
-   no separate licence token to fetch.
-
-3. Fill the remaining required values:
+2. Fill the one value you have to supply:
 
    - `OPENAI_API_KEY`
 
-   Keep the managed Intelligence URLs from `.env.example` unless you run Intelligence yourself. The example `KEY_ENCRYPTION_KEY` is public and fine locally; generate your own with:
+   The conversation service (Ark Hub, in `hub/`) needs nothing from outside: `scripts/start.sh` makes its two keys the first time, writes them to `.env`, and starts it. The example `KEY_ENCRYPTION_KEY` is public and fine locally; generate your own with:
 
    ```sh
    openssl rand -base64 32
    ```
 
-4. Install and run:
+3. Install and run:
 
    ```sh
    bun install
    bash scripts/start.sh
    ```
 
-5. Open <http://localhost:3010>.
+4. Open <http://localhost:3010>.
 
-`scripts/start.sh` starts Docker services, applies migrations, starts the API server on port 3001, starts the app on port 3010, and checks that the services answer their own health routes before printing next steps.
+`scripts/start.sh` starts Docker services, applies migrations, starts Ark Hub, the API server on port 3001 and the app on port 3010, and checks that the services answer their own health routes before printing next steps.
 
 `scripts/stop.sh` takes the same things down, including each Bot's computer, which compose does not own. Nothing is deleted: the database, the Bots' files and their browser profiles are volumes.
 
@@ -133,6 +111,8 @@ docker run -p 3001:3001 --env-file .env \
 Everything is on 3001 here, the app included, rather than the 3010 the clone uses. `latest` is the
 most recent release and a version tag such as `:v0.0.9` pins one.
 
+The image does not carry Ark Hub, the conversation service: run its image (`ghcr.io/amgadbarkat-ab/ark-hub`) beside it and point the three `INTELLIGENCE_*` settings at it ([docs/deployment.md](docs/deployment.md)).
+
 Leave `EMBEDDED_POSTGRES` off and set `DATABASE_URL` to point at a database you already run.
 [docs/deployment.md](docs/deployment.md) has the minimum sizes, the platform notes, and how it behaves behind more than one replica.
 
@@ -153,7 +133,9 @@ Leave `EMBEDDED_POSTGRES` off and set `DATABASE_URL` to point at a database you 
 | `/bot`                      | Direct chat with a Bot; `?agent=<id>` selects one.                 |
 | `/skills`                   | Create and enable personal skills.                                 |
 | `/routines`                 | See the routines that are standing, and stop one.                  |
-| `/settings`                 | User preferences.                                                  |
+| `/settings`                 | Preferences, standing instructions and notifications on this device. |
+| `/settings/plan`            | The plan, what is in use, and (on the web) how to change it.       |
+| `/admin`                    | The overview: what needs a decision, how the service is doing, what is left before customers. |
 | `/admin/credentials`        | Store write-only encrypted credentials.                            |
 | `/admin/computers`          | View, stop, and reset Bot computers.                               |
 | `/admin/boundaries`         | Configure browser/file/MCP action policy.                          |
@@ -183,7 +165,7 @@ Leave `EMBEDDED_POSTGRES` off and set `DATABASE_URL` to point at a database you 
 - **An audit trail you can read**: `/admin/audit` lists what was permitted, what was refused and what failed, and every refusal carries the rule that caused it.
 - **Credentials encrypted at rest**: stored through `/admin/credentials`, never returned by an API, and redacted from audit events.
 - **Loopback by default**: computers bind to `127.0.0.1` and require a per-container token, so nothing reaches a logged-in browser by knowing its port. The supervisor binds there too, because it holds the Docker socket and its token is a shared secret rather than a network boundary.
-- **Durable threads and memory**: conversations survive restarts through CopilotKit Intelligence, and each deployment stamps the threads it owns.
+- **Durable threads and memory**: conversations survive restarts in Ark Hub, our own conversation service (`hub/`), and each deployment stamps the threads it owns. Nothing here depends on anybody else's hosted service.
 - **Routines**: ask a Bot to do something on a schedule and it does, running as you, in the channel you asked in. A 15-minute floor and a cap of 20 enabled routines keep a sentence from scheduling more than a person meant, and ten failures in a row switch a routine off rather than burn model spend forever. Needs a worker process; see [docs/routines.md](docs/routines.md).
 
 ## Bring your own agent
@@ -226,9 +208,11 @@ See [docs/configuration.md](docs/configuration.md) and [docs/coworkers.md](docs/
 - `INTELLIGENCE_GATEWAY_WS_URL`
 - `INTELLIGENCE_API_KEY`
 
-`COPILOTKIT_LICENSE_TOKEN` is optional. A self-hosted Intelligence with its own
-licence can still set it and it is forwarded to the runtime; managed Intelligence
-does not issue one and startup no longer asks for it.
+The three `INTELLIGENCE_*` names are historical: they are where the server finds its conversation
+service, and they point at Ark Hub. `scripts/start.sh` fills them in for you (`bash scripts/hub.sh secrets`
+does just that part), and the hub's own settings (`HUB_API_KEY`, `HUB_JOIN_SECRET`, `HUB_PORT`) are in
+`.env.example`. `COPILOTKIT_LICENSE_TOKEN` is not needed and not asked for; leave it unset, because a
+wrong one makes the browser show a licence warning.
 
 Settings worth knowing:
 
@@ -248,7 +232,7 @@ Settings worth knowing:
 | `AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS` | Lets a Bot reach this machine's own services. Local only, and refused under `NODE_ENV=production`. |
 | `AGENT_ENDPOINT_ALLOWED_HOSTS`       | Private addresses an agent may be registered at, comma separated. A host, optionally with a port. |
 | `TENANT_PACKAGE_DIR`                 | Directory containing tenant YAML. Defaults to `../examples/fintech`.      |
-| `DEPLOYMENT_ID`                      | Names this deployment when two share one Intelligence project.            |
+| `DEPLOYMENT_ID`                      | Names this deployment when two share one hub.                             |
 
 Full reference: [docs/configuration.md](docs/configuration.md).
 
@@ -263,7 +247,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 | `agent-langgraph`        | 4201                       | LangGraph AG-UI Bot.                                                                             |
 | `supervisor`             | 4500 host / 4300 container | Creates and manages one computer per Bot.                                                        |
 | PostgreSQL with pgvector | 5432                       | Product data, policy, audit, credentials, grants, channels, and component metadata.              |
-| CopilotKit Intelligence  | external                   | Durable threads and memory.                                                                      |
+| `hub`                    | 7100                       | Ark Hub: durable threads and memory.                                                             |
 
 The server gateway is the product/API path for Bot browser and file tool calls.
 It resolves the target, evaluates policy, writes an audit row, and then calls
@@ -331,26 +315,6 @@ provider's discovery document listed in `TRUSTED_ORIGINS`, not only the issuer.
 - **Put TLS in front of any deployment.** A page served over plain `http://` on anything but
   localhost is not a secure context, and sign-in cookies want `Secure`.
 
-### Organization sign-in for desktop installations
-
-For an employee desktop, provision an OpenBot authority using the Google, Microsoft or Okta
-settings above (your Kubernetes OpenBot can serve this role). Set **Organization OpenBot URL**
-in the desktop connection screen, or `OPENBOT_ORGANIZATION_AUTH_URL=https://openbot.company.example`
-in its public configuration. Use an HTTPS origin; HTTP is accepted only on loopback for local tests.
-Provider client secrets stay on that authority. Template and white-label deployments can supply
-the same setting without changing their Intelligence endpoint.
-
-This optional URL is separate from `INTELLIGENCE_API_URL`, `INTELLIGENCE_GATEWAY_WS_URL` and
-`INTELLIGENCE_API_KEY`. Local, managed and customer-hosted Intelligence all retain their project
-credential. A Google ID token is not an Intelligence project key. Leave the organization URL empty
-for a standalone desktop.
-
-Desktop sign-in uses the system browser and Better Auth's single-use PKCE exchange. The authority
-verifies the employee and current role; organization mode never substitutes `dev@openbot.local`.
-Employees do not need project-key administration privileges. Installation happens once: reopening
-or refreshing an expired organization, Intelligence or model connection preserves the installed
-runtime and data and opens the relevant connection screen.
-
 ## Keeping it to your machine
 
 - `agent-computer` drives a browser holding real logins. `docker-compose.yml` binds it to loopback; leave it there.
@@ -379,7 +343,8 @@ Use `bash scripts/start.sh` for the whole stack and `bash scripts/stop.sh` to ta
 
 ## Documentation
 
-- [copilotkit.ai/openbot](https://copilotkit.ai/openbot)
+- [docs/ark/README.md](docs/ark/README.md): the product: decisions, plans, hosting, security, mobile
+- [mobile/README.md](mobile/README.md): the Android and iOS apps
 - [docs/README.md](docs/README.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/configuration.md](docs/configuration.md)
@@ -397,4 +362,4 @@ Use `bash scripts/start.sh` for the whole stack and `bash scripts/stop.sh` to ta
 
 ## License
 
-[MIT](./LICENSE) © CopilotKit
+[MIT](./LICENSE). Ark Agent is built on OpenBot, © 2026 CopilotKit, used under that licence; the notice stays in `LICENSE`.
