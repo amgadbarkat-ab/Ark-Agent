@@ -1,6 +1,6 @@
 <div align="center">
 
-# Ark Agent
+# ArkAgent
 
 **Digital employees your company can put to work.** Each one gets a computer of its own: a real browser with its own logins, its own files, and only the tools you grant. Every action is decided before it happens and recorded after.
 
@@ -18,7 +18,7 @@ coworker with a channel of its own. Watch it work on its own screen, take the
 wheel when it reaches something it should not do alone, then hand it back. It
 answers with components rather than only prose.
 
-> **What this is.** Ark Agent is BlackArk's service (Value Data IKE) for running digital employees, built on
+> **What this is.** ArkAgent is BlackArk's service (Value Data IKE) for running digital employees, built on
 > [OpenBot](https://github.com/CopilotKit/openbot) (MIT, © CopilotKit), which it keeps the notice for. It is
 > built to be sold as monthly plans and hosted by us on Azure, and it also runs inside a company's own
 > infrastructure. It is a **web app**, a **desktop app** (Windows and macOS) that runs the whole thing on
@@ -362,4 +362,4 @@ Use `bash scripts/start.sh` for the whole stack and `bash scripts/stop.sh` to ta
 
 ## License
 
-[MIT](./LICENSE). Ark Agent is built on OpenBot, © 2026 CopilotKit, used under that licence; the notice stays in `LICENSE`.
+[MIT](./LICENSE). ArkAgent is built on OpenBot, © 2026 CopilotKit, used under that licence; the notice stays in `LICENSE`.

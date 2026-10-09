@@ -101,17 +101,17 @@ pub fn said_about(output: &str) -> String {
         || lower.contains("manifest unknown")
         || lower.contains("not found: manifest")
     {
-        return "Ark Agent could not download one of the parts it needs. That version may not have \
-                been published yet. Check for an Ark Agent update, and try again."
+        return "ArkAgent could not download one of the parts it needs. That version may not have \
+                been published yet. Check for an ArkAgent update, and try again."
             .into();
     }
     if lower.contains("port is already allocated") || lower.contains("address already in use") {
-        return "Something else on this computer is using a port Ark Agent needs. Close it, or \
+        return "Something else on this computer is using a port ArkAgent needs. Close it, or \
                 restart the computer, and try again."
             .into();
     }
     if lower.contains("no space left") {
-        return "This computer has run out of disk space, so Ark Agent could not finish. Free some \
+        return "This computer has run out of disk space, so ArkAgent could not finish. Free some \
                 space and try again."
             .into();
     }
@@ -119,7 +119,7 @@ pub fn said_about(output: &str) -> String {
         || lower.contains("is the docker daemon running")
         || lower.contains("connection refused")
     {
-        return "Ark Agent cannot reach the container engine. Start Docker or Podman, wait for it to \
+        return "ArkAgent cannot reach the container engine. Start Docker or Podman, wait for it to \
                 finish starting, and try again."
             .into();
     }
@@ -129,12 +129,12 @@ pub fn said_about(output: &str) -> String {
             .into();
     }
     if lower.contains("unauthorized") || lower.contains("permission denied") {
-        return "Ark Agent was refused permission for something it needed. The details below say \
+        return "ArkAgent was refused permission for something it needed. The details below say \
                 what, and are worth sending to whoever set this up."
             .into();
     }
 
-    "Something went wrong while setting Ark Agent up. The details below are worth sending to \
+    "Something went wrong while setting ArkAgent up. The details below are worth sending to \
      whoever set this up."
         .into()
 }
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn a_taken_port_says_so_in_words_somebody_can_act_on() {
         let said = said_about("Bind for 0.0.0.0:4202 failed: port is already allocated");
-        assert!(said.contains("port Ark Agent needs"), "{said}");
+        assert!(said.contains("port ArkAgent needs"), "{said}");
     }
 
     #[test]

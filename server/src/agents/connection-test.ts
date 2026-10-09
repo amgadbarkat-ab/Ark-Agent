@@ -79,7 +79,7 @@ function probeBody() {
         id: crypto.randomUUID(),
         role: "user",
         content:
-          "This is an automated connection test from Ark Agent. Reply with one short word.",
+          "This is an automated connection test from ArkAgent. Reply with one short word.",
       },
     ],
     tools: [],

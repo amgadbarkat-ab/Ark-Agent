@@ -83,16 +83,14 @@ async function renderApp(strictMode = false) {
 }
 
 async function enterInstallation(view: Awaited<ReturnType<typeof renderApp>>) {
-  await userEvent.click(view.getByRole("button", { name: "Set up Ark Agent" }));
+  await userEvent.click(view.getByRole("button", { name: "Set up ArkAgent" }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
 }
 
 async function completeInstallation(
   view: Awaited<ReturnType<typeof renderApp>>,
 ) {
-  await userEvent.click(
-    view.getByRole("button", { name: "Install Ark Agent" }),
-  );
+  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
 }
 
@@ -114,9 +112,7 @@ async function beginPendingInstallation() {
       : previous(command, args);
   const view = await renderApp();
   await enterInstallation(view);
-  await userEvent.click(
-    view.getByRole("button", { name: "Install Ark Agent" }),
-  );
+  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
   return {
     view,
     preparation,
@@ -142,7 +138,7 @@ test("installation shows its active stage immediately and advances elapsed time"
     view.getByRole("listitem", { name: "Container engine" }),
   );
   expect(
-    engine.getByText("Checking the software Ark Agent needs."),
+    engine.getByText("Checking the software ArkAgent needs."),
   ).toBeTruthy();
   expect(engine.getByText("In progress")).toBeTruthy();
   expect(engine.queryByText("✓")).toBeNull();
@@ -270,7 +266,7 @@ test.each([
     const view = await renderApp();
     if (!automatic)
       await userEvent.click(
-        view.getByRole("button", { name: "Start Ark Agent" }),
+        view.getByRole("button", { name: "Start ArkAgent" }),
       );
     await emitProgress({
       step: "services",
@@ -289,7 +285,7 @@ test.each([
     expect(services.getByText(succeeds ? "✓" : "✗")).toBeTruthy();
     if (!succeeds)
       expect(
-        view.getByRole("button", { name: "Start Ark Agent" }),
+        view.getByRole("button", { name: "Start ArkAgent" }),
       ).toHaveProperty("disabled", false);
   },
 );
@@ -306,15 +302,13 @@ test("installation completes before the AI can be chosen", async () => {
   };
   const view = await renderApp();
   await enterInstallation(view);
-  expect(view.getByRole("heading", { name: "Install Ark Agent" })).toBeTruthy();
-  expect(view.getByLabelText("Where Ark Agent lives")).toHaveProperty(
+  expect(view.getByRole("heading", { name: "Install ArkAgent" })).toBeTruthy();
+  expect(view.getByLabelText("Where ArkAgent lives")).toHaveProperty(
     "value",
     "/tmp/install-before-signin",
   );
   expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
-  await userEvent.click(
-    view.getByRole("button", { name: "Install Ark Agent" }),
-  );
+  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
   expect(installationCalls()).toEqual([
     {
       command: "prepare_installation",
@@ -324,7 +318,7 @@ test("installation completes before the AI can be chosen", async () => {
       },
     },
   ]);
-  expect(view.getByLabelText("Where Ark Agent lives")).toHaveProperty(
+  expect(view.getByLabelText("Where ArkAgent lives")).toHaveProperty(
     "disabled",
     true,
   );
@@ -423,9 +417,7 @@ test("failed installation blocks sign-in and retries before reporting completion
   };
   const view = await renderApp();
   await enterInstallation(view);
-  await userEvent.click(
-    view.getByRole("button", { name: "Install Ark Agent" }),
-  );
+  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
   expect((await view.findByRole("alert")).textContent).toContain(
     "The download was interrupted.",
   );
@@ -585,12 +577,12 @@ test.each([false, true])(
     };
     const view = await renderApp(strictMode);
     expect(
-      view.getByRole("heading", { name: "Starting Ark Agent" }),
+      view.getByRole("heading", { name: "Starting ArkAgent" }),
     ).toBeTruthy();
     expect(
-      view.queryByRole("heading", { name: "Ark Agent is stopped" }),
+      view.queryByRole("heading", { name: "ArkAgent is stopped" }),
     ).toBeNull();
-    expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
     await act(async () => launch.resolve());
     await waitFor(() =>
       expect(invokeCalls).toContainEqual({ command: "show_openbot" }),
@@ -610,7 +602,7 @@ test.each([false, true])(
         ),
       ),
     ).toBe(false);
-    expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
     expect(view.queryByRole("button", { name: "Ask" })).toBeNull();
   },
 );
@@ -635,14 +627,14 @@ test("a failed automatic reopen offers recovery without retrying or installing",
     invokeCalls.filter((call) => call.command === "start_stack"),
   ).toHaveLength(1);
   expect(installationCalls()).toHaveLength(0);
-  expect(view.getByRole("button", { name: "Start Ark Agent" })).toHaveProperty(
+  expect(view.getByRole("button", { name: "Start ArkAgent" })).toHaveProperty(
     "disabled",
     false,
   );
   await userEvent.click(
     view.getByRole("button", { name: "Change installation" }),
   );
-  expect(view.getByRole("button", { name: "Install Ark Agent" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Install ArkAgent" })).toBeTruthy();
 });
 
 test("menu Stop retains the installed root for explicit Start without the wizard", async () => {
@@ -660,12 +652,12 @@ test("menu Stop retains the installed root for explicit Start without the wizard
   };
   const view = await renderApp();
   expect(
-    view.getByRole("heading", { name: "Ark Agent is stopped" }),
+    view.getByRole("heading", { name: "ArkAgent is stopped" }),
   ).toBeTruthy();
   expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
     false,
   );
-  await userEvent.click(view.getByRole("button", { name: "Start Ark Agent" }));
+  await userEvent.click(view.getByRole("button", { name: "Start ArkAgent" }));
   expect(getStartStackPayload()).toMatchObject({
     root,
     harness: { id: "mastra" },
@@ -682,7 +674,7 @@ test("completed local installation resumes at the AI choice when it has never la
   }));
   const view = await renderApp();
   expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
   expect(installationCalls()).toHaveLength(0);
   expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
     false,
@@ -712,7 +704,7 @@ test.each(["model"])(
       ),
     ).toBe(false);
     expect(installationCalls()).toHaveLength(0);
-    expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
   },
 );
 
@@ -740,7 +732,7 @@ test("an unavailable saved model connection opens only its refresh screen and re
   ).toBeTruthy();
   expect(view.getByRole("alert").textContent).toContain("no longer available");
   expect(view.queryByText(/Step \d of 3/)).toBeNull();
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
   await userEvent.type(
     view.getByLabelText("OpenAI API key"),
     "refreshed-provider-key",
@@ -774,12 +766,12 @@ test("reopening a retained root waits for its saved setup without flashing the w
     return previous(command, args);
   };
   const view = await renderApp();
-  expect(view.getByRole("heading", { name: "Opening Ark Agent" })).toBeTruthy();
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+  expect(view.getByRole("heading", { name: "Opening ArkAgent" })).toBeTruthy();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
   await act(async () => configuration.resolve(savedOpenAiConfiguration()));
   // A retained folder with no successful launch still needs the setup screens.
   expect(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   ).toBeTruthy();
   expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
     false,
@@ -788,7 +780,7 @@ test("reopening a retained root waits for its saved setup without flashing the w
 
 function useInterruptedShutdownSetup() {
   const root = "/tmp/interrupted-shutdown-root";
-  const notice = "Ark Agent had trouble shutting down last time.";
+  const notice = "ArkAgent had trouble shutting down last time.";
   setupRootConfiguration("/tmp/default-root", async () => ({
     values: {},
     saved: { ...savedOpenAiConfiguration().saved, model: "open-ai-api-key" },
@@ -808,13 +800,13 @@ test("an interrupted shutdown restores saved setup for explicit recovery", async
   const { root, notice } = useInterruptedShutdownSetup();
   const view = await renderApp();
   expect(view.getByRole("alert").textContent).toContain(notice);
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" }) !== null).toBe(
+    false,
+  );
   expect(
-    view.queryByRole("button", { name: "Set up Ark Agent" }) !== null,
-  ).toBe(false);
-  expect(
-    view.getByRole("heading", { name: "Ark Agent is stopped" }),
+    view.getByRole("heading", { name: "ArkAgent is stopped" }),
   ).toBeTruthy();
-  const start = view.getByRole("button", { name: "Start Ark Agent" });
+  const start = view.getByRole("button", { name: "Start ArkAgent" });
   expect(start).toHaveProperty("disabled", false);
   expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
     false,
@@ -856,7 +848,7 @@ test.each(["model", "root"])(
       await user.click(
         view.getByRole("button", { name: "Change installation" }),
       );
-      const input = view.getByLabelText("Where Ark Agent lives");
+      const input = view.getByLabelText("Where ArkAgent lives");
       await user.clear(input);
       await user.type(input, "/tmp/changed-recovery-root");
       await completeInstallation(view);
@@ -1004,7 +996,7 @@ test("leftover database recovery requires confirmation and keeps setup ready to 
   invokeHandler = async (command, args) => {
     if (command === "start_stack" && ++starts === 1)
       throw {
-        said: "A previous Ark Agent database remains without its encryption key.",
+        said: "A previous ArkAgent database remains without its encryption key.",
         database_reset: "fixture_postgres-data",
       };
     if (command === "reset_leftover_database") return reset.promise;
@@ -1070,7 +1062,7 @@ test("database recovery failure is shown without restarting services", async () 
       };
     if (command === "reset_leftover_database")
       throw {
-        said: "The database is still in use. Close the other Ark Agent installation first.",
+        said: "The database is still in use. Close the other ArkAgent installation first.",
       };
     return previous(command, args);
   };
@@ -1163,7 +1155,7 @@ test("Windows detection failure blocks setup and displays its diagnostic", async
   );
   const setupHandler = invokeHandler;
   const problem = {
-    said: "Ark Agent could not check Windows virtualization support.",
+    said: "ArkAgent could not check Windows virtualization support.",
     detail: "powershell exited with 17: synthetic CIM access denied",
   };
   invokeHandler = async (command, args) => {
@@ -1176,8 +1168,8 @@ test("Windows detection failure blocks setup and displays its diagnostic", async
   expect(alert.textContent).toContain(problem.said);
   await userEvent.click(view.getByText("Technical details"));
   expect(alert.textContent).toContain(problem.detail);
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
-  expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(
     view.queryByText(/firmware settings|wsl --install|wsl --update/),
   ).toBeNull();
@@ -1202,7 +1194,7 @@ test("a failed Windows blocker instruction is visible instead of an empty blocke
   expect((await view.findByRole("alert")).textContent).toContain(
     "The blocker instruction could not be read.",
   );
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
 });
 
 test("a successfully detected missing WSL feature keeps its setup instruction", async () => {
@@ -1211,7 +1203,7 @@ test("a successfully detected missing WSL feature keeps its setup instruction", 
   );
   const setupHandler = invokeHandler;
   const instruction =
-    "Run wsl --install, restart Windows, and start Ark Agent again.";
+    "Run wsl --install, restart Windows, and start ArkAgent again.";
   invokeHandler = async (command, args) => {
     if (command === "windows_blocker") return "wsl-absent";
     if (command === "windows_blocker_instruction") return instruction;
@@ -1220,7 +1212,7 @@ test("a successfully detected missing WSL feature keeps its setup instruction", 
   const view = await renderApp();
   expect(await view.findByText(instruction)).toBeTruthy();
   expect(view.queryByRole("alert")).toBeNull();
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
 });
 
 test("disabled Virtual Machine Platform displays its feature-specific fix and blocks setup", async () => {
@@ -1229,7 +1221,7 @@ test("disabled Virtual Machine Platform displays its feature-specific fix and bl
   );
   const setupHandler = invokeHandler;
   const instruction =
-    "Virtual Machine Platform is switched off. Open Windows Terminal or PowerShell as an administrator, run `dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`, restart Windows, and start Ark Agent again.";
+    "Virtual Machine Platform is switched off. Open Windows Terminal or PowerShell as an administrator, run `dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`, restart Windows, and start ArkAgent again.";
   invokeHandler = async (command, args) => {
     if (command === "windows_blocker")
       return "virtual-machine-platform-disabled";
@@ -1247,8 +1239,8 @@ test("disabled Virtual Machine Platform displays its feature-specific fix and bl
     }),
   ).toBeTruthy();
   expect(view.queryByRole("alert")).toBeNull();
-  expect(view.queryByRole("button", { name: "Set up Ark Agent" })).toBeNull();
-  expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(
     invokeCalls.some((call) =>
       ["prepare_installation", "prepare_engine", "start_stack"].includes(
@@ -1330,7 +1322,7 @@ async function enterCompatibleEndpoint(
   const view = await renderApp();
 
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
@@ -1403,7 +1395,7 @@ test.each([true, false])(
     useSavedCompatibleEndpointSetup(undefined, undefined, keyed);
     const view = await renderApp();
     await userEvent.click(
-      view.getByRole("button", { name: "Set up Ark Agent" }),
+      view.getByRole("button", { name: "Set up ArkAgent" }),
     );
     await userEvent.click(view.getByRole("button", { name: "Continue" }));
     await completeInstallation(view);
@@ -1448,7 +1440,7 @@ test.each([
     useSavedCompatibleEndpointSetup(baseUrl, model);
     const view = await renderApp();
     await userEvent.click(
-      view.getByRole("button", { name: "Set up Ark Agent" }),
+      view.getByRole("button", { name: "Set up ArkAgent" }),
     );
     await userEvent.click(view.getByRole("button", { name: "Continue" }));
     await completeInstallation(view);
@@ -1457,7 +1449,7 @@ test.each([
       true,
     );
     await userEvent.click(view.getByRole("button", { name: "Continue" }));
-    expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
     expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
       false,
     );
@@ -1472,14 +1464,14 @@ test("an unsupported saved model kind does not become a startable endpoint", asy
     "unsupported-model",
   );
   const view = await renderApp();
-  await userEvent.click(view.getByRole("button", { name: "Set up Ark Agent" }));
+  await userEvent.click(view.getByRole("button", { name: "Set up ArkAgent" }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await completeInstallation(view);
   expect(view.getByRole("button", { name: "Continue" })).toHaveProperty(
     "disabled",
     true,
   );
-  expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
     false,
   );
@@ -1549,7 +1541,7 @@ test("Change the model after an Ask failure stops the stack and reaches the prov
   const view = await renderApp();
 
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
@@ -1567,10 +1559,10 @@ test("Change the model after an Ask failure stops the stack and reaches the prov
   );
   expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
   expect(view.getByRole("radio", { name: /OpenAI/ })).toBeTruthy();
-  expect(view.queryByRole("button", { name: "Stop Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Stop ArkAgent" })).toBeNull();
 });
 
-test("mount navigates to Ark Agent only when the selected root is already owned and running", async () => {
+test("mount navigates to ArkAgent only when the selected root is already owned and running", async () => {
   const root = "/tmp/openbot-owned-running-root";
   setupRootConfiguration(root, async () => emptyConfiguration());
   const setupHandler = invokeHandler;
@@ -1595,7 +1587,7 @@ test("mount leaves setup visible when the shared port answers without selected r
   const view = await renderApp();
 
   expect(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   ).toBeTruthy();
   expect(invokeCalls.some((call) => call.command === "show_openbot")).toBe(
     false,
@@ -1609,7 +1601,7 @@ for (const staleProbe of [false, true]) {
     );
     const setupHandler = invokeHandler;
     const failure = {
-      said: "Part of Ark Agent (worker) stopped and could not be started again. Try starting Ark Agent once more.",
+      said: "Part of ArkAgent (worker) stopped and could not be started again. Try starting ArkAgent once more.",
     };
     invokeHandler = async (command, args) => {
       if (command === "already_running") return staleProbe;
@@ -1630,13 +1622,13 @@ for (const staleProbe of [false, true]) {
         ).toBe(true),
       );
     }
-    expect(view.getByRole("button", { name: "Set up Ark Agent" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Set up ArkAgent" })).toBeTruthy();
     expect(view.getByRole("alert").textContent).toContain(failure.said);
-    expect(view.queryByRole("button", { name: "Stop Ark Agent" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Stop ArkAgent" })).toBeNull();
   });
 }
 
-test("saved credentials start Ark Agent without raw protected secrets on mount", async () => {
+test("saved credentials start ArkAgent without raw protected secrets on mount", async () => {
   invokeHandler = async (command) => {
     if (command === "prepare_installation") return null;
     if (command === "detect_engine") {
@@ -1694,7 +1686,7 @@ test("saved credentials start Ark Agent without raw protected secrets on mount",
   const view = await renderApp();
 
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
@@ -1718,7 +1710,7 @@ async function chooseModelAfterRootEdit(
   view: Awaited<ReturnType<typeof renderApp>>,
   apiKey?: string,
 ) {
-  expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
   if (apiKey)
@@ -1747,7 +1739,7 @@ test("root edits reload saved configuration for that root and ignore stale saved
   });
 
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
@@ -1755,7 +1747,7 @@ test("root edits reload saved configuration for that root and ignore stale saved
   expect(view.getByText(/A saved OpenAI API key will be used/)).toBeTruthy();
   // Back to the installation screen, where the folder can be changed, rather than on to starting.
   await userEvent.click(view.getByRole("button", { name: "Back" }));
-  const rootField = view.getByLabelText("Where Ark Agent lives");
+  const rootField = view.getByLabelText("Where ArkAgent lives");
   const user = userEvent.setup({
     document: view.container.ownerDocument,
   });
@@ -1819,10 +1811,10 @@ test("same-process setup remount prefers the retained selected root", async () =
 
   const view = await renderApp();
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
-  expect(view.getByLabelText("Where Ark Agent lives")).toHaveProperty(
+  expect(view.getByLabelText("Where ArkAgent lives")).toHaveProperty(
     "value",
     rootB,
   );
@@ -1880,7 +1872,7 @@ test.each([
       ),
     );
     await user.click(
-      await view.findByRole("button", { name: "Set up Ark Agent" }),
+      await view.findByRole("button", { name: "Set up ArkAgent" }),
     );
     await user.click(await view.findByRole("button", { name: "Continue" }));
     await completeInstallation(view);
@@ -1896,7 +1888,7 @@ test.each([
     }
     // Back to the installation screen, where the folder can be changed, rather than on to starting.
     await user.click(view.getByRole("button", { name: "Back" }));
-    const rootField = view.getByLabelText("Where Ark Agent lives");
+    const rootField = view.getByLabelText("Where ArkAgent lives");
 
     if (pendingRoot === "a") {
       await user.click(rootField);
@@ -1922,9 +1914,7 @@ test.each([
         true,
       );
       expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
-      expect(
-        view.queryByRole("button", { name: "Start Ark Agent" }),
-      ).toBeNull();
+      expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
       expect(requests).toHaveLength(requestCountBeforeBlur);
       expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
         false,
@@ -1956,10 +1946,8 @@ test.each([
         true,
       );
       await user.click(view.getByRole("button", { name: "Back" }));
-      await user.click(view.getByLabelText("Where Ark Agent lives"));
-      await act(async () =>
-        view.getByLabelText("Where Ark Agent lives").blur(),
-      );
+      await user.click(view.getByLabelText("Where ArkAgent lives"));
+      await act(async () => view.getByLabelText("Where ArkAgent lives").blur());
     } else {
       await act(async () => rootField.blur());
     }
@@ -2064,7 +2052,7 @@ async function enterBringYourOwnHarnessEndpoint(agentUrl: string) {
   const view = await renderApp();
 
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   await userEvent.click(await view.findByText("Choose the agent framework"));
   await userEvent.click(
@@ -2099,7 +2087,7 @@ test.each([
   await userEvent.click(continueButton);
   expect(view.getByRole("heading", { name: "Your first Bot" })).toBeTruthy();
   expect(view.queryByRole("heading", { name: "Connect your AI" })).toBeNull();
-  expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(invokeCalls.filter((call) => call.command === "start_stack")).toEqual(
     [],
   );
@@ -2167,7 +2155,7 @@ test.each([
   expect(continueButton).toHaveProperty("disabled", true);
   await userEvent.click(continueButton);
   expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
-  expect(view.queryByRole("button", { name: "Start Ark Agent" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(invokeCalls.filter((call) => call.command === "start_stack")).toEqual(
     [],
   );
@@ -2230,7 +2218,7 @@ test("saved compatible endpoint restores the optional container URL", async () =
   );
 
   const view = await renderApp();
-  await userEvent.click(view.getByRole("button", { name: "Set up Ark Agent" }));
+  await userEvent.click(view.getByRole("button", { name: "Set up ArkAgent" }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await completeInstallation(view);
 
@@ -2297,7 +2285,7 @@ for (const provider of [
       };
       const view = await renderApp();
       await userEvent.click(
-        await view.findByRole("button", { name: "Set up Ark Agent" }),
+        await view.findByRole("button", { name: "Set up ArkAgent" }),
       );
       await userEvent.click(
         await view.findByRole("button", { name: "Continue" }),
@@ -2348,7 +2336,7 @@ test("Start credential failures do not expose a restore action", async () => {
           setting: "OPENAI_API_KEY",
           label: "Restore access to saved setup",
           explanation:
-            "This Mac is protecting a credential from your saved Ark Agent setup. Restoring access may ask macOS to confirm this app. Your saved data stays in place.",
+            "This Mac is protecting a credential from your saved ArkAgent setup. Restoring access may ask macOS to confirm this app. Your saved data stays in place.",
         },
       };
     return previous(command, args);
@@ -2408,13 +2396,13 @@ test("no screen of setup asks for, or mentions, a CopilotKit account, a project 
   const look = () => seen.push(view.container.textContent ?? "");
   look();
   await userEvent.click(
-    await view.findByRole("button", { name: "Set up Ark Agent" }),
+    await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   look();
   await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   look();
   await userEvent.click(
-    await view.findByRole("button", { name: "Install Ark Agent" }),
+    await view.findByRole("button", { name: "Install ArkAgent" }),
   );
   await view.findByRole("heading", { name: "Installation complete" });
   look();

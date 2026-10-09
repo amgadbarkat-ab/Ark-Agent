@@ -1,6 +1,6 @@
 # Windows desktop signing
 
-> **For Ark Agent this page describes the workflow as inherited**, which signs with a DigiCert certificate
+> **For ArkAgent this page describes the workflow as inherited**, which signs with a DigiCert certificate
 > held in OpenBot's Azure Key Vault. Black Ark has no such certificate. How Black Ark gets its own, the
 > options (Microsoft Artifact Signing, or a certificate authority's cloud signing) and the GitHub
 > settings each needs are in [20-accounts-and-keys.md](ark/20-accounts-and-keys.md); the workflow is changed

@@ -20,7 +20,7 @@ Settled by the owner on 2026-10-09:
    - **Apple enrols the legal entity, never a trade name.** Its page says it does not accept "DBAs,
      fictitious businesses, trade names, or branches". So the Apple account is **Value Data IKE**, and the
      seller shown on the App Store is "Value Data IKE", not "BlackArk". The app itself can still be called
-     Ark Agent.
+     ArkAgent.
    - **Google Play** takes an organisation account on the same legal name and D-U-N-S number. The
      developer name that customers see is a separate field in the Console; check what it offers, because
      Google also shows the verified legal name.
@@ -52,9 +52,9 @@ Not yet confirmed:
    allowed but is not what either store's examples show. Nothing needs it until the first store record is
    created.
 
-   The product name "Ark Agent" has not been cleared as a trademark either, and the website writes it as
-   one word, "ArkAgent". Settle the spelling before any store listing exists, and see "Where the apps are
-   offered" below.
+   The product name is **ArkAgent**, one word, as on the company's website and on the character poster the
+   owner supplied (2026-10-09). It has not been cleared as a trademark; see "Where the apps are offered"
+   below.
 
 ## Order, lead times and costs
 
@@ -102,7 +102,7 @@ stay consistent with the D&B profile.
 5. Google's closed-test rule (12 testers opted in for 14 days in a row before a first release) applies to
    personal accounts created after 13 November 2023. An organisation account, which is what Value Data IKE
    registers, is not subject to it; confirm this on the Console's Dashboard when you register.
-6. Create the app: **All apps, Create app**. Name "Ark Agent" (see the trademark note above), language,
+6. Create the app: **All apps, Create app**. Name "ArkAgent" (see the trademark note above), language,
    **App** (not game), **Free**. Play will ask for the package name when the first bundle is uploaded; it must
    be the one in the table above.
 7. Turn on **Play App Signing** (it is the default for new apps). Google then keeps the real signing key and
@@ -288,7 +288,7 @@ approved. Keep every `.p8`, `.p12`, `.jks` and password in the company's passwor
 
 ## Where the apps are offered
 
-"BlackArk" is cleared only in the United Kingdom, and "Ark Agent" has not been checked at all. Both stores let
+"BlackArk" is cleared only in the United Kingdom, and "ArkAgent" has not been checked at all. Both stores let
 the company choose the countries an app is offered in, and both show the developer's name and the app's name
 to the public. Until the lawyer has answered, the safer first listing is **United Kingdom only**, widened
 country by country as clearance comes. That is a business and legal call, not an engineering one.

@@ -16,13 +16,16 @@
 //   mobile/ios/brand/            AppIcon-1024.png, flat colour with no transparency (the App Store refuses it)
 //   mobile/android/app/src/main/ the adaptive launcher icon (vector foreground, background colour) and the
 //                                company's 192 file as the icon for phones too old for an adaptive one
+//   app/public/brand/,           the ArkAgent character's head and shoulders, cropped from the poster the owner
+//   desktop/src/assets/,         supplied (brand/arkagent/arkagent-poster.jpg): the product's face, a circle crop
+//   brand/arkagent/              used on the first screens each app shows
 //   desktop/src-tauri/icons/     icon.png, the 1024 master. The platform sizes are then made from it by
 //                                `bun run tauri icon` (brand/README.md says how), because that is the tool
 //                                that knows each platform's formats.
 //
 // The 192 and 180 files are the company's own artwork, published on its website, and are copied rather than
 // redrawn so the app's icon is exactly the one a person has already seen.
-import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -58,7 +61,7 @@ function svg(size, viewBox, body) {
 
 /** The same document with an accessible name, as a file ending in a newline. */
 const labelled = (document) =>
-  `${document.replace("<svg ", '<svg role="img" aria-label="Ark" ')}\n`;
+  `${document.replace("<svg ", '<svg role="img" aria-label="ArkAgent" ')}\n`;
 
 const tileBody = `<rect width="${TILE}" height="${TILE}" rx="${TILE_RADIUS}" fill="${EMBER}"/>${barRects()}`;
 const flatBody = `<rect width="${TILE}" height="${TILE}" fill="${EMBER}"/>${barRects()}`;
@@ -80,6 +83,9 @@ const maskableBody = `<rect width="${TILE}" height="${TILE}" fill="${EMBER}"/>${
  */
 const DESKTOP_MARGIN = TILE / 14;
 const desktopViewBox = `${-DESKTOP_MARGIN} ${-DESKTOP_MARGIN} ${TILE + 2 * DESKTOP_MARGIN} ${TILE + 2 * DESKTOP_MARGIN}`;
+
+/** Where the character's head and shoulders are in the 768 by 1152 poster: a square of this side, from this corner. */
+const PORTRAIT_CROP = { x: 325, y: 88, size: 350 };
 
 // ---------- PNG writing (no dependencies) ----------
 
@@ -319,6 +325,40 @@ try {
       true,
     ),
   );
+
+  // The ArkAgent character, head and shoulders, from the owner's poster (the poster itself carries the
+  // retired v2 logo, so only the figure is used). A square, drawn at its own size and never scaled up.
+  const poster = readFileSync(at("brand/arkagent/arkagent-poster.jpg"));
+  const portrait = Buffer.from(
+    await page.evaluate(
+      async ({ encoded, crop }) => {
+        const image = new Image();
+        image.src = `data:image/jpeg;base64,${encoded}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = crop.size;
+        canvas.height = crop.size;
+        const context = canvas.getContext("2d");
+        context.drawImage(
+          image,
+          crop.x,
+          crop.y,
+          crop.size,
+          crop.size,
+          0,
+          0,
+          crop.size,
+          crop.size,
+        );
+        return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+      },
+      { encoded: poster.toString("base64"), crop: PORTRAIT_CROP },
+    ),
+    "base64",
+  );
+  write(at("brand/arkagent/portrait.jpg"), portrait);
+  write(at("app/public/brand/arkagent-portrait.jpg"), portrait);
+  write(at("desktop/src/assets/arkagent-portrait.jpg"), portrait);
 } finally {
   await browser.close();
 }

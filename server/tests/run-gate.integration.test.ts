@@ -218,7 +218,7 @@ describe("a run at the limit", () => {
     ).toBe(true);
     const notice = text(waiting.events);
     expect(notice).toContain(
-      "Ark Agent lets 1 digital employee work at the same time",
+      "ArkAgent lets 1 digital employee work at the same time",
     );
     expect(notice).toContain("upgrade to Ark Team");
     expect(notice).toContain("](/settings/plan)");

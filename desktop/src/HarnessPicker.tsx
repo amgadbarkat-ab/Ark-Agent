@@ -20,7 +20,7 @@ export type HarnessChoice = {
   agentUrl?: string;
 };
 
-/** What Ark Agent sets up unless somebody says otherwise. David's call. */
+/** What ArkAgent sets up unless somebody says otherwise. David's call. */
 export const DEFAULT_HARNESS = "langgraph";
 
 /**
@@ -94,7 +94,7 @@ export function HarnessPicker({
         applies to will read it.
       */}
       <p className="lede">
-        Ark Agent sets this up for you. If you write code, you can choose the
+        ArkAgent sets this up for you. If you write code, you can choose the
         agent framework below.
       </p>
 

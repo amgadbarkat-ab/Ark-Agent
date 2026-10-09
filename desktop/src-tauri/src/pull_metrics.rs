@@ -268,9 +268,7 @@ fn run_with_progress(
         bytes,
     });
     let output = output.map_err(|error| {
-        Problem::plain(format!(
-            "Could not pull the images Ark Agent needs: {error}"
-        ))
+        Problem::plain(format!("Could not pull the images ArkAgent needs: {error}"))
     })?;
     if output.status.success() {
         return Ok(());

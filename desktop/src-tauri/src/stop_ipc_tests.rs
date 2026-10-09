@@ -315,7 +315,7 @@ mod stop_ipc {
             .expect("menu Stop failure should be retained for setup");
         assert_eq!(
             problem.said,
-            "Ark Agent could not finish stopping. Try Stop Ark Agent again."
+            "ArkAgent could not finish stopping. Try Stop ArkAgent again."
         );
         assert!(
             problem

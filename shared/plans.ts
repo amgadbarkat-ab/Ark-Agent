@@ -29,7 +29,7 @@ export type Plan = {
 export const PLANS: readonly Plan[] = [
   {
     id: "agent",
-    name: "Ark Agent",
+    name: "ArkAgent",
     priceEurCents: 5_000,
     maxActiveBots: 1,
     seats: 1,

@@ -278,7 +278,7 @@ describe("notifications", () => {
   test("a message that cannot be read still shows something, and never a foreign address", async () => {
     const worker = loadWorker();
     await push(worker, "{not json").settled();
-    expect(worker.shown[0]?.title).toBe("Ark");
+    expect(worker.shown[0]?.title).toBe("ArkAgent");
     const other = loadWorker();
     await push(other, {
       title: "x",

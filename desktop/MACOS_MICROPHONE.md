@@ -12,10 +12,10 @@ bun install --frozen-lockfile
 bun test scripts/desktop-version.test.ts
 bun scripts/desktop-version.ts internal
 APPLE_SIGNING_IDENTITY=- bun run tauri build --config src-tauri/tauri.build-version.conf.json --bundles app
-plutil -extract NSMicrophoneUsageDescription raw "src-tauri/target/release/bundle/macos/Ark Agent.app/Contents/Info.plist"
-codesign --verify --deep --strict "src-tauri/target/release/bundle/macos/Ark Agent.app"
-codesign -d --entitlements - "src-tauri/target/release/bundle/macos/Ark Agent.app"
-codesign -dv "src-tauri/target/release/bundle/macos/Ark Agent.app"
+plutil -extract NSMicrophoneUsageDescription raw "src-tauri/target/release/bundle/macos/ArkAgent.app/Contents/Info.plist"
+codesign --verify --deep --strict "src-tauri/target/release/bundle/macos/ArkAgent.app"
+codesign -d --entitlements - "src-tauri/target/release/bundle/macos/ArkAgent.app"
+codesign -dv "src-tauri/target/release/bundle/macos/ArkAgent.app"
 ```
 
 The description must be nonempty, the signed entitlement
@@ -26,12 +26,12 @@ version test suite. These checks validate packaging, not live microphone capture
 For a live check, use a Mac with a working microphone and configured voice
 providers:
 
-1. Launch the packaged `Ark Agent.app`, complete setup, and open its workspace in
+1. Launch the packaged `ArkAgent.app`, complete setup, and open its workspace in
    the desktop window. Testing a browser tab or `tauri dev` does not verify the
    packaged application's permission.
 2. Start dictation and approve the app's macOS microphone prompt. Speak a short
    phrase, stop, and verify the transcription. If permission was already denied,
-   enable Ark Agent under System Settings → Privacy & Security → Microphone and
+   enable ArkAgent under System Settings → Privacy & Security → Microphone and
    reopen the app.
 3. Start and stop an OpenAI voice conversation, then a Grok voice conversation.
    Verify each receives spoken input and releases the microphone after stopping.

@@ -847,7 +847,7 @@ pub const NO_KEY_NEEDED: &str = "no-key-needed";
 ///
 /// Named rather than written inline, because `write` has to recognise its own from a previous start
 /// as well as put one down.
-const BANNER: &str = "# Written by Ark Agent Desktop. Anything else in this file is left alone.";
+const BANNER: &str = "# Written by ArkAgent Desktop. Anything else in this file is left alone.";
 
 /// The secrets this deployment mints for itself, once.
 pub const MINTED: [&str; 8] = [
@@ -997,7 +997,7 @@ pub fn write(
     {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
-            "Ark Agent setting names and values must not contain line breaks.",
+            "ArkAgent setting names and values must not contain line breaks.",
         ));
     }
     let existing = match std::fs::read_to_string(path) {

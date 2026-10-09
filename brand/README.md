@@ -1,6 +1,6 @@
 # Brand
 
-Ark Agent uses Black Ark's own identity: **BlackArk Visual Identity v3 (Ember)**, issued 4 October 2026
+ArkAgent uses Black Ark's own identity: **BlackArk Visual Identity v3 (Ember)**, issued 4 October 2026
 by the company and handed over as a kit by the owner on 2026-10-09. Its token file is kept here exactly as
 issued. Nothing in this repository invents a mark, a colour or a name; if the company changes its identity,
 this folder is where the change starts.
@@ -72,6 +72,6 @@ from the new master as `desktop/src-tauri/icons/README.md` says.
   supply or approve.
 - The lockup PNGs are recoloured from the v2 artwork, so their lettering still uses a stand-in typeface
   (the kit's own note); real Geist is in `fonts/` for the next regeneration.
-- The desktop app's own wording (setup window, messages, tray, installer) now says Ark Agent. What was left alone
+- The desktop app's own wording (setup window, messages, tray, installer) now says ArkAgent. What was left alone
   on purpose is listed in `docs/ark/10-desktop-replatform.md`.
 - Nothing has been looked at on a real phone, Mac or Windows machine.

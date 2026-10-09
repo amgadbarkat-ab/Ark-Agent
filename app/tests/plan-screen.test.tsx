@@ -32,7 +32,7 @@ const SLOW = { timeout: 5000 };
 const plans = [
   {
     id: "agent",
-    name: "Ark Agent",
+    name: "ArkAgent",
     priceEurCents: 5000,
     maxActiveBots: 1,
     summary: "One digital employee.",
@@ -62,7 +62,7 @@ function overview(
       tenantId: "t1",
       tenantName: "ann@example.com",
       planId: "agent",
-      planName: "Ark Agent",
+      planName: "ArkAgent",
       subscriptionStatus: "active",
       maxActiveBots: 1,
       canRun: true,
@@ -133,7 +133,7 @@ test("shows the plan, when it renews and how much of it is in use", async () => 
   const screen = renderPlan();
   expect(await screen.findByText("1 of 1 working now", {}, SLOW)).toBeTruthy();
   expect(screen.getByText(/Renews on/)).toBeTruthy();
-  expect(screen.getAllByText("Ark Agent").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("ArkAgent").length).toBeGreaterThan(0);
 });
 
 test("offers the three plans with their prices, and marks the one you have", async () => {
@@ -144,7 +144,7 @@ test("offers the three plans with their prices, and marks the one you have", asy
   expect(screen.getByText("€250 a month")).toBeTruthy();
   // The plan you are on is marked, and cannot be chosen again.
   expect(screen.getByText("Your plan", { selector: "span" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Choose Ark Agent" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Choose ArkAgent" })).toBeNull();
   expect(screen.getByRole("button", { name: "Choose Ark Team" })).toBeTruthy();
 });
 

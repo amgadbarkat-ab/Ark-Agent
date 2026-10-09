@@ -102,7 +102,7 @@ export function Ask({
           </button>
         ) : (
           <button type="button" onClick={onOpen}>
-            Start using Ark Agent
+            Start using ArkAgent
           </button>
         )}
         {/*

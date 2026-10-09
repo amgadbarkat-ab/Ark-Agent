@@ -246,7 +246,7 @@ const account = (
   plans: [
     {
       id: "agent",
-      name: "Ark Agent",
+      name: "ArkAgent",
       priceEurCents: 5000,
       maxActiveBots: 3,
       summary: "For one person.",
@@ -295,10 +295,10 @@ describe("the plan screen", () => {
     serve(account(), ANDROID_PACKAGE);
     const screen = renderPlan();
     expect(await screen.findByText("Plans", {}, SLOW)).toBeTruthy();
-    expect(screen.getByText("Ark Agent")).toBeTruthy();
+    expect(screen.getByText("ArkAgent")).toBeTruthy();
     expect(screen.getAllByText(/€50 a month/).length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Choose Ark Agent" }),
+      screen.getByRole("button", { name: "Choose ArkAgent" }),
     ).toBeTruthy();
     expect(screen.getByText("Billing")).toBeTruthy();
   });
@@ -342,7 +342,7 @@ describe("the plan screen", () => {
     const screen = renderPlan();
     expect(await screen.findByText("Plans", {}, SLOW)).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Choose Ark Agent" }),
+      screen.getByRole("button", { name: "Choose ArkAgent" }),
     ).toBeTruthy();
   });
 

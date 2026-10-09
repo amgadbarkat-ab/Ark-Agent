@@ -22,7 +22,7 @@ facts in this file and do not claim more than it says.
 
 **Company:** [COMPANY NAME], [COUNTRY]. Contact: [NAME, ROLE, EMAIL].
 
-**Product:** Ark Agent, a hosted service where each customer runs "digital employees": AI agents
+**Product:** ArkAgent, a hosted service where each customer runs "digital employees": AI agents
 that work on their behalf (research, drafting, scheduled and long-running tasks, using tools the
 customer connects). Customers use Ark in a browser and in desktop and mobile apps. Plans are
 EUR 50, 100 and 250 a month per user, priced for the software and not for model usage.

@@ -460,7 +460,7 @@ describe("publisher names", () => {
       "Ark",
       "ark",
       "A.r.k",
-      "Ark Agent",
+      "ArkAgent",
       "ARK Official",
       "Ark Team",
       "Ark-Support",

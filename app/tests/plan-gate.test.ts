@@ -34,7 +34,7 @@ function overview(
       tenantId: "t",
       tenantName: "n",
       planId: "agent",
-      planName: "Ark Agent",
+      planName: "ArkAgent",
       subscriptionStatus: "incomplete",
       maxActiveBots: 1,
       canRun: false,

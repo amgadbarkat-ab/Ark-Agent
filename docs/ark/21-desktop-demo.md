@@ -9,13 +9,13 @@ have a minute.
 1. A **Welcome** card: the company's animation on a dark panel (the rack, then the globe, then the BlackArk
    mark), "Your own AI coworkers, on this computer.", and one button.
 2. **Choose a coworker type** (the Bot that comes with it), then **Install**. On a computer with no container
-   engine, Ark Agent installs one itself (Podman on Windows and on Apple-silicon Macs). On Windows that may
+   engine, ArkAgent installs one itself (Podman on Windows and on Apple-silicon Macs). On Windows that may
    ask to turn on a Windows feature and restart once; the app says so in plain words and carries on after.
 3. It **downloads the release** (the application, its database, Ark Hub and the Bots' images) and starts it.
    The first run is the slow one: the images are large (the one the coworkers' computers run is about 500 MB compressed on its own), so allow a long first download.
 4. **Choose the AI** the coworkers use (a key the customer owns, or a sign-in with a provider that allows it).
    Choosing starts everything, and a one-line question proves it answers.
-5. The window becomes Ark Agent itself: the same app the web service serves, running on this computer. Nothing
+5. The window becomes ArkAgent itself: the same app the web service serves, running on this computer. Nothing
    asks the customer to sign in to anything, and nothing leaves the computer except what the coworkers do
    with the tools and the AI the customer connected.
 

@@ -1,7 +1,7 @@
-# Ark Agent: product docs
+# ArkAgent: product docs
 
 Ark is our company-owned AI agent platform ("digital employees"), sold as monthly subscriptions
-(Ark Agent, Ark Team, Ark Team Enterprise) and also used internally. These docs record decisions,
+(ArkAgent, Ark Team, Ark Team Enterprise) and also used internally. These docs record decisions,
 research and plans. Each file says when it was written.
 
 | File | What it covers |

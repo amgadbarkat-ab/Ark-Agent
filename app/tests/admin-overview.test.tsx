@@ -46,7 +46,7 @@ const overview = (overrides: Partial<Overview> = {}): Overview => ({
     people: 3,
     newPeopleLast7Days: 1,
     byPlan: [
-      { planId: "agent", name: "Ark Agent", priceEurCents: 5000, paying: 1 },
+      { planId: "agent", name: "ArkAgent", priceEurCents: 5000, paying: 1 },
       { planId: "team", name: "Ark Team", priceEurCents: 10000, paying: 1 },
     ],
   },
@@ -134,10 +134,10 @@ test("shows the counts and the money the server worked out", async () => {
   serve(overview());
   const screen = renderOverview();
   await screen.findByText("Monthly recurring revenue", {}, SLOW);
-  // €150 a month, from one Ark Agent at €50 and one Ark Team at €100.
+  // €150 a month, from one ArkAgent at €50 and one Ark Team at €100.
   expect(screen.getByText("€150")).toBeTruthy();
   expect(screen.getByText("Paying customers, of 3 accounts")).toBeTruthy();
-  expect(screen.getByText("Ark Agent 1, Ark Team 1")).toBeTruthy();
+  expect(screen.getByText("ArkAgent 1, Ark Team 1")).toBeTruthy();
   expect(screen.getByText("1 run, 1 account")).toBeTruthy();
   expect(screen.getByText(/4 background jobs waiting for a turn/)).toBeTruthy();
 });

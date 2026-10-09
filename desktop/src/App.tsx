@@ -32,7 +32,7 @@ type SetupStep =
   | "install"
   | "model"
   | "ask"
-  // Where the person lands once Ark Agent is set up: running, or stopped and ready to start again.
+  // Where the person lands once ArkAgent is set up: running, or stopped and ready to start again.
   | "home";
 
 type Blocker =
@@ -310,7 +310,7 @@ export function App() {
         step: "engine",
         ok: true,
         running: true,
-        detail: "Checking the software Ark Agent needs.",
+        detail: "Checking the software ArkAgent needs.",
       },
     ]);
     setPreparation({ key: installationKey, status: "preparing" });
@@ -359,7 +359,7 @@ export function App() {
       /*
        * One screen short of the handover, on purpose.
        *
-       * The window used to become Ark Agent here, the moment the stack was up. But up is not the
+       * The window used to become ArkAgent here, the moment the stack was up. But up is not the
        * same as working: a refused key or a lapsed plan gives a stack that starts clean and a Bot
        * that cannot answer, and handing over at this point means somebody discovers that inside
        * the product with no idea which of their answers caused it. So the last screen asks a
@@ -446,7 +446,7 @@ export function App() {
   if (blockerFailure) {
     return (
       <main>
-        <h1>Ark Agent could not check Windows setup</h1>
+        <h1>ArkAgent could not check Windows setup</h1>
         <Failure problem={blockerFailure} />
       </main>
     );
@@ -455,7 +455,7 @@ export function App() {
   if (blocker) {
     return (
       <main>
-        <h1>Ark Agent needs one thing first</h1>
+        <h1>ArkAgent needs one thing first</h1>
         <div className="blocker">
           <h2>{titleFor(blocker)}</h2>
           <p>{instruction}</p>
@@ -467,7 +467,7 @@ export function App() {
   if (resuming || checkingResume) {
     return (
       <main>
-        <h1>{resuming ? "Starting Ark Agent" : "Opening Ark Agent"}</h1>
+        <h1>{resuming ? "Starting ArkAgent" : "Opening ArkAgent"}</h1>
         <p role="status">
           {resuming
             ? "Opening your saved setup…"
@@ -482,7 +482,7 @@ export function App() {
    * Install local software before asking for anything. A completed installation is retained
    * while somebody changes or retries their connection; changing its folder or Bot invalidates it.
    *
-   * Skipped entirely when a stack is already up: somebody returning to a running Ark Agent is not
+   * Skipped entirely when a stack is already up: somebody returning to a running ArkAgent is not
    * setting one up, and asking them to pick a Bot again would be the wizard asking twice.
    */
   if (!running && step === "welcome") {
@@ -529,12 +529,12 @@ export function App() {
         <div className="sheet">
           <p className="steps-of">Step 2 of 3</p>
           <h1>
-            {installationReady ? "Installation complete" : "Install Ark Agent"}
+            {installationReady ? "Installation complete" : "Install ArkAgent"}
           </h1>
           <p className="lede">
             {installationReady
-              ? "Ark Agent’s local software is ready. Next, choose the AI it should use."
-              : "Install the software Ark Agent needs on this computer. This can take a few minutes. You’ll choose your AI after installation finishes."}
+              ? "ArkAgent’s local software is ready. Next, choose the AI it should use."
+              : "Install the software ArkAgent needs on this computer. This can take a few minutes. You’ll choose your AI after installation finishes."}
           </p>
           {!installationReady && engine?.responding && (
             <p className="footnote">
@@ -543,7 +543,7 @@ export function App() {
             </p>
           )}
           <div className="field">
-            <label htmlFor="root">Where Ark Agent lives</label>
+            <label htmlFor="root">Where ArkAgent lives</label>
             <input
               id="root"
               disabled={busy}
@@ -600,7 +600,7 @@ export function App() {
                   ? "Installing…"
                   : preparation?.status === "failed"
                     ? "Retry installation"
-                    : "Install Ark Agent"}
+                    : "Install ArkAgent"}
               </button>
             )}
           </div>
@@ -642,7 +642,7 @@ export function App() {
           chosen={model}
           returning={returningToInstallation}
           busy={busy}
-          // The last answer Ark Agent needs: choosing starts it, so there is nothing left to sign in to.
+          // The last answer ArkAgent needs: choosing starts it, so there is nothing left to sign in to.
           onChoose={(choice) => {
             setModel(choice);
             void start(choice);
@@ -669,7 +669,7 @@ export function App() {
   if (!running) {
     return (
       <main>
-        <h1>Ark Agent is stopped</h1>
+        <h1>ArkAgent is stopped</h1>
         <p className="lede">
           Your installation and saved connections are ready to reopen.
         </p>
@@ -688,7 +688,7 @@ export function App() {
           disabled={busy || !installationReady || !modelCanStart()}
           onClick={() => start()}
         >
-          {busy ? "Starting…" : "Start Ark Agent"}
+          {busy ? "Starting…" : "Start ArkAgent"}
         </button>
         <button
           type="button"
@@ -735,12 +735,12 @@ export function App() {
           names the process that stopped is a screen arguing with itself. */}
         <h1>
           {displayedFailure
-            ? "Ark Agent needs attention"
-            : "Ark Agent is running"}
+            ? "ArkAgent needs attention"
+            : "ArkAgent is running"}
         </h1>
         {!displayedFailure && (
           <p className="lede">
-            The stack is up. Ark Agent is in this window; the menu bar has it
+            The stack is up. ArkAgent is in this window; the menu bar has it
             too, and stops it.
           </p>
         )}
@@ -755,9 +755,9 @@ export function App() {
             /*
              * The refusal is shown, not swallowed.
              *
-             * `show_openbot` answers with "Ark Agent is not answering on port 3010 yet, so there
+             * `show_openbot` answers with "ArkAgent is not answering on port 3010 yet, so there
              * is nothing to show" when the app host process is not up, and this button dropped
-             * it on the floor. Clicking it then did nothing at all, on a screen headed "Ark Agent
+             * it on the floor. Clicking it then did nothing at all, on a screen headed "ArkAgent
              * is running", which is the worst of both: a true sentence was available and the
              * window threw it away. The Ask screen's copy of this call always showed it.
              */
@@ -765,7 +765,7 @@ export function App() {
               invoke("show_openbot").catch((error) => recoverFromStart(error))
             }
           >
-            Show Ark Agent
+            Show ArkAgent
           </button>
           <button
             type="button"
@@ -773,7 +773,7 @@ export function App() {
             onClick={stop}
             disabled={busy}
           >
-            Stop Ark Agent
+            Stop ArkAgent
           </button>
         </div>
       </div>

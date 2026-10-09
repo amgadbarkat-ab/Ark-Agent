@@ -10,7 +10,7 @@ what is still open. The decisions behind it are D3 to D5 in 01-product-decisions
   person's login method.
 - **Tenant package** (older, from OpenBot) is only a configuration bundle that ships coworkers. It is
   not a customer. The "platform's own coworkers" are the ones it ships.
-- **Plan** is in `shared/plans.ts`: Ark Agent EUR 50 / 1 bot, Ark Team EUR 100 / 15, Ark Team
+- **Plan** is in `shared/plans.ts`: ArkAgent EUR 50 / 1 bot, Ark Team EUR 100 / 15, Ark Team
   Enterprise EUR 250 / 500, and an `internal` plan (unlimited, never sold) for our own staff.
 
 ## The data

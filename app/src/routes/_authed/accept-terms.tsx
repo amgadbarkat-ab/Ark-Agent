@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import AgentOrb from "@/components/agents/orb/agent-orb";
+import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
 import { Button } from "@/components/ui/button";
 import {
   acceptTermsMutationOptions,
@@ -43,7 +43,7 @@ function AcceptTerms() {
   return (
     <div className="flex h-dvh w-full flex-col items-center justify-center p-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-        <AgentOrb size="56px" />
+        <ArkAgentPortrait size={56} />
         <h1 className="text-2xl font-medium tracking-tight">
           Before you start
         </h1>

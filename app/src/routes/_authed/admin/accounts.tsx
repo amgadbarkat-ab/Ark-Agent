@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_authed/admin/accounts")({
 
 /** The plans staff can put an account on. The internal plan is theirs to give, never for sale. */
 const PLAN_CHOICES: { id: string; name: string }[] = [
-  { id: "agent", name: "Ark Agent" },
+  { id: "agent", name: "ArkAgent" },
   { id: "team", name: "Ark Team" },
   { id: "enterprise", name: "Ark Team Enterprise" },
   { id: "internal", name: "Internal" },

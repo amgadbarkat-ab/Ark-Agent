@@ -112,7 +112,7 @@ describe("the icons", () => {
       png("app", "public", "icons", "icon-maskable-512.png"),
     ).toMatchObject({ width: 512, height: 512 });
     const manifest = JSON.parse(text("app", "public", "manifest.webmanifest"));
-    expect(manifest.name).toBe("Ark Agent");
+    expect(manifest.name).toBe("ArkAgent");
     for (const icon of manifest.icons) {
       expect(existsSync(join(root, "app", "public", icon.src))).toBe(true);
     }
@@ -187,6 +187,22 @@ describe("the icons", () => {
     }
   });
 
+  test("the ArkAgent character's portrait is the same picture in all three places", () => {
+    const poster = read("brand", "arkagent", "arkagent-poster.jpg");
+    // A JPEG starts with the bytes FF D8, and the poster is the owner's, unaltered, 768 by 1152.
+    expect([poster[0], poster[1]]).toEqual([0xff, 0xd8]);
+    const portrait = read("brand", "arkagent", "portrait.jpg");
+    expect([portrait[0], portrait[1]]).toEqual([0xff, 0xd8]);
+    expect(
+      read("app", "public", "brand", "arkagent-portrait.jpg").equals(portrait),
+    ).toBe(true);
+    expect(
+      read("desktop", "src", "assets", "arkagent-portrait.jpg").equals(
+        portrait,
+      ),
+    ).toBe(true);
+  });
+
   test("the desktop has its master and the sizes made from it", () => {
     expect(png("desktop", "src-tauri", "icons", "icon.png")).toMatchObject({
       width: 1024,
@@ -198,7 +214,7 @@ describe("the icons", () => {
       height: 64,
     });
     const config = JSON.parse(text("desktop", "src-tauri", "tauri.conf.json"));
-    expect(config.productName).toBe("Ark Agent");
+    expect(config.productName).toBe("ArkAgent");
     for (const icon of config.bundle.icon) {
       expect(existsSync(join(root, "desktop", "src-tauri", icon))).toBe(true);
     }

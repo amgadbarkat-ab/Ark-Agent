@@ -4,7 +4,7 @@ import Avatar from "boring-avatars";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import * as React from "react";
 import useMeasure from "react-use-measure";
-import AgentOrb from "@/components/agents/orb/agent-orb";
+import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
 import { Composer } from "@/components/channels/composer";
 import { DesktopIllustration } from "@/components/computer/desktop-illustration";
 import { ComputerPlaceholder } from "@/components/computer/placeholder";
@@ -35,7 +35,7 @@ function WelcomeStep() {
         Welcome to {appConfig.brand.productName}
       </h1>
       <div className="h-32" />
-      <AgentOrb size="72px" />
+      <ArkAgentPortrait size={72} />
       {/*
        * A POSTER OF A COMPOSER, AND `pointer-events-none` IS WHAT MAKES IT ONE. Nothing here is
        * meant to be typed in, clicked or dropped on: it is a picture of the thing the person is

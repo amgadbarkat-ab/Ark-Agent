@@ -41,7 +41,7 @@ pub fn purge(root: &Path) -> Result<(), Problem> {
     }
     remove_store_file(&root.join(CHATGPT_STORE_FILE)).map_err(|error| {
         Problem::with(
-            "Ark Agent could not remove an old ChatGPT sign-in. Delete the .langchain folder in the deployment folder and try again.",
+            "ArkAgent could not remove an old ChatGPT sign-in. Delete the .langchain folder in the deployment folder and try again.",
             error.to_string(),
         )
     })?;
@@ -55,7 +55,7 @@ pub fn purge(root: &Path) -> Result<(), Problem> {
         let owned = std::collections::BTreeMap::new();
         crate::env::write(&env_file, &owned, &purge).map_err(|error| {
             Problem::with(
-                "Ark Agent could not remove an old sign-in from its settings.",
+                "ArkAgent could not remove an old sign-in from its settings.",
                 error.to_string(),
             )
         })?;

@@ -151,7 +151,7 @@ pub fn reference(root: &Path, published: &str) -> Result<String, String> {
         .map(|image| image.reference.clone())
         .ok_or_else(|| {
             format!(
-                "Ark Agent {} does not include {published}.",
+                "ArkAgent {} does not include {published}.",
                 manifest.version
             )
         })

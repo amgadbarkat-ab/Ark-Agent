@@ -37,7 +37,7 @@ function RouteComponent() {
    */
   return (
     <PageShell
-      description="How Ark Agent looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser."
+      description="How ArkAgent looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser."
       title="Preferences"
     >
       <PageSection title="General">
@@ -46,7 +46,7 @@ function RouteComponent() {
             <ItemContent>
               <ItemTitle>Dark theme</ItemTitle>
               <ItemDescription>
-                Use the dark appearance across Ark Agent.
+                Use the dark appearance across ArkAgent.
               </ItemDescription>
             </ItemContent>
             <ItemActions>

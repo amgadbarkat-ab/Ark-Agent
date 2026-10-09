@@ -116,7 +116,7 @@ describe("the configuration", () => {
         /ARK_APP_NAME|not set/,
       );
     }
-    for (const name of ["Ark", "Ark Agent", "Ark-Agent 2", "Ünïcode Ark"]) {
+    for (const name of ["Ark", "ArkAgent", "Ark-Agent 2", "Ünïcode Ark"]) {
       expect(build({ ARK_APP_NAME: name }).appName).toBe(name);
     }
     // Spaces around it are not part of the name.

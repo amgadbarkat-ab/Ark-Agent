@@ -34,7 +34,7 @@ impl<R: tauri::Runtime> NativeApproval<R> {
         let window = self
             .0
             .get_webview_window("main")
-            .ok_or_else(|| refused("The local Ark Agent window is closed."))?;
+            .ok_or_else(|| refused("The local ArkAgent window is closed."))?;
         window.show().map_err(|error| refused(error.to_string()))?;
         window
             .set_focus()
@@ -65,7 +65,7 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
         let window = self
             .0
             .get_webview_window("main")
-            .ok_or_else(|| refused("The local Ark Agent window is closed."))?;
+            .ok_or_else(|| refused("The local ArkAgent window is closed."))?;
         window.show().map_err(|error| refused(error.to_string()))?;
         window
             .set_focus()
@@ -82,7 +82,7 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
             .into_path()
             .map_err(|error| refused(error.to_string()))?;
         self.confirm("Allow folder access?", format!(
-            "Bot: {bot}\nRequested by: {}\n\nFolder: {}\n\nAllow this Bot to read this folder for this Ark Agent session? Each edit and command asks separately. You can revoke access in Computers.",
+            "Bot: {bot}\nRequested by: {}\n\nFolder: {}\n\nAllow this Bot to read this folder for this ArkAgent session? Each edit and command asks separately. You can revoke access in Computers.",
             request.actor_id, root.display()
         ))?;
         Ok(ApprovedFolder { root })
@@ -92,7 +92,7 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
         reviewable(&request.content)?;
         let bot = bot_label(request.bot_name.as_deref(), &request.bot_id);
         self.confirm("Allow this file change?", format!(
-            "Bot: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? Ark Agent keeps the previous contents when replacing a file.",
+            "Bot: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
             request.root.display(), request.relative_path, request.content
         ))
     }

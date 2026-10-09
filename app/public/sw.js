@@ -113,7 +113,9 @@ self.addEventListener("push", (event) => {
     message = {};
   }
   const title =
-    typeof message.title === "string" && message.title ? message.title : "Ark";
+    typeof message.title === "string" && message.title
+      ? message.title
+      : "ArkAgent";
   const options = {
     body: typeof message.body === "string" ? message.body : "",
     icon: "/icons/icon-192.png",

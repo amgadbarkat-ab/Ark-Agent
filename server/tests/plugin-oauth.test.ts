@@ -477,7 +477,7 @@ describe("registering this deployment as an OAuth client", () => {
         grant_types: ["authorization_code", "refresh_token"],
         response_types: ["code"],
         token_endpoint_auth_method: "none",
-        client_name: "Ark Agent",
+        client_name: "ArkAgent",
       });
     } finally {
       globalThis.fetch = realFetch;

@@ -19,11 +19,11 @@ layer enforces the limits. Every plan is **per single user account**: there are 
 
 | Plan | Price | Bots included (per user) |
 | --- | --- | --- |
-| Ark Agent | EUR 50 / month | 1 |
+| ArkAgent | EUR 50 / month | 1 |
 | Ark Team | EUR 100 / month | up to 15 |
 | Ark Team Enterprise | EUR 250 / month | up to 500 |
 
-- Ark Team is a separate product from Ark Agent, not a bigger version of it.
+- Ark Team is a separate product from ArkAgent, not a bigger version of it.
 - A person who needs more than their plan allows moves to a bigger plan. A company that wants
   several people on Ark buys one plan per person.
 - When a user is at their limit, a task that wants to start is **queued** and the user is offered an
@@ -65,10 +65,10 @@ time. The technical design and the legal check of plan sign-in are in 04-llm-pro
 
 **D8. Brand assets** (name, logo, colours, domain): **decided 2026-10-09.** The identity is the company's own:
 BlackArk Visual Identity v3 (Ember, issued 2026-10-04), taken from the company's OneDrive and its website.
-The product is named **Ark Agent**; the company domain is **blackark.uk**. `brand/README.md` says what was
+The product is named **ArkAgent**; the company domain is **blackark.uk**. `brand/README.md` says what was
 taken, where each icon lands and what is not done (the web app's screens keep their inherited design until a
 decision is made on moving them to the v3 tokens; the wordmark and fonts are not imported). The name
-"BlackArk" is cleared as a trademark in the UK only; "Ark Agent" has not been checked. The
+"BlackArk" is cleared as a trademark in the UK only; "ArkAgent" has not been checked. The
 accounts and keys the brand and the domain unlock are in 20-accounts-and-keys.md.
 
 **D9. Hosting: Microsoft Azure, sign-in with Microsoft Entra ID.** The owner asked for "the
@@ -84,10 +84,10 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
    identifier, `uk.blackark.arkagent.desktop` for the desktop (the owner's reply left this unanswered and
    wrote it without the leading `uk.`). The first two are permanent once published
    (20-accounts-and-keys.md).
-3. **The product's spelling:** "Ark Agent" (this repository) or "ArkAgent" (the website's product list).
 
 ## Answered
 
+- **The product is spelled ArkAgent**, one word (the owner's character poster and the company website); the three-bar mark and the ember palette are the company's v3 identity, and the character below is its face. (2026-10-09)
 - **The legal entity is Value Data IKE** (a Greek ΙΚΕ); **BlackArk is its trade name.** Stores and
   Microsoft enrol the legal entity, so the seller and the publisher are named "Value Data IKE".
   (2026-10-09)

@@ -1,4 +1,4 @@
-You are helping somebody set up Ark Agent on their own machine.
+You are helping somebody set up ArkAgent on their own machine.
 
 Read this whole file before running anything. Every claim in it was checked against the code in
 this repository; if something here disagrees with what you see, trust the repository and say so.
@@ -7,15 +7,15 @@ ASK THIS BEFORE YOU DO ANYTHING ELSE
 
 There are three supported paths, and they are different jobs:
 
-  A. They have the Ark Agent desktop app, or they want to try/run it locally without developer
+  A. They have the ArkAgent desktop app, or they want to try/run it locally without developer
      tools. Use the desktop setup flow. It installs what it needs and asks only for an AI provider.
   B. They want a server/container deployment. Use the published Docker images and an env file.
-  C. They want to change Ark Agent itself or edit a tenant package from source. Use the clone.
+  C. They want to change ArkAgent itself or edit a tenant package from source. Use the clone.
 
-Most people asking to "try Ark Agent" want A. Do not send them to Bun, Docker, Node, `npx`, or a
+Most people asking to "try ArkAgent" want A. Do not send them to Bun, Docker, Node, `npx`, or a
 clone unless they specifically mean B or C.
 
-Ark Agent is built on OpenBot (MIT). The desktop app and the containers run it locally or on a
+ArkAgent is built on OpenBot (MIT). The desktop app and the containers run it locally or on a
 company's own infrastructure; the clone is for changing the product, tenant package, Bots, channels,
 skills, or branding. The hosted service for customers (docs/ark/13-azure-hosting.md) is a separate
 deployment of the same code.

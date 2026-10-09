@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Ark Agent uses your microphone for dictation and voice conversations.</string>
+  <string>ArkAgent uses your microphone for dictation and voice conversations.</string>
 </dict>
 </plist>

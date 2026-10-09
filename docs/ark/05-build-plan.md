@@ -75,7 +75,7 @@ Still to do in this phase:
 - [ ] **Desktop app still depends on CopilotKit** for its Intelligence sign-in, organisation sign-in,
       release source and image registry. Not fixable until Ark has a release pipeline, brand assets
       and signing certificates; the full list and order are in 10-desktop-replatform.md (Phase 6).
-- [ ] Remove CopilotKit and OpenBot names and links from user-facing text. The product name is Ark Agent
+- [ ] Remove CopilotKit and OpenBot names and links from user-facing text. The product name is ArkAgent
       (D8); the desktop installer, window title and Welcome screen already say so, and the wording inside the
       desktop window and the web app's own docs is the pass still to do.
 - Exit test: the whole app starts and works with no network access to any CopilotKit host.

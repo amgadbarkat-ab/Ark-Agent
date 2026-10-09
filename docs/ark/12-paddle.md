@@ -17,7 +17,7 @@ sale than a processor takes, which the owner has accepted by choosing it.
 Do it in Paddle's **sandbox** first (a separate account at sandbox-vendors.paddle.com), run the checks
 at the end of this page, and only then repeat it in the live account.
 
-1. **Products and prices.** One product, three recurring monthly prices in EUR: Ark Agent 50, Ark Team
+1. **Products and prices.** One product, three recurring monthly prices in EUR: ArkAgent 50, Ark Team
    100, Ark Team Enterprise 250. Choose whether the displayed price includes tax; Paddle then adds or
    includes VAT per country. Each price has an id like `pri_01...`. The code never writes an amount: the
    prices live in Paddle, and the plan screen's wording comes from `shared/plans.ts`, so the two must be
@@ -108,7 +108,7 @@ the rest of the setup above is by hand.
    dashboard the notification shows as delivered (200). If it shows 400, the signature or the secret is
    wrong.
 4. Choose Ark Team Enterprise. The plan moves and there is **one** subscription in Paddle, not two.
-5. Choose Ark Agent (a downgrade); check it is billed at the next renewal.
+5. Choose ArkAgent (a downgrade); check it is billed at the next renewal.
 6. Cancel; the page says when it ends; Paddle shows the scheduled cancellation.
 7. Manage billing opens Paddle's customer page.
 8. In Paddle, replay an old notification (Notifications > Replay); the account does not change.

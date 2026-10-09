@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Ark Agent",
+  "productName": "ArkAgent",
   "version": "../../package.json",
   "identifier": "ai.copilotkit.openbot.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Ark Agent",
+        "title": "ArkAgent",
         "width": 900,
         "height": 640,
         "minWidth": 720,
@@ -49,7 +49,7 @@
     "copyright": "Value Data IKE (BlackArk)",
     "publisher": "Value Data IKE",
     "category": "DeveloperTool",
-    "shortDescription": "Run Ark Agent on your own computer",
-    "longDescription": "Ark Agent for desktop installs the container engine, raises the stack, and keeps it running."
+    "shortDescription": "Run ArkAgent on your own computer",
+    "longDescription": "ArkAgent for desktop installs the container engine, raises the stack, and keeps it running."
   }
 }

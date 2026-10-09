@@ -19,7 +19,7 @@ fn latest_release_url() -> String {
 pub fn resolve_version(root: &Path) -> Result<String, String> {
     resolve_version_with(root, || {
         let body = deployment::get(&latest_release_url())
-            .map_err(|error| format!("could not find the latest Ark Agent release: {error}"))?;
+            .map_err(|error| format!("could not find the latest ArkAgent release: {error}"))?;
         release_tag(&body)
     })
 }
@@ -41,9 +41,9 @@ fn release_tag(body: &[u8]) -> Result<String, String> {
     }
 
     let release: Release = serde_json::from_slice(body)
-        .map_err(|error| format!("the latest Ark Agent release is not readable: {error}"))?;
+        .map_err(|error| format!("the latest ArkAgent release is not readable: {error}"))?;
     if release.tag_name.trim().is_empty() {
-        return Err("the latest Ark Agent release has no version tag".into());
+        return Err("the latest ArkAgent release has no version tag".into());
     }
     Ok(release.tag_name)
 }

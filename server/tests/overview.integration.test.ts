@@ -164,7 +164,7 @@ describe("customers and money", () => {
     expect(change((o) => o.customers.accounts)).toBe(4);
     expect(change((o) => o.customers.newLast7Days)).toBe(4);
     expect(change((o) => o.customers.people)).toBe(4);
-    // Two Ark Agent at €50 and one Ark Team at €100 that is paid up; the past-due one is not paying.
+    // Two ArkAgent at €50 and one Ark Team at €100 that is paid up; the past-due one is not paying.
     expect(change((o) => o.customers.paying)).toBe(3);
     expect(change((o) => o.customers.pastDue)).toBe(1);
     expect(change((o) => o.customers.suspended)).toBe(1);
