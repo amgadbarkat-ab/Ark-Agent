@@ -287,6 +287,28 @@ describe("one Bot, one meaning for a name", () => {
   });
 });
 
+describe("the one-name-per-Bot rule gives nothing away", () => {
+  test("trying to put a skill on somebody else's Bot says the same whether or not that Bot holds the name", async () => {
+    // Bob's Bot holds a skill called `held`. Alice writes her own under that name and tries it on his
+    // Bot; and, as a control, tries a name his Bot does not hold. Both are refused as not hers to do,
+    // so the refusal cannot be used to find out which names somebody else's Bot has.
+    const held = `held-${suite}`;
+    const bobs = await write(asBob(), held, "Bob's.");
+    expect((await grant(asBob(), bobs.body.id as string, bobBot)).status).toBe(
+      200,
+    );
+    const same = await write(asAlice(), held, "Alice's own.");
+    const other = await write(asAlice(), `other-${suite}`, "Alice's other.");
+    expect(same.status).toBe(200);
+    const holding = await grant(asAlice(), same.body.id as string, bobBot);
+    const control = await grant(asAlice(), other.body.id as string, bobBot);
+
+    expect(holding.status).toBe(403);
+    expect(control.status).toBe(403);
+    expect(await holding.json()).toEqual(await control.json());
+  });
+});
+
 describe("editing", () => {
   test("by id, an administrator can rewrite a person's skill and it stays theirs", async () => {
     const edit = await write(asAdmin(), name, "Reviewed by staff.", {

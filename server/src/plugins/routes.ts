@@ -2413,34 +2413,39 @@ export function createPluginRoutes(
    * A grant refers to a skill by its id, but a name is accepted for what was written before ids were
    * told apart from names: it means the person's own skill, then the deployment's, the same as the
    * skill list shows them. A skill the person is not shown is answered as no such skill, whoever it
-   * belongs to.
-   *
-   * On a grant, a Bot may not hold two skills under one name, because its `/` menu is the one place
-   * the name has to mean one thing. A revoke of something that is no longer there goes through
-   * unchanged so a dead row can still be removed.
+   * belongs to. A revoke of something that is no longer there goes through unchanged so a dead row can
+   * still be removed.
    */
   async function resolveSkillRef(
     context: { var: AppVariables },
     ref: string,
-    agentId: string,
     intent: "grant" | "revoke",
-  ): Promise<{ ref: string } | { error: string; status: 403 | 404 | 409 }> {
+  ): Promise<{ ref: string; slug?: string } | { error: string; status: 404 }> {
     const found = await store.findSkill(ref, skillActor(context));
     if (!found) {
       return intent === "revoke"
         ? { ref }
         : { error: `There is no skill called ${ref}.`, status: 404 };
     }
-    if (
-      intent === "grant" &&
-      (await store.botHoldsSkillNamed(agentId, found.slug, found.id))
-    ) {
-      return {
-        error: `This Bot already has a different skill called /${found.slug}. Take that one off first, or give this one another name.`,
-        status: 409,
-      };
-    }
-    return { ref: found.id };
+    return { ref: found.id, slug: found.slug };
+  }
+
+  /**
+   * A Bot may not hold two skills under one name, because its `/` menu is the one place the name has to
+   * mean one thing.
+   *
+   * ASKED ONLY AFTER THE PERSON IS KNOWN TO BE ALLOWED TO PUT THIS ON THAT BOT. Asked first, the answer
+   * would tell anybody which names somebody else's Bot holds, just by trying to grant one of their own
+   * to it: a 409 for a Bot that has the name, a 403 for one that does not.
+   */
+  async function duplicateNameRefusal(
+    agentId: string,
+    slug: string,
+    skillId: string,
+  ): Promise<string | null> {
+    return (await store.botHoldsSkillNamed(agentId, slug, skillId))
+      ? `This Bot already has a different skill called /${slug}. Take that one off first, or give this one another name.`
+      : null;
   }
 
   routes.post("/grants", requireUser, async (context) => {
@@ -2474,17 +2479,14 @@ export function createPluginRoutes(
      */
     let grantRef = body.ref.trim();
     const grantAgentId = body.agentId.trim();
+    let skillName: string | undefined;
     if (kind === "skill") {
-      const resolved = await resolveSkillRef(
-        context,
-        grantRef,
-        grantAgentId,
-        "grant",
-      );
+      const resolved = await resolveSkillRef(context, grantRef, "grant");
       if ("error" in resolved) {
         return context.json({ error: resolved.error }, resolved.status);
       }
       grantRef = resolved.ref;
+      skillName = resolved.slug;
     }
     const refusal = await enablementRefusal(
       context,
@@ -2494,6 +2496,14 @@ export function createPluginRoutes(
       "grant",
     );
     if (refusal) return context.json({ error: refusal }, 403);
+    if (skillName !== undefined) {
+      const clash = await duplicateNameRefusal(
+        grantAgentId,
+        skillName,
+        grantRef,
+      );
+      if (clash) return context.json({ error: clash }, 409);
+    }
 
     await store.grant(kind, grantRef, grantAgentId, actorEmail(context));
     return context.json({ ok: true });
@@ -2524,12 +2534,7 @@ export function createPluginRoutes(
     let trimmedRef = ref.trim();
     const trimmedAgentId = agentId.trim();
     if (kind === "skill") {
-      const resolved = await resolveSkillRef(
-        context,
-        trimmedRef,
-        trimmedAgentId,
-        "revoke",
-      );
+      const resolved = await resolveSkillRef(context, trimmedRef, "revoke");
       if ("error" in resolved) {
         return context.json({ error: resolved.error }, resolved.status);
       }
