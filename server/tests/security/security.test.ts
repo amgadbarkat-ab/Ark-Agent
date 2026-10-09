@@ -1514,6 +1514,62 @@ run("how fast a person may ask", () => {
   });
 });
 
+run("a burst of requests", () => {
+  /*
+   * Bun's SQL pool used to lose queries when more were asked for at once than it had connections and
+   * the statements were still cold: some requests hung for good and the process then answered nothing
+   * while /health, which does not touch the database, still passed. It is the failure a first rush of
+   * customers after a deploy would meet, so every page-load route is asked for by sixty at once from
+   * a fresh person, and afterwards the server must still answer (docs/ark/18-capacity.md).
+   */
+  test("every parameterless GET a screen makes answers sixty at once, and the server is still up after", async () => {
+    const person = await target.makePerson("burst");
+    const skip =
+      /host-access|stream|events|socket|\/next$|^\/api\/auth|^\/api\/admin\//;
+    const routes = unique(target.routes)
+      .filter(
+        (route) =>
+          route.method === "GET" &&
+          route.path.startsWith("/api/") &&
+          !route.path.includes(":") &&
+          !route.path.includes("*") &&
+          !skip.test(route.path),
+      )
+      .map((route) => route.path);
+    expect(routes.length).toBeGreaterThan(15);
+
+    const trouble: string[] = [];
+    for (const path of routes) {
+      const outcomes = await Promise.all(
+        Array.from({ length: 60 }, async () => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 8000);
+          try {
+            const response = await fetch(`${target.url}${path}`, {
+              headers: { cookie: person.cookie },
+              signal: controller.signal,
+            });
+            await response.text();
+            return response.status;
+          } catch {
+            return -1;
+          } finally {
+            clearTimeout(timer);
+          }
+        }),
+      );
+      // A hang (-1) or a failure of ours. 503 is a feature that is not configured here, and 429 is
+      // the limiter doing its job.
+      const bad = outcomes.filter(
+        (status) => status === -1 || (status >= 500 && status !== 503),
+      );
+      if (bad.length > 0) trouble.push(`${path}: ${bad.length} of 60`);
+    }
+    expect(trouble).toEqual([]);
+    expect((await target.call(person, "GET", "/api/me")).status).toBe(200);
+  }, 120_000);
+});
+
 run("running in the cloud, which is charged for", () => {
   const RATES = {
     computeCentsPerHour: 60,
