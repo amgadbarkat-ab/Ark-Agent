@@ -29,6 +29,7 @@ export function sandboxBilling(options: {
 }): BillingProvider {
   return {
     id: "sandbox",
+    environment: "test",
     async createCheckout(request) {
       const url = new URL(options.checkoutBase);
       url.searchParams.set("tenant", request.tenantId);

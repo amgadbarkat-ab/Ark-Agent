@@ -24,6 +24,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { AdminOverview } from "@/components/admin/overview";
 import { StaggerItem } from "@/components/layout/stagger";
 import {
   Item,
@@ -168,9 +169,10 @@ const SECTIONS: {
 function RouteComponent() {
   return (
     <PageShell
-      description="Settings that apply to everybody in this deployment. Anything here affects every person and every Bot, which is what separates it from your own preferences."
+      description="What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every Bot, which is what separates it from your own preferences."
       title="Admin"
     >
+      <AdminOverview />
       {SECTIONS.map((section) => (
         <PageSection
           description={section.description || undefined}

@@ -218,6 +218,53 @@ export function cloudRoutes(options: {
   return app;
 }
 
+/**
+ * What each account used in a calendar month and what it cost Ark, largest cost first.
+ *
+ * Shared by the cloud costs screen and the administrator's overview, so the two cannot disagree about
+ * what a month cost. At most 500 accounts are read; a deployment with more than that has outgrown
+ * reading them one at a time, and this is where it will say so.
+ */
+export async function monthlyUsage(
+  deps: { store: CloudStore; meter: CloudMeter },
+  period: string,
+) {
+  const { store, meter } = deps;
+  periodBounds(period);
+  const rates = await store.rates();
+  const tenantIds = (await meter.tenantsWithUsage(period)).slice(0, 500);
+  const names = await store.tenantNames(tenantIds);
+  const accounts = await Promise.all(
+    tenantIds.map(async (tenantId) => {
+      const usage = await meter.usageFor(tenantId, period);
+      const account = await store.account(tenantId);
+      const cost = rates ? costOf(usage, rates).costCents : 0;
+      return {
+        tenantId,
+        name: names.get(tenantId) ?? tenantId,
+        enabled: account.enabled,
+        hours: usage.computeSeconds / 3600,
+        usageLines: rates ? describeUsage(usage, rates) : [],
+        costCents: cost,
+        chargeCents: rates ? chargeCents(usage, rates) : 0,
+      };
+    }),
+  );
+  accounts.sort((a, b) => b.costCents - a.costCents);
+  const total = (key: "hours" | "costCents" | "chargeCents") =>
+    accounts.reduce((sum, row) => sum + row[key], 0);
+  return {
+    period,
+    priced: rates !== null,
+    totals: {
+      hours: total("hours"),
+      costCents: total("costCents"),
+      chargeCents: total("chargeCents"),
+    },
+    accounts,
+  };
+}
+
 /** Our staff's view of cloud running: what it is priced at, what each account used, what was charged. */
 export function adminCloudRoutes(options: {
   requireUser: Middleware;
@@ -268,39 +315,7 @@ export function adminCloudRoutes(options: {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
       return context.json({ error: "The month is written 2026-10." }, 400);
     }
-    periodBounds(period);
-    const rates = await store.rates();
-    const tenantIds = (await meter.tenantsWithUsage(period)).slice(0, 500);
-    const names = await store.tenantNames(tenantIds);
-    const accounts = await Promise.all(
-      tenantIds.map(async (tenantId) => {
-        const usage = await meter.usageFor(tenantId, period);
-        const account = await store.account(tenantId);
-        const cost = rates ? costOf(usage, rates).costCents : 0;
-        return {
-          tenantId,
-          name: names.get(tenantId) ?? tenantId,
-          enabled: account.enabled,
-          hours: usage.computeSeconds / 3600,
-          usageLines: rates ? describeUsage(usage, rates) : [],
-          costCents: cost,
-          chargeCents: rates ? chargeCents(usage, rates) : 0,
-        };
-      }),
-    );
-    accounts.sort((a, b) => b.costCents - a.costCents);
-    const total = (key: "hours" | "costCents" | "chargeCents") =>
-      accounts.reduce((sum, row) => sum + row[key], 0);
-    return context.json({
-      period,
-      priced: rates !== null,
-      totals: {
-        hours: total("hours"),
-        costCents: total("costCents"),
-        chargeCents: total("chargeCents"),
-      },
-      accounts,
-    });
+    return context.json(await monthlyUsage({ store, meter }, period));
   });
 
   app.get("/charges", async (context) => {

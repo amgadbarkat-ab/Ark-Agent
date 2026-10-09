@@ -70,6 +70,12 @@ export class BillingSignatureError extends Error {
 export type BillingProvider = {
   /** Stored on the subscription, so a record always says whose it is. */
   readonly id: string;
+  /**
+   * Whether this takes real money: `live`, or `test` for a sandbox. Absent for a provider that takes
+   * none at all (manual). Read by the administrator's overview, which says so when a deployment that
+   * has customers is still in test mode.
+   */
+  readonly environment?: "live" | "test";
   /** Start a purchase and return where the customer pays. */
   createCheckout: (request: CheckoutRequest) => Promise<{ url: string }>;
   /** Where the customer manages cards and invoices, if the provider has such a place. */

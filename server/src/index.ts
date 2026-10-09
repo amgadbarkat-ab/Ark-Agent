@@ -117,6 +117,8 @@ import { createDrain } from "../../shared/drain";
 import { createReadiness } from "../../shared/readiness";
 import { createOnboardingStore } from "./people/onboarding";
 import { createTermsStore } from "./people/terms";
+import { deploymentFacts } from "./overview/facts";
+import { createOverviewStore } from "./overview/store";
 import { TERMS_VERSION } from "../../shared/terms-version";
 import { createPeopleStore } from "./people/store";
 import { createProviderOAuthProxy } from "./provider-oauth";
@@ -1516,6 +1518,26 @@ const app = createApp(
     version: TERMS_VERSION,
     required: config.termsAcceptance === "required",
   }),
+  // What an administrator sees first: counts, the settings read back, this month's cloud cost.
+  {
+    store: createOverviewStore(database),
+    facts: async () =>
+      deploymentFacts({
+        config,
+        billing,
+        billingMode: accountStore.billingMode,
+        cloudPriced: (await cloudStore.rates()) !== null,
+      }),
+    ...(config.cloud.mode === "off"
+      ? {}
+      : {
+          cloud: {
+            mode: config.cloud.mode,
+            store: cloudStore,
+            meter: cloudMeter,
+          },
+        }),
+  },
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

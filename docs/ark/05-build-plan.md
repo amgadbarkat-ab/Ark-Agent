@@ -240,7 +240,7 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 
 **Engineering, needs nothing from the owner:** everything buildable without an Azure subscription, a
 domain or a lawyer is built (phases 1–5 and 7, the hardening in 9, hub scale-out and replay compaction,
-per-owner skill names, terms acceptance, observability). What is left is either on the owner's list
+per-owner skill names, terms acceptance, observability, the administrator's overview). What is left is either on the owner's list
 above or needs a running cluster: the first deployment to `dev` will find the small things a schema
 check cannot, then the restore drill, each alert fired once, a load test, and the per-coworker computer
 on AKS. Phase 6 (desktop re-platform and mobile) needs brand assets and signing certificates.

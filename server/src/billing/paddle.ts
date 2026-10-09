@@ -261,6 +261,7 @@ export function paddleBilling(config: PaddleConfig): BillingProvider {
 
   return {
     id: "paddle",
+    environment: config.environment === "sandbox" ? "test" : "live",
 
     async createCheckout(request) {
       const created = await call("POST", "/transactions", {

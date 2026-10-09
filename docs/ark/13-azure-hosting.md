@@ -109,6 +109,29 @@ not a rollback.
   anything that threw: see "What to watch" below.
 - **Who did what.** Admin → Audit in the product itself, and Key Vault's own access log for secrets.
 
+### The administrator's overview
+
+Admin opens on an **Overview** (`GET /api/admin/overview`, staff only), so the person running Ark sees
+the state of the service without opening each screen:
+
+- **Needs your attention.** What only staff can settle, each linking to its screen: cloud charges the
+  payment service did not confirm or that sat half-sent for over an hour (Cloud costs), shared coworkers
+  waiting for review and open reports (Marketplace), accounts with a failed payment or suspended
+  (Accounts), and background jobs that ran out of attempts (no screen: the reason is in `work_items`
+  and the server log). Decisions come before things to watch.
+- **Right now.** Paying customers by plan, monthly recurring revenue at list price before tax (accounts
+  that are paid up on a sold plan; internal accounts and past-due ones are not counted), new accounts and
+  sign-ups, runs in progress and background jobs waiting, and this month's cloud cost against what would
+  be charged (where cloud running is on).
+- **Before customers rely on it.** The go-live list, **read from the deployment's own settings** so it
+  cannot drift the way a document does: payments live or still in test, terms required, cloud prices set,
+  audit copy shipped, metrics served, Content-Security-Policy, HTTPS address, staff signing in through one
+  Entra tenant or Okta (not `common`), and an unfinished encryption-key rotation. On a deployment that
+  runs for one company, what only matters to customers shows as "your choice", never as a to-do.
+
+It is counts only: no person's name, email or account id appears in it. Figures are taken from the
+database on each load, and a page left open refreshes every minute.
+
 ### What to watch
 
 **Logs, from the server.** One JSON line per request that answered 5xx or took 3 seconds or more

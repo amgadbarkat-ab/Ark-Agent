@@ -112,10 +112,10 @@ describe("the routes", () => {
   const asPerson = (id: string, role: "admin" | "user") => {
     const store = createTermsStore(database, { version: V1, required: true });
     const auditStore = createAuditStore(database);
-    // createApp takes its stores by position: `auditStore` is the 13th and `terms` the 39th, the last.
+    // createApp takes its stores by position: `auditStore` is the 13th and `overview` the 40th, the last (`terms` is the 39th).
     // Every parameter from the 4th on is optional, so a miscount type-checks and silently does nothing;
     // the length is asserted so that adding a parameter makes this fail where it is wrong.
-    expect(createApp.length).toBe(39);
+    expect(createApp.length).toBe(40);
     const none = (count: number) => Array.from({ length: count }) as never[];
     const app = createApp(
       loadConfig(testEnvironment()),

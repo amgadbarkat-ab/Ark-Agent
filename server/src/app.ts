@@ -69,6 +69,7 @@ import { parsePageLimit } from "./paging";
 import { requestObservability, unhandledError } from "./observability";
 import type { OnboardingStore } from "./people/onboarding";
 import type { TermsStore } from "./people/terms";
+import { adminOverviewRoutes } from "./overview/routes";
 import { MAX_PAGE, type PeopleStore } from "./people/store";
 import type { ComposioBroker } from "./plugins/broker";
 import { createPluginRoutes } from "./plugins/routes";
@@ -411,6 +412,12 @@ export function createApp(
    * above. Absent leaves `/api/me` reporting no terms to accept.
    */
   terms?: TermsStore,
+  /**
+   * The administrator's overview: counts, the deployment's settings read back, and this month's cloud
+   * cost. Appended last, for the positional reason above. Absent leaves `/api/admin/overview`
+   * unmounted.
+   */
+  overview?: Omit<Parameters<typeof adminOverviewRoutes>[0], "requireUser">,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -778,6 +785,13 @@ export function createApp(
         database: cloud.database,
         audit,
       }),
+    );
+  }
+
+  if (overview) {
+    app.route(
+      "/api/admin/overview",
+      adminOverviewRoutes({ requireUser, ...overview }),
     );
   }
 
