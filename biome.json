@@ -9,6 +9,9 @@
       "!app/src/routeTree.gen.ts",
       "!desktop/src-tauri/gen",
       "!**/target",
+      "!mobile/android/build",
+      "!mobile/android/.gradle",
+      "!mobile/android/app/build",
       "!server/drizzle"
     ]
   },

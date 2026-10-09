@@ -18,7 +18,7 @@
     "format:check": "bunx biome format .",
     "lint": "bunx biome lint --error-on-warnings .",
     "test": "bun test",
-    "typecheck": "bun run --filter '*' typecheck",
+    "typecheck": "bun run --filter '*' typecheck && tsc --noEmit -p mobile",
     "test:ci": "bun scripts/test-ci.ts",
     "pretest": "bun run generate:app-config",
     "test:smoke": "OPENBOT_SMOKE=1 bun test tests/smoke",

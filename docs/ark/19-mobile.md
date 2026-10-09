@@ -38,7 +38,7 @@ Rejected, and why:
 | Notifications (Web Push, VAPID): subscriptions per device, sent when a routine finishes, fails or is switched off; opt-in per device on Settings | `server/src/push/`, `app/src/components/settings/notifications.tsx` | Built and tested. **Delivery through a real push service is not verified** (needs real keys and a device). Setup in 13-azure-hosting.md. |
 | `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`, from `ARK_ANDROID_APP_ID`, `ARK_ANDROID_CERT_SHA256`, `ARK_IOS_APP_ID` | `server/src/mobile/links.ts` | Built and tested. Nothing is served until the operator names the apps. |
 | Nothing to buy inside the store apps | `app/src/lib/store-app.ts`, the Plan screen, `server/src/accounts/run-gate.ts`, `server/src/cloud/gate.ts` | Built and tested (below). |
-| Android package (Trusted Web Activity) | `mobile/android/` | See "Android". |
+| Android package (Trusted Web Activity), its build checks and release workflow | `mobile/android/`, `mobile/scripts/`, `.github/workflows/mobile-android.yml` | Built here with the real Android SDK; see "Android". |
 | iOS shell and system-browser sign-in | `mobile/ios/` | See "iOS". |
 
 ## Store rules, and what the apps do about them
@@ -97,6 +97,28 @@ Ark signs in with Google, Microsoft or the company's directory (decision D9).
 - **iOS shell:** Google refuses sign-in inside an embedded web view, so the shell opens sign-in in the
   system browser and receives the result by a one-time code (see "iOS").
 - **Home Screen web app on iOS:** works as in Safari.
+
+## Android
+
+`mobile/android/` is a Gradle project with no code of our own: a manifest that opens the deployment's site
+in Chrome as a Trusted Web Activity, and Google's `androidbrowserhelper` library. How to build it, the
+settings it needs and how the site vouches for it are in [mobile/README.md](../../mobile/README.md).
+
+- **Nothing about a deployment is in the repository.** The package name (permanent once published), the
+  site, the name under the icon and the version are given at build time and checked first, each refused
+  with a sentence if missing or wrong. The colours and icon are the web app's own.
+- **Verified here, with the real tools** (Java 21, Gradle 8.14.3, Android Gradle plugin 8.13.2, SDK
+  platform 36): a debug APK and a release bundle build; the built manifest was read back and holds the
+  package, the launch address, the verified-link filter for the site and the `asset_statements` string,
+  all from the values given; a bundle signed with a throwaway key verifies; Android lint passes.
+- **Not verified:** installing it. There is no phone or emulator here, so nothing has shown the address
+  bar going away once the site's `assetlinks.json` matches, a notification arriving, or sign-in with
+  Google inside it. Those are the first things to check on a real phone (the exit test).
+- **Not in the app yet:** notification delegation (so notifications show as the app's, and the Android 13
+  permission is asked in the app rather than by Chrome), and a splash image. Both are additions to the
+  manifest and a small service, not changes of direction.
+- **The release workflow was never run on GitHub.** It uses the same commands as the hand build, only
+  actions this repository already pins, and passes zizmor. It stops short of uploading to Google Play.
 
 ## Notifications
 

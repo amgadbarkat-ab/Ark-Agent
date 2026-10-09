@@ -1,0 +1,8 @@
+# Written by `bun mobile/scripts/prepare-android.ts` from the environment. Holds no secret, but it is
+# one deployment's names, not the repository's.
+ark.properties
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
