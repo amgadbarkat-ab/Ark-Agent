@@ -15,6 +15,7 @@ this folder is where the change starts.
 | `logos/` | The company's logo files: the lockups on dark, on light and transparent, and the three-bar icon as PNG and as true vector. For store listings, the About screen and documents; the app tile above is what goes on a home screen. |
 | `fonts/` | Geist and Geist Mono (SIL Open Font License; the licence text is in the folder). Kept for when the interface moves to the v3 type; not loaded by any screen yet. |
 | `og-image.png` | The 1200 by 630 share image, the same file the website serves. |
+| `arkagent/` | **The ArkAgent character**: the owner's poster (`arkagent-poster.jpg`, unaltered) and the head and shoulders cropped from it (`portrait.jpg`). See below. |
 | `render-icons.mjs` | Draws every other icon Ark ships from `mark.svg` and writes it where it is used. |
 | `brand.test.ts` | Checks that every icon in the repository is the brand's: the right colours, sizes and kinds, and that the copies of the company's files have not drifted. |
 
@@ -22,6 +23,25 @@ Not copied from the kit, on purpose: the staff cards and the e-mail signatures (
 the letterhead and the quotation and invoice templates (they are the company's office documents, not the
 product's), and the PDF guide (it is the company's to keep; the rules that matter to the product are
 summarised below).
+
+## The ArkAgent character
+
+On 2026-10-09 the owner supplied a poster of the product's character: a dark humanoid in a black suit with
+a headset and gold accents, with the line "Your business AI assistant" and four promises (trusted, insightful,
+efficient, professional). It is **the face of ArkAgent**, the product's own persona. The coworkers a person
+creates keep their own orbs.
+
+- `arkagent/arkagent-poster.jpg` is kept exactly as supplied (768 by 1152).
+- `render-icons.mjs` crops the head and shoulders into `arkagent/portrait.jpg` and copies it to
+  `app/public/brand/` and `desktop/src/assets/`. It is shown beside the name on the desktop's Welcome screen
+  and on the web app's welcome and terms screens, where the animated orb was.
+- **Two things on the poster are not the current identity, so only the figure is used.** Its logo ("BlackArk.uk
+  BUSINESS AI" with a gold "B") is the retired v2 mark, and its gold is the retired v2 accent; v3 (Ember)
+  replaced both on 2026-10-04. The character's own gold details (the head plate, the headset ring, the pocket
+  square) were left as drawn. If the company wants them recoloured ember to match v3, that is a change to the
+  artwork, not to the code.
+- Its words are usable as store-listing copy once the owner approves them: "Intelligent. Reliable.
+  Professional.", "Your business AI assistant", "Intelligent AI. Real business impact."
 
 ## The rules that matter for the product
 

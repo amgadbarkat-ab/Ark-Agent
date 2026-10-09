@@ -7,7 +7,7 @@ have a minute.
 ## What the customer sees
 
 1. A **Welcome** card: the company's animation on a dark panel (the rack, then the globe, then the BlackArk
-   mark), "Your own AI coworkers, on this computer.", and one button.
+   mark), the ArkAgent character beside the name, "Your own AI coworkers, on this computer.", and one button.
 2. **Choose a coworker type** (the Bot that comes with it), then **Install**. On a computer with no container
    engine, ArkAgent installs one itself (Podman on Windows and on Apple-silicon Macs). On Windows that may
    ask to turn on a Windows feature and restart once; the app says so in plain words and carries on after.
