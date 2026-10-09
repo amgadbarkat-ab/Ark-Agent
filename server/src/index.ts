@@ -117,6 +117,8 @@ import { createDrain } from "../../shared/drain";
 import { createReadiness } from "../../shared/readiness";
 import { createOnboardingStore } from "./people/onboarding";
 import { createTermsStore } from "./people/terms";
+import { createPushSender, webPushSend } from "./push/sender";
+import { createPushStore } from "./push/store";
 import { deploymentFacts } from "./overview/facts";
 import { createOverviewStore } from "./overview/store";
 import { TERMS_VERSION } from "../../shared/terms-version";
@@ -994,9 +996,28 @@ const routineAgentRunner = new IntelligenceAgentRunner({
   authToken: routineIntelligence.ɵgetRunnerAuthToken(),
 });
 
+/*
+ * Notifications to phones and browsers: only when the deployment has been given keys for them. The store
+ * exists either way, so a person's devices are never lost to a restart without them.
+ */
+const pushStore = createPushStore(database);
+const pushSender = config.webPush
+  ? createPushSender({
+      store: pushStore,
+      send: webPushSend({
+        publicKey: config.webPush.publicKey,
+        privateKey: config.webPush.privateKey,
+        subject: config.webPush.subject,
+      }),
+    })
+  : undefined;
+
 const routineRunner = createRoutineRunner({
   routineStore,
   channelStore,
+  ...(pushSender
+    ? { notify: (userId, message) => pushSender.notify(userId, message) }
+    : {}),
   runTurn: createTurnRunner({
     intelligence: routineIntelligence,
     runner: routineAgentRunner,
@@ -1538,6 +1559,15 @@ const app = createApp(
           },
         }),
   },
+  // Notifications: a person's devices, and whether this deployment can send to them.
+  pushSender && config.webPush
+    ? {
+        store: pushStore,
+        sender: pushSender,
+        publicKey: config.webPush.publicKey,
+        extraHosts: config.webPush.allowedHosts,
+      }
+    : undefined,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

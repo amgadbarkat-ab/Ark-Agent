@@ -321,6 +321,39 @@ under the new key; when it reports nothing is left under the old one, the old on
 
 If a step fails, nothing is lost: the old key is still in the vault and the server reads with it.
 
+## Turning on notifications
+
+Off until you do this. With no key pair the server sends nothing, the app tells people an
+administrator has to switch notifications on, and nothing else changes. The keys are what tell a
+push service (Google's, Mozilla's, Apple's) that a message really comes from this server, so they
+are made once and kept: making a new pair silences every device until its owner switches
+notifications on again.
+
+1. **Make the pair and put it in the vault**, without printing either half:
+   ```sh
+   eval "$(bun server/scripts/generate-vapid-keys.ts | sed 's/^/export /')"
+   az keyvault secret set --vault-name "$vault" --name ark-web-push-vapid-public-key  --value "$WEB_PUSH_VAPID_PUBLIC_KEY"  >/dev/null
+   az keyvault secret set --vault-name "$vault" --name ark-web-push-vapid-private-key --value "$WEB_PUSH_VAPID_PRIVATE_KEY" >/dev/null
+   unset WEB_PUSH_VAPID_PUBLIC_KEY WEB_PUSH_VAPID_PRIVATE_KEY
+   ```
+2. **Tell the cluster to read them.** In `infra/azure/values-azure.yaml`, add this to
+   `externalSecrets.data` (the environment variables are already wired, as optional):
+   ```yaml
+   - secretKey: web-push-vapid-public-key
+     remoteRef: { key: ark-web-push-vapid-public-key }
+   - secretKey: web-push-vapid-private-key
+     remoteRef: { key: ark-web-push-vapid-private-key }
+   ```
+   Run the deploy workflow. The server starts with notifications on and logs nothing about the keys.
+3. **Try it.** Sign in on a phone or laptop, open Settings, switch on *Notify this device*, then
+   *Send a test*. On an iPhone or iPad the app must first be added to the Home Screen: Safari does not
+   offer notifications to an ordinary tab.
+
+The address push services can reach the operator at (`WEB_PUSH_SUBJECT`) defaults to the app's own
+https address, which is correct here. Messages never say what a routine was or what it produced: a lock
+screen is read by whoever stands next to the phone. Devices are listed in a person's data export by the
+service that reaches them (never the address or keys) and are removed with the person.
+
 ## When something is wrong
 
 | Sign | First look | Likely cause |

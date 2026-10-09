@@ -26,6 +26,7 @@ import {
   mcpUserCredentials,
   modelConnections,
   pluginGrants,
+  pushSubscriptions,
   routines,
   runSlots,
   sessions,
@@ -197,6 +198,12 @@ async function furnished(
     instruction: "Every morning",
     cron: "0 8 * * *",
     nextRunAt: new Date(Date.now() + 3600_000),
+  });
+  await database.insert(pushSubscriptions).values({
+    userId: who.id,
+    endpoint: `https://fcm.googleapis.com/fcm/send/${randomUUID()}`,
+    p256dh: "SECRET-DEVICE-PUBLIC-KEY",
+    auth: "SECRET-DEVICE-AUTH",
   });
   await database.insert(modelConnections).values({
     userId: who.id,
@@ -427,6 +434,12 @@ async function rowsFor(
         .select({ n: count() })
         .from(routines)
         .where(eq(routines.ownerUserId, userId)),
+    ),
+    notificationDevices: await n(
+      database
+        .select({ n: count() })
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, userId)),
     ),
     models: await n(
       database
@@ -853,6 +866,12 @@ describe("what a person is sent", () => {
     ]);
     expect(file.skills[0].instructions).toBe("Private instructions");
     expect(file.routines[0].instruction).toBe("Every morning");
+    expect(file.notificationDevices).toEqual([
+      { service: "fcm.googleapis.com", addedAt: expect.any(String) },
+    ]);
+    // What a message is sent with is not part of the copy: not the address, and not the keys.
+    expect(text).not.toContain("SECRET-DEVICE");
+    expect(text).not.toContain("/fcm/send/");
     expect(file.instructions).toBe("Always be brief.");
     expect(file.connectedApps[0].app).toBe("gmail");
     expect(file.uploadedFiles).toEqual([

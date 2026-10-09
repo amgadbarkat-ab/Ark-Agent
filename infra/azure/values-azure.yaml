@@ -53,6 +53,21 @@ config:
           name: ark-secrets
           key: key-encryption-key-previous
           optional: true
+    # Notifications on phones and browsers (docs/ark/19-mobile.md). Present only once the key pair is in
+    # the vault and listed in externalSecrets.data below; `optional` is why a deployment that has not
+    # done that starts without them, with notifications off. The steps are in docs/ark/13-azure-hosting.md.
+    - name: WEB_PUSH_VAPID_PUBLIC_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: web-push-vapid-public-key
+          optional: true
+    - name: WEB_PUSH_VAPID_PRIVATE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: web-push-vapid-private-key
+          optional: true
     # Uncomment once the lawyer has finished docs/legal/terms-of-service.md: customers then have to
     # accept the version in force before using the app, and it is recorded. Off, nobody is asked.
     # - name: TERMS_ACCEPTANCE

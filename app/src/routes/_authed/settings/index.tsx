@@ -6,6 +6,7 @@ import {
   PageShell,
 } from "@/components/layout/page-shell";
 import { MessageListPreference } from "@/components/settings/message-list-preference";
+import { NotificationSettings } from "@/components/settings/notifications";
 import { StandingInstructions } from "@/components/settings/standing-instructions";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -64,6 +65,8 @@ function RouteComponent() {
        * screen that changes what a coworker says rather than what this browser looks like.
        */}
       <StandingInstructions />
+      {/* Per device, because only a browser can be asked for permission, so it is not an account setting. */}
+      <NotificationSettings />
       {/*
        * Drawn from the same registry the listeners match against, so this list is what the keys
        * actually do rather than what somebody remembered they did. Read-only on purpose: these

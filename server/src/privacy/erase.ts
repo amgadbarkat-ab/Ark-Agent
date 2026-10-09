@@ -269,7 +269,7 @@ export async function erasePerson(
     }
 
     // The person. This is what removes their sign-in methods and sessions, preferences, model
-    // connections and keys, instructions, skills, routines, voice recordings, attachments, installs,
+    // connections and keys, instructions, skills, routines, notification devices, voice recordings, attachments, installs,
     // memberships and roles: each is tied to them and goes with them.
     await transaction.delete(users).where(eq(users.id, userId));
 

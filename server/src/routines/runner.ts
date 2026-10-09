@@ -63,10 +63,20 @@ function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Tell a person something has happened to one of their routines, on their phone if they have said
+ * they want that. Fire and forget: whatever it does, it must not change how a firing ends.
+ */
+export type RoutineNotifier = (
+  userId: string,
+  message: { title: string; body: string; url: string; tag: string },
+) => Promise<unknown>;
+
 export function createRoutineRunner(options: {
   routineStore: RoutineStore;
   channelStore: ChannelStore;
   runTurn: TurnRunner;
+  notify?: RoutineNotifier;
 }): RoutineRunner {
   const { routineStore, channelStore, runTurn } = options;
 
@@ -105,6 +115,24 @@ export function createRoutineRunner(options: {
             reason: reasonOf(error),
           }),
         );
+      }
+    }
+
+    /**
+     * A notification, worded so a lock screen reveals nothing about the work: it says that something
+     * happened and where to look, never what the routine was or what it said.
+     */
+    async function tell(title: string, body: string): Promise<void> {
+      if (!options.notify) return;
+      try {
+        await options.notify(ownerUserId, {
+          title,
+          body,
+          url: `/channel/${encodeURIComponent(channelId)}`,
+          tag: `routine-${routineId}`,
+        });
+      } catch {
+        // A courtesy. Nothing about a failure to deliver it belongs in the outcome.
       }
     }
 
@@ -154,12 +182,17 @@ export function createRoutineRunner(options: {
           // Only the first failure after a success. A routine that fails every night at three has
           // one line in the channel, not one line a night for a month.
           await say(`This routine failed: ${shorten(reason)}`);
+          await tell("A routine failed", "Open Ark to see what went wrong.");
         } else if (failures >= FATIGUE_LIMIT) {
           // A dead integration should not burn model spend for ever. Switched off, and said out
           // loud, because a routine that goes quiet without explaining itself is worse than one
           // that fails.
           await routineStore.setEnabled(ownerUserId, routineId, false);
           await say(SWITCHED_OFF);
+          await tell(
+            "A routine was switched off",
+            "It failed ten times in a row. Open Ark to see why.",
+          );
         }
         // In between, nothing is said. The run rows carry it, and the routines page reads them.
       } catch (fatigueError) {
@@ -182,6 +215,7 @@ export function createRoutineRunner(options: {
      */
     await say(replyText);
     await routineStore.finishRun(routineRunId, "succeeded");
+    await tell("A routine finished", "Open Ark to see what it did.");
   }
 
   return {

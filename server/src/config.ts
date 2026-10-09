@@ -188,6 +188,22 @@ export type CloudConfig = {
   defaultCapCents: number;
 };
 
+/**
+ * The server's key pair for sending notifications to phones and browsers (Web Push, with VAPID).
+ *
+ * Generated once with `bun server/scripts/generate-vapid-keys.ts` and kept like any other secret: the
+ * private key proves to Google's, Mozilla's and Apple's push services that a notification really came
+ * from this server. The public half is given to browsers so they can subscribe to it.
+ */
+export type WebPushConfig = {
+  publicKey: string;
+  privateKey: string;
+  /** A `mailto:` or `https:` address the push services can reach the operator at. */
+  subject: string;
+  /** Push services beyond Google's, Mozilla's, Apple's and Microsoft's, for a deployment that needs one. */
+  allowedHosts: string[];
+};
+
 export type DeploymentConfig = {
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
@@ -209,6 +225,11 @@ export type DeploymentConfig = {
    * offered either way. Staff are never asked.
    */
   termsAcceptance: "off" | "required";
+  /**
+   * Notifications to phones and browsers. Absent means none are sent and the app does not offer them.
+   * See {@link WebPushConfig}.
+   */
+  webPush?: WebPushConfig;
   /**
    * Which requests get a log line: `errors` (the default) writes one for a request that failed (5xx)
    * or took long, `all` for every one, `off` for none. Numbers about every request are kept either
@@ -1346,6 +1367,66 @@ function termsAcceptanceMode(environment: Environment): "off" | "required" {
   );
 }
 
+const base64urlBytes = (value: string): number[] | undefined => {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return undefined;
+  try {
+    return [...Buffer.from(value, "base64url")];
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * `WEB_PUSH_VAPID_PUBLIC_KEY` and `WEB_PUSH_VAPID_PRIVATE_KEY`, both or neither.
+ *
+ * Refused when only one is set, or when either is not the shape a P-256 key has: a deployment that
+ * thinks notifications are on and sends none is worse than one that refuses to start.
+ */
+function webPushSetting(
+  environment: Environment,
+  appUrl: string | undefined,
+): { webPush: WebPushConfig } | Record<string, never> {
+  const publicKey = optional(environment, "WEB_PUSH_VAPID_PUBLIC_KEY");
+  const privateKey = optional(environment, "WEB_PUSH_VAPID_PRIVATE_KEY");
+  if (publicKey === undefined && privateKey === undefined) return {};
+  if (publicKey === undefined || privateKey === undefined) {
+    throw new Error(
+      "WEB_PUSH_VAPID_PUBLIC_KEY and WEB_PUSH_VAPID_PRIVATE_KEY go together: set both or neither.",
+    );
+  }
+  const publicBytes = base64urlBytes(publicKey);
+  if (publicBytes?.length !== 65 || publicBytes[0] !== 4) {
+    throw new Error(
+      "WEB_PUSH_VAPID_PUBLIC_KEY is not a push public key (65 bytes, base64url). Generate a pair with: bun server/scripts/generate-vapid-keys.ts",
+    );
+  }
+  const privateBytes = base64urlBytes(privateKey);
+  if (privateBytes?.length !== 32) {
+    throw new Error(
+      "WEB_PUSH_VAPID_PRIVATE_KEY is not a push private key (32 bytes, base64url). Generate a pair with: bun server/scripts/generate-vapid-keys.ts",
+    );
+  }
+  const subject =
+    optional(environment, "WEB_PUSH_SUBJECT") ??
+    (appUrl?.startsWith("https://") ? appUrl : undefined);
+  if (
+    subject === undefined ||
+    !(subject.startsWith("https://") || subject.startsWith("mailto:"))
+  ) {
+    throw new Error(
+      "Web push needs WEB_PUSH_SUBJECT, a mailto: or https: address the push services can reach the operator at (it defaults to the app's https address).",
+    );
+  }
+  return {
+    webPush: {
+      publicKey,
+      privateKey,
+      subject,
+      allowedHosts: commaSeparated(environment, "WEB_PUSH_ALLOWED_HOSTS"),
+    },
+  };
+}
+
 /** `SHUTDOWN_SETTLE_SECONDS` and `SHUTDOWN_GRACE_SECONDS`: whole seconds, 0 to 600. */
 function shutdownSetting(environment: Environment): {
   settleMs: number;
@@ -1481,6 +1562,12 @@ export function loadConfig(
     : undefined;
   const managedAgent = managedAgentConfig(environment);
   const workerSharedSecret = optional(environment, "WORKER_SHARED_SECRET");
+  const appUrl = (
+    optional(environment, "OPENBOT_APP_URL") ??
+    commaSeparated(environment, "TRUSTED_ORIGINS")[0] ??
+    optional(environment, "OPENBOT_PUBLIC_URL") ??
+    auth?.baseUrl
+  )?.replace(/\/+$/, "");
 
   return {
     port: serverPort(environment),
@@ -1490,6 +1577,7 @@ export function loadConfig(
     cloud: cloudConfig(environment),
     contentSecurityPolicy: contentSecurityPolicyMode(environment),
     termsAcceptance: termsAcceptanceMode(environment),
+    ...webPushSetting(environment, appUrl),
     requestLog: parseRequestLogMode(optional(environment, "REQUEST_LOG")),
     auditShipping: auditShippingMode(environment),
     shutdown: shutdownSetting(environment),
@@ -1503,12 +1591,7 @@ export function loadConfig(
     publicUrl: (
       optional(environment, "OPENBOT_PUBLIC_URL") ?? auth?.baseUrl
     )?.replace(/\/+$/, ""),
-    appUrl: (
-      optional(environment, "OPENBOT_APP_URL") ??
-      commaSeparated(environment, "TRUSTED_ORIGINS")[0] ??
-      optional(environment, "OPENBOT_PUBLIC_URL") ??
-      auth?.baseUrl
-    )?.replace(/\/+$/, ""),
+    appUrl,
     tenantPackageDirectory:
       optional(environment, "TENANT_PACKAGE_DIR") ?? "../examples/fintech",
     runtime: runtimeCapabilities(environment),

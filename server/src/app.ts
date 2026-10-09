@@ -70,6 +70,7 @@ import { requestObservability, unhandledError } from "./observability";
 import type { OnboardingStore } from "./people/onboarding";
 import type { TermsStore } from "./people/terms";
 import { adminOverviewRoutes } from "./overview/routes";
+import { pushRoutes } from "./push/routes";
 import { MAX_PAGE, type PeopleStore } from "./people/store";
 import type { ComposioBroker } from "./plugins/broker";
 import { createPluginRoutes } from "./plugins/routes";
@@ -418,6 +419,11 @@ export function createApp(
    * unmounted.
    */
   overview?: Omit<Parameters<typeof adminOverviewRoutes>[0], "requireUser">,
+  /**
+   * Notifications to a person's phones and browsers. Appended last, for the positional reason above.
+   * Absent answers `/api/push` with `enabled: false`, which is how the app knows not to offer them.
+   */
+  push?: Omit<Parameters<typeof pushRoutes>[0], "requireUser">,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -785,6 +791,14 @@ export function createApp(
         database: cloud.database,
         audit,
       }),
+    );
+  }
+
+  if (push) {
+    app.route("/api/push", pushRoutes({ requireUser, ...push }));
+  } else {
+    app.get("/api/push", requireUser, (context) =>
+      context.json({ enabled: false, publicKey: null, devices: 0 }),
     );
   }
 

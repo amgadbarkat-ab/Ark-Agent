@@ -20,6 +20,7 @@ import {
   marketplaceReports,
   modelConnections,
   pluginGrants,
+  pushSubscriptions,
   routines,
   skills,
   termsAcceptances,
@@ -242,6 +243,21 @@ export function exportPerson(
       })
       .from(routines)
       .where(eq(routines.ownerUserId, userId));
+    // Which devices are told things, by the service that reaches them and when they were added. The
+    // address itself and the keys are what a message is sent with, so they are not handed out.
+    sections.notificationDevices = (
+      await database
+        .select({
+          endpoint: pushSubscriptions.endpoint,
+          addedAt: pushSubscriptions.createdAt,
+        })
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, userId))
+        .orderBy(asc(pushSubscriptions.createdAt))
+    ).map(({ endpoint, addedAt }) => ({
+      service: new URL(endpoint).hostname,
+      addedAt,
+    }));
     // The model connections say what they are and that a key exists, never the key.
     sections.modelConnections = (
       await database
