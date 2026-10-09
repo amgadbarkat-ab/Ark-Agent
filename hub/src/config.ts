@@ -21,6 +21,11 @@ export interface HubConfig {
    * connection. `memory` keeps them inside one process and is only right for exactly one.
    */
   bus: "postgres" | "memory";
+  /**
+   * A port to serve `/metrics` on, separate from the one the API and sockets are on. Unset serves
+   * none. The numbers are for whoever runs the service (see shared/metrics.ts).
+   */
+  metricsPort?: number;
 }
 
 export class HubConfigError extends Error {
@@ -89,5 +94,25 @@ export function loadConfig(
       60,
     ),
     bus: busMode(env.HUB_BUS),
+    ...metricsPort(env),
   };
+}
+
+function metricsPort(env: Record<string, string | undefined>): {
+  metricsPort?: number;
+} {
+  const raw = env.HUB_METRICS_PORT?.trim();
+  if (!raw) return {};
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 65535) {
+    throw new HubConfigError(
+      "HUB_METRICS_PORT must be a whole number between 1 and 65535.",
+    );
+  }
+  if (value === positiveInteger(env, "HUB_PORT", 7100)) {
+    throw new HubConfigError(
+      "HUB_METRICS_PORT must not be the port the hub is served on.",
+    );
+  }
+  return { metricsPort: value };
 }

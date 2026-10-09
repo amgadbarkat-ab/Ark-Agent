@@ -185,6 +185,12 @@ Still to do:
       kept as a CI job (16-penetration-test.md). An outside test of what it could not reach (bots'
       computers, a live run, real sign-in providers, the deployed estate) is the owner's call (15, O1).
 - [x] A content-security-policy, image scanning, scheduled dependency audit (15, O3–O5): built in 9.2–9.4.
+- [x] Observability: a log line for a failed or slow request and for anything that threw (route pattern,
+      status, time, a request id the person is shown; nothing about a person), Prometheus `/metrics` on
+      a port of its own for the server (traffic and latency per route, accounts by state, runs, cloud
+      charges needing a person) and the hub (sockets, events, storage errors, catch-ups by reason), the
+      chart and network policy, a 5xx alert on the logs. Not done: managed Prometheus is not enabled by
+      the template (steps in 13, "What to watch"), no tracing, and nothing has run against a real cluster.
 - [x] Terms of service: a draft for a lawyer (docs/legal/terms-of-service.md), shown at `/terms`, with
       acceptance recorded per version (`TERMS_ACCEPTANCE=required` makes a customer accept before using the
       app; off by default until the text is final). Not done: enforcement at the API for non-app clients

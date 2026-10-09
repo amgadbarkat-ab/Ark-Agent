@@ -66,6 +66,7 @@ import type { HostAccessBroker } from "./host-access/broker";
 import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import { parsePageLimit } from "./paging";
+import { requestObservability, unhandledError } from "./observability";
 import type { OnboardingStore } from "./people/onboarding";
 import type { TermsStore } from "./people/terms";
 import { MAX_PAGE, type PeopleStore } from "./people/store";
@@ -412,6 +413,10 @@ export function createApp(
   terms?: TermsStore,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
+  // First, so it sees every request and every answer, including the ones a later guard refuses.
+  app.use("*", requestObservability({ mode: config.requestLog }));
+  // What a person is told when something throws that nobody expected; the detail goes to the log.
+  app.onError(unhandledError());
   app.use(
     "*",
     securityHeaders({

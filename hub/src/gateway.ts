@@ -8,6 +8,13 @@ import {
   replyFrame,
 } from "./phoenix";
 import { coalesce } from "./coalesce";
+import {
+  catchUps,
+  eventsStored,
+  socketClosed,
+  socketOpened,
+  storageErrors,
+} from "./metrics";
 import { isTerminalEvent, type StoredEvent } from "./store";
 import { joinCodeFor, type JoinScope, verifyJoinToken } from "./tokens";
 
@@ -164,7 +171,9 @@ export function createGateway(hub: Hub) {
     let stored: StoredEvent[];
     try {
       stored = await store.appendEvents(target.threadId, target.runId, events);
+      eventsStored.inc({}, stored.length);
     } catch (error) {
+      storageErrors.inc();
       console.error("hub could not store events", error);
       ws.send(
         replyFrame(join.joinRef, ref, topic, "error", {
@@ -248,7 +257,10 @@ export function createGateway(hub: Hub) {
      * sent skipped. Used at the join, when a live event shows one was missed, and when the bus says it
      * lost its connection.
      */
-    const catchUp = async (): Promise<number> => {
+    const catchUp = async (
+      reason: "join" | "gap" | "reconnect",
+    ): Promise<number> => {
+      catchUps.inc({ reason });
       if (syncing) {
         again = true;
         return 0;
@@ -299,7 +311,7 @@ export function createGateway(hub: Hub) {
           stored.prev !== lastSeq
         ) {
           buffered.push(stored);
-          void catchUp().catch((error) => {
+          void catchUp("gap").catch((error) => {
             console.error("hub could not catch a conversation up", error);
           });
         } else {
@@ -321,7 +333,7 @@ export function createGateway(hub: Hub) {
       // The bus lost its connection and got it back: whatever was said in between is in the log.
       resync: async () => {
         if (!live && !syncing) return; // still being joined: the join itself reads the log
-        const sent = await catchUp();
+        const sent = await catchUp("reconnect");
         // A run that ended while the bus was away leaves nothing to say it ended, so say so.
         if (sent > 0 && !(await store.activeLock(threadId))) {
           ws.send(
@@ -338,7 +350,7 @@ export function createGateway(hub: Hub) {
 
     // Read before the replay, so nothing stored after it is mistaken for old.
     const tail = await store.latestSeq(threadId);
-    await catchUp();
+    await catchUp("join");
     // Nothing was sent: a new conversation, or a cursor at the end. Either way the log is known up to
     // `tail`, so the next live event has to name that as its predecessor or one was missed.
     if (lastSeq === 0) lastSeq = tail;
@@ -455,6 +467,9 @@ export function createGateway(hub: Hub) {
   const websocket: WebSocketHandler<SocketData> = {
     // The SDK's clients send a heartbeat every 30 seconds; give a stalled socket a generous margin.
     idleTimeout: 120,
+    open(ws) {
+      socketOpened(ws.data.endpoint);
+    },
     message(ws, raw) {
       ws.data.queue = ws.data.queue
         .then(() => handle(ws, raw))
@@ -463,6 +478,7 @@ export function createGateway(hub: Hub) {
         });
     },
     close(ws) {
+      socketClosed(ws.data.endpoint);
       for (const join of ws.data.joins.values()) join.dispose();
       ws.data.joins.clear();
     },

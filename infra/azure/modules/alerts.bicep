@@ -7,6 +7,7 @@ param actionGroupId string
 param databaseId string
 param clusterId string
 param insightsId string
+param workspaceId string
 @description('The public address of the application, e.g. https://ark.example.com. Empty skips the availability check.')
 param healthUrl string
 param monthlyBudget int
@@ -178,6 +179,50 @@ resource availabilityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (!e
       failedLocationCount: 2
     }
     actions: action
+  }
+}
+
+// Is it failing? The server writes a line for a request that answered 5xx and for anything that threw
+// (server/src/observability.ts), by name and route pattern and never by content, and the cluster's
+// logging sends them here. More than a handful in ten minutes is a bad release, a database that is
+// refusing, or a dependency that is down; the line says which route and which kind of error.
+resource serverErrors 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: 'alert-${name}-5xx'
+  location: location
+  tags: tags
+  properties: {
+    displayName: 'Ark is answering with errors'
+    description: 'More than ten failed requests (5xx) or unhandled errors in ten minutes. Query the same log for type request and request-failed to see the route and the kind of error: docs/ark/13-azure-hosting.md, What to watch.'
+    severity: 2
+    enabled: true
+    scopes: [workspaceId]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT10M'
+    criteria: {
+      allOf: [
+        {
+          query: '''
+ContainerLogV2
+| where PodNamespace == "ark" and ContainerName == "server"
+| extend line = tostring(LogMessage)
+| where line startswith "{"
+| extend entry = parse_json(line)
+| where entry.type == "request-failed" or (entry.type == "request" and toint(entry.status) >= 500)
+'''
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 10
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+    actions: {
+      actionGroups: [actionGroupId]
+    }
   }
 }
 

@@ -592,6 +592,22 @@ httpRoute:
   parentRefs: []
   hostnames: []
 
+# Numbers about the service (request rates and times, accounts, runs, cloud charges; the hub's sockets
+# and events) for something in the cluster to read. See docs/ark/13-azure-hosting.md, "What to watch".
+metrics:
+  # Serve `/metrics` on a port of its own: not the one the API or the ingress uses, and not on the
+  # Service, so nothing outside the cluster is routed to it. Off until something scrapes it.
+  enabled: false
+  serverPort: 9464
+  hubPort: 9465
+  # Adds the `prometheus.io/scrape`, `port` and `path` annotations to the pods, which Azure Monitor's
+  # managed Prometheus and most scrapers look for. Turn off if you scrape with a ServiceMonitor.
+  annotations: true
+  # Who may reach the metrics port when `networkPolicy` is on: a list of NetworkPolicy `from` entries
+  # (the scraper's namespace and pods). Empty lets any pod in the cluster read them. They carry no
+  # personal data, but reachability is the only control there is, so narrow it where you can.
+  scrapeFrom: []
+
 networkPolicy:
   enabled: false
   # Where the API may reach out to. A deployment with a managed database adds its CIDR here.

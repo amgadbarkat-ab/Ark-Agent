@@ -181,6 +181,15 @@ networkPolicy:
             matchLabels:
               kubernetes.io/metadata.name: app-routing-system
 
+# Numbers about the service on ports the ingress does not reach (docs/ark/13-azure-hosting.md, "What to
+# watch"). AKS's managed Prometheus runs in kube-system, so that is who may read them.
+metrics:
+  enabled: true
+  scrapeFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+
 # One Secret, written by External Secrets from the vault. Each key is a vault secret
 # scripts/bootstrap-secrets.sh created or a person set.
 externalSecrets:

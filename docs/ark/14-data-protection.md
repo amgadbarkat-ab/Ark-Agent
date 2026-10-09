@@ -40,7 +40,7 @@ application; `hub`, the conversations). There is no other store of customer data
 | **Marketplace**: a publisher name, and any coworker they chose to share (an inert, secret-stripped snapshot), their installs from Ark's catalogue, and reports they made | `marketplace_publishers`, `marketplace_listings`, `marketplace_installs`, `marketplace_reports` | Sharing, if they chose to | Publisher and listings belong to the **account**: until taken down, or the account is erased. Installs and the link to a report go with the person. |
 | **Audit trail**: who did what, when (sign-ins, role changes, billing changes, exports, erasures) | `audit_events` | Security, accountability, dispute | **365 days in the hosted deployment** (`AUDIT_RETENTION_DAYS`), then removed. See "What is kept" below. |
 | **Run slots**: which coworker is running now | `run_slots` | Enforcing the plan's limit | Seconds to minutes; removed with the person |
-| **Server logs** | Log Analytics | Operating the service | **90 days** in `prod` |
+| **Server logs** | Log Analytics | Operating the service. A request line is the method, route pattern, status, time and a random request id: no path values, query, header, body, address, user id or error message (docs/ark/13, "What to watch") | **90 days** in `prod` |
 | **Backups** | Azure | Recovery | **35 days** (point-in-time), copied to the paired region |
 
 Nothing here is used for advertising, sold, or used to train a model.

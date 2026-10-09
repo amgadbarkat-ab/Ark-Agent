@@ -91,8 +91,65 @@ not a rollback.
 
 - **Is it up?** The availability test in Application Insights calls `/health` from three places; the
   alert fires when two of three fail.
-- **Logs.** Log Analytics holds the cluster's and the database's logs. The API writes one line per event.
+- **Logs.** Log Analytics holds the cluster's and the database's logs. The server writes a line for
+  every request that failed (5xx) or took three seconds or more, and a `request-failed` line for
+  anything that threw: see "What to watch" below.
 - **Who did what.** Admin → Audit in the product itself, and Key Vault's own access log for secrets.
+
+### What to watch
+
+**Logs, from the server.** One JSON line per request that answered 5xx or took 3 seconds or more
+(`REQUEST_LOG=errors`, the default; `all` writes every one, `off` none), and one `request-failed`
+line for anything that threw. A line has the method, the **route pattern** (`/api/agents/:id`, never
+the path), the status, the time in milliseconds and a random **request id**. A person who reports
+"it failed at 14:02" can be answered from the id in the error they were shown (`requestId`, also the
+`x-request-id` header). **A line carries nothing about a person**: no path values, query string,
+header, body, address, user or account id, and no error message (a database message can quote the
+value that clashed, an email). An error is recorded by name, code and the place in our code.
+
+```kusto
+// Failures in the last hour, by route and kind
+ContainerLogV2
+| where PodNamespace == "ark" and ContainerName == "server" and TimeGenerated > ago(1h)
+| extend e = parse_json(tostring(LogMessage))
+| where e.type in ("request", "request-failed")
+| summarize n = count() by tostring(e.route), tostring(e.error), toint(e.status)
+| order by n desc
+
+// Everything about one failure, from the id the person was shown
+ContainerLogV2
+| where tostring(LogMessage) has "<request id>"
+```
+
+The **5xx alert** (`alert-…-5xx`, in `modules/alerts.bicep`) mails when more than ten such lines appear
+in ten minutes.
+
+**Numbers, from `/metrics`.** Set `metrics.enabled` (on in `values-azure.yaml`) and the server and the
+hub each serve Prometheus text on a port of their own (9464 and 9465), which the Service and the
+ingress do not point at, so nothing outside the cluster reaches it. Nothing is labelled with a person,
+a thread or a path.
+
+| Metric | Says |
+| --- | --- |
+| `ark_http_requests_total{method,route,status}`, `ark_http_request_duration_seconds` (histogram), `ark_http_requests_in_flight` | Traffic, errors and latency per route pattern. |
+| `ark_accounts{status}` | Accounts by subscription state (`past_due` is money not arriving). |
+| `ark_runs_in_progress` | Coworkers working now: the load, and what the quota counts. |
+| `ark_cloud_charges{status}` | Months of cloud running by state. **`failed` and `uncertain` are waiting for a person** (Admin, Cloud costs). |
+| `ark_hub_sockets{endpoint}`, `ark_hub_events_stored_total`, `ark_hub_storage_errors_total` | Conversations: browsers and runners connected, how much is being said, and whether the hub's database is refusing. |
+| `ark_hub_catchups_total{reason}` | A browser read back from the log. `join` is normal; **`gap` and `reconnect` are the live bus dropping an announcement**, and a rising rate means the database connection behind it is unhealthy. |
+| `process_*`, `ark_metrics_*` | Memory and uptime; and a counter if a label ever grew without bound (it is capped) or a source could not be read. |
+
+Reading them in Azure means turning on managed Prometheus once, which this template does **not** do
+(it needs an Azure Monitor workspace and a data collection rule, and was not exercised):
+`az aks update --enable-azure-monitor-metrics -g <rg> -n <cluster>`, then in the
+`ama-metrics-settings-configmap` (namespace `kube-system`) set `pod-annotation-based-scraping` to
+`podannotationnamespaceregex = "ark"`, so the `prometheus.io/*` annotations on the pods are followed.
+Check both against Microsoft's current instructions. The chart already lets `kube-system` through its
+network policy (`metrics.scrapeFrom`). Alerts worth adding there once it reads: any
+`ark_cloud_charges{status=~"failed|uncertain"} > 0` for an hour; `increase(ark_hub_storage_errors_total[10m]) > 0`;
+`rate(ark_hub_catchups_total{reason!="join"}[10m])` above a handful per minute; p95 of
+`ark_http_request_duration_seconds` over a few seconds for ten minutes; `ark_accounts{status="past_due"}`
+rising.
 
 ### Scale
 
@@ -301,7 +358,9 @@ Tick each one with the date and who did it. Nothing here is optional.
   is the first real build.
 - **`helm dependency build`** for the chart (its database sub-chart comes from a registry that was
   also rate-limited here). The pipeline runs it.
-- **The restore drill and the alerts.** Written, not exercised.
+- **The restore drill and the alerts.** Written, not exercised. That includes the 5xx alert's query
+  against real `ContainerLogV2` rows (it is checked to compile in the template, and the log lines it
+  reads are tested), and the managed Prometheus steps above.
 - **Paddle against the real service.** Only against a fake that follows Paddle's documentation.
 
 ## Restore drills

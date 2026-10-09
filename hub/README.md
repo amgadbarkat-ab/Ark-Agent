@@ -63,6 +63,7 @@ INTELLIGENCE_API_KEY=<the same value as HUB_API_KEY>
 | `HUB_PORT` | `7100` | |
 | `HUB_JOIN_TOKEN_TTL_SECONDS` | `86400` | |
 | `HUB_DEFAULT_LOCK_TTL_SECONDS` | `60` | when the caller does not say |
+| `HUB_METRICS_PORT` | unset | serve Prometheus `/metrics` on this port (not the hub's own): sockets by kind, events stored, storage errors, and browsers read back from the log by reason. Nothing is labelled with a thread or a person |
 | `HUB_BUS` | `postgres` | how live events travel between sockets. `postgres`: through the database, so any number of hub processes share them. `memory`: inside one process; only right for exactly one |
 
 ## Tests

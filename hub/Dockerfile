@@ -4,9 +4,9 @@
 # service of its own with a database of its own (`HUB_DATABASE_URL`), separate from the application's.
 # See hub/README.md for what it does and how it is configured.
 #
-# ONE PROCESS, ONE REPLICA. Live events move between sockets in memory (hub/src/bus.ts), so a second
-# process would split a conversation's live stream. The chart runs exactly one and replaces it rather
-# than rolling it. Running several is the "Postgres LISTEN/NOTIFY bus" item in the build plan.
+# SEVERAL PROCESSES ARE FINE. Live events move between sockets through PostgreSQL (`HUB_BUS=postgres`,
+# the default; hub/src/shared-bus.ts), so a second replica or a rolling update does not split a
+# conversation's live stream. `HUB_BUS=memory` keeps them in one process and is right for exactly one.
 #
 # Build from the repository root:  docker build -f hub/Dockerfile -t ark-hub .
 
@@ -36,6 +36,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY hub/package.json hub/package.json
 COPY hub/src hub/src
+# The counters and the text a scraper reads them as, shared with the API server.
+COPY shared/metrics.ts shared/metrics.ts
 # Applied on start, in order, each once.
 COPY hub/migrations hub/migrations
 

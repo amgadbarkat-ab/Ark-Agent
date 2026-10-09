@@ -35,6 +35,16 @@ spec:
     - ports:
         - port: {{ .Values.server.service.port }}
           protocol: TCP
+    {{- if .Values.metrics.enabled }}
+    # The numbers: to the scraper named in `metrics.scrapeFrom`, or to any pod when none is named.
+    - {{- with .Values.metrics.scrapeFrom }}
+      from:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      ports:
+        - port: {{ .Values.metrics.serverPort }}
+          protocol: TCP
+    {{- end }}
     {{- with .Values.networkPolicy.extraIngress }}
 {{ toYaml . | indent 4 }}
     {{- end }}

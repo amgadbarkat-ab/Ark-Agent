@@ -37,6 +37,8 @@ export type RoleRepository = {
 
 export type AppVariables = {
   actor: AuthenticatedActor;
+  /** Random per request; sent back as `x-request-id` and written to the log lines about it. */
+  requestId?: string;
 };
 
 export function createRoleRepository(database: Database): RoleRepository {

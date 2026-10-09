@@ -99,6 +99,11 @@ import { agentProfiles, intelligenceChannelMappings } from "./db/schema";
 import { createHostAccessBroker } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
+import {
+  registerBusinessMetrics,
+  serveMetrics,
+  serverMetrics,
+} from "./observability";
 import { createOnboardingStore } from "./people/onboarding";
 import { createTermsStore } from "./people/terms";
 import { TERMS_VERSION } from "../../shared/terms-version";
@@ -1494,6 +1499,16 @@ const app = createApp(
     required: config.termsAcceptance === "required",
   }),
 );
+
+// Numbers about the service and the business, for whoever runs it: on a port of its own, and only
+// when one is configured (docs/ark/13-azure-hosting.md, "What to watch").
+registerBusinessMetrics(serverMetrics, database);
+if (config.metricsPort) {
+  serveMetrics(serverMetrics, config.metricsPort);
+  console.log(
+    JSON.stringify({ type: "metrics-listening", port: config.metricsPort }),
+  );
+}
 
 /**
  * The live screen, proxied.

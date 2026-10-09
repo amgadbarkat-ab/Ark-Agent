@@ -184,6 +184,7 @@ module alerts 'modules/alerts.bicep' = {
     databaseId: database.outputs.id
     clusterId: cluster.outputs.id
     insightsId: monitoring.outputs.insightsId
+    workspaceId: monitoring.outputs.workspaceId
     healthUrl: publicUrl
     monthlyBudget: monthlyBudget
     budgetEmail: alertEmail

@@ -4,6 +4,7 @@
  * at the boot boundary.
  */
 import { type CspMode, parseCspMode } from "./csp";
+import { parseRequestLogMode, type RequestLogMode } from "./observability";
 import { singleUserEnabled } from "./auth/dev-actor";
 import { normalizeDomain } from "./auth/email-domain";
 import { organizationAuthority } from "./auth/organization";
@@ -208,6 +209,17 @@ export type DeploymentConfig = {
    * offered either way. Staff are never asked.
    */
   termsAcceptance: "off" | "required";
+  /**
+   * Which requests get a log line: `errors` (the default) writes one for a request that failed (5xx)
+   * or took long, `all` for every one, `off` for none. Numbers about every request are kept either
+   * way. See server/src/observability.ts.
+   */
+  requestLog: RequestLogMode;
+  /**
+   * A port to serve `/metrics` on, separate from the one the ingress points at. Unset serves none.
+   * Where the numbers can be read from is for whoever runs the service, not for customers.
+   */
+  metricsPort?: number;
   keyEncryptionKey: string;
   /**
    * Keys that used to be `keyEncryptionKey`, kept only so what they sealed can still be read until
@@ -1373,6 +1385,24 @@ const DEFAULT_PORT = 3001;
  * A value that is not a whole port number is refused for the reason the caps above are: `30o1`
  * used to start the server on port 30, and a typo has to fail where somebody is looking.
  */
+/** `METRICS_PORT`, if set: a whole port number that is not the one the API is served on. */
+function metricsPortSetting(environment: Environment): {
+  metricsPort?: number;
+} {
+  const raw = optional(environment, "METRICS_PORT");
+  if (raw === undefined) return {};
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 65535) {
+    throw new Error("METRICS_PORT must be a whole number between 1 and 65535");
+  }
+  if (value === serverPort(environment)) {
+    throw new Error(
+      "METRICS_PORT must not be the port the API is served on: the metrics are for whoever runs the service, and sharing the port would put them wherever the API is reachable.",
+    );
+  }
+  return { metricsPort: value };
+}
+
 function serverPort(environment: Environment): number {
   const read = (name: string): number | undefined => {
     const raw = optional(environment, name);
@@ -1416,6 +1446,8 @@ export function loadConfig(
     cloud: cloudConfig(environment),
     contentSecurityPolicy: contentSecurityPolicyMode(environment),
     termsAcceptance: termsAcceptanceMode(environment),
+    requestLog: parseRequestLogMode(optional(environment, "REQUEST_LOG")),
+    ...metricsPortSetting(environment),
     keyEncryptionKey: keyEncryptionKey(environment),
     previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),
     ...(managedAgent ? { managedAgent } : {}),

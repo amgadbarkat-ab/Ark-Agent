@@ -361,3 +361,12 @@ This template renders nothing.
 {{- if and ((.Values.hub).enabled) (not (has ((.Values.hub).bus | default "postgres") (list "postgres" "memory"))) }}
 {{- fail "hub.bus is postgres or memory." }}
 {{- end }}
+
+{{- if .Values.metrics.enabled }}
+{{- if eq (int .Values.metrics.serverPort) (int .Values.server.service.port) }}
+{{- fail "metrics.serverPort is the port the API is served on. The numbers are for whoever runs the service, so they need a port of their own that the Service and the ingress do not point at." }}
+{{- end }}
+{{- if and (.Values.hub).enabled (eq (int .Values.metrics.hubPort) (int (include "openbot.hubPort" .))) }}
+{{- fail "metrics.hubPort is the port the hub is served on. Give the numbers a port of their own." }}
+{{- end }}
+{{- end }}
