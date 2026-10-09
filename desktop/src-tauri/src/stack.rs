@@ -2,8 +2,8 @@
 //!
 //! `docker-compose.yml` has no `app`, `server` or `worker` service, and the root `Dockerfile` leaves
 //! out the supervisor because it needs a socket no serverless platform grants. So the shape is not a
-//! choice: containers for postgres, the supervisor, `agent-computer`, the Bots and a one-shot
-//! `migrate`, and three host processes for the rest. `scripts/start.sh` does exactly this for a
+//! choice: containers for postgres, Ark Hub (where conversations are kept), the supervisor,
+//! `agent-computer`, the Bots and a one-shot `migrate`, and three host processes for the rest. `scripts/start.sh` does exactly this for a
 //! developer. This does it for somebody who double-clicked.
 //!
 //! The shell also becomes the restart policy those three do not have. `worker/src/index.ts` names
@@ -22,7 +22,7 @@ use crate::problem::Problem;
 
 /// The services Compose owns. `migrate` is deliberately absent: it is run once, to completion,
 /// rather than raised, and treating it as a long-lived service makes it look like a crash loop.
-const SERVICES: [&str; 3] = ["postgres", "supervisor", "agent-computer"];
+const SERVICES: [&str; 4] = ["postgres", "hub", "supervisor", "agent-computer"];
 
 /**
 The Bots that ship with OpenBot, which only run on an API key.

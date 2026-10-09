@@ -83,7 +83,7 @@ export function HarnessPicker({
 
   return (
     <div className="sheet">
-      <p className="steps-of">Step 1 of 4</p>
+      <p className="steps-of">Step 1 of 3</p>
       <h1>Your first Bot</h1>
       {/*
         Written to the person who has to act, not about the situation.

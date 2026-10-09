@@ -44,6 +44,9 @@ pub fn is_secret(key: &str) -> bool {
             | "COMPUTER_TOKEN"
             | "SUPERVISOR_TOKEN"
             | "WORKER_SHARED_SECRET"
+            // Ark Hub's key and its token-signing secret, minted with the rest.
+            | "HUB_API_KEY"
+            | "HUB_JOIN_SECRET"
             | "KEY_ENCRYPTION_KEY"
             | crate::saved_intent::COMPATIBLE_CREDENTIAL
     )

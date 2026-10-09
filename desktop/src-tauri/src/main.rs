@@ -64,11 +64,6 @@ struct Shell {
     containers: Mutex<Option<ContainerDeployment>>,
     /// A verified down allows a following Stop/Quit to be an idempotent no-op.
     stopped_container_root: Mutex<Option<PathBuf>>,
-    /// An Intelligence sign-in waiting for its loopback callback.
-    signing_in_to_intelligence:
-        Mutex<Option<openbot_desktop_lib::intelligence::SigningInToIntelligence>>,
-    /// The credential that sign-in produced, held so a project can be chosen with it.
-    intelligence_credential: Mutex<Option<String>>,
     /// The configured setup destination, resolved using Tauri's build mode and platform.
     /// WebView2's current URL can still be about:blank during startup; it is never a setup source.
     setup_url: Mutex<Option<String>>,
@@ -212,7 +207,6 @@ struct SavedModelSessions {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SavedConfiguration {
-    intelligence_api_key: Option<bool>,
     model_api_keys: SavedModelApiKeys,
     model_sessions: SavedModelSessions,
     model: Option<openbot_desktop_lib::saved_intent::ModelIntent>,
@@ -838,25 +832,6 @@ fn saved_secret(root: &Path, key: &str) -> Result<String, Problem> {
         .map(|found| found.get(key).cloned().unwrap_or_default())
 }
 
-fn intelligence_key_for_start(
-    root: &Path,
-    given: String,
-    mut resolve: impl FnMut(&Path, &str) -> Result<String, Problem>,
-) -> Result<String, Problem> {
-    let key = if given.trim().is_empty() {
-        resolve(root, "INTELLIGENCE_API_KEY").map_err(|problem| {
-            problem.connection(openbot_desktop_lib::problem::Connection::Intelligence)
-        })?
-    } else {
-        given
-    };
-    if key.trim().is_empty() {
-        return Err(Problem::plain("That saved CopilotKit connection is no longer available. Sign in again or enter a project key.")
-            .connection(openbot_desktop_lib::problem::Connection::Intelligence));
-    }
-    Ok(key)
-}
-
 fn require_existing_encryption_key(
     root: &Path,
     secrets: &std::collections::BTreeMap<String, String>,
@@ -1034,28 +1009,14 @@ async fn reset_leftover_database<R: tauri::Runtime>(
 async fn start_stack<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     root: String,
-    api_url: String,
-    gateway_ws_url: String,
-    api_key: String,
     model: ChosenModel,
     // The row the person picked, with the address only for the bring-your-own row.
     harness: Option<harness::HarnessChoice>,
-    organization_auth_url: Option<String>,
     // Both registers on the way out: see `problem.rs`. Anything that still returns a bare string
     // converts to the plain half, so a path without its own sentence reads as it always did.
 ) -> Result<(), openbot_desktop_lib::problem::Problem> {
     let root = stack::root_from(&root);
-    start_stack_inner(
-        app,
-        root,
-        api_url,
-        gateway_ws_url,
-        api_key,
-        model,
-        harness,
-        organization_auth_url,
-    )
-    .await
+    start_stack_inner(app, root, model, harness).await
 }
 
 #[allow(
@@ -1065,27 +1026,9 @@ async fn start_stack<R: tauri::Runtime>(
 async fn start_stack_inner<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     root: PathBuf,
-    api_url: String,
-    gateway_ws_url: String,
-    api_key: String,
     model: ChosenModel,
     harness: Option<harness::HarnessChoice>,
-    organization_auth_url: Option<String>,
 ) -> Result<(), Problem> {
-    let organization_auth_url = organization_auth_url.map(|url| url.trim().to_string());
-    if let Some(url) = organization_auth_url.as_ref().filter(|url| !url.is_empty()) {
-        if !reqwest::Url::parse(url).is_ok_and(|url| {
-            matches!(url.scheme(), "http" | "https")
-                && url.has_host()
-                && url.username().is_empty()
-                && url.password().is_none()
-        }) {
-            return Err(Problem::plain(
-                "Enter a valid http:// or https:// organization OpenBot URL.",
-            )
-            .connection(openbot_desktop_lib::problem::Connection::Organization));
-        }
-    }
     let shell = app.state::<Shell>();
     let attempt = StartAttempt::begin(&shell)?;
     {
@@ -1175,7 +1118,6 @@ async fn start_stack_inner<R: tauri::Runtime>(
             return Err(problem.into());
         }
 
-        let api_key = intelligence_key_for_start(&root, api_key, saved_secret)?;
         let existing_secrets = openbot_desktop_lib::vault::already_given_no_ui(
             &root,
             &root.join(".env"),
@@ -1223,12 +1165,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
                 )
             })?;
 
-        let mut settings = openbot_env::compose(
-            &openbot_env::Intelligence {
-                api_url,
-                gateway_ws_url,
-                api_key,
-            },
+        let settings = openbot_env::compose(
             &openbot_env::Model {
                 credential: credential.clone(),
             },
@@ -1240,9 +1177,6 @@ async fn start_stack_inner<R: tauri::Runtime>(
             // new KEY_ENCRYPTION_KEY and orphans everything the server had encrypted under the old one.
             &existing_secrets,
         );
-        if let Some(authority) = organization_auth_url {
-            settings.insert("OPENBOT_ORGANIZATION_AUTH_URL".into(), authority);
-        }
         /*
          * The credentials come out here and never reach the file.
          *
@@ -1267,6 +1201,10 @@ async fn start_stack_inner<R: tauri::Runtime>(
                 purge.insert(key.into(), String::new());
             }
         }
+        // Left by a version that could send this window to somebody else's sign-in. Nothing reads it
+        // here any more, and the server would otherwise be told to require one on a machine with one
+        // person on it.
+        purge.insert("OPENBOT_ORGANIZATION_AUTH_URL".into(), String::new());
         openbot_desktop_lib::saved_intent::persist_configuration(
             &root,
             &settings,
@@ -2191,42 +2129,12 @@ fn show_openbot_on<R: tauri::Runtime>(
     let shell = app.state::<Shell>();
     let _startup = shell.startup.lock().unwrap();
     let root = cleanup_root(&shell, &stack::default_root());
-    let organization_recovery = !quit_cleanup_notice_path(&root).exists()
-        && shell
-            .recovery_required
-            .lock()
-            .unwrap()
-            .as_ref()
-            .is_some_and(|recovery| {
-                recovery.root == root
-                    && recovery.connection
-                        == Some(openbot_desktop_lib::problem::Connection::Organization)
-            });
-    if recovery_required_or_pending_quit_notice(&shell, &root) && !organization_recovery {
+    if recovery_required_or_pending_quit_notice(&shell, &root) {
         return Err("Part of OpenBot needs recovery. Try starting OpenBot once more.".into());
     }
-    let url = owned_app_url(&root, ports).ok_or_else(|| {
+    let destination = owned_app_url(&root, ports).ok_or_else(|| {
         format!("OpenBot could not verify its app on port {port} belongs to this installation. Try starting OpenBot again.")
     })?;
-    let authority =
-        openbot_env::already_set(&root.join(".env"), &["OPENBOT_ORGANIZATION_AUTH_URL"])
-            .remove("OPENBOT_ORGANIZATION_AUTH_URL")
-            .unwrap_or_default();
-    let destination = if authority.is_empty() {
-        if organization_recovery {
-            return Err(Problem::plain(
-                "Restore this installation's organization OpenBot URL before signing in.",
-            )
-            .connection(openbot_desktop_lib::problem::Connection::Organization));
-        }
-        url
-    } else {
-        openbot_desktop_lib::organization_auth::session_destination(&root, &authority, &url)?
-    };
-    if organization_recovery {
-        clear_recovery_required(&shell, &root);
-    }
-    // Organization destinations can contain a one-use session ticket; never log them.
     eprintln!("[show] navigating to the owned OpenBot app");
     let window = app
         .get_webview_window("main")
@@ -2607,10 +2515,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
     let values = openbot_desktop_lib::vault::already_given_file_only(
         &env_file,
         &[
-            "INTELLIGENCE_API_KEY",
-            "INTELLIGENCE_API_URL",
-            "INTELLIGENCE_GATEWAY_WS_URL",
-            "OPENBOT_ORGANIZATION_AUTH_URL",
             /*
              * The model credentials too, so the wizard never asks twice for one of these either.
              *
@@ -2637,10 +2541,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
         installation: preparation::installation(&root),
         auto_start: true,
         saved: SavedConfiguration {
-            intelligence_api_key: hint(
-                Category::Intelligence,
-                values.contains_key("INTELLIGENCE_API_KEY"),
-            ),
             model_api_keys: SavedModelApiKeys {
                 openai: hint(
                     Category::OpenAiApiKey,
@@ -2669,163 +2569,6 @@ fn already_configured_for_root(root: String) -> AlreadyConfigured {
 #[tauri::command]
 fn harnesses() -> Vec<harness::Harness> {
     harness::catalogue()
-}
-
-/// Start signing in to Intelligence and return the address a browser has to open.
-#[tauri::command]
-async fn begin_intelligence_sign_in(app: tauri::AppHandle) -> Result<String, String> {
-    let (signing, url) = openbot_desktop_lib::intelligence::SigningInToIntelligence::begin()?;
-    *app.state::<Shell>()
-        .signing_in_to_intelligence
-        .lock()
-        .unwrap() = Some(signing);
-    let _ = tauri_plugin_opener::OpenerExt::opener(&app).open_url(&url, None::<&str>);
-    Ok(url)
-}
-
-/// Wait for that sign-in, and answer with the projects it can see.
-///
-/// The credential is kept on this side rather than handed to the window: the window's business is
-/// which project, and a credential it never holds is one it cannot leak into a log or a screenshot.
-#[tauri::command]
-async fn finish_intelligence_sign_in(
-    app: tauri::AppHandle,
-) -> Result<Vec<openbot_desktop_lib::intelligence::Project>, openbot_desktop_lib::problem::Problem>
-{
-    let signing = app
-        .state::<Shell>()
-        .signing_in_to_intelligence
-        .lock()
-        .unwrap()
-        .take()
-        .ok_or_else(|| {
-            openbot_desktop_lib::problem::Problem::plain(
-                "That sign-in is no longer running. Start it again.",
-            )
-        })?;
-    let (credential, projects) = tauri::async_runtime::spawn_blocking(move || signing.finish())
-        .await
-        .map_err(|error| {
-            openbot_desktop_lib::problem::Problem::plain(format!(
-                "The sign-in did not finish: {error}"
-            ))
-        })??;
-    *app.state::<Shell>().intelligence_credential.lock().unwrap() = Some(credential);
-    Ok(projects)
-}
-
-/// Create a project using the account already signed in, without exposing its credential to the UI.
-#[tauri::command]
-async fn create_intelligence_project(
-    app: tauri::AppHandle,
-    name: String,
-) -> Result<openbot_desktop_lib::intelligence::Project, Problem> {
-    let credential = app
-        .state::<Shell>()
-        .intelligence_credential
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| Problem::plain("Sign in to CopilotKit first."))?;
-    tauri::async_runtime::spawn_blocking(move || {
-        openbot_desktop_lib::intelligence::create_project(&credential, &name)
-    })
-    .await
-    .map_err(|error| Problem::with("Your project could not be created.", error.to_string()))?
-}
-
-/// Create a key for the project somebody chose, and hand it back for the field.
-#[tauri::command]
-async fn intelligence_key_for(
-    app: tauri::AppHandle,
-    project: String,
-) -> Result<String, openbot_desktop_lib::problem::Problem> {
-    let credential = app
-        .state::<Shell>()
-        .intelligence_credential
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| {
-            openbot_desktop_lib::problem::Problem::plain("Sign in to CopilotKit first.")
-        })?;
-    tauri::async_runtime::spawn_blocking(move || {
-        openbot_desktop_lib::intelligence::provision_key(&credential, &project)
-    })
-    .await
-    .map_err(|error| {
-        openbot_desktop_lib::problem::Problem::plain(format!("A key could not be created: {error}"))
-    })?
-}
-
-#[tauri::command]
-async fn begin_organization_sign_in(
-    app: tauri::AppHandle,
-    root: String,
-    authority_url: String,
-    provider: String,
-) -> Result<String, Problem> {
-    let root = stack::root_from(&root);
-    let handle = app.clone();
-    let url = tauri::async_runtime::spawn_blocking(move || {
-        let shell = handle.state::<Shell>();
-        let _startup = shell.startup.lock().unwrap();
-        if shell.root.lock().unwrap().as_deref() != Some(root.as_path()) {
-            return Err(Problem::plain(
-                "Start this OpenBot installation before signing in to its organization.",
-            ));
-        }
-        let configured =
-            openbot_env::already_set(&root.join(".env"), &["OPENBOT_ORGANIZATION_AUTH_URL"])
-                .remove("OPENBOT_ORGANIZATION_AUTH_URL")
-                .unwrap_or_default();
-        if configured.trim() != authority_url.trim() {
-            return Err(Problem::plain(
-                "Save this organization's OpenBot URL before signing in.",
-            ));
-        }
-        openbot_desktop_lib::organization_auth::begin(&root, &authority_url, &provider)
-    })
-    .await
-    .map_err(|_| Problem::plain("Organization sign-in could not start."))??;
-    if tauri_plugin_opener::OpenerExt::opener(&app)
-        .open_url(&url, None::<&str>)
-        .is_err()
-    {
-        eprintln!(
-            "[organization] browser could not open; use the sign-in address shown in the window"
-        );
-    }
-    Ok(url)
-}
-
-#[tauri::command]
-async fn finish_organization_sign_in(
-    app: tauri::AppHandle,
-    root: String,
-) -> Result<openbot_desktop_lib::organization_auth::OrganizationUser, Problem> {
-    let root = stack::root_from(&root);
-    tauri::async_runtime::spawn_blocking(move || {
-        let shell = app.state::<Shell>();
-        let generation = shell.generation.load(std::sync::atomic::Ordering::SeqCst);
-        let user = openbot_desktop_lib::organization_auth::finish(&root)?;
-        let _startup = shell.startup.lock().unwrap();
-        if shell.generation.load(std::sync::atomic::Ordering::SeqCst) != generation
-            || shell.root.lock().unwrap().as_deref() != Some(root.as_path())
-        {
-            return Err(Problem::plain(
-                "That sign-in belongs to a previous OpenBot run. Open this installation again.",
-            ));
-        }
-        Ok(user)
-    })
-    .await
-    .map_err(|_| Problem::plain("Organization sign-in did not finish."))?
-}
-
-#[tauri::command]
-fn cancel_organization_sign_in(root: String) {
-    openbot_desktop_lib::organization_auth::cancel(&stack::root_from(&root));
 }
 
 /// The model screen's rows. Independent of the picker above, and required to stay that way: no
@@ -2908,9 +2651,9 @@ fn publish_connection_failure<R: tauri::Runtime>(
         return Ok(true);
     }
     let said = match connection {
-        openbot_desktop_lib::problem::Connection::Model => "Your AI connection was refused. Refresh it to continue using your existing OpenBot.",
-        openbot_desktop_lib::problem::Connection::Intelligence => "Your CopilotKit connection was refused. Refresh it to continue using your existing OpenBot.",
-        openbot_desktop_lib::problem::Connection::Organization => "Your organization sign-in needs to be refreshed to continue using your existing OpenBot.",
+        openbot_desktop_lib::problem::Connection::Model => {
+            "Your AI connection was refused. Refresh it to continue using your existing OpenBot."
+        }
     };
     mark_recovery_required(&shell, root, generation);
     if let Some(recovery) = shell.recovery_required.lock().unwrap().as_mut() {
@@ -3301,13 +3044,6 @@ fn main() {
             begin_model_oauth,
             finish_model_oauth,
             cancel_model_oauth,
-            begin_intelligence_sign_in,
-            finish_intelligence_sign_in,
-            intelligence_key_for,
-            create_intelligence_project,
-            begin_organization_sign_in,
-            finish_organization_sign_in,
-            cancel_organization_sign_in,
             ask_the_bot,
         ])
         // A packaged application is not a browser tab. Left alone, WebView2 answers a right-click
@@ -3883,7 +3619,7 @@ mod tests {
             app.handle(),
             &root,
             7,
-            openbot_desktop_lib::problem::Connection::Intelligence
+            openbot_desktop_lib::problem::Connection::Model
         )
         .unwrap());
         assert!(
@@ -3928,7 +3664,7 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(
             root.join(".env"),
-            "INTELLIGENCE_API_URL=https://synthetic.example\n",
+            "OPENAI_BASE_URL=https://synthetic.example\n",
         )
         .unwrap();
         for metadata in [
@@ -3944,9 +3680,11 @@ mod tests {
                     .unwrap();
             }
             for legacy in ["", "INTELLIGENCE_API_KEY=synthetic-cpk\nOPENAI_API_KEY=synthetic-openai\nANTHROPIC_API_KEY=synthetic-anthropic\nCLAUDE_CODE_OAUTH_TOKEN=synthetic-claude\n"] {
-                std::fs::write(root.join(".env"), format!("INTELLIGENCE_API_URL=https://synthetic.example\n{legacy}")).unwrap();
+                std::fs::write(root.join(".env"), format!("OPENAI_BASE_URL=https://synthetic.example\n{legacy}")).unwrap();
                 let configured = already_configured_for_root(root.to_string_lossy().into_owned());
-                assert_eq!(configured.values["INTELLIGENCE_API_URL"], "https://synthetic.example");
+                assert_eq!(configured.values["OPENAI_BASE_URL"], "https://synthetic.example");
+                // Retained in the file by an earlier version, and not offered back: nothing asks for it.
+                assert!(!configured.values.contains_key("INTELLIGENCE_API_KEY"));
                 assert!(!configured.values.contains_key("CLAUDE_CODE_OAUTH_TOKEN"));
             }
         }
@@ -4035,7 +3773,7 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(
             root.join(".env"),
-            "INTELLIGENCE_API_URL=https://trim.example.test\n",
+            "OPENAI_BASE_URL=https://trim.example.test\n",
         )
         .unwrap();
         let typed = format!(" \n{}\t ", root.display());
@@ -4043,7 +3781,7 @@ mod tests {
         let normal = already_configured_for_root(root.to_string_lossy().into_owned());
         assert_eq!(configured.values, normal.values);
         assert_eq!(
-            configured.values.get("INTELLIGENCE_API_URL"),
+            configured.values.get("OPENAI_BASE_URL"),
             Some(&"https://trim.example.test".to_string())
         );
         std::fs::remove_dir_all(root).unwrap();
@@ -4055,21 +3793,16 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(
             root.join(".env"),
-            "INTELLIGENCE_API_KEY=file-cpk\nOPENAI_API_KEY=file-openai\nOPENAI_BASE_URL=https://models.example/v1\n",
+            "OPENAI_API_KEY=file-openai\nOPENAI_BASE_URL=https://models.example/v1\n",
         )
         .unwrap();
 
         let configured = already_configured_for_root(root.to_string_lossy().into_owned());
 
         assert_eq!(
-            configured.values.get("INTELLIGENCE_API_KEY"),
-            Some(&"file-cpk".to_string())
-        );
-        assert_eq!(
             configured.values.get("OPENAI_API_KEY"),
             Some(&"file-openai".to_string())
         );
-        assert_eq!(configured.saved.intelligence_api_key, Some(true));
         assert_eq!(configured.saved.model_api_keys.openai, Some(true));
         assert_eq!(configured.saved.model_sessions.google, None);
         assert_eq!(configured.saved.model_sessions.xai, None);
@@ -4143,7 +3876,6 @@ mod tests {
                 std::fs::write(root.join(openbot_desktop_lib::saved_intent::FILE), input).unwrap();
             }
             let unknown = already_configured_for_root(root.to_string_lossy().into_owned());
-            assert_eq!(unknown.saved.intelligence_api_key, None);
             assert_eq!(unknown.saved.model_sessions.google, None);
         }
         std::fs::write(
@@ -4152,7 +3884,6 @@ mod tests {
         )
         .unwrap();
         let recorded = already_configured_for_root(root.to_string_lossy().into_owned());
-        assert_eq!(recorded.saved.intelligence_api_key, Some(true));
         // A plan an older version recorded is not offered again.
         assert_eq!(recorded.saved.model, None);
         assert_eq!(recorded.saved.model_api_keys.anthropic, None);
@@ -4210,20 +3941,6 @@ mod tests {
                 }
                 assert_eq!(calls, [expected]);
             }
-        }
-        for denied in [false, true] {
-            let result = intelligence_key_for_start(&root, String::new(), |_, key| {
-                assert_eq!(key, "INTELLIGENCE_API_KEY");
-                if denied {
-                    Err(Problem::plain("synthetic access denied"))
-                } else {
-                    Ok(String::new())
-                }
-            });
-            assert_eq!(
-                result.unwrap_err().connection,
-                Some(openbot_desktop_lib::problem::Connection::Intelligence)
-            );
         }
         // A chat-plan sign-in is not a way in. It is refused by name, and no resolver is asked for
         // anything, so a window that still offers one cannot make this side spend a stored key.
@@ -5026,11 +4743,6 @@ mod tests {
 
     fn persist_endpoint_fixture(root: &Path, credential: &openbot_env::ModelCredential) {
         let settings = openbot_env::compose(
-            &openbot_env::Intelligence {
-                api_url: "https://api.example.test".into(),
-                gateway_ws_url: "wss://api.example.test".into(),
-                api_key: "synthetic-intelligence".into(),
-            },
             &openbot_env::Model {
                 credential: credential.clone(),
             },
@@ -6720,33 +6432,33 @@ fn main() {
         let mut choice = serde_json::json!({"id":"byo-url", "agentUrl":remote});
         let (expected_up, expected_image) = match case {
             "remote" | "remote-stale-image" => (
-                "compose up -d --no-build --pull never postgres supervisor agent-computer agent-bot agent-langgraph",
+                "compose up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot agent-langgraph",
                 None,
             ),
             "anthropic-api" => {
                 model = serde_json::json!({"provider":"anthropic", "login":"api-key", "apiKey":"synthetic-anthropic-key"});
                 choice = serde_json::json!({"id":"langgraph"});
-                ("compose --profile harness up -d --no-build --pull never postgres supervisor agent-computer agent-langgraph agent-harness", Some("agent-langgraph-agui"))
+                ("compose --profile harness up -d --no-build --pull never postgres hub supervisor agent-computer agent-langgraph agent-harness", Some("agent-langgraph-agui"))
             }
             "compatible" => {
                 model = serde_json::json!({"provider":"openai-compatible", "login":"endpoint", "baseUrl":"http://127.0.0.1:11434/v1", "model":"synthetic-model", "apiKey":""});
-                ("compose up -d --no-build --pull never postgres supervisor agent-computer agent-bot agent-langgraph", None)
+                ("compose up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot agent-langgraph", None)
             }
             "installed" => {
                 choice = serde_json::json!({"id":"langgraph"});
-                ("compose --profile harness up -d --no-build --pull never postgres supervisor agent-computer agent-bot agent-langgraph agent-harness", Some("agent-langgraph-agui"))
+                ("compose --profile harness up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot agent-langgraph agent-harness", Some("agent-langgraph-agui"))
             }
             "none" => {
                 choice = serde_json::Value::Null;
-                ("compose up -d --no-build --pull never postgres supervisor agent-computer agent-bot agent-langgraph", None)
+                ("compose up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot agent-langgraph", None)
             }
             "chatgpt-plan" => {
                 model = serde_json::json!({"provider":"openai", "login":"plan", "token":"{\"refresh_token\":\"synthetic-plan\"}"});
-                ("compose --profile harness up -d --no-build --pull never postgres supervisor agent-computer agent-harness", Some("agent-langgraph-agui"))
+                ("compose --profile harness up -d --no-build --pull never postgres hub supervisor agent-computer agent-harness", Some("agent-langgraph-agui"))
             }
             "claude-plan" => {
                 model = serde_json::json!({"provider":"anthropic", "login":"plan", "token":"synthetic-claude-plan"});
-                ("compose --profile harness up -d --no-build --pull never postgres supervisor agent-computer agent-harness", Some("agent-claude-sdk"))
+                ("compose --profile harness up -d --no-build --pull never postgres hub supervisor agent-computer agent-harness", Some("agent-claude-sdk"))
             }
             _ => panic!("unknown test case"),
         };
@@ -7001,9 +6713,6 @@ fn main() {
         let problem = tauri::async_runtime::block_on(start_stack_inner(
             app.handle().clone(),
             root.clone(),
-            "https://intelligence.example.test".into(),
-            "wss://gateway.example.test".into(),
-            "synthetic-intelligence-key".into(),
             ChosenModel {
                 provider: "openai".into(),
                 login: "api-key".into(),
@@ -7013,7 +6722,6 @@ fn main() {
                 model: None,
                 saved: Some(false),
             },
-            None,
             None,
         ))
         .expect_err("a dead required Compose service must fail Start");
@@ -7033,7 +6741,7 @@ fn main() {
             "{commands}"
         );
         assert!(commands.contains("\tcompose version\n"), "{commands}");
-        assert!(commands.contains("\tcompose up -d --no-build --pull never postgres supervisor agent-computer agent-bot agent-langgraph\n"), "{commands}");
+        assert!(commands.contains("\tcompose up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot agent-langgraph\n"), "{commands}");
         assert!(
             commands.contains("\tcompose run --rm --pull never migrate\n"),
             "{commands}"
@@ -7079,9 +6787,6 @@ fn main() {
         let problem = tauri::async_runtime::block_on(start_stack_inner(
             app.handle().clone(),
             root.clone(),
-            "https://intelligence.example.test".into(),
-            "wss://gateway.example.test".into(),
-            "synthetic-intelligence-key".into(),
             ChosenModel {
                 provider: "anthropic".into(),
                 login: "api-key".into(),
@@ -7092,20 +6797,19 @@ fn main() {
                 saved: Some(false),
             },
             None,
-            None,
         ))
         .expect_err("dead selected LangGraph service must fail Start");
 
         let commands = std::fs::read_to_string(&record).expect("command record");
         assert!(
             commands.contains(
-                "\tcompose up -d --no-build --pull never postgres supervisor agent-computer agent-langgraph\n"
+                "\tcompose up -d --no-build --pull never postgres hub supervisor agent-computer agent-langgraph\n"
             ),
             "{commands}"
         );
         assert!(
             !commands
-                .contains("compose up -d --no-build --pull never postgres supervisor agent-computer agent-bot"),
+                .contains("compose up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot"),
             "Anthropic Start must not target the OpenAI-only agent-bot: {commands}"
         );
         assert_eq!(problem.said, "Part of OpenBot stopped during startup.");
@@ -7320,11 +7024,6 @@ fn main() {
             };
             let compose = |harness| {
                 openbot_env::compose(
-                    &openbot_env::Intelligence {
-                        api_url: "https://intelligence.example.test".into(),
-                        gateway_ws_url: "wss://gateway.example.test".into(),
-                        api_key: String::new(),
-                    },
                     &openbot_env::Model {
                         credential: openbot_env::ModelCredential::OpenAi {
                             api_key: "synthetic-provider-key".into(),
@@ -7614,6 +7313,12 @@ fn main() {
                     "server".into(),
                     deployment::Image {
                         reference: "localhost/openbot-server@sha256:00".into(),
+                    },
+                ),
+                (
+                    "hub".into(),
+                    deployment::Image {
+                        reference: "localhost/ark-hub@sha256:00".into(),
                     },
                 ),
                 (
@@ -9713,7 +9418,10 @@ fn main() {
     }
 
     #[test]
-    fn showing_owned_organization_app_requires_its_session_without_forgetting_installation() {
+    fn an_organization_address_an_earlier_version_left_behind_is_not_followed() {
+        // Earlier versions could send the window to somebody else's sign-in before the app. Nothing
+        // here does that any more, so a setting left in the file by one is simply not read: the
+        // window goes to this deployment's own app and nowhere else.
         let f = RestoreFixture::new();
         std::fs::write(
             f.owned.join(".env"),
@@ -9721,17 +9429,14 @@ fn main() {
         )
         .unwrap();
         let app = f.app(&f.owned, "tauri://localhost/");
-        let window = app.get_webview_window("main").unwrap();
-        let before = window.url().unwrap();
-        let failure = show_openbot_on(app.handle().clone(), &f.ports).unwrap_err();
+        show_openbot_on(app.handle().clone(), &f.ports).unwrap();
         assert_eq!(
-            failure.connection,
-            Some(openbot_desktop_lib::problem::Connection::Organization)
-        );
-        assert_eq!(
-            window.url().unwrap(),
-            before,
-            "no unauthenticated navigation"
+            app.get_webview_window("main")
+                .unwrap()
+                .url()
+                .unwrap()
+                .as_str(),
+            format!("http://127.0.0.1:{}/", f.ports.app)
         );
         assert_eq!(
             app.state::<Shell>().selected_root.lock().unwrap().as_ref(),

@@ -64,8 +64,9 @@ pub struct Images {
 ///
 /// A published name on the left, a Compose variable on the right, because the two vocabularies are
 /// different and neither is going to change to suit the other.
-pub const IMAGE_VARIABLES: [(&str, &str); 5] = [
+pub const IMAGE_VARIABLES: [(&str, &str); 6] = [
     ("server", "SERVER_IMAGE"),
+    ("hub", "HUB_IMAGE"),
     ("supervisor", "SUPERVISOR_IMAGE"),
     ("agent-computer", "COMPUTER_IMAGE"),
     ("agent-bot", "BOT_IMAGE"),
@@ -378,6 +379,7 @@ mod tests {
         // images beside one that does not exist, and say nothing about the difference.
         let missing = pin(&manifest(&[
             "server",
+            "hub",
             "supervisor",
             "agent-computer",
             "agent-bot",

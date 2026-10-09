@@ -43,6 +43,38 @@ services:
     networks:
       - data
 
+  # Ark Hub: where conversations are kept and a run is streamed to the window.
+  #
+  # Started by the desktop app, which gives it the two secrets below and a port of its own. A
+  # developer's `scripts/start.sh` names the services it wants, and this is not one of them: it runs
+  # the hub as a process of its own (scripts/hub.sh), so the two never compete for the port.
+  #
+  # Its own database on the same server, which it creates the first time it starts, so a backup of the
+  # one server covers both. The values are empty by default and the hub refuses to start without
+  # them, rather than this file carrying a key that is published in a repository.
+  hub:
+    build:
+      context: .
+      dockerfile: hub/Dockerfile
+    image: ${HUB_IMAGE:-ark-hub:latest}
+    pull_policy: ${IMAGE_PULL_POLICY:-build}
+    environment:
+      HUB_DATABASE_URL: postgres://openbot:openbot@postgres:5432/ark_hub
+      HUB_API_KEY: ${HUB_API_KEY:-}
+      HUB_JOIN_SECRET: ${HUB_JOIN_SECRET:-}
+      HUB_PORT: "7100"
+    ports:
+      # Loopback only, on both addresses, for the reasons given at postgres above: `localhost` is not
+      # one address, and a conversation service has no business on the network.
+      - "127.0.0.1:${HUB_PORT:-7100}:7100"
+      - "[::1]:${HUB_PORT:-7100}:7100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Off the network the Bots are on, like the database it keeps its conversations in.
+    networks:
+      - data
+
   migrate:
     build:
       context: .

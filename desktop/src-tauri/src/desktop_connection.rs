@@ -43,12 +43,6 @@ pub fn poll(client: &Client, port: u16, token: &str) -> Result<Option<Connection
         None => Ok(None),
         Some(Failure { connection, code }) => match (connection.as_str(), code.as_str()) {
             ("model", "provider_authentication_failed") => Ok(Some(Connection::Model)),
-            ("intelligence", "intelligence_authentication_failed") => {
-                Ok(Some(Connection::Intelligence))
-            }
-            ("organization", "organization_authentication_failed") => {
-                Ok(Some(Connection::Organization))
-            }
             _ => Err("Connection status response contained an unsupported failure.".into()),
         },
     }
@@ -69,15 +63,17 @@ mod tests {
                 r#"{"connection":"model","code":"provider_authentication_failed"}"#,
                 Ok(Some(Connection::Model)),
             ),
+            // Reported by a server of an earlier release that was pointed at somebody else's service.
+            // Nothing in this app can fix it by asking for a sign-in any more, so it is not one.
             (
                 200,
                 r#"{"connection":"intelligence","code":"intelligence_authentication_failed"}"#,
-                Ok(Some(Connection::Intelligence)),
+                Err(()),
             ),
             (
                 200,
                 r#"{"connection":"organization","code":"organization_authentication_failed"}"#,
-                Ok(Some(Connection::Organization)),
+                Err(()),
             ),
             (404, "", Ok(None)),
             (401, "provider auth failed", Err(())),

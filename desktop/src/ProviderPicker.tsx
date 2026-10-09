@@ -36,7 +36,6 @@ export type SavedConfiguration = {
     | "google-oauth"
     | "xai-oauth"
     | null;
-  intelligenceApiKey?: boolean | null;
   modelApiKeys?: Partial<
     Record<"openai" | "anthropic" | "compatible", boolean | null>
   >;
@@ -354,7 +353,7 @@ export function ProviderPicker({
 
   return (
     <div className="sheet">
-      {!returning && <p className="steps-of">Step 3 of 4</p>}
+      {!returning && <p className="steps-of">Step 3 of 3</p>}
       <h1>{returning ? "Refresh your AI connection" : "Connect your AI"}</h1>
       <p className="lede">
         Connect your provider with an API key, or a model on your own computer.
