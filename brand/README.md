@@ -1,14 +1,14 @@
 # Brand
 
 Ark Agent uses Black Ark's own identity: **BlackArk Visual Identity v3 (Ember)**, issued 4 October 2026
-by the company (its `brand-tokens.json`, kept here unaltered). Nothing in this repository invents
+by the company (its `brand-tokens.json`, kept here as read from the company's OneDrive). Nothing in this repository invents
 a mark, a colour or a name; if the company changes its identity, this folder is where the change starts.
 
 ## What is here
 
 | File | What it is |
 | --- | --- |
-| `brand-tokens.json` | The company's v3 token file, copied byte for byte. The colours, type and rules below come from it. |
+| `brand-tokens.json` | The company's v3 token file as read from its OneDrive (`Chief of Operations/visual-identity/v3-ember/`). The reading tool may have turned a dash into a hyphen in the names, so the original there is the authority; the values are exact. The colours, type and rules below come from it. |
 | `mark.svg` | The app tile: an ember square with three ascending bars, as the company publishes it on its website (its favicon and home-screen icon). |
 | `official/` | The company's own published icon files (`favicon.ico`, `favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`). Used as they are, not redrawn. |
 | `render-icons.mjs` | Draws every other icon Ark ships from `mark.svg` and writes it where it is used. |
