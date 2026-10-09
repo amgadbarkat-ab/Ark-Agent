@@ -149,7 +149,12 @@ pub fn reference(root: &Path, published: &str) -> Result<String, String> {
         .images
         .get(published)
         .map(|image| image.reference.clone())
-        .ok_or_else(|| format!("OpenBot {} does not include {published}.", manifest.version))
+        .ok_or_else(|| {
+            format!(
+                "Ark Agent {} does not include {published}.",
+                manifest.version
+            )
+        })
 }
 
 /// Every image the stack runs, or a failure that names the one that is missing.

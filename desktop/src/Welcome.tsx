@@ -1,5 +1,5 @@
 /**
- * What OpenBot is, before it asks for anything.
+ * What Ark Agent is, before it asks for anything.
  *
  * Few words on purpose. The person here was sent a link by their IT department and has not decided
  * to care yet: they need to know what this is, that it will not ask them for anything technical,
@@ -16,7 +16,7 @@ export function Welcome({ onStart }: { onStart: () => void }) {
           <rect x="67" y="64" width="26" height="66" rx="6" fill="#1A0B03" />
           <rect x="100" y="34" width="26" height="96" rx="6" fill="#1A0B03" />
         </svg>
-        <span>OpenBot</span>
+        <span>Ark Agent</span>
       </div>
       <h1>Your own AI coworkers, on this computer.</h1>
       <p className="lede big">
@@ -25,12 +25,12 @@ export function Welcome({ onStart }: { onStart: () => void }) {
       </p>
       <div className="row">
         <button type="button" onClick={onStart}>
-          Set up OpenBot
+          Set up Ark Agent
         </button>
       </div>
       <p className="footnote">
-        Takes a few minutes. OpenBot installs what it needs first, then asks how
-        you want to connect an AI model.
+        Takes a few minutes. Ark Agent installs what it needs first, then asks
+        how you want to connect an AI model.
       </p>
     </div>
   );

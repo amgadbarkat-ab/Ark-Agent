@@ -215,7 +215,7 @@ fn persist_configuration_with(
                 api_key: api_key.trim().to_string(),
             })
             .map_err(|_| {
-                Problem::plain("OpenBot could not prepare the endpoint key for saving.")
+                Problem::plain("Ark Agent could not prepare the endpoint key for saving.")
             })?,
         ),
         _ if SavedIntent::read(root)
@@ -235,11 +235,12 @@ fn persist_configuration_with(
     let mut intent = SavedIntent::read(root);
     intent.record(secrets, credential);
     intent.write(root).map_err(|error| Problem::with(
-        "OpenBot could not record the saved connections. Your previous settings are kept; try Start again.",
+        "Ark Agent could not record the saved connections. Your previous settings are kept; try Start again.",
         error.to_string(),
     ))?;
-    crate::env::write(&root.join(".env"), settings, purge)
-        .map_err(|error| Problem::with("OpenBot could not write its settings.", error.to_string()))
+    crate::env::write(&root.join(".env"), settings, purge).map_err(|error| {
+        Problem::with("Ark Agent could not write its settings.", error.to_string())
+    })
 }
 
 #[cfg(test)]
@@ -686,7 +687,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert_eq!(problem.said, "OpenBot could not write its settings.");
+        assert_eq!(problem.said, "Ark Agent could not write its settings.");
         assert_eq!(
             SavedIntent::read(&root).model,
             Some(ModelIntent::AnthropicApiKey)

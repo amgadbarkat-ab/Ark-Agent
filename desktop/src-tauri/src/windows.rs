@@ -66,7 +66,7 @@ impl Blocker {
                 "Virtual Machine Platform is switched off. Open Windows Terminal or PowerShell \
                  as an administrator, run `dism.exe /online /enable-feature \
                  /featurename:VirtualMachinePlatform /all /norestart`, restart Windows, and \
-                 start OpenBot again."
+                 start Ark Agent again."
             }
             // Says what to run, because OpenBot does not do it. The screen used to say "OpenBot
             // can install it", and nothing in this application installs anything: there is no
@@ -74,13 +74,13 @@ impl Blocker {
             // had been told to wait for something that was never going to happen.
             Blocker::WslAbsent => {
                 "Windows Subsystem for Linux is not installed. Open Windows Terminal or PowerShell \
-                 as an administrator, run `wsl --install`, restart Windows, and start OpenBot \
+                 as an administrator, run `wsl --install`, restart Windows, and start Ark Agent \
                  again."
             }
             Blocker::WslOne => {
                 "Windows Subsystem for Linux is at version 1. Open Windows Terminal or PowerShell \
                  as an administrator, run `wsl --set-default-version 2`, restart Windows, and \
-                 start OpenBot again."
+                 start Ark Agent again."
             }
             // Measured on Windows Server 2022. `wsl --install` enabled both features and stopped
             // there, leaving the inbox WSL with no kernel, and `Get-WindowsOptionalFeature` says
@@ -90,11 +90,11 @@ impl Blocker {
             Blocker::WslNoKernel => {
                 "Windows Subsystem for Linux is switched on but its Linux kernel is missing, so \
                  nothing can run inside it yet. Open Windows Terminal or PowerShell as an \
-                 administrator, run `wsl --update`, restart Windows, and start OpenBot again."
+                 administrator, run `wsl --update`, restart Windows, and start Ark Agent again."
             }
             Blocker::VirtualizationDisabled => {
                 "Virtualization is switched off in this machine's firmware. It has to be turned on \
-                 there, which OpenBot cannot do: restart, open the firmware settings, and enable \
+                 there, which Ark Agent cannot do: restart, open the firmware settings, and enable \
                  Intel VT-x or AMD-V."
             }
             Blocker::NotAdministrator => {
@@ -103,7 +103,7 @@ impl Blocker {
                  `dism.exe /online /enable-feature \
                  /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart`, \
                  `dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`, \
-                 and `wsl --install`. Restart Windows, then start OpenBot again in your own account."
+                 and `wsl --install`. Restart Windows, then start Ark Agent again in your own account."
             }
         }
     }
@@ -281,7 +281,7 @@ pub fn blocker() -> Result<Option<Blocker>, Problem> {
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn detection_failed(operation: &str, detail: impl Into<String>) -> Problem {
     Problem::with(
-        format!("OpenBot could not check {operation}. Close and reopen OpenBot to try again."),
+        format!("Ark Agent could not check {operation}. Close and reopen Ark Agent to try again."),
         detail,
     )
 }
@@ -1024,7 +1024,7 @@ mod tests {
         assert_eq!(blocker.instruction(), "Virtual Machine Platform is switched off. \
             Open Windows Terminal or PowerShell as an administrator, run \
             `dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`, \
-            restart Windows, and start OpenBot again.");
+            restart Windows, and start Ark Agent again.");
         assert!(blocker.ours_to_fix());
     }
 
@@ -1458,7 +1458,7 @@ mod tests {
             let said = blocker.instruction();
             // "OpenBot cannot" is the honest half of this and must survive the check.
             assert!(
-                !said.contains("OpenBot can install") && !said.contains("OpenBot can convert"),
+                !said.contains("Ark Agent can install") && !said.contains("Ark Agent can convert"),
                 "promises what nothing does: {said}"
             );
         }
@@ -1501,7 +1501,7 @@ mod tests {
         assert!(instruction.contains("Windows Terminal or PowerShell as an administrator and run"));
         assert!(instruction.to_ascii_lowercase().contains("restart"));
         assert!(instruction.contains("your own account"));
-        assert!(!instruction.contains("run OpenBot once"));
+        assert!(!instruction.contains("run Ark Agent once"));
         assert!(!instruction.contains("account does not have"));
     }
 

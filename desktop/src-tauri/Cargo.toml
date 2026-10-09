@@ -1,7 +1,7 @@
 [package]
 name = "openbot-desktop"
 version = "0.0.15"
-description = "OpenBot Desktop"
+description = "Ark Agent Desktop"
 edition = "2021"
 rust-version = "1.77"
 

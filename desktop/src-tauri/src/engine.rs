@@ -845,7 +845,7 @@ pub mod local_api {
 
     fn problem(detail: impl Into<String>) -> Problem {
         Problem::with(
-            "OpenBot could not prepare its container API. Try again.",
+            "Ark Agent could not prepare its container API. Try again.",
             detail,
         )
     }

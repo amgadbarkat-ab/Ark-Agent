@@ -63,4 +63,6 @@ from the new master as `desktop/src-tauri/icons/README.md` says.
   them (and screenshots, a feature graphic for Google Play, and a short description), so the company
   should supply them from its pack.
 - Fonts are not bundled. Geist is open-licensed and can be, once the interface is moved to the tokens.
+- The desktop app's own wording (setup window, messages, tray, installer) now says Ark Agent. What was left alone
+  on purpose is listed in `docs/ark/10-desktop-replatform.md`.
 - Nothing has been looked at on a real phone, Mac or Windows machine.

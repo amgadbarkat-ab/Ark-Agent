@@ -153,7 +153,7 @@ fn already_given_with_reader(
         ReadPolicy::FileOnly => crate::env::already_set(env_file, keys),
         ReadPolicy::NoUi => crate::env::read_already_set(env_file, keys).map_err(|error| {
             Problem::with(
-                "OpenBot could not read its settings.",
+                "Ark Agent could not read its settings.",
                 format!("{}: {error}", env_file.display()),
             )
         })?,
@@ -215,7 +215,9 @@ fn recall_no_ui(root: &Path, name: &str) -> Result<Option<String>, Problem> {
 }
 
 fn cache_problem() -> Problem {
-    Problem::plain("OpenBot could not access its credential cache. Restart OpenBot and try again.")
+    Problem::plain(
+        "Ark Agent could not access its credential cache. Restart Ark Agent and try again.",
+    )
 }
 
 fn recall_no_ui_cached(
@@ -427,7 +429,7 @@ fn dpapi_problem(detail: String) -> Problem {
 #[cfg(any(target_os = "windows", test))]
 fn dpapi_write_problem(detail: String) -> Problem {
     Problem::with(
-        "OpenBot could not save your sign-in details to this computer's protected storage.",
+        "Ark Agent could not save your sign-in details to this computer's protected storage.",
         detail,
     )
 }
@@ -435,7 +437,7 @@ fn dpapi_write_problem(detail: String) -> Problem {
 #[cfg(any(target_os = "windows", test))]
 fn dpapi_read_problem(detail: String) -> Problem {
     Problem::with(
-        "OpenBot could not read your sign-in details from this computer's protected storage.",
+        "Ark Agent could not read your sign-in details from this computer's protected storage.",
         detail,
     )
 }
@@ -572,7 +574,7 @@ mod dpapi_tests {
             .expect_err("an existing unreadable DPAPI blob is not absence");
         assert_eq!(
             problem.said,
-            "OpenBot could not read your sign-in details from this computer's protected storage."
+            "Ark Agent could not read your sign-in details from this computer's protected storage."
         );
         let detail = problem.detail.as_deref().unwrap_or_default();
         assert!(
@@ -679,7 +681,7 @@ fn write_secret_file_with(
         })
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not save your sign-in details on this computer.",
+                "Ark Agent could not save your sign-in details on this computer.",
                 format!("{}: {error}", path.display()),
             )
         });
@@ -694,14 +696,14 @@ fn reject_unsafe_final(path: &Path) -> Result<(), Problem> {
     match std::fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.file_type().is_file() => {
             Err(Problem::with(
-                "OpenBot could not save your sign-in details on this computer.",
+                "Ark Agent could not save your sign-in details on this computer.",
                 format!("{}: credential path is not a regular file", path.display()),
             ))
         }
         Ok(_) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(Problem::with(
-            "OpenBot could not save your sign-in details on this computer.",
+            "Ark Agent could not save your sign-in details on this computer.",
             format!("{}: {error}", path.display()),
         )),
     }
@@ -717,7 +719,7 @@ fn recall_secret_file(path: &Path) -> Result<Option<String>, Problem> {
     match std::fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.file_type().is_file() => {
             return Err(Problem::with(
-                "OpenBot could not read your saved sign-in details on this computer.",
+                "Ark Agent could not read your saved sign-in details on this computer.",
                 format!("{}: credential path is not a regular file", path.display()),
             ));
         }
@@ -725,7 +727,7 @@ fn recall_secret_file(path: &Path) -> Result<Option<String>, Problem> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             return Err(Problem::with(
-                "OpenBot could not read your saved sign-in details on this computer.",
+                "Ark Agent could not read your saved sign-in details on this computer.",
                 format!("{}: {error}", path.display()),
             ));
         }
@@ -739,14 +741,14 @@ fn recall_secret_file(path: &Path) -> Result<Option<String>, Problem> {
     }
     let mut file = options.open(path).map_err(|error| {
         Problem::with(
-            "OpenBot could not read your saved sign-in details on this computer.",
+            "Ark Agent could not read your saved sign-in details on this computer.",
             format!("{}: {error}", path.display()),
         )
     })?;
     let mut value = String::new();
     file.read_to_string(&mut value).map_err(|error| {
         Problem::with(
-            "OpenBot could not read your saved sign-in details on this computer.",
+            "Ark Agent could not read your saved sign-in details on this computer.",
             format!("{}: {error}", path.display()),
         )
     })?;
@@ -763,7 +765,7 @@ fn remove_secret_file(path: &Path) -> Result<(), Problem> {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(Problem::with(
-            "OpenBot could not remove a saved credential on this computer.",
+            "Ark Agent could not remove a saved credential on this computer.",
             format!("{}: {error}", path.display()),
         )),
     }
@@ -792,7 +794,7 @@ pub(crate) fn vault_dir(root: &Path) -> Result<PathBuf, Problem> {
     };
     prepare().map_err(|error| {
         Problem::with(
-            "OpenBot could not access the place it keeps your sign-in details.",
+            "Ark Agent could not access the place it keeps your sign-in details.",
             format!("{}: {error}", dir.display()),
         )
     })?;
@@ -829,7 +831,7 @@ fn owner_only(path: &Path) -> Result<(), Problem> {
     let mode = if path.is_dir() { 0o700 } else { 0o600 };
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|error| {
         Problem::with(
-            "OpenBot could not make your saved sign-in details private to your account.",
+            "Ark Agent could not make your saved sign-in details private to your account.",
             format!("{}: {error}", path.display()),
         )
     })
@@ -986,7 +988,7 @@ mod file_store_tests {
 
         assert_eq!(
             problem.said,
-            "OpenBot could not read your saved sign-in details on this computer."
+            "Ark Agent could not read your saved sign-in details on this computer."
         );
         let detail = problem.detail.unwrap();
         assert!(detail.contains(path.to_string_lossy().as_ref()), "{detail}");
@@ -1401,7 +1403,7 @@ mod cache_tests {
             super::ReadPolicy::NoUi,
         )
         .expect_err("no_ui Start/Ask must report unreadable .env input");
-        assert_eq!(no_ui.said, "OpenBot could not read its settings.");
+        assert_eq!(no_ui.said, "Ark Agent could not read its settings.");
         assert!(
             no_ui
                 .detail
@@ -1419,7 +1421,7 @@ mod cache_tests {
         let cache = std::sync::Mutex::new(BTreeMap::new());
         let attempts = std::sync::Mutex::new(0);
         let denied = Problem::with(
-            "OpenBot needs permission to read saved credentials for this action.",
+            "Ark Agent needs permission to read saved credentials for this action.",
             "interaction refused",
         );
 

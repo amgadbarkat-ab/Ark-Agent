@@ -137,7 +137,7 @@ impl<'a> StartAttempt<'a> {
     fn begin(shell: &'a Shell) -> Result<Self, Problem> {
         use std::sync::atomic::Ordering::SeqCst;
         shell.starting.compare_exchange(false, true, SeqCst, SeqCst).map_err(|_| {
-            Problem::plain("OpenBot is already starting or finishing a cancelled startup. Wait for it to finish, then try again.")
+            Problem::plain("Ark Agent is already starting or finishing a cancelled startup. Wait for it to finish, then try again.")
         })?;
         Ok(Self {
             shell,
@@ -165,7 +165,7 @@ impl<'a> StartAttempt<'a> {
     }
 
     fn cancelled() -> Problem {
-        Problem::plain("OpenBot startup was cancelled by Stop. Start again when you are ready.")
+        Problem::plain("Ark Agent startup was cancelled by Stop. Start again when you are ready.")
     }
 }
 
@@ -255,9 +255,9 @@ fn ready_responding_engine_after_compose_repair(
     let Some(address) = ready.address.clone().filter(|_| ready.responding) else {
         return Err(Problem::with(
             if install_missing_native {
-                "OpenBot installed the container software, but the engine is not answering. Try again."
+                "Ark Agent installed the container software, but the engine is not answering. Try again."
             } else {
-                "OpenBot installed Compose, but the container engine is not answering. Try again."
+                "Ark Agent installed Compose, but the container engine is not answering. Try again."
             },
             ready.detail,
         ));
@@ -373,7 +373,7 @@ async fn prepare_installation(
             let _startup = attempt.lock_current()?;
             if shell.containers.lock().unwrap().is_some() || shell.root.lock().unwrap().is_some() {
                 return Err(Problem::plain(
-                    "Stop OpenBot before changing its local installation.",
+                    "Stop Ark Agent before changing its local installation.",
                 ));
             }
             remember_selected_root(&shell, &root);
@@ -504,7 +504,12 @@ async fn prepare_installation(
 /// Reported step by step rather than as one result, because these take minutes and a window with
 /// nothing moving in it reads as a hang.
 async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem> {
-    report_running(app, "engine", "Checking the software OpenBot needs.", None);
+    report_running(
+        app,
+        "engine",
+        "Checking the software Ark Agent needs.",
+        None,
+    );
     let found = engine::detect();
     let root = stack::default_root();
     let existing = tauri::async_runtime::spawn_blocking(move || {
@@ -519,7 +524,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
     .await
     .map_err(|error| {
         Problem::with(
-            "OpenBot could not check the software it runs on. Try again.",
+            "Ark Agent could not check the software it runs on. Try again.",
             format!("the engine check did not run: {error}"),
         )
     })?;
@@ -540,7 +545,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
                 .await
                 .map_err(|error| {
                     Problem::with(
-                        "OpenBot could not start its container service.",
+                        "Ark Agent could not start its container service.",
                         error.to_string(),
                     )
                 })??;
@@ -564,7 +569,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
     report_running(
         app,
         "install-engine",
-        "Looking for the software OpenBot runs on.",
+        "Looking for the software Ark Agent runs on.",
         None,
     );
     let installed = tauri::async_runtime::spawn_blocking(move || {
@@ -573,7 +578,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
     .await
     .map_err(|error| {
         Problem::with(
-            "OpenBot could not install the software it needs. Try again.",
+            "Ark Agent could not install the software it needs. Try again.",
             format!("the install task did not run: {error}"),
         )
     })?;
@@ -623,7 +628,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
         .filter(|_| ready.responding)
         .ok_or_else(|| {
             Problem::with(
-                "OpenBot set up the software it runs on, but it is still not answering. Try again.",
+                "Ark Agent set up the software it runs on, but it is still not answering. Try again.",
                 ready.detail,
             )
         })?;
@@ -636,7 +641,7 @@ async fn engine_ready(app: &tauri::AppHandle) -> Result<engine::Address, Problem
 fn ensure_linux_podman_api(shell: &Shell, address: &engine::Address) -> Result<(), Problem> {
     if !matches!(*shell.quit.phase.lock().unwrap(), QuitPhase::Idle) {
         return Err(Problem::plain(
-            "OpenBot is quitting. Start it again to continue.",
+            "Ark Agent is quitting. Start it again to continue.",
         ));
     }
     shell
@@ -654,7 +659,7 @@ async fn deployment_ready<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     root: &Path,
 ) -> Result<(), Problem> {
-    report_running(app, "deployment", "Checking the OpenBot release.", None);
+    report_running(app, "deployment", "Checking the Ark Agent release.", None);
     // Both release discovery and downloading use blocking HTTP. Keeping them in a blocking task
     // avoids dropping reqwest's runtime inside this async context.
     let target = root.to_path_buf();
@@ -665,7 +670,7 @@ async fn deployment_ready<R: tauri::Runtime>(
             report_running(
                 &handle,
                 "deployment",
-                format!("Downloading OpenBot {version}."),
+                format!("Downloading Ark Agent {version}."),
                 None,
             );
             deployment::fetch(&target, &version)?;
@@ -678,7 +683,7 @@ async fn deployment_ready<R: tauri::Runtime>(
     .map_err(|error| {
         report(app, "deployment", false, error.clone());
         Problem::with(
-            "OpenBot could not download what it needs to run. Check the internet \
+            "Ark Agent could not download what it needs to run. Check the internet \
              connection and try again.",
             error,
         )
@@ -852,7 +857,7 @@ fn require_existing_encryption_key(
     // Only a verified fresh database may receive a newly minted encryption key.
     if configured || existing_postgres_volume()? {
         return Err(Problem::plain(
-            "This installation's saved encryption key is missing, invalid, or public. Restore its original private key from backup, or get help preserving its saved data. OpenBot will not replace the key automatically.",
+            "This installation's saved encryption key is missing, invalid, or public. Restore its original private key from backup, or get help preserving its saved data. Ark Agent will not replace the key automatically.",
         ));
     }
     Ok(())
@@ -882,7 +887,7 @@ fn require_existing_encryption_key_with_recovery(
             match recovery {
                 Ok(volume) => {
                     if volume.is_some() {
-                        problem.said = "OpenBot found a database from a previous installation, but its encryption key is unavailable. Restore the original key to keep its saved data, or reset the leftover database to start fresh.".into();
+                        problem.said = "Ark Agent found a database from a previous installation, but its encryption key is unavailable. Restore the original key to keep its saved data, or reset the leftover database to start fresh.".into();
                     }
                     problem.database_reset = volume;
                 }
@@ -911,7 +916,7 @@ fn fresh_root_without_encryption_key(
         return Ok(false);
     }
     let unknown = || {
-        Problem::plain("OpenBot could not verify that this is an unconfigured installation. Its leftover database cannot be reset here.")
+        Problem::plain("Ark Agent could not verify that this is an unconfigured installation. Its leftover database cannot be reset here.")
     };
     let settings = openbot_env::read_already_set(&root.join(".env"), &["DATABASE_URL"])
         .map_err(|_| unknown())?;
@@ -951,7 +956,7 @@ fn reset_leftover_database_with(
         || shell.root.lock().unwrap().is_some()
         || !shell.children.lock().unwrap().is_empty()
     {
-        return Err(Problem::plain("OpenBot still owns running services. Choose Stop OpenBot before resetting a leftover database."));
+        return Err(Problem::plain("Ark Agent still owns running services. Choose Stop Ark Agent before resetting a leftover database."));
     }
     if shell
         .selected_root
@@ -1041,7 +1046,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
             .is_some_and(|owned| owned.root != root)
         {
             return Err(Problem::plain(
-                "OpenBot still has services from another installation to stop. Choose Stop OpenBot before starting in a different folder.",
+                "Ark Agent still has services from another installation to stop. Choose Stop Ark Agent before starting in a different folder.",
             ));
         }
         // A rejected concurrent Start must not replace the accepted attempt's selection.
@@ -1072,8 +1077,8 @@ async fn start_stack_inner<R: tauri::Runtime>(
         // evidence, not the sentence: it names a published image, which is not a thing the
         // person chose or can change.
         Problem::with(
-            "This version of OpenBot does not include the Bot you picked. Go back and choose \
-                 another, or update OpenBot.",
+            "This version of Ark Agent does not include the Bot you picked. Go back and choose \
+                 another, or update Ark Agent.",
             error,
         )
     })?;
@@ -1143,7 +1148,10 @@ async fn start_stack_inner<R: tauri::Runtime>(
 
         // Only this deployment's recorded hosts are reclaimed; its existing containers are reusable.
         let previous_ports = openbot_env::Ports::read(&root).map_err(|error| {
-            Problem::with("OpenBot could not read its local ports.", error.to_string())
+            Problem::with(
+                "Ark Agent could not read its local ports.",
+                error.to_string(),
+            )
         })?;
         let reclaimed = cleanup_before_start(&app, &attempt, &root, stack::stop_processes_under)?;
         if reclaimed > 0 {
@@ -1160,7 +1168,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
             )
             .map_err(|error| {
                 Problem::with(
-                    "OpenBot could not find available local ports. Try Start again.",
+                    "Ark Agent could not find available local ports. Try Start again.",
                     error.to_string(),
                 )
             })?;
@@ -1330,7 +1338,7 @@ async fn start_stack_inner<R: tauri::Runtime>(
     preparation::record_launch(&root, requested_harness.as_ref())?;
     let config = app.path().app_config_dir().map_err(|error| {
         Problem::with(
-            "OpenBot could not remember this installation for next time.",
+            "Ark Agent could not remember this installation for next time.",
             error.to_string(),
         )
     })?;
@@ -1458,7 +1466,7 @@ fn down_owned_containers(shell: &Shell, root: &Path) -> Result<(), String> {
         Some(owned) => stack::down(&owned.address, root),
         None if shell.stopped_container_root.lock().unwrap().as_deref() == Some(root) => Ok(()),
         None if root.join("docker-compose.yml").exists() => Err(
-            "OpenBot has no runtime ownership for this installation. Stop its containers using the original engine and context before starting OpenBot again.".into(),
+            "Ark Agent has no runtime ownership for this installation. Stop its containers using the original engine and context before starting Ark Agent again.".into(),
         ),
         None => Ok(()),
     }
@@ -1497,7 +1505,7 @@ fn stop_held_process_handles(
     for (name, child) in children.iter_mut() {
         let failure = |error| {
             Problem::with(
-                "OpenBot could not stop one of its host processes.",
+                "Ark Agent could not stop one of its host processes.",
                 format!("could not finish stopping held {name}: {error}"),
             )
         };
@@ -1592,11 +1600,11 @@ where
     let result = match (host_access_result, result) {
         (Ok(()), result) => result,
         (Err(error), Ok(_)) => Err(Problem::with(
-            "OpenBot could not stop a folder operation.",
+            "Ark Agent could not stop a folder operation.",
             error,
         )),
         (Err(error), Err(problem)) => Err(Problem::with(
-            "OpenBot could not finish stopping its work.",
+            "Ark Agent could not finish stopping its work.",
             format!("{error}\n{}", problem_detail(problem)),
         )),
     };
@@ -1795,7 +1803,7 @@ fn require_no_exited_compose_services(
         report_failure(line.to_string());
     }
     Err(Problem::with(
-        "Part of OpenBot stopped during startup.",
+        "Part of Ark Agent stopped during startup.",
         detail,
     ))
 }
@@ -1857,8 +1865,10 @@ fn known_safe_quit_cleanup_failure(line: &str) -> QuitCleanupFailure {
 
 fn quit_cleanup_failure_summary(failure: QuitCleanupFailure) -> &'static str {
     match failure {
-        QuitCleanupFailure::HostProcesses => "OpenBot could not confirm all app processes stopped.",
-        QuitCleanupFailure::Containers => "OpenBot could not confirm all containers stopped.",
+        QuitCleanupFailure::HostProcesses => {
+            "Ark Agent could not confirm all app processes stopped."
+        }
+        QuitCleanupFailure::Containers => "Ark Agent could not confirm all containers stopped.",
     }
 }
 
@@ -1902,7 +1912,7 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             return Err(Problem::with(
-                "OpenBot could not read its previous shutdown notice.",
+                "Ark Agent could not read its previous shutdown notice.",
                 format!("{}: {error}", path.display()),
             ))
         }
@@ -1911,14 +1921,14 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
         .metadata()
         .map_err(|error| {
             Problem::with(
-                "OpenBot could not read its previous shutdown notice.",
+                "Ark Agent could not read its previous shutdown notice.",
                 format!("{}: {error}", path.display()),
             )
         })?
         .len();
     if size > QUIT_CLEANUP_NOTICE_LIMIT as u64 {
         return Err(Problem::with(
-            "OpenBot could not read its previous shutdown notice.",
+            "Ark Agent could not read its previous shutdown notice.",
             format!(
                 "{}: shutdown notice exceeded its size limit",
                 path.display()
@@ -1927,13 +1937,13 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
     }
     let notice: QuitCleanupNotice = serde_json::from_reader(file).map_err(|error| {
         Problem::with(
-            "OpenBot could not read its previous shutdown notice.",
+            "Ark Agent could not read its previous shutdown notice.",
             format!("{}: {error}", path.display()),
         )
     })?;
     std::fs::remove_file(&path).map_err(|error| {
         Problem::with(
-            "OpenBot could not clear its previous shutdown notice.",
+            "Ark Agent could not clear its previous shutdown notice.",
             format!("{}: {error}", path.display()),
         )
     })?;
@@ -1947,7 +1957,7 @@ fn read_quit_cleanup_notice(root: &Path) -> Result<Option<Problem>, Problem> {
         return Ok(None);
     }
     Ok(Some(Problem::with(
-        "OpenBot had trouble shutting down last time.",
+        "Ark Agent had trouble shutting down last time.",
         detail,
     )))
 }
@@ -2106,7 +2116,7 @@ async fn show_openbot<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(),
         show_openbot_on(app, &ports)
     })
     .await
-    .map_err(|error| Problem::with("OpenBot could not open its window.", error.to_string()))?
+    .map_err(|error| Problem::with("Ark Agent could not open its window.", error.to_string()))?
 }
 
 fn ports_for_shell<R: tauri::Runtime>(
@@ -2114,7 +2124,10 @@ fn ports_for_shell<R: tauri::Runtime>(
 ) -> Result<openbot_env::Ports, Problem> {
     let root = cleanup_root(&app.state::<Shell>(), &stack::default_root());
     openbot_env::Ports::read(&root).map_err(|error| {
-        Problem::with("OpenBot could not read its local ports.", error.to_string())
+        Problem::with(
+            "Ark Agent could not read its local ports.",
+            error.to_string(),
+        )
     })
 }
 
@@ -2130,22 +2143,22 @@ fn show_openbot_on<R: tauri::Runtime>(
     let _startup = shell.startup.lock().unwrap();
     let root = cleanup_root(&shell, &stack::default_root());
     if recovery_required_or_pending_quit_notice(&shell, &root) {
-        return Err("Part of OpenBot needs recovery. Try starting OpenBot once more.".into());
+        return Err("Part of Ark Agent needs recovery. Try starting Ark Agent once more.".into());
     }
     let destination = owned_app_url(&root, ports).ok_or_else(|| {
-        format!("OpenBot could not verify its app on port {port} belongs to this installation. Try starting OpenBot again.")
+        format!("Ark Agent could not verify its app on port {port} belongs to this installation. Try starting Ark Agent again.")
     })?;
-    eprintln!("[show] navigating to the owned OpenBot app");
+    eprintln!("[show] navigating to the owned Ark Agent app");
     let window = app
         .get_webview_window("main")
-        .ok_or("the OpenBot window is not there to show it in")?;
+        .ok_or("the Ark Agent window is not there to show it in")?;
     let outcome = window
         .navigate(
             destination
                 .parse()
-                .map_err(|_| "OpenBot returned an invalid app destination.".to_string())?,
+                .map_err(|_| "Ark Agent returned an invalid app destination.".to_string())?,
         )
-        .map_err(|_| Problem::plain("OpenBot could not navigate to its app."));
+        .map_err(|_| Problem::plain("Ark Agent could not navigate to its app."));
     eprintln!("[show] navigate returned {outcome:?}");
     outcome
 }
@@ -2164,7 +2177,7 @@ fn configured_setup_url(
         .windows
         .iter()
         .find(|window| window.label == "main")
-        .ok_or("the OpenBot setup window is not configured")?;
+        .ok_or("the Ark Agent setup window is not configured")?;
     match &window.url {
         tauri::WebviewUrl::External(url) | tauri::WebviewUrl::CustomProtocol(url) => {
             Ok(url.clone())
@@ -2203,7 +2216,7 @@ fn configured_setup_url(
                     .map_err(|error| format!("invalid setup page path: {error}"))
             }
         }
-        _ => Err("the OpenBot setup window URL is not supported".into()),
+        _ => Err("the Ark Agent setup window URL is not supported".into()),
     }
 }
 
@@ -2229,7 +2242,7 @@ fn setup_destination<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<tau
 fn show_setup<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
-        .ok_or("the OpenBot window is not there")?;
+        .ok_or("the Ark Agent window is not there")?;
     window
         .navigate(setup_destination(&app)?)
         .map_err(|error| format!("could not go back to setup: {error}"))
@@ -2248,7 +2261,7 @@ fn show_setup_and_focus<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(
     show_setup(app.clone())?;
     let window = app
         .get_webview_window("main")
-        .ok_or("the OpenBot window is not there")?;
+        .ok_or("the Ark Agent window is not there")?;
     window
         .show()
         .map_err(|error| format!("could not show setup: {error}"))?;
@@ -2432,7 +2445,7 @@ async fn ask_the_bot_with_settings(
         .unwrap_or_default();
     if endpoint.trim().is_empty() || token.trim().is_empty() {
         return Err(openbot_desktop_lib::problem::Problem::plain(
-            "OpenBot cannot find the Bot it just set up. Stop OpenBot and start it again.",
+            "Ark Agent cannot find the Bot it just set up. Stop Ark Agent and start it again.",
         ));
     }
 
@@ -2652,7 +2665,7 @@ fn publish_connection_failure<R: tauri::Runtime>(
     }
     let said = match connection {
         openbot_desktop_lib::problem::Connection::Model => {
-            "Your AI connection was refused. Refresh it to continue using your existing OpenBot."
+            "Your AI connection was refused. Refresh it to continue using your existing Ark Agent."
         }
     };
     mark_recovery_required(&shell, root, generation);
@@ -2784,8 +2797,8 @@ fn supervise_host_processes<R: tauri::Runtime>(
                     *shell.last_failure.lock().unwrap() =
                         Some(openbot_desktop_lib::problem::Problem::with(
                             format!(
-                                "Part of OpenBot ({name}) stopped and could not be started again. \
-                                 Try starting OpenBot once more."
+                                "Part of Ark Agent ({name}) stopped and could not be started again. \
+                                 Try starting Ark Agent once more."
                             ),
                             reason,
                         ));
@@ -2850,7 +2863,7 @@ where
     }
     let child = spawn().map_err(|error| {
         Problem::with(
-            format!("OpenBot could not restart {name}."),
+            format!("Ark Agent could not restart {name}."),
             error.to_string(),
         )
     })?;
@@ -2937,13 +2950,13 @@ fn restore_after_second_instance(app: &tauri::AppHandle) {
             &reporting_app,
             "open",
             false,
-            format!("OpenBot could not show the existing window: {error}"),
+            format!("Ark Agent could not show the existing window: {error}"),
         );
     }
 }
 
 fn publish_quit_notice_failure<R: tauri::Runtime>(app: tauri::AppHandle<R>, error: String) {
-    let problem = Problem::with("OpenBot could not record a shutdown problem.", error);
+    let problem = Problem::with("Ark Agent could not record a shutdown problem.", error);
     let shell = app.state::<Shell>();
     {
         let _startup = shell.startup.lock().unwrap();
@@ -2963,14 +2976,14 @@ fn stop_from_menu<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
         match stop_everything(&app, &root_path) {
             Ok(()) => {
                 eprintln!("[menu] stopped");
-                report(&app, "stopped", true, "OpenBot has been stopped");
+                report(&app, "stopped", true, "Ark Agent has been stopped");
             }
             // Said rather than swallowed. A menu item that fails silently is worse than one
             // that is not there: the person believes the stack is down and it is not.
             Err(detail) => {
                 eprintln!("[menu] stop failed: {detail}");
                 let problem = Problem::with(
-                    "OpenBot could not finish stopping. Try Stop OpenBot again.",
+                    "Ark Agent could not finish stopping. Try Stop Ark Agent again.",
                     detail,
                 );
                 let shell = app.state::<Shell>();
@@ -3087,15 +3100,15 @@ fn main() {
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::TrayIconBuilder;
 
-            let open = MenuItem::with_id(app, "open", "Open OpenBot", true, None::<&str>)?;
-            let stop = MenuItem::with_id(app, "stop", "Stop OpenBot", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open Ark Agent", true, None::<&str>)?;
+            let stop = MenuItem::with_id(app, "stop", "Stop Ark Agent", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
             let menu = Menu::with_items(app, &[&open, &stop, &quit])?;
 
             TrayIconBuilder::with_id("openbot")
                 .icon(tray::icon())
                 .icon_as_template(false)
-                .tooltip("OpenBot")
+                .tooltip("Ark Agent")
                 .menu(&menu)
                 .build(app)?;
 
@@ -3108,14 +3121,14 @@ fn main() {
             // Its own items, not the tray's: a menu item belongs to one menu, and the two menus
             // outlive each other. The ids match so both arrive at the same function.
             use tauri::menu::Submenu;
-            let window_open = MenuItem::with_id(app, "open", "Open OpenBot", true, None::<&str>)?;
-            let window_stop = MenuItem::with_id(app, "stop", "Stop OpenBot", true, None::<&str>)?;
+            let window_open = MenuItem::with_id(app, "open", "Open Ark Agent", true, None::<&str>)?;
+            let window_stop = MenuItem::with_id(app, "stop", "Stop Ark Agent", true, None::<&str>)?;
             let window_quit =
                 MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
             // A submenu, because a top-level entry in a menu bar has to be one to open at all.
             let openbot = Submenu::with_items(
                 app,
-                "OpenBot",
+                "Ark Agent",
                 true,
                 &[&window_open, &window_stop, &window_quit],
             )?;
@@ -3152,7 +3165,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("the OpenBot window could not be created")
+        .expect("the Ark Agent window could not be created")
         .run(|app, event| {
             match event {
                 #[cfg(target_os = "macos")]
@@ -3206,7 +3219,7 @@ fn main() {
                             app,
                             "quit",
                             false,
-                            "OpenBot could not start shutting down. Try Quit again.",
+                            "Ark Agent could not start shutting down. Try Quit again.",
                         );
                     }
                 }
@@ -3477,7 +3490,7 @@ mod tests {
             .unwrap()
             .expect("notice should be present");
         let detail = first.detail.unwrap();
-        assert_eq!(first.said, "OpenBot had trouble shutting down last time.");
+        assert_eq!(first.said, "Ark Agent had trouble shutting down last time.");
         assert!(detail.contains("containers stopped"), "{detail}");
         assert!(detail.contains("app processes stopped"), "{detail}");
         assert!(!detail.contains("Compose down failed"), "{detail}");
@@ -4076,7 +4089,7 @@ mod tests {
         )
         .expect_err("unreadable .env must stop saved-key resolution");
 
-        assert_eq!(problem.said, "OpenBot could not read its settings.");
+        assert_eq!(problem.said, "Ark Agent could not read its settings.");
         assert!(
             problem
                 .detail
@@ -4097,7 +4110,7 @@ mod tests {
             tauri::async_runtime::block_on(ask_the_bot_inner(root.clone(), "hello".into()))
                 .expect_err("unreadable .env must stop Ask before transport");
 
-        assert_eq!(problem.said, "OpenBot could not read its settings.");
+        assert_eq!(problem.said, "Ark Agent could not read its settings.");
         assert!(
             problem
                 .detail
@@ -5192,7 +5205,7 @@ mod tests {
                     .borrow_mut()
                     .push(format!("cleanup:{}", root.display()));
                 Err(Problem::with(
-                    "OpenBot could not inspect or stop its host processes.",
+                    "Ark Agent could not inspect or stop its host processes.",
                     "lsof exited with status 2",
                 ))
             },
@@ -5211,7 +5224,7 @@ mod tests {
             ]
         );
         assert!(
-            problem.contains("OpenBot could not inspect or stop its host processes."),
+            problem.contains("Ark Agent could not inspect or stop its host processes."),
             "{problem}"
         );
         assert!(problem.contains("lsof exited with status 2"), "{problem}");
@@ -5243,7 +5256,7 @@ mod tests {
                     .borrow_mut()
                     .push(format!("cleanup:{}", root.display()));
                 Err(Problem::with(
-                    "OpenBot could not inspect or stop its host processes.",
+                    "Ark Agent could not inspect or stop its host processes.",
                     "taskkill exited with status 5",
                 ))
             },
@@ -6728,7 +6741,7 @@ fn main() {
 
         let commands = std::fs::read_to_string(&record).expect("command record");
         assert_eq!(
-            problem.said, "Part of OpenBot stopped during startup.",
+            problem.said, "Part of Ark Agent stopped during startup.",
             "problem={problem:?} commands={commands}"
         );
         assert_eq!(
@@ -6812,7 +6825,7 @@ fn main() {
                 .contains("compose up -d --no-build --pull never postgres hub supervisor agent-computer agent-bot"),
             "Anthropic Start must not target the OpenAI-only agent-bot: {commands}"
         );
-        assert_eq!(problem.said, "Part of OpenBot stopped during startup.");
+        assert_eq!(problem.said, "Part of Ark Agent stopped during startup.");
         let detail = problem.detail.as_deref().unwrap_or_default();
         assert!(
             detail.contains("agent-langgraph stopped: langgraph died after boot"),
@@ -8093,7 +8106,10 @@ fn main() {
         )
         .unwrap();
         let notice = last_failure(app.handle().clone()).expect("persisted Quit notice");
-        assert_eq!(notice.said, "OpenBot had trouble shutting down last time.");
+        assert_eq!(
+            notice.said,
+            "Ark Agent had trouble shutting down last time."
+        );
         assert!(notice
             .detail
             .as_ref()
@@ -8169,7 +8185,10 @@ fn main() {
             "restore must not consume the persisted notice before React asks for it"
         );
         let notice = last_failure(app.handle().clone()).expect("persisted Quit notice");
-        assert_eq!(notice.said, "OpenBot had trouble shutting down last time.");
+        assert_eq!(
+            notice.said,
+            "Ark Agent had trouble shutting down last time."
+        );
         assert!(notice
             .detail
             .as_ref()
@@ -8200,7 +8219,10 @@ fn main() {
 
         assert!(recovery_required(&shell, &f.owned));
         let failure = last_failure(app.handle().clone()).expect("volatile sink failure");
-        assert_eq!(failure.said, "OpenBot could not record a shutdown problem.");
+        assert_eq!(
+            failure.said,
+            "Ark Agent could not record a shutdown problem."
+        );
         assert!(failure
             .detail
             .as_ref()
@@ -8578,7 +8600,7 @@ fn main() {
         let result = finish_host_start(&attempt, &root, children, Ok(())).unwrap_err();
         assert_eq!(
             result.said,
-            "OpenBot could not verify its host process ownership."
+            "Ark Agent could not verify its host process ownership."
         );
         assert!(
             result
@@ -9250,7 +9272,7 @@ fn main() {
         config.app.windows[0].label = "another-window".into();
         assert_eq!(
             configured_setup_url(&config, true, true).unwrap_err(),
-            "the OpenBot setup window is not configured",
+            "the Ark Agent setup window is not configured",
         );
     }
 
