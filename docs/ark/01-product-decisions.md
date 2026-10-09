@@ -63,7 +63,13 @@ time. The technical design and the legal check of plan sign-in are in 04-llm-pro
   account. This also removes most of the security risk of shared bots.
 - Secrets and private data must be stripped from a bot before it can be listed.
 
-**D8. Brand assets** (name, logo, colours, domain): later.
+**D8. Brand assets** (name, logo, colours, domain): **decided 2026-10-09.** The identity is the company's own:
+BlackArk Visual Identity v3 (Ember, issued 2026-10-04), taken from the company's OneDrive and its website.
+The product is named **Ark Agent**; the company domain is **blackark.uk**. `brand/README.md` says what was
+taken, where each icon lands and what is not done (the web app's screens keep their inherited design until a
+decision is made on moving them to the v3 tokens; the wordmark and fonts are not imported). The name
+"BlackArk" is cleared as a trademark in the UK only; "Ark Agent" has not been checked. The
+accounts and keys the brand and the domain unlock are in 20-accounts-and-keys.md.
 
 **D9. Hosting: Microsoft Azure, sign-in with Microsoft Entra ID.** The owner asked for "the
 suitable MS 365 tool". Microsoft 365 itself is office software and does not host applications;
@@ -74,14 +80,21 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set. The mechanism
    is built; the procedure for setting the prices from cost is in 17-cloud-runtime.md.
-2. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
-   digital goods are sold. **Working default (2026-10-09): a free companion app that sells nothing and
-   points nowhere to buy; customers pay on the website through Paddle.** It is built that way
-   (19-mobile.md). The owner confirms or changes it; changing it means selling through the stores for
-   those customers, with their share and their tax handling.
+2. **Which hostname the product runs on.** The marketing site is `www.blackark.uk`. The product needs its own
+   host (recommended `app.blackark.uk`): the Android app is bound to one host by `/.well-known/assetlinks.json`,
+   Paddle approves the checkout domain by name, and cookies belong to one host. Not yet answered.
+3. **The identifiers.** Proposed `uk.blackark.arkagent` for the Android package and the iOS bundle
+   identifier, `uk.blackark.arkagent.desktop` for the desktop. The first two are permanent once published
+   (20-accounts-and-keys.md).
+4. **Black Ark's legal form and exact registered name.** It decides whether the stores and Microsoft take
+   it as an organisation or as an individual (20-accounts-and-keys.md).
 
 ## Answered
 
+- **Mobile store rules: customers always pay on the website, through Paddle only.** The store apps are free
+  companion apps that sell nothing and point nowhere to buy (19-mobile.md). Confirmed by the owner. (2026-10-09)
+- **Domain and brand:** the company domain `blackark.uk`; the identity is the company's own v3 (Ember),
+  taken from its OneDrive (D8). (2026-10-09)
 - **Payments and tax: Paddle**, a merchant of record that collects and files VAT and sends invoices.
   Adapter written; sandbox run still to do (12-paddle.md). (2026-10-08)
 - **Hosting: Microsoft Azure with Microsoft Entra ID** for sign-in, confirmed by the owner. (2026-10-08)

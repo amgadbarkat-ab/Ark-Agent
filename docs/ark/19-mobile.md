@@ -1,7 +1,9 @@
 # Mobile apps: Android and iOS
 
 Written 2026-10-09. This is the decision record for Phase 6 and the list of what has to come from the
-owner. It answers open question 2 in 01-product-decisions.md with a default and says what would change it.
+owner. Open question 2 in 01-product-decisions.md ("how are the store apps allowed to sell") was answered by the owner on
+2026-10-09: customers always pay on the website through Paddle only, which is the default built here. What would
+change it is still said below.
 
 ## The decision in short
 
@@ -172,19 +174,20 @@ second sending path on the server. That is part of "iOS" and is not built.
 
 ## What the owner has to provide
 
-Nothing below can be done from here. Each item blocks the thing after it.
+Nothing below can be done from here. Each item blocks the thing after it. **The step-by-step for every
+account and key is in 20-accounts-and-keys.md.**
 
-1. **The brand and the domain** (decision D8). The store listings, the icons, the app names and the
-   package and bundle identifiers all depend on them, and a package name cannot be changed after
-   publishing. None has been invented.
+1. **The product's hostname and the identifiers.** The brand is in (decision D8; the icons are in
+   `brand/README.md`) and the company domain is `blackark.uk`. Still open: which host the product runs on and
+   the package and bundle identifiers (proposed `uk.blackark.arkagent`), which cannot be changed after
+   publishing (20-accounts-and-keys.md).
 2. **A Google Play Console account** (one-off fee, identity verification, and for a new personal
    account a closed test with testers before production). The package name, then the **App signing
    key certificate fingerprint** from Play Console, for `ARK_ANDROID_CERT_SHA256`.
 3. **An Apple Developer Program account** (annual fee; for an organisation, a D-U-N-S number, which
    takes time). The team id and bundle identifier for `ARK_IOS_APP_ID`; an **App Store Connect API key**
    (the build signs with it, so no certificate or profile is stored); the address scheme for
-   `ARK_IOS_URL_SCHEME`; the **1024 by 1024 App Store icon** with no transparency, at
-   `mobile/ios/brand/AppIcon-1024.png`; and, for notifications in the shell, an APNs key.
+   `ARK_IOS_URL_SCHEME`; and, for notifications in the shell, an APNs key.
 4. **Review accounts** for both stores: an account on a plan, with something in it.
 5. **A privacy policy address and the store questionnaires** (data safety on Google, privacy labels on
    Apple). The privacy notice in docs/legal is the starting text; the lawyer's review comes first.

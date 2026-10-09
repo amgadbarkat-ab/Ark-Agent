@@ -57,9 +57,9 @@ are not code: Ark's brand assets, a place to publish Ark's own releases, and cod
 
 | What | Where | Needs |
 | --- | --- | --- |
-| Identity of the app: name "OpenBot", bundle id `ai.copilotkit.openbot.desktop`, icons, updater keys | `tauri.conf.json`, `desktop/src/marks`, signing config | Ark's brand and domain (decision D8). The copyright line now says Black Ark. A new bundle id should not be invented before the domain is known. |
-| Windows signing trusts CopilotKit's Azure tenant and repository | `desktop/signing/azure-federation.json`, `desktop-signing.yml` | Black Ark's own code-signing certificate and an Azure federated credential for this repository (the owner's Azure subscription). |
-| macOS has no signing or notarisation set up | `desktop.yml` builds ad-hoc signed | An Apple Developer ID certificate and notarisation credentials, then a release job that uses them. |
+| Identity of the app: bundle id `ai.copilotkit.openbot.desktop`, updater keys, the wording inside the window | `tauri.conf.json`, `desktop/src`, `src-tauri/src` | **Name and icons are done (2026-10-09):** the installer and window say "Ark Agent" and the icon set is the company's (`brand/README.md`). The bundle id awaits the owner's confirmation of `uk.blackark.arkagent.desktop` (20-accounts-and-keys.md), the updater keys await the release pipeline, and the "OpenBot" wording inside the window and the native messages is a separate pass that must not touch the identifiers that are data (the keychain service, the install folder). |
+| Windows signing trusts CopilotKit's Azure tenant and certificate | `desktop-signing.yml` (`azure-federation.json` now names this repository) | Black Ark's own signing: Microsoft Artifact Signing or a certificate authority's cloud signing, set up as 20-accounts-and-keys.md says; then the workflow is changed to it. |
+| macOS has no signing or notarisation set up | `desktop.yml` builds ad-hoc signed | An Apple Developer ID certificate and notarisation credentials (20-accounts-and-keys.md names each secret), then a release job that uses them. |
 | Installers are built and kept for a week; none is attached to a release | `desktop.yml` | A job that attaches the signed Windows and macOS installers to the GitHub Release, once there are certificates to sign them with. |
 | The README and some docs are still the upstream project's | `README.md`, `docs/` | A rewrite once the name is decided. The README still tells a reader to get CopilotKit Intelligence credentials, which Ark no longer needs. |
 

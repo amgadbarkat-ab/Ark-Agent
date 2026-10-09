@@ -75,7 +75,9 @@ Still to do in this phase:
 - [ ] **Desktop app still depends on CopilotKit** for its Intelligence sign-in, organisation sign-in,
       release source and image registry. Not fixable until Ark has a release pipeline, brand assets
       and signing certificates; the full list and order are in 10-desktop-replatform.md (Phase 6).
-- [ ] Remove CopilotKit and OpenBot names and links from user-facing text (with the brand work).
+- [ ] Remove CopilotKit and OpenBot names and links from user-facing text. The product name is Ark Agent
+      (D8); the desktop installer, window title and Welcome screen already say so, and the wording inside the
+      desktop window and the web app's own docs is the pass still to do.
 - Exit test: the whole app starts and works with no network access to any CopilotKit host.
 
 ### Phase 2. Provider layer (M) — core done, details in 07-model-connections.md
@@ -162,8 +164,10 @@ for the App Store, as a free companion app that sells nothing (the default for o
 - [x] iOS shell (Capacitor), with sign-in through the system browser (Google refuses a web view): the
       project is made and configured here and its sign-in is tested; **never compiled** (no Xcode here),
       and its build workflow was never run.
-- [ ] **Owner:** brand and domain (D8), a Google Play account, an Apple Developer account, review
-      accounts; confirm or change the companion-app default.
+- [x] Brand (D8): the company's v3 identity is applied to the web app, the Android adaptive icon, the iOS
+      App Store icon and the desktop icon set (`brand/`); the companion-app default is confirmed.
+- [ ] **Owner:** the product's hostname and the identifiers, a Google Play account, an Apple Developer
+      account and review accounts, step by step in 20-accounts-and-keys.md.
 - Not built: reaching a person's own desktop from a phone (needs a relay); notifications in the iOS
   shell (needs APNs).
 

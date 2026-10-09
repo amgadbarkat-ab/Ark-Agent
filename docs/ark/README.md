@@ -25,6 +25,8 @@ research and plans. Each file says when it was written.
 | [17-cloud-runtime.md](17-cloud-runtime.md) | Where a coworker runs (device or Ark's cloud), what is measured, how the price is worked out and set from cost, how a month is charged exactly once, and what has not been verified. |
 | [18-capacity.md](18-capacity.md) | Load: a burst that hung the server and how it was fixed, where a page load spends its time, and what has not been measured. |
 | [19-mobile.md](19-mobile.md) | Android and iOS: the web app first, a Trusted Web Activity for Google Play, a thin shell for the App Store, why nothing in either app sells, what the owner must provide, and what is not built. |
+| [20-accounts-and-keys.md](20-accounts-and-keys.md) | What the company has to obtain and how, step by step: D-U-N-S, Google Play, Apple Developer and App Store Connect, the Mac Developer ID, Windows signing; the names to set in GitHub; order, cost and lead times; the branch for a company versus a sole proprietor. |
+| [../brand/README.md](../brand/README.md) | The company's v3 (Ember) identity as used in Ark: tokens, the app tile, where each icon lands, how to make them again, and what is not done. |
 | [../legal/](../legal/) | Drafts for a lawyer: privacy notice (shown in the app at /privacy), terms of service (at /terms; acceptance recorded per version) and a data processing agreement template. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.

@@ -1,5 +1,12 @@
 # Windows desktop signing
 
+> **For Ark Agent this page describes the workflow as inherited**, which signs with a DigiCert certificate
+> held in OpenBot's Azure Key Vault. Black Ark has no such certificate. How Black Ark gets its own, the
+> options (Microsoft Artifact Signing, or a certificate authority's cloud signing) and the GitHub
+> settings each needs are in [20-accounts-and-keys.md](ark/20-accounts-and-keys.md); the workflow is changed
+> to the chosen option once it exists. `desktop/signing/azure-federation.json` already names this
+> repository, but the Entra application below belongs to the old setup.
+
 Builds use the root OpenBot release number plus `-internal.g<commit>`. The workflow verifies
 that both the packaged app and installer embed that version, and includes `build-version.json`
 with the binaries. See [desktop build versions](releasing.md#desktop-build-versions).

@@ -27,8 +27,10 @@ published, so it is the owner's to give.
 | `ARK_ANDROID_VERSION_CODE` | A whole number that goes up with every upload to Google Play. |
 | `ARK_ANDROID_VERSION_NAME` | Optional. Defaults to the repository's version. |
 
-The colours come from `app/public/manifest.webmanifest` and the icon from `app/public/icons/icon-192.png`,
-so the app and the site look the same by construction (a test fails if the icon copy drifts).
+The colours come from `app/public/manifest.webmanifest`. The launcher icon is the company's tile, drawn as an
+adaptive icon by `brand/render-icons.mjs` (ember background, the bars in front, a monochrome layer for themed
+icons); phones too old for an adaptive icon get the company's 192 file, which is the site's own icon (a test
+fails if the two drift).
 
 ### Build it by hand
 
