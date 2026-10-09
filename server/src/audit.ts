@@ -630,14 +630,66 @@ function initiatorColumns(initiator: AuditInitiator | undefined) {
   return { initiatorKind: initiator.kind, initiatorId: initiator.id };
 }
 
-export function createAuditStore(database: Database): AuditStore {
+/** The most of an event's payload that is copied into the log; the database row has all of it. */
+export const SHIPPED_PAYLOAD_LIMIT = 4000;
+
+/**
+ * A second copy of each event, written to the process log as it happens.
+ *
+ * The audit trail is a table in the product database, so anyone with rights over that database can
+ * edit it, and the table's own retention is whatever the operator set. The log goes to a store that
+ * the application cannot rewrite (in Azure, Log Analytics, with its own retention and access), so a
+ * change to a row there is detectable by comparing it to the line that was written when the row was.
+ * It is a copy of what was already redacted for the row, never of anything more.
+ */
+export type AuditShipper = (line: string) => void;
+
+export function createAuditStore(
+  database: Database,
+  options: { ship?: AuditShipper } = {},
+): AuditStore {
   return {
     insert: async ({ initiator, ...event }) => {
-      await database.insert(auditEvents).values({
-        ...event,
-        ...initiatorColumns(initiator),
-        payload: redactAuditPayload(event.payload) as Record<string, unknown>,
+      const payload = redactAuditPayload(event.payload) as Record<
+        string,
+        unknown
+      >;
+      const columns = initiatorColumns(initiator);
+      const insert = database
+        .insert(auditEvents)
+        .values({ ...event, ...columns, payload });
+      if (!options.ship) {
+        await insert;
+        return;
+      }
+      const [row] = await insert.returning({
+        id: auditEvents.id,
+        createdAt: auditEvents.createdAt,
       });
+      try {
+        const text = JSON.stringify(payload);
+        const truncated = text.length > SHIPPED_PAYLOAD_LIMIT;
+        options.ship(
+          JSON.stringify({
+            type: "audit",
+            id: row?.id,
+            at: row?.createdAt.toISOString(),
+            eventType: event.eventType,
+            targetType: event.targetType,
+            targetId: event.targetId ?? null,
+            actor: event.actorUserId ?? null,
+            initiator: columns.initiatorKind,
+            ...(truncated
+              ? {
+                  payload: text.slice(0, SHIPPED_PAYLOAD_LIMIT),
+                  payloadTruncated: true,
+                }
+              : { payload }),
+          }),
+        );
+      } catch {
+        // A copy that could not be written is not a reason to lose the event it was a copy of.
+      }
     },
   };
 }

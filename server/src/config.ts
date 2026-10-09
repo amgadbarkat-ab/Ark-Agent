@@ -216,6 +216,13 @@ export type DeploymentConfig = {
    */
   requestLog: RequestLogMode;
   /**
+   * Whether each audit event is also written to the process log as it happens: `log`, or `off` (the
+   * default). The log goes where the application cannot rewrite it, which is what makes the trail
+   * checkable against its table. It is a second copy of what the table holds, so turning it on is a
+   * decision about where that data lives and for how long (docs/ark/14-data-protection.md).
+   */
+  auditShipping: "off" | "log";
+  /**
    * A port to serve `/metrics` on, separate from the one the ingress points at. Unset serves none.
    * Where the numbers can be read from is for whoever runs the service, not for customers.
    */
@@ -1332,6 +1339,14 @@ function termsAcceptanceMode(environment: Environment): "off" | "required" {
   );
 }
 
+/** Whether the audit trail is copied to the log. A word, and anything else is refused. */
+function auditShippingMode(environment: Environment): "off" | "log" {
+  const value = optional(environment, "AUDIT_SHIPPING")?.trim().toLowerCase();
+  if (value === undefined || value === "" || value === "off") return "off";
+  if (value === "log") return "log";
+  throw new Error(`AUDIT_SHIPPING must be "log" or "off" (it is "${value}").`);
+}
+
 /**
  * How long the audit trail is kept.
  *
@@ -1447,6 +1462,7 @@ export function loadConfig(
     contentSecurityPolicy: contentSecurityPolicyMode(environment),
     termsAcceptance: termsAcceptanceMode(environment),
     requestLog: parseRequestLogMode(optional(environment, "REQUEST_LOG")),
+    auditShipping: auditShippingMode(environment),
     ...metricsPortSetting(environment),
     keyEncryptionKey: keyEncryptionKey(environment),
     previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),

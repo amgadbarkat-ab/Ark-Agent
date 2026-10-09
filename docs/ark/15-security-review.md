@@ -172,11 +172,18 @@ distributed flood, and **it has not been exercised** (it needs the running ingre
 with its WAF would add bot and DDoS protection; that is a cost decision and is not made here.
 Remaining: a distributed-flood answer, and sign-in limits that are shared across replicas.
 
-### O8. Audit trail is in the product database — Low
+### O8. Audit trail is in the product database — Low (checkable, not yet immutable)
 
-Anyone with database administrator rights can edit it. The tamper-evident answer is shipping the events
-to Log Analytics as they are written (immutable retention there). Key Vault's and the cluster's logs
-already go to Log Analytics.
+The trail is a table, so anyone with database administrator rights can edit it. With
+`AUDIT_SHIPPING=log` (on in the Azure values) every event is also written to the process log as it
+happens (`{"type":"audit", id, at, eventType, targetType, targetId, actor, initiator, payload}`, the same
+redacted payload, cut at 4,000 characters), and the cluster's logging sends it to Log Analytics, which
+the application cannot rewrite. A row can then be checked against the line written when it was: same
+id, same time, same payload. That makes tampering **detectable inside the log's retention** (90 days in
+`prod`), not preventable, and the table keeps events a year. For the full year, raise the retention of
+the container log table in the workspace, or export it to storage with an immutability policy. It is a
+second copy of personal data (actor ids, and the email in some payloads), listed in the data map
+(14-data-protection.md) with its retention.
 
 ### O9. Staff multi-factor and conditional access — Low (configuration)
 

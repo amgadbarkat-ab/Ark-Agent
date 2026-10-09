@@ -171,6 +171,7 @@ Two things are worth knowing before pointing a deployment at any gateway. Not ev
 | `CSP_MODE` | `report-only` | `report-only`: the browser reports what the policy would have blocked to `/api/csp-report` (one clean log line each) and blocks nothing. `enforce`: it is blocked. `off`: only `frame-ancestors 'self'`, which is always sent. |
 | `TERMS_ACCEPTANCE` | `off` | `required`: a customer must accept the terms of service (docs/legal/terms-of-service.md, shown at `/terms`) before using the app, and which version and when is recorded; staff are never asked. `off`: nobody is asked. Leave it off until the text is final. |
 | `REQUEST_LOG` | `errors` | Which requests the server writes a line for: `errors` (a 5xx, or 3 seconds or more), `all`, or `off`. A line has the method, route pattern, status, time and a request id, and nothing about a person. The numbers per request are kept either way. |
+| `AUDIT_SHIPPING` | `off` | `log`: each audit event is also written to the process log as it happens (the same redacted payload, cut at 4,000 characters), so a change to the table can be noticed by comparing it with a store the application cannot rewrite. It is a second copy of that data, kept as long as the log is. |
 | `METRICS_PORT` | unset | Serve Prometheus `/metrics` on this port, which must not be the API's. Unset serves none. Meant for the cluster only; the chart sets it with `metrics.enabled`. |
 
 `enforce` is refused at start-up unless `OPENBOT_GENERATIVE_UI=false` as well: generated interfaces and

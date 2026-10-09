@@ -206,11 +206,24 @@ Brand work (rename, logo, colours) can happen any time after 1 and is only a few
 
 ## Immediate next steps
 
-1. **Owner:** run the identity script and create the Google client (infra/azure/README.md); give a
-   domain name; review and sign off the legal drafts (docs/legal). **Last of all, the Paddle sandbox
-   run** (12-paddle.md), which the owner will do after everything else is in place.
-2. **Next to build, needs nothing from the owner:** a report-only content-security-policy (15, O3), a
-   scheduled dependency audit (15, O4). A first deployment to `dev` needs an Azure subscription to
-   deploy into.
-3. **Then:** measure the cloud's real cost and set its prices (Phase 4's open items), and Phase 6
-   (desktop re-platform and mobile, needs brand assets and signing certificates).
+**Owner (nothing else is blocked on engineering):**
+
+1. Give a domain name; run the identity script and create the Google client (infra/azure/README.md);
+   supply the Azure subscription and credentials through the environment's settings.
+2. Review the legal drafts with a lawyer and fill their [bracketed] items (docs/legal: privacy notice,
+   terms of service, data processing agreement); then set `TERMS_ACCEPTANCE=required` (14, "Before the
+   first customer").
+3. Measure the cloud's real cost and set the prices (17, section 5), then decide on the xAI sign-in, the
+   desktop's CopilotKit dependency (brand assets, signing, release location) and the Content-Security-Policy
+   question (15, O3).
+4. Turn on Defender for Containers (`az security pricing create -n Containers --tier standard`), turn on
+   managed Prometheus (13, "What to watch"), and create the conditional-access policy for staff (15, O9).
+5. **Last of all, the Paddle sandbox run** (12-paddle.md), including the cloud charge (step 10), which
+   the owner will do after everything else is in place.
+
+**Engineering, needs nothing from the owner:** everything buildable without an Azure subscription, a
+domain or a lawyer is built (phases 1–5 and 7, the hardening in 9, hub scale-out and replay compaction,
+per-owner skill names, terms acceptance, observability). What is left is either on the owner's list
+above or needs a running cluster: the first deployment to `dev` will find the small things a schema
+check cannot, then the restore drill, each alert fired once, a load test, and the per-coworker computer
+on AKS. Phase 6 (desktop re-platform and mobile) needs brand assets and signing certificates.

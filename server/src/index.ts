@@ -312,7 +312,14 @@ const identityProviderStore = createIdentityProviderStore(database);
  * Built before `auth` for the same reason the people store is: sign-in writes to the trail, and the
  * store that receives those rows has to exist before anything can sign in.
  */
-const signInAuditStore = createAuditStore(database);
+// Where each audit event is also written as it happens, when the deployment asks (AUDIT_SHIPPING=log):
+// the process log, which the application cannot rewrite, as a check on the table.
+const auditShipping = {
+  ...(config.auditShipping === "log"
+    ? { ship: (line: string) => console.log(line) }
+    : {}),
+};
+const signInAuditStore = createAuditStore(database, auditShipping);
 const auth: AuthService | undefined = config.organizationAuthUrl
   ? createOrganizationAuth({
       authorityUrl: config.organizationAuthUrl,
@@ -389,7 +396,7 @@ const policyListener = await startPolicyListener(
  * Not awaited and never fatal. A deployment must not fail to start because its audit trail is
  * unavailable, and the row is a note for a reader rather than something the server depends on.
  */
-const bootAuditStore = createAuditStore(database);
+const bootAuditStore = createAuditStore(database, auditShipping);
 // One store: the gateway writes through it, a route reads it, and the sweep below takes the old ones out.
 const pageFrameStore = createPageFrameStore(database);
 // Housekeeping on a schedule: audit rows when asked for, screenshots always, one timer. See audit-retention.ts.
@@ -1359,7 +1366,7 @@ const app = createApp(
   createCredentialAdminService(
     config.keyEncryptionKey,
     credentialStore,
-    createAuditStore(database),
+    createAuditStore(database, auditShipping),
   ),
   createPackageStatusReader(database),
   // The runtime call: the model, per-actor agent loading, and the two identity
