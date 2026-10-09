@@ -7090,7 +7090,13 @@ fn main() {
         let services = up(&podman, &root, true, BundledBots::none(), &Secrets::new()).unwrap();
         assert_eq!(
             services,
-            ["postgres", "supervisor", "agent-computer", "agent-harness"]
+            [
+                "postgres",
+                "hub",
+                "supervisor",
+                "agent-computer",
+                "agent-harness"
+            ]
         );
         migrate(&podman, &root, &Secrets::new()).unwrap();
         let log = std::fs::read_to_string(&record).unwrap();
