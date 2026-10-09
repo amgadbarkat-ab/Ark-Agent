@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import {
   type AuditInitiator,
   type AuditStore,
@@ -433,6 +434,21 @@ export class PluginRefusedError extends Error {
   ) {
     super(message);
     this.name = "PluginRefusedError";
+  }
+}
+
+/**
+ * A person tried to write a skill under a name the deployment's own skills already answer to.
+ *
+ * Only that: another person's `/standup` is not a reason to refuse anybody, and is never mentioned.
+ * What is named here is something every signed-in person can already see in their own list.
+ */
+export class SkillNameTakenError extends Error {
+  constructor(readonly slug: string) {
+    super(
+      `/${slug} is a skill this deployment provides. Pick another name for yours.`,
+    );
+    this.name = "SkillNameTakenError";
   }
 }
 
@@ -1251,6 +1267,50 @@ export function createPluginStore(options: PluginStoreOptions) {
       byRef.set(row.ref, [...(byRef.get(row.ref) ?? []), row.agentId]);
     }
     return byRef;
+  }
+
+  /**
+   * The skill a reference means, as this person would mean it.
+   *
+   * A reference is an id, or a name. An id is tried first, but only against skills this person may
+   * see, so a name that happens to equal some other customer's older id (skills written before
+   * names were per owner have their name as their id) is not read as that skill. A name is then
+   * this person's own, then the deployment's. An administrator, who sees every skill, is also
+   * answered when exactly one other skill has the name; with several it is ambiguous, which is
+   * answered as no skill so the caller asks for the id instead of acting on a guess.
+   *
+   * With no actor (a script, a test) the same order applies over every skill.
+   */
+  async function findSkill(
+    ref: string,
+    actor?: SkillActor,
+  ): Promise<
+    { id: string; slug: string; ownerUserId: string | null } | undefined
+  > {
+    const rows = await database
+      .select({
+        id: skills.id,
+        slug: skills.slug,
+        ownerUserId: skills.ownerUserId,
+      })
+      .from(skills)
+      .where(or(eq(skills.id, ref), eq(skills.slug, ref)));
+    const mayName = (row: { ownerUserId: string | null }) =>
+      !actor ||
+      actor.isAdmin ||
+      row.ownerUserId === null ||
+      row.ownerUserId === actor.id;
+    const visible = rows.filter(mayName);
+    const byId = visible.find((row) => row.id === ref);
+    if (byId) return byId;
+    const named = visible.filter((row) => row.slug === ref);
+    const own = actor
+      ? named.find((row) => row.ownerUserId === actor.id)
+      : undefined;
+    if (own) return own;
+    const deployment = named.find((row) => row.ownerUserId === null);
+    if (deployment) return deployment;
+    return named.length === 1 ? named[0] : undefined;
   }
 
   /** The refs each of these skills declares, keyed by skill id. Skills with none are absent. */
@@ -4187,7 +4247,7 @@ export function createPluginStore(options: PluginStoreOptions) {
         .orderBy(asc(skills.title));
       const grants = await grantsFor(
         "skill",
-        rows.map((row) => row.slug),
+        rows.map((row) => row.id),
       );
       const declared = await toolsDeclaredBy(rows.map((row) => row.id));
       return rows.map((row) => ({
@@ -4199,19 +4259,61 @@ export function createPluginStore(options: PluginStoreOptions) {
         instructions: row.instructions,
         origin: row.origin,
         installedBy: row.installedBy,
-        grantedTo: grants.get(row.slug) ?? [],
+        grantedTo: grants.get(row.id) ?? [],
         tools: declared.get(row.id) ?? [],
       }));
     },
 
-    /** Whose a skill is, or `undefined` if there is no such skill. Null owner means the deployment's. */
-    async skillOwner(slug: string): Promise<string | null | undefined> {
+    findSkill,
+
+    /**
+     * Whose a skill is, or `undefined` if there is no such skill. Null owner means the deployment's.
+     * The reference is read as {@link findSkill} reads it.
+     */
+    async skillOwner(
+      ref: string,
+      actor?: SkillActor,
+    ): Promise<string | null | undefined> {
+      const found = await findSkill(ref, actor);
+      return found ? found.ownerUserId : undefined;
+    },
+
+    /**
+     * Whether this Bot already holds a different skill under this name.
+     *
+     * Asked before a grant, because two skills answering to one `/name` on one Bot is the one place
+     * the shared name would be ambiguous: the menu is drawn per Bot.
+     */
+    async botHoldsSkillNamed(
+      agentId: string,
+      slug: string,
+      exceptId: string,
+    ): Promise<boolean> {
+      const held = await database
+        .select({ ref: pluginGrants.ref })
+        .from(pluginGrants)
+        .where(
+          and(
+            eq(pluginGrants.kind, "skill"),
+            eq(pluginGrants.agentId, agentId),
+          ),
+        );
+      if (held.length === 0) return false;
       const [row] = await database
-        .select({ ownerUserId: skills.ownerUserId })
+        .select({ id: skills.id })
         .from(skills)
-        .where(eq(skills.slug, slug))
+        .where(
+          and(
+            inArray(
+              skills.id,
+              held.map((grant) => grant.ref),
+            ),
+            eq(skills.slug, slug),
+            ne(skills.id, exceptId),
+          ),
+        )
         .limit(1);
-      return row ? row.ownerUserId : undefined;
+      return row !== undefined;
     },
 
     /**
@@ -4289,7 +4391,21 @@ export function createPluginStore(options: PluginStoreOptions) {
       return row ? row.ownerUserId : undefined;
     },
 
+    /**
+     * Writes a skill, or rewrites one, and says which.
+     *
+     * WITHOUT AN `id`, the skill is the one this owner already has under this name, else a new one.
+     * Names belong to their owner (see the `slug` column), so saving `/standup` as somebody else
+     * writes that person's own `/standup` and leaves yours alone. WITH an `id`, that skill is
+     * rewritten: its name and owner stay as they were, whatever the input says, because who a skill
+     * belongs to and what it is called are not changed by saving it again. The route has already
+     * checked the person may edit it.
+     *
+     * A new skill gets an id of its own. A skill written before names were per owner has its name for
+     * an id, and keeps it, so grants made then stay valid.
+     */
     async installSkill(input: {
+      id?: string;
       slug: string;
       title: string;
       summary: string;
@@ -4303,7 +4419,7 @@ export function createPluginStore(options: PluginStoreOptions) {
        */
       tools?: string[];
       by: string;
-    }): Promise<void> {
+    }): Promise<{ id: string; slug: string }> {
       /*
        * Checked before anything is written, so a save is all-or-nothing from the caller's side: a
        * skill is never left saved with half its declarations because the fourth ref was a typo.
@@ -4326,42 +4442,99 @@ export function createPluginStore(options: PluginStoreOptions) {
         }
       }
 
-      await database
-        .insert(skills)
-        .values({
-          id: input.slug,
-          slug: input.slug,
-          ownerUserId: input.ownerUserId,
-          title: input.title,
-          summary: input.summary,
-          instructions: input.instructions,
-          origin: input.origin ?? "yours",
-          installedBy: input.by,
-        })
-        // Editing keeps the owner it already had. Whose a skill is, is not something a re-save
-        // should quietly change, and the route has already checked this person may edit it.
-        .onConflictDoUpdate({
-          target: skills.slug,
-          set: {
+      const ownerIs =
+        input.ownerUserId === null
+          ? isNull(skills.ownerUserId)
+          : eq(skills.ownerUserId, input.ownerUserId);
+
+      let target: { id: string; slug: string } | undefined;
+      if (input.id !== undefined) {
+        [target] = await database
+          .select({ id: skills.id, slug: skills.slug })
+          .from(skills)
+          .where(eq(skills.id, input.id))
+          .limit(1);
+        if (!target) {
+          throw new PluginRefusedError(
+            "There is no such skill to change.",
+            null,
+          );
+        }
+      } else {
+        [target] = await database
+          .select({ id: skills.id, slug: skills.slug })
+          .from(skills)
+          .where(and(eq(skills.slug, input.slug), ownerIs))
+          .limit(1);
+        if (!target && input.ownerUserId !== null) {
+          // The deployment's names are visible to everybody, so refusing one reveals nothing.
+          const [deployment] = await database
+            .select({ id: skills.id })
+            .from(skills)
+            .where(and(eq(skills.slug, input.slug), isNull(skills.ownerUserId)))
+            .limit(1);
+          if (deployment) throw new SkillNameTakenError(input.slug);
+        }
+      }
+
+      const update = async (id: string) => {
+        await database
+          .update(skills)
+          .set({
             title: input.title,
             summary: input.summary,
             instructions: input.instructions,
             updatedAt: new Date(),
-          },
-        });
+          })
+          .where(eq(skills.id, id));
+      };
+
+      let id: string;
+      let slug: string;
+      if (target) {
+        id = target.id;
+        slug = target.slug;
+        await update(id);
+      } else {
+        id = `sk_${randomUUID()}`;
+        slug = input.slug;
+        const inserted = await database
+          .insert(skills)
+          .values({
+            id,
+            slug,
+            ownerUserId: input.ownerUserId,
+            title: input.title,
+            summary: input.summary,
+            instructions: input.instructions,
+            origin: input.origin ?? "yours",
+            installedBy: input.by,
+          })
+          // Two saves of one new name at once: the second finds it taken by the first and is an edit.
+          .onConflictDoNothing()
+          .returning({ id: skills.id });
+        if (inserted.length === 0) {
+          const [raced] = await database
+            .select({ id: skills.id })
+            .from(skills)
+            .where(and(eq(skills.slug, slug), ownerIs))
+            .limit(1);
+          if (!raced) throw new Error("a skill could not be written");
+          id = raced.id;
+          await update(id);
+        }
+      }
 
       /*
        * Replaced wholesale rather than merged. What a skill needs is a set the author is editing, so
        * a save says what it is now; merging would make removing one a thing with no gesture for it.
        */
       if (declared !== undefined) {
-        await database
-          .delete(skillTools)
-          .where(eq(skillTools.skillId, input.slug));
+        await database.delete(skillTools).where(eq(skillTools.skillId, id));
         if (declared.length > 0) {
           await database.insert(skillTools).values(
             declared.map((ref) => ({
-              skillId: input.slug,
+              skillId: id,
               ref,
               declaredBy: input.by,
             })),
@@ -4372,32 +4545,50 @@ export function createPluginStore(options: PluginStoreOptions) {
       await recordAuditEvent(auditStore, {
         eventType: "configuration.changed",
         targetType: "skill",
-        targetId: input.slug,
+        targetId: id,
         payload: {
           actor: input.by,
           change: "skill_installed",
-          skill: input.slug,
+          skill: slug,
+          skillId: id,
           // Recorded because it is what the skill will pull into a model's context once selection is
           // built. It changes nothing about what may be called; the grant still decides that.
           ...(declared === undefined ? {} : { declares: declared }),
         },
       });
+      return { id, slug };
     },
 
-    async uninstallSkill(slug: string, by: string): Promise<void> {
+    /**
+     * Removes a skill and every grant of it. The reference is read as {@link findSkill} reads it, for
+     * this actor; one that matches nothing does nothing, so a person's request can never reach a
+     * skill, or the grants of one, that they are not shown. A grant left behind by a skill that is
+     * already gone is removed the way any grant is, by revoking it.
+     */
+    async uninstallSkill(
+      ref: string,
+      by: string,
+      actor?: SkillActor,
+    ): Promise<void> {
+      const found = await findSkill(ref, actor);
+      if (!found) return;
+      const id = found.id;
       await database.transaction(async (transaction) => {
         await transaction
           .delete(pluginGrants)
-          .where(
-            and(eq(pluginGrants.kind, "skill"), eq(pluginGrants.ref, slug)),
-          );
-        await transaction.delete(skills).where(eq(skills.slug, slug));
+          .where(and(eq(pluginGrants.kind, "skill"), eq(pluginGrants.ref, id)));
+        await transaction.delete(skills).where(eq(skills.id, id));
       });
       await recordAuditEvent(auditStore, {
         eventType: "configuration.changed",
         targetType: "skill",
-        targetId: slug,
-        payload: { actor: by, change: "skill_uninstalled", skill: slug },
+        targetId: id,
+        payload: {
+          actor: by,
+          change: "skill_uninstalled",
+          skill: found.slug,
+          skillId: id,
+        },
       });
     },
 
@@ -4505,7 +4696,7 @@ export function createPluginStore(options: PluginStoreOptions) {
       const toolRefs = held
         .filter((row) => row.kind === "mcp")
         .map((row) => row.ref);
-      const skillSlugs = held
+      const skillIds = held
         .filter((row) => row.kind === "skill")
         .map((row) => row.ref);
 
@@ -4548,12 +4739,12 @@ export function createPluginStore(options: PluginStoreOptions) {
         });
 
       const skillRows =
-        skillSlugs.length === 0
+        skillIds.length === 0
           ? []
           : await database
               .select()
               .from(skills)
-              .where(inArray(skills.slug, skillSlugs));
+              .where(inArray(skills.id, skillIds));
 
       /*
        * What each skill says it needs, carried alongside rather than folded into `tools`.
@@ -4891,8 +5082,8 @@ export function createPluginStore(options: PluginStoreOptions) {
        * CRITERION. One connection is one row out of here, whatever `mcp_servers` holds.
        *
        * REASON. This read used to be an inner join on `mcp_servers.url = 'composio://' || toolkit`,
-       * and nothing in the schema makes that column unique — the one `uniqueIndex` in
-       * `db/schema/plugins.ts` is `skills_slug_key` on `skills.slug`. A join answers one row per
+       * and nothing in the schema makes that column unique — the only `uniqueIndex`es in
+       * `db/schema/plugins.ts` are the two on `skills` (a skill's name, per owner). A join answers one row per
        * PAIR, so a second row at an app's url listed the same account twice: two rows on the
        * settings page saying the same app under two different server ids, each offering to
        * disconnect the single connection standing behind both. And it is not an exotic state — it

@@ -112,7 +112,7 @@ function RouteComponent() {
         ) : (
           <PageRows>
             {skills.map((skill, index) => (
-              <React.Fragment key={skill.slug}>
+              <React.Fragment key={skill.id}>
                 <Item size="sm">
                   <ItemMedia variant="icon">
                     <IconFileText className="size-4" />
@@ -123,6 +123,16 @@ function RouteComponent() {
                         /{skill.slug}
                       </code>{" "}
                       {skill.title}
+                      {/*
+                       * A name can now belong to more than one skill, so a row says whose it is: staff see every
+                       * skill, and two rows reading `/standup` would otherwise look like a duplicate.
+                       */}
+                      {skill.ownerUserId ? (
+                        <span className="font-normal text-muted-foreground text-xs">
+                          {" "}
+                          · personal
+                        </span>
+                      ) : null}
                     </ItemTitle>
                     <ItemDescription>{skill.summary}</ItemDescription>
                     {/* A set, so it wraps onto its own line rather than crowding the title. */}
@@ -138,7 +148,7 @@ function RouteComponent() {
                                   agentId: bot.id,
                                   granted: !held,
                                   kind: "skill",
-                                  ref: skill.slug,
+                                  ref: skill.id,
                                 })
                               }
                               size="sm"
@@ -154,7 +164,7 @@ function RouteComponent() {
                   </ItemContent>
                   <ItemActions>
                     <Button
-                      onClick={() => removeSkill.mutate(skill.slug)}
+                      onClick={() => removeSkill.mutate(skill.id)}
                       size="sm"
                       type="button"
                       variant="ghost"

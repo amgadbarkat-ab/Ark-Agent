@@ -35,6 +35,9 @@ afterEach(cleanup);
 // The screens' writes invalidate the app's one client, so the screens are drawn with it, and it is
 // emptied between tests so one test's answers are not the next one's.
 afterEach(() => queryClient.clear());
+// The tests turn retrying off on the app's one client; it is put back so no other file inherits that.
+const originalDefaults = queryClient.getDefaultOptions();
+afterAll(() => queryClient.setDefaultOptions(originalDefaults));
 afterAll(() => GlobalRegistrator.unregister());
 
 const originalFetch = global.fetch;

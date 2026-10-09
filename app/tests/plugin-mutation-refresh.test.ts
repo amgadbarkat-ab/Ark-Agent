@@ -230,7 +230,7 @@ const REFUSALS: {
   },
   {
     name: "removing a skill",
-    route: "DELETE /api/plugins/skills/:slug",
+    route: "DELETE /api/plugins/skills/:id",
     status: 500,
     message: "That did not work.",
     factory: removeSkillMutationOptions,

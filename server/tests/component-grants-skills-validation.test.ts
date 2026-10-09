@@ -24,7 +24,7 @@ function pluginAppWith(calls: { skills: unknown[] }) {
   const store = {
     installSkill: async (input: unknown) => {
       calls.skills.push(input);
-      return { ok: true };
+      return { id: "skill-id", slug: "skill-slug" };
     },
     listSkills: async () => [],
   } as unknown as PluginStore;

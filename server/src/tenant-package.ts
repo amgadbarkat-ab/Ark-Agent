@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -973,10 +973,65 @@ export async function synchronizeTenantPackage(
       );
 
     for (const skill of tenantPackage.skills) {
-      const [seeded] = await transaction
-        .insert(skillTable)
-        .values({
-          id: skill.slug,
+      /*
+       * The deployment's skill under this name, if there is one. Names are per owner, so a person's
+       * own skill under the same name is a different skill and is neither touched nor in the way.
+       */
+      const [existing] = await transaction
+        .select({ id: skillTable.id, origin: skillTable.origin })
+        .from(skillTable)
+        .where(
+          and(eq(skillTable.slug, skill.slug), isNull(skillTable.ownerUserId)),
+        )
+        .limit(1);
+      /*
+       * Only ever a package skill is changed. A deployment skill an administrator wrote under this
+       * name keeps it, and the package loses one rather than silently replacing something somebody
+       * wrote.
+       *
+       * Skipped rather than thrown, unlike the agent case above, so that a name already taken never
+       * stops the deployment booting.
+       */
+      if (existing && existing.origin !== "catalogue") {
+        console.warn(
+          JSON.stringify({
+            type: "package-skill-skipped",
+            slug: skill.slug,
+            reason:
+              "an administrator already wrote a deployment skill under that name, and it keeps it",
+          }),
+        );
+        continue;
+      }
+      /*
+       * A package skill's id is its name when nothing holds that id, so the same package seeds the
+       * same ids on every deployment and the grants it makes are stable. A skill written before names
+       * were per owner is named by its id, so one of those may already hold it; the package's gets
+       * an id of its own then.
+       */
+      let seededId = existing?.id;
+      if (!seededId) {
+        const [taken] = await transaction
+          .select({ id: skillTable.id })
+          .from(skillTable)
+          .where(eq(skillTable.id, skill.slug))
+          .limit(1);
+        seededId = taken ? `sk_${randomUUID()}` : skill.slug;
+      }
+      const seeded = { id: seededId };
+      if (existing) {
+        await transaction
+          .update(skillTable)
+          .set({
+            title: skill.title,
+            summary: skill.summary,
+            instructions: skill.instructions,
+            updatedAt: new Date(),
+          })
+          .where(eq(skillTable.id, existing.id));
+      } else {
+        await transaction.insert(skillTable).values({
+          id: seeded.id,
           ownerUserId: null,
           slug: skill.slug,
           title: skill.title,
@@ -984,38 +1039,7 @@ export async function synchronizeTenantPackage(
           instructions: skill.instructions,
           origin: "catalogue",
           installedBy: null,
-        })
-        .onConflictDoUpdate({
-          target: skillTable.slug,
-          /*
-           * Only ever a package skill. The `/` namespace is shared and first to take a name keeps
-           * it, so a person who wrote their own skill under this slug keeps theirs and the package
-           * loses one — rather than the package silently replacing something somebody wrote.
-           *
-           * A collision is skipped rather than thrown, unlike the agent case above. Anybody signed
-           * in may write a skill, so throwing would let one person stop the deployment booting by
-           * choosing a name.
-           */
-          setWhere: eq(skillTable.origin, "catalogue"),
-          set: {
-            title: skill.title,
-            summary: skill.summary,
-            instructions: skill.instructions,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: skillTable.id });
-
-      if (!seeded) {
-        console.warn(
-          JSON.stringify({
-            type: "package-skill-skipped",
-            slug: skill.slug,
-            reason:
-              "a skill written in this deployment already answers to that name, and it keeps it",
-          }),
-        );
-        continue;
+        });
       }
 
       // Replaced wholesale, so a tool the package stopped declaring stops being declared. The same

@@ -12,6 +12,12 @@ import { pluginKeys } from "./queries";
 
 /** A skill as the server accepts it. `global` is an administrator writing for everybody. */
 export type SkillInput = {
+  /**
+   * The skill being rewritten. Absent writes the person's own skill under `slug` — a new one, or an
+   * earlier save of it — because a name belongs to whoever wrote it and says which skill only for
+   * them. Present is the only way to rewrite one that is not yours as an administrator.
+   */
+  id?: string;
   slug: string;
   title: string;
   summary?: string;
@@ -68,7 +74,7 @@ const FALLBACK = "That did not work.";
  * THE SHAPE, IN THE SERVER'S OWN WORDS. `POST /servers` inserts the row and then refreshes the
  * server's tools, answering 409 when that refresh faults over a row that is now there.
  * `POST /composio/apps` creates the authorization config at Composio, writes the row, and says so in
- * its own 409. `POST /grants`, `DELETE /grants`, `POST /skills` and `DELETE /skills/:slug` each
+ * its own 409. `POST /grants`, `DELETE /grants`, `POST /skills` and `DELETE /skills/:id` each
  * commit and then file the trail row, and a failing audit insert is a 500 over a change that
  * happened. `DELETE /servers/:id/connection` revokes the account at the vendor before it deletes
  * anything here. And the two brokered writes the screens draw hardest on raise from inside the
@@ -228,8 +234,8 @@ export function removePluginServerMutationOptions(queryClient: QueryClient) {
 /**
  * Write a skill, or rewrite one.
  *
- * One endpoint for both: the slug is the identity, so posting an existing one replaces it. The
- * fallback names saving rather than creating for that reason.
+ * One endpoint for both: posting a name the person already has, or the skill's `id`, replaces it.
+ * The fallback names saving rather than creating for that reason.
  */
 export function saveSkillMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
@@ -238,8 +244,9 @@ export function saveSkillMutationOptions(queryClient: QueryClient) {
         method: "POST",
         body: input,
         /*
-         * The server refuses for reasons a form cannot check — a slug somebody else already owns is
-         * the common one — and paraphrasing that would throw away the only part worth reading.
+         * The server refuses for reasons a form cannot check — a name the deployment's own skills
+         * already answer to is the common one — and paraphrasing that would throw away the only part
+         * worth reading.
          */
         fallback: "The skill could not be saved.",
       }),
@@ -405,8 +412,9 @@ export function disconnectBrokeredMutationOptions(queryClient: QueryClient) {
 
 export function removeSkillMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: async (slug: string) => {
-      await client(`/api/plugins/skills/${encodeURIComponent(slug)}`, {
+    // By id: a name can belong to more than one person's skill, and to an administrator who sees both.
+    mutationFn: async (skillId: string) => {
+      await client(`/api/plugins/skills/${encodeURIComponent(skillId)}`, {
         method: "DELETE",
         fallback: FALLBACK,
       });

@@ -35,6 +35,8 @@ const sharedBot = `agent_shared_${suite}`;
 const personalSlug = `standup-${suite}`;
 const keptSlug = `kept-${suite}`;
 const deploymentSlug = `triage-${suite}`;
+/** The id the second skill was given; grants are made against it. */
+let keptId = "";
 
 beforeAll(async () => {
   for (const id of [alice, bob]) {
@@ -138,9 +140,9 @@ describe("a skill name written again after the skill was uninstalled", () => {
     expect(
       (await writeSkill(asAlice(), personalSlug, "Alice's standup.")).status,
     ).toBe(200);
-    expect(
-      (await writeSkill(asAlice(), keptSlug, "Alice's other skill.")).status,
-    ).toBe(200);
+    const kept = await writeSkill(asAlice(), keptSlug, "Alice's other skill.");
+    expect(kept.status).toBe(200);
+    keptId = ((await kept.json()) as { id: string }).id;
     expect((await grant(asAlice(), personalSlug, aliceBot)).status).toBe(200);
     expect((await grant(asAlice(), keptSlug, aliceBot)).status).toBe(200);
 
@@ -186,6 +188,6 @@ describe("a skill name written again after the skill was uninstalled", () => {
         ),
       );
 
-    expect(held).toEqual([{ ref: keptSlug, agentId: aliceBot }]);
+    expect(held).toEqual([{ ref: keptId, agentId: aliceBot }]);
   });
 });

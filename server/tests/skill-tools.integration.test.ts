@@ -93,7 +93,7 @@ afterAll(async () => {
 });
 
 async function saveSkill(tools: string[] | undefined, slug = skill) {
-  await store.installSkill({
+  return store.installSkill({
     slug,
     title: "A test skill",
     summary: "For a test.",
@@ -159,8 +159,9 @@ describe("declaring a tool is not granting it", () => {
      * adds no capability. If this ever fails, the one surface deliberately not an administrator's has
      * become the way around every surface that is.
      */
-    await saveSkill([heldRef, withheldRef]);
-    await store.grant("skill", skill, bot, "admin@openbot.local");
+    const { id } = await saveSkill([heldRef, withheldRef]);
+    // A grant names the skill by its id.
+    await store.grant("skill", id, bot, "admin@openbot.local");
 
     const held = await store.listForAgent(bot);
     const callable = held.tools.map((tool) => tool.ref);
@@ -193,15 +194,15 @@ describe("declaring a tool is not granting it", () => {
 
 describe("a skill going away", () => {
   test("takes its declarations with it", async () => {
-    await saveSkill([heldRef], otherSkill);
+    const { id } = await saveSkill([heldRef], otherSkill);
     expect(await declaredBy(otherSkill)).toEqual([heldRef]);
 
-    await store.uninstallSkill(otherSkill, "admin@openbot.local");
+    await store.uninstallSkill(id, "admin@openbot.local");
 
     const left = await database
       .select()
       .from(skillTools)
-      .where(eq(skillTools.skillId, otherSkill));
+      .where(eq(skillTools.skillId, id));
     expect(left).toHaveLength(0);
   });
 });

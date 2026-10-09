@@ -119,7 +119,9 @@ Still to do in this phase:
       against a fake Paddle (12-paddle.md). Catalogue setup is one command (`server/scripts/paddle-setup.ts`).
       **Still to do by the owner, deliberately the last check before launch:** the sandbox run in
       that file, before live keys go in.
-- [ ] Per-owner skill names (known cross-customer name clash, 09).
+- [x] Per-owner skill names: a name belongs to whoever wrote it, skills are identified by id, grants and
+      edits refer to the id (09). Tested with two customers on one name, legacy skills, a Bot holding
+      two of one name, and a double save.
 - [ ] A fair queue order, if load ever needs one.
 
 ### Phase 4. Bot runtime: device or Ark cloud (L): built 2026-10-08, not yet run on real infrastructure

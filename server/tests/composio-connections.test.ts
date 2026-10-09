@@ -82,8 +82,8 @@ const renamedId = `renamed-${suite}`;
 /**
  * A SECOND ROW AT {@link toolkit}'S OWN URL, which the schema permits and nothing in it prevents.
  *
- * `mcp_servers.url` carries no unique index — the only one in that schema file is `skills_slug_key`
- * on `skills.slug` — so two rows may perfectly well name one app, and a development database
+ * `mcp_servers.url` carries no unique index — the only ones in that schema file are the two on
+ * `skills` (a skill's name, per owner) — so two rows may perfectly well name one app, and a development database
  * reaches that state by the most ordinary route there is: a fixture row at `gmail` standing beside
  * the `composio-gmail` an administrator really added. Every read that resolves a connection to a
  * server row THROUGH THE URL therefore has to say which of them it means.

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -459,11 +460,17 @@ export const skills = pgTable(
       onDelete: "cascade",
     }),
     /**
-     * What a person types after `/`, and unique across the deployment rather than per person.
+     * What a person types after `/`. Unique among one owner's skills, and among the deployment's own,
+     * but not across owners: two customers may each have a `/standup`, and neither is told the other
+     * does.
      *
-     * The `/` namespace is shared because Bots are shared: two different behaviours answering to
-     * `/standup` in one deployment is confusing wherever the second one came from. First to take a
-     * name keeps it, and the refusal says so.
+     * A person may not take a name the deployment's own skills answer to, since both are in their
+     * `/` menu and the deployment's is visible to everybody. A deployment skill written later under a
+     * name somebody already uses is allowed rather than refused, so that no customer can stop an
+     * administrator writing one; the two then can't be on one Bot (the grant refuses).
+     *
+     * This is a name and not an identity. The `id` is what grants and declarations refer to, so a
+     * name can be the same in two places without either being mistaken for the other.
      */
     slug: text("slug").notNull(),
     title: text("title").notNull(),
@@ -478,7 +485,14 @@ export const skills = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex("skills_slug_key").on(table.slug),
+    // Two partial indexes rather than one on (owner, slug): a null owner never equals another null in
+    // a unique index, so the deployment's own names would not be unique at all.
+    uniqueIndex("skills_deployment_slug_key")
+      .on(table.slug)
+      .where(sql`${table.ownerUserId} is null`),
+    uniqueIndex("skills_owner_slug_key")
+      .on(table.ownerUserId, table.slug)
+      .where(sql`${table.ownerUserId} is not null`),
     index("skills_owner_idx").on(table.ownerUserId),
   ],
 );

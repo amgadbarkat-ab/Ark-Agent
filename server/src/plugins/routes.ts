@@ -38,6 +38,7 @@ import {
   type PluginKind,
   PluginRefusedError,
   type PluginStore,
+  SkillNameTakenError,
 } from "./store";
 
 /**
@@ -205,23 +206,25 @@ export function createPluginRoutes(
   });
 
   /**
-   * May this person write, edit or delete this skill?
+   * May this person edit or delete this skill? Takes the skill as the store found it for them.
    *
    * An administrator may touch anything. Everybody else may touch their own and nothing else, which
-   * includes not editing a deployment skill an administrator wrote for everyone.
+   * includes not editing a deployment skill an administrator wrote for everyone. Another person's
+   * skill is never in front of them to be refused: the store does not find it for them, so there is
+   * no answer here that says it exists.
    */
-  async function skillRefusal(
+  function skillRefusal(
     context: { var: AppVariables },
-    slug: string,
-  ): Promise<string | null> {
+    skill: { slug: string; ownerUserId: string | null },
+  ): string | null {
     const actor = skillActor(context);
     if (actor.isAdmin) return null;
-    const owner = await store.skillOwner(slug);
-    if (owner === undefined) return null; // A new skill. Ownership is decided on the way in.
-    if (owner === null) {
-      return `${slug} belongs to this deployment. An administrator looks after it.`;
+    if (skill.ownerUserId === null) {
+      return `/${skill.slug} belongs to this deployment. An administrator looks after it.`;
     }
-    return owner === actor.id ? null : `${slug} is somebody else's skill.`;
+    return skill.ownerUserId === actor.id
+      ? null
+      : `/${skill.slug} is somebody else's skill.`;
   }
 
   /** Everything the Plugins page draws: the catalogue, what is added, and the skills. */
@@ -2114,6 +2117,7 @@ export function createPluginRoutes(
    */
   routes.post("/skills", requireUser, async (context) => {
     const body = (await context.req.json().catch(() => null)) as {
+      id?: unknown;
       slug?: unknown;
       title?: unknown;
       summary?: unknown;
@@ -2161,10 +2165,28 @@ export function createPluginRoutes(
       );
     }
 
-    // Editing an existing slug, which is what a repeated save is, needs the right to edit that
-    // skill. Without this, saving over somebody else's name would silently take it.
-    const refusal = await skillRefusal(context, body.slug);
-    if (refusal) return context.json({ error: refusal }, 403);
+    /*
+     * Rewriting a skill that exists is named by its id. Names are per owner, so a name alone says
+     * which skill only for whoever is saving it: without an id this writes the person's own skill
+     * under that name (the deployment's, with `global`), which is a new one or an earlier save of it.
+     *
+     * The id is looked up the way the person sees skills, and must match exactly: another person's id
+     * is answered as no skill at all, the same as an id nobody has, so it cannot be used to find out
+     * whether one exists.
+     */
+    let editing: string | undefined;
+    if (body.id !== undefined) {
+      if (typeof body.id !== "string" || !body.id.trim()) {
+        return context.json({ error: "A skill's id is text." }, 400);
+      }
+      const found = await store.findSkill(body.id.trim(), actor);
+      if (!found || found.id !== body.id.trim()) {
+        return context.json({ error: "There is no such skill." }, 404);
+      }
+      const refusal = skillRefusal(context, found);
+      if (refusal) return context.json({ error: refusal }, 403);
+      editing = found.id;
+    }
 
     /*
      * Absent leaves the declarations alone, so a caller that predates this field does not silently
@@ -2195,8 +2217,10 @@ export function createPluginRoutes(
       ? (body.tools as string[]).map((ref) => ref.trim())
       : undefined;
 
+    let saved: { id: string };
     try {
-      await store.installSkill({
+      saved = await store.installSkill({
+        ...(editing === undefined ? {} : { id: editing }),
         slug: body.slug,
         title: body.title.trim(),
         summary: body.summary ?? "",
@@ -2211,17 +2235,28 @@ export function createPluginRoutes(
       if (error instanceof PluginRefusedError) {
         return context.json({ error: error.message }, 400);
       }
+      // A name the deployment's own skills answer to: visible to the person already, so it is said.
+      if (error instanceof SkillNameTakenError) {
+        return context.json({ error: error.message }, 409);
+      }
       throw error;
     }
-    return context.json({ skills: await store.listSkills(actor) });
+    return context.json({
+      id: saved.id,
+      skills: await store.listSkills(actor),
+    });
   });
 
-  routes.delete("/skills/:slug", requireUser, async (context) => {
-    const slug = context.req.param("slug");
-    const refusal = await skillRefusal(context, slug);
+  /** By id or by name; a name means the person's own skill, then the deployment's. */
+  routes.delete("/skills/:ref", requireUser, async (context) => {
+    const actor = skillActor(context);
+    const found = await store.findSkill(context.req.param("ref"), actor);
+    // Nothing the person could see by that name: done, the same as deleting what is already gone.
+    if (!found) return context.json({ ok: true });
+    const refusal = skillRefusal(context, found);
     if (refusal) return context.json({ error: refusal }, 403);
 
-    await store.uninstallSkill(slug, actorEmail(context));
+    await store.uninstallSkill(found.id, actorEmail(context), actor);
     return context.json({ ok: true });
   });
 
@@ -2354,12 +2389,11 @@ export function createPluginRoutes(
 
     if (actor.isAdmin) return null;
 
-    const owner = await store.skillOwner(ref);
+    // `ref` is a skill id here: the handlers resolve a name to the skill this person means first.
+    const owner = await store.skillOwner(ref, actor);
     if (owner === undefined) return `There is no skill called ${ref}.`;
     if (owner !== actor.id) {
-      return owner === null
-        ? `${ref} belongs to this deployment. An administrator decides which Bots use it.`
-        : `${ref} is somebody else's skill.`;
+      return `This skill belongs to this deployment. An administrator decides which Bots use it.`;
     }
 
     const botOwner = await store.agentOwner(agentId);
@@ -2370,6 +2404,42 @@ export function createPluginRoutes(
       return "You can only put your own skills on Bots you own.";
     }
     return null;
+  }
+
+  /**
+   * Which skill a grant is about, as an id, for the person making it.
+   *
+   * A grant refers to a skill by its id, but a name is accepted for what was written before ids were
+   * told apart from names: it means the person's own skill, then the deployment's, the same as the
+   * skill list shows them. A skill the person is not shown is answered as no such skill, whoever it
+   * belongs to.
+   *
+   * On a grant, a Bot may not hold two skills under one name, because its `/` menu is the one place
+   * the name has to mean one thing. A revoke of something that is no longer there goes through
+   * unchanged so a dead row can still be removed.
+   */
+  async function resolveSkillRef(
+    context: { var: AppVariables },
+    ref: string,
+    agentId: string,
+    intent: "grant" | "revoke",
+  ): Promise<{ ref: string } | { error: string; status: 403 | 404 | 409 }> {
+    const found = await store.findSkill(ref, skillActor(context));
+    if (!found) {
+      return intent === "revoke"
+        ? { ref }
+        : { error: `There is no skill called ${ref}.`, status: 404 };
+    }
+    if (
+      intent === "grant" &&
+      (await store.botHoldsSkillNamed(agentId, found.slug, found.id))
+    ) {
+      return {
+        error: `This Bot already has a different skill called /${found.slug}. Take that one off first, or give this one another name.`,
+        status: 409,
+      };
+    }
+    return { ref: found.id };
   }
 
   routes.post("/grants", requireUser, async (context) => {
@@ -2401,8 +2471,20 @@ export function createPluginRoutes(
      * does. Without this a padded ref refuses with the padding quoted back (`" app" is not an app`),
      * and a grant that did pass would be stored under a ref no revoke could match.
      */
-    const grantRef = body.ref.trim();
+    let grantRef = body.ref.trim();
     const grantAgentId = body.agentId.trim();
+    if (kind === "skill") {
+      const resolved = await resolveSkillRef(
+        context,
+        grantRef,
+        grantAgentId,
+        "grant",
+      );
+      if ("error" in resolved) {
+        return context.json({ error: resolved.error }, resolved.status);
+      }
+      grantRef = resolved.ref;
+    }
     const refusal = await enablementRefusal(
       context,
       kind,
@@ -2438,8 +2520,20 @@ export function createPluginRoutes(
         400,
       );
     }
-    const trimmedRef = ref.trim();
+    let trimmedRef = ref.trim();
     const trimmedAgentId = agentId.trim();
+    if (kind === "skill") {
+      const resolved = await resolveSkillRef(
+        context,
+        trimmedRef,
+        trimmedAgentId,
+        "revoke",
+      );
+      if ("error" in resolved) {
+        return context.json({ error: resolved.error }, resolved.status);
+      }
+      trimmedRef = resolved.ref;
+    }
     const refusal = await enablementRefusal(
       context,
       kind,

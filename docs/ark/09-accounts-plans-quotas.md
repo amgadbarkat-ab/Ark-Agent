@@ -77,10 +77,23 @@ Every signed-in person is given an account on the way in, once per process.
 Already scoped by person and unchanged: conversations and channels (membership), model connections,
 per-person connected accounts, routines, voice sessions. The admin screens are for staff.
 
-**Known gap, not fixed:** a skill's `/name` is unique across the whole deployment, so a customer who
-picks a name another customer has used is told it is taken. That reveals that the name exists and
-nothing else. It needs per-owner names. The marketplace (Phase 5) did not need it and did not change
-it, so it is still open.
+**Skill names are per owner** (built 2026-10-09). Two customers can each have a `/standup`; neither is
+told the other does, and neither can reach the other's. A skill is identified by an id, not its name:
+grants, declared tools and edits refer to the id, and a request that gives only a name means the
+person's own skill, then the deployment's. The rules:
+
+- A person may not take a name the deployment's own skills answer to (every signed-in person can see
+  those, so the refusal reveals nothing). They are told the name is provided by the deployment.
+- An administrator may write a deployment skill under a name a person already uses; no customer can
+  stop that. The two cannot be on the same Bot (the grant is refused with the reason), because a Bot's
+  `/` menu is the one place a name has to mean one thing.
+- Another person's skill is answered as "no such skill", the same as an id nobody has, whether the
+  request reads, grants, edits or removes it. Staff (`admin`) still see and edit every skill, by id.
+- Skills written before this keep their name as their id, so every grant made earlier still holds.
+  New skills get an opaque id (`sk_…`). The package's skills keep their name as their id when nothing
+  holds it, so the same package seeds the same ids everywhere.
+- The database holds it too: one owner cannot have a name twice, and nor can the deployment (two
+  partial unique indexes), so two saves of one new name at once make one skill.
 
 ## Billing
 
@@ -135,5 +148,5 @@ have their own rules for selling subscriptions inside an app (open question 3).
 - "Hired" versus "installed": settled in Phase 5 without a separate step. Installing a coworker from
   the marketplace costs nothing against the limit (it is just a coworker in the account); a coworker
   counts only while it has a run in progress, which is what "hired" was meant to say (D4).
-- Per-owner skill names (above), and shared seats (the model allows them; nothing sells or manages them).
+- Shared seats (the model allows them; nothing sells or manages them).
 - Mobile subscription rules.

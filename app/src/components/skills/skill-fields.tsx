@@ -38,10 +38,10 @@ export function SkillFields({
   /**
    * Editing, where the command cannot change.
    *
-   * THE SLUG IS THE KEY, so saving under a different one would not rename anything: it would write a
-   * SECOND skill and leave the first behind, and the person would be looking at a duplicate they did
-   * not ask for. Renaming is a create and a delete, which is a decision rather than a typo, so the
-   * field is read-only here and the form says why.
+   * A SAVE BY ID LEAVES THE NAME ALONE, so changing it here would not rename anything. Saving under a
+   * different one without the id would write a SECOND skill and leave the first behind, and the
+   * person would be looking at a duplicate they did not ask for. Renaming is a create and a delete,
+   * which is a decision rather than a typo, so the field is read-only here and the form says why.
    */
   slugLocked?: boolean;
 }) {

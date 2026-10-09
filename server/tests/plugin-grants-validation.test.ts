@@ -287,6 +287,7 @@ describe("POST /api/plugins/skills", () => {
       skillOwner: async () => null,
       installSkill: async (input: unknown) => {
         calls.installs.push(input);
+        return { id: "skill-id", slug: "skill-slug" };
       },
       listSkills: async () => [],
     } as unknown as PluginStore;

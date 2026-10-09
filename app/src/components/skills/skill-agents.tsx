@@ -17,9 +17,12 @@ import { setPluginGrantMutationOptions } from "@/lib/plugins/mutations";
  * a worse answer than not offering them.
  */
 export function SkillAgents({
+  skillId,
   slug,
   grantedTo,
 }: {
+  /** What a grant names: not the name, which can be another person's skill's too. */
+  skillId: string;
   slug: string;
   grantedTo: string[];
 }) {
@@ -32,7 +35,7 @@ export function SkillAgents({
 
   /* `on` is the current state, so a click asks for its opposite. */
   const toggle = (agentId: string, on: boolean) =>
-    grant.mutate({ agentId, granted: !on, kind: "skill", ref: slug });
+    grant.mutate({ agentId, granted: !on, kind: "skill", ref: skillId });
 
   return (
     <div className="flex flex-col gap-2">

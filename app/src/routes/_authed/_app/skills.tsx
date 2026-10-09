@@ -45,7 +45,7 @@ import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
  */
 const skillsSearchSchema = z.object({
   new: z.boolean().optional(),
-  /** The slug being edited. Absent means nothing is. */
+  /** The skill being edited: its id, or a name (read as the person's own first). Absent means nothing is. */
   edit: z.string().optional(),
 });
 
@@ -56,12 +56,12 @@ export const Route = createFileRoute("/_authed/_app/skills")({
 
 function SkillsPage() {
   const queryClient = useQueryClient();
-  const { new: isCreating, edit: editingSlug } = Route.useSearch();
+  const { new: isCreating, edit: editing } = Route.useSearch();
   const navigate = Route.useNavigate();
   // Creating wins if both are somehow set: it is the more recent intent, the same rule the agents
   // roster uses when `new` and `agent` arrive together.
   const showCreate = isCreating === true;
-  const showEdit = !showCreate && editingSlug !== undefined;
+  const showEdit = !showCreate && editing !== undefined;
   const { data, isPending: skillsPending } = useQuery(
     pluginsPageQueryOptions(),
   );
@@ -99,8 +99,8 @@ function SkillsPage() {
       detail={
         showCreate ? (
           <NewSkill />
-        ) : editingSlug ? (
-          <EditSkill slug={editingSlug} />
+        ) : editing ? (
+          <EditSkill reference={editing} />
         ) : null
       }
       onClose={() => navigate({ search: {} })}
@@ -184,7 +184,7 @@ function SkillsPage() {
                           <DropdownMenuGroup>
                             <DropdownMenuItem
                               onClick={() =>
-                                navigate({ search: { edit: skill.slug } })
+                                navigate({ search: { edit: skill.id } })
                               }
                             >
                               Edit
@@ -198,7 +198,7 @@ function SkillsPage() {
                             <DropdownMenuItem
                               onClick={() => {
                                 setError(null);
-                                removeSkill.mutate(skill.slug);
+                                removeSkill.mutate(skill.id);
                               }}
                               variant="destructive"
                             >

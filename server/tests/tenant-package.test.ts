@@ -1301,11 +1301,11 @@ describe("seeding the skills a package ships", () => {
     ]);
   });
 
-  test("a skill somebody here wrote keeps its name, and the deployment still boots", async () => {
+  test("a skill a person wrote under the same name is a different skill, and neither is touched", async () => {
     /*
-     * The `/` namespace is shared and first to take a name keeps it. Anybody signed in may write a
-     * skill, so a collision cannot be fatal: throwing here would let one person stop the deployment
-     * starting by choosing a name the package also uses.
+     * Names are per owner, so a person's own `/name` is not in the way of the deployment's. Anybody
+     * signed in may write a skill, so a collision could never be fatal either way: throwing here
+     * would let one person stop the deployment starting by choosing a name the package also uses.
      */
     const owner = `user_${randomUUID().slice(0, 8)}`;
     createdUserIds.push(owner);
@@ -1327,17 +1327,84 @@ describe("seeding the skills a package ships", () => {
 
     const loaded = withSkills([shipped]);
     createdAgentIds.push(loaded.agents[0]?.id as string);
-    // Resolves rather than throwing: that is the assertion.
+    // Resolves rather than throwing: that is part of the assertion.
     const created = await synchronizeTenantPackage(database, loaded);
     createdPackageIds.push(created.id);
 
-    const [row] = await database
+    const rows = await database
       .select()
       .from(skillsTable)
       .where(eq(skillsTable.slug, shipped.slug));
-    expect(row?.instructions).toBe("Do it my way.");
-    expect(row?.origin).toBe("yours");
-    expect(row?.ownerUserId).toBe(owner);
+    const mine = rows.find((row) => row.ownerUserId === owner);
+    const deployments = rows.find((row) => row.ownerUserId === null);
+    expect(mine?.instructions).toBe("Do it my way.");
+    expect(mine?.origin).toBe("yours");
+    expect(deployments?.instructions).toBe(shipped.instructions);
+    expect(deployments?.origin).toBe("catalogue");
+  });
+
+  test("a deployment skill an administrator wrote keeps its name, and the deployment still boots", async () => {
+    const shipped = skill();
+    await database.insert(skillsTable).values({
+      id: `admin-${shipped.slug}`,
+      ownerUserId: null,
+      slug: shipped.slug,
+      title: "Ours",
+      summary: "Written by an administrator.",
+      instructions: "Do it our way.",
+      origin: "yours",
+    });
+    createdSkillIds.push(`admin-${shipped.slug}`);
+
+    const loaded = withSkills([shipped]);
+    createdAgentIds.push(loaded.agents[0]?.id as string);
+    const created = await synchronizeTenantPackage(database, loaded);
+    createdPackageIds.push(created.id);
+
+    const rows = await database
+      .select()
+      .from(skillsTable)
+      .where(eq(skillsTable.slug, shipped.slug));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.instructions).toBe("Do it our way.");
+    expect(rows[0]?.origin).toBe("yours");
+  });
+
+  test("a skill from before names were per owner that holds the package's id does not stop it seeding", async () => {
+    const owner = `user_${randomUUID().slice(0, 8)}`;
+    createdUserIds.push(owner);
+    await database
+      .insert(users)
+      .values({ id: owner, email: `${owner}@example.test`, name: owner });
+    const shipped = skill();
+    // The old way: a person's skill whose name is its id.
+    await database.insert(skillsTable).values({
+      id: shipped.slug,
+      ownerUserId: owner,
+      slug: shipped.slug,
+      title: "Mine",
+      summary: "",
+      instructions: "Do it my way.",
+      origin: "yours",
+    });
+
+    const loaded = withSkills([shipped]);
+    createdAgentIds.push(loaded.agents[0]?.id as string);
+    createdPackageIds.push(
+      (await synchronizeTenantPackage(database, loaded)).id,
+    );
+
+    const rows = await database
+      .select()
+      .from(skillsTable)
+      .where(eq(skillsTable.slug, shipped.slug));
+    expect(rows).toHaveLength(2);
+    const ours = rows.find((row) => row.ownerUserId === null);
+    expect(ours?.id).not.toBe(shipped.slug);
+    expect(rows.find((row) => row.ownerUserId === owner)?.instructions).toBe(
+      "Do it my way.",
+    );
+    for (const row of rows) createdSkillIds.push(row.id);
   });
 });
 
@@ -1501,14 +1568,16 @@ describe("pairing a package's coworkers with its skills", () => {
     expect(granted[0]?.grantedBy).toBe("an-administrator");
   });
 
-  test("a slug a person already owns is never granted to the package's Bot", async () => {
+  test("a name a person already owns is never read as theirs: the package's Bot gets the package's skill", async () => {
     /*
-     * The case that decides whether this is safe at all. The seed skips a slug somebody already
-     * took, so granting anyway would hand this Bot an instruction a stranger wrote, under a name the
-     * package believed was its own.
+     * The case that decides whether this is safe at all. A person's skill under the same name is a
+     * different skill, so the Bot has to be given the one the package shipped and never an
+     * instruction a stranger wrote under a name the package believed was its own.
      */
     const slug = `pkg-${randomUUID().slice(0, 8)}`;
     const owner = await createUser();
+    // Written the old way, with its name for its id: the case most likely to be mistaken for the
+    // package's own.
     await database.insert(skillsTable).values({
       id: slug,
       ownerUserId: owner,
@@ -1524,7 +1593,17 @@ describe("pairing a package's coworkers with its skills", () => {
       (await synchronizeTenantPackage(database, loaded)).id,
     );
 
-    expect(await grantsFor(loaded.agents[0]?.id as string)).toHaveLength(0);
+    const granted = await grantsFor(loaded.agents[0]?.id as string);
+    expect(granted).toHaveLength(1);
+    const [given] = await database
+      .select()
+      .from(skillsTable)
+      .where(eq(skillsTable.id, granted[0]?.ref as string));
+    expect(given?.ownerUserId).toBeNull();
+    expect(given?.instructions).toBe(
+      "Search first, then read the file you found.",
+    );
+    createdSkillIds.push(given?.id as string);
   });
 
   test("a coworker naming a skill the package does not ship is refused at load", () => {

@@ -38,6 +38,9 @@ const sharedBot = `agent_shared_${suite}`;
 const aliceSkill = `alice-skill-${suite}`;
 const bobSkill = `bob-skill-${suite}`;
 const deploymentSkill = `deployment-skill-${suite}`;
+let aliceSkillId = "";
+let bobSkillId = "";
+let deploymentSkillId = "";
 
 beforeAll(async () => {
   for (const [id, email] of [
@@ -71,7 +74,7 @@ beforeAll(async () => {
       .onConflictDoNothing();
   }
 
-  const write = (slug: string, ownerUserId: string | null) =>
+  const write = async (slug: string, ownerUserId: string | null) =>
     store.installSkill({
       slug,
       title: slug,
@@ -80,9 +83,9 @@ beforeAll(async () => {
       ownerUserId,
       by: `${ownerUserId ?? "an administrator"}`,
     });
-  await write(aliceSkill, alice);
-  await write(bobSkill, bob);
-  await write(deploymentSkill, null);
+  aliceSkillId = (await write(aliceSkill, alice)).id;
+  bobSkillId = (await write(bobSkill, bob)).id;
+  deploymentSkillId = (await write(deploymentSkill, null)).id;
 });
 
 afterAll(async () => {
@@ -148,19 +151,44 @@ describe("who owns what", () => {
 });
 
 describe("editing keeps ownership", () => {
-  test("saving a skill again does not change whose it is", async () => {
+  test("rewriting a skill by its id does not change whose it is, whatever is sent", async () => {
     await store.installSkill({
+      id: aliceSkillId,
       slug: aliceSkill,
       title: "Edited",
       summary: "",
       instructions: "Do the thing differently.",
-      // What a route would send for somebody else. The insert must not honour it: whose a skill is
-      // cannot be changed by re-saving it, or taking one would be a matter of typing the name.
+      // What a route would send for somebody else. The write must not honour it: whose a skill is
+      // cannot be changed by saving it again.
       ownerUserId: bob,
       by: bob,
     });
 
-    expect(await store.skillOwner(aliceSkill)).toBe(alice);
+    expect(await store.skillOwner(aliceSkillId)).toBe(alice);
+    const mine = (await store.listSkills({ id: alice, isAdmin: false })).find(
+      (skill) => skill.id === aliceSkillId,
+    );
+    expect(mine?.instructions).toBe("Do the thing differently.");
+  });
+
+  test("saving the same name as somebody else writes that person's own skill, and leaves the first alone", async () => {
+    const theirs = await store.installSkill({
+      slug: aliceSkill,
+      title: "Bob's",
+      summary: "",
+      instructions: "Bob's own words.",
+      ownerUserId: bob,
+      by: bob,
+    });
+
+    expect(theirs.id).not.toBe(aliceSkillId);
+    expect(await store.skillOwner(theirs.id)).toBe(bob);
+    expect(await store.skillOwner(aliceSkillId)).toBe(alice);
+    const alices = (await store.listSkills({ id: alice, isAdmin: false })).find(
+      (skill) => skill.id === aliceSkillId,
+    );
+    expect(alices?.instructions).toBe("Do the thing differently.");
+    await store.uninstallSkill(theirs.id, bob, { id: bob, isAdmin: false });
   });
 });
 
@@ -230,37 +258,74 @@ describe("what a person may do over HTTP", () => {
   });
 
   test("cannot edit or delete somebody else's", async () => {
+    // By id: another person's skill is answered as no skill at all, exactly as an id nobody has.
     const edit = await asAlice().request("/skills", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        id: bobSkillId,
         slug: bobSkill,
         title: "Taken",
         instructions: "Mine now.",
       }),
     });
-    const remove = await asAlice().request(`/skills/${bobSkill}`, {
+    const missing = await asAlice().request("/skills", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: `sk_nothing_${suite}`,
+        slug: bobSkill,
+        title: "Taken",
+        instructions: "Mine now.",
+      }),
+    });
+    const remove = await asAlice().request(`/skills/${bobSkillId}`, {
       method: "DELETE",
     });
 
-    expect(edit.status).toBe(403);
-    expect(remove.status).toBe(403);
-    expect(await store.skillOwner(bobSkill)).toBe(bob);
+    expect(edit.status).toBe(404);
+    expect(await edit.json()).toEqual(await missing.json());
+    // Deleting what she is not shown does nothing, the same as deleting what is already gone.
+    expect(remove.status).toBe(200);
+    expect(await store.skillOwner(bobSkillId)).toBe(bob);
+    const bobs = (await store.listSkills({ id: bob, isAdmin: false })).find(
+      (skill) => skill.id === bobSkillId,
+    );
+    expect(bobs?.instructions).toBe("Do the thing.");
+  });
+
+  test("the same name, saved without an id, is the person's own skill and not Bob's", async () => {
+    const response = await asAlice().request("/skills", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        slug: bobSkill,
+        title: "Alice's take",
+        instructions: "Alice's words.",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const { id } = (await response.json()) as { id: string };
+    expect(id).not.toBe(bobSkillId);
+    expect(await store.skillOwner(id)).toBe(alice);
+    expect(await store.skillOwner(bobSkillId)).toBe(bob);
+    await store.uninstallSkill(id, alice, { id: alice, isAdmin: false });
   });
 
   test("cannot edit the deployment's, which is an administrator's to keep", async () => {
-    const response = await asAlice().request(`/skills/${deploymentSkill}`, {
+    const response = await asAlice().request(`/skills/${deploymentSkillId}`, {
       method: "DELETE",
     });
 
     expect(response.status).toBe(403);
-    expect(await store.skillOwner(deploymentSkill)).toBeNull();
+    expect(await store.skillOwner(deploymentSkillId)).toBeNull();
   });
 
   test("puts their own skill on a Bot they own", async () => {
     const response = await asAlice().request(
       "/grants",
-      grantBody(aliceSkill, aliceBot),
+      grantBody(aliceSkillId, aliceBot),
     );
 
     expect(response.status).toBe(200);
@@ -273,7 +338,7 @@ describe("what a person may do over HTTP", () => {
     // everybody uses answers everybody.
     const response = await asAlice().request(
       "/grants",
-      grantBody(aliceSkill, sharedBot),
+      grantBody(aliceSkillId, sharedBot),
     );
 
     expect(response.status).toBe(403);

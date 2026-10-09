@@ -3,27 +3,44 @@ import { useNavigate } from "@tanstack/react-router";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillFields } from "@/components/skills/skill-fields";
 import { saveSkillMutationOptions } from "@/lib/plugins/mutations";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 
 /**
  * Editing a skill, in the same panel that writes one.
  *
- * THERE IS NO EDIT ENDPOINT, AND NONE IS NEEDED. `POST /api/plugins/skills` upserts on the slug:
- * `installSkill` does `onConflictDoUpdate` and deliberately leaves `owner_user_id` alone, so a
- * re-save changes the words and never quietly changes whose skill it is. The route has already
- * refused anyone editing a skill that is not theirs before it gets that far.
+ * THERE IS NO EDIT ENDPOINT, AND NONE IS NEEDED. `POST /api/plugins/skills` with the skill's `id`
+ * rewrites it and deliberately leaves its owner and name alone, so a re-save changes the words and
+ * never quietly changes whose skill it is. The route has already refused anyone editing a skill that
+ * is not theirs before it gets that far.
+ *
+ * `reference` is what the link carried: an id, or a name (the Bot that drafts a skill links by the
+ * name it saved). A name means the person's own skill first, then the deployment's, the same as
+ * their list does.
  */
-export function EditSkill({ slug }: { slug: string }) {
+export function EditSkill({ reference }: { reference: string }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data, isPending } = useQuery(pluginsPageQueryOptions());
+  const { data: me } = useQuery(currentUserQueryOptions());
 
   /*
    * Read from the list already on screen rather than fetched again. It is the same request the page
    * behind this panel just made, so react-query serves it from cache and the form is filled on the
    * first frame instead of flashing empty fields at somebody who came here to change one word.
    */
-  const skill = data?.skills.find((candidate) => candidate.slug === slug);
+  const skills = data?.skills ?? [];
+  const skill =
+    skills.find((candidate) => candidate.id === reference) ??
+    skills.find(
+      (candidate) =>
+        candidate.slug === reference && candidate.ownerUserId === me?.id,
+    ) ??
+    skills.find(
+      (candidate) =>
+        candidate.slug === reference && candidate.ownerUserId === null,
+    ) ??
+    skills.find((candidate) => candidate.slug === reference);
 
   const saveSkill = useMutation(saveSkillMutationOptions(queryClient));
 
@@ -72,9 +89,15 @@ export function EditSkill({ slug }: { slug: string }) {
          * still saves on its own the instant a button is pressed — `SkillFields` keeps it out of the
          * form's state and only decides where it sits.
          */
-        footer={<SkillAgents grantedTo={skill.grantedTo} slug={skill.slug} />}
+        footer={
+          <SkillAgents
+            grantedTo={skill.grantedTo}
+            skillId={skill.id}
+            slug={skill.slug}
+          />
+        }
         onSubmit={async (values) => {
-          await saveSkill.mutateAsync(values);
+          await saveSkill.mutateAsync({ ...values, id: skill.id });
           await navigate({ search: {}, to: "/skills" });
         }}
         slugLocked
