@@ -40,7 +40,10 @@ function run(args: string[]) {
       join(shell, "node_modules", "@capacitor", "cli", "bin", "capacitor"),
       ...args,
     ],
-    { cwd: shell, stdout: "inherit", stderr: "inherit" },
+    // Capacitor prints its progress ("✔ Adding native Xcode project ...") to stdout, and this script's
+    // own stdout is the list of build settings the workflow hands to xcodebuild. Sent to stderr, the
+    // progress is still shown and is no longer taken for a build action ("Unknown build action").
+    { cwd: shell, stdout: 2, stderr: "inherit" },
   );
   if (result.exitCode !== 0) {
     throw new Error(
