@@ -82,6 +82,8 @@ installed with `bun install` inside `desktop/`).
 Starting the server by hand: use `bun --env-file=../.env src/production-entry.ts` from `server/`, not
 `src/index.ts` (the entry evaluates an ESM-only dependency first). Stop a process by its id; never
 `pkill -f` a pattern that appears in your own command line.
-Everything else passes (5,330 at the time of writing, 2026-10-08). Run `bun test` from the repository
+Everything else passes (6,022 at the time of writing, 2026-10-09, with 96 skipped). A full run under load
+can also time out two or three tests that wait on a clock (the run-gate "a run at the limit" waits, the page
+frame retention sweep): they pass alone, every time, and are not a regression. Run `bun test` from the repository
 root: `bunfig.toml` there holds the preload that Base UI dialogs need, and bun reads it from the
 current directory only.

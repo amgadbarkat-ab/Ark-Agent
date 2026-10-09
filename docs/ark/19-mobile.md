@@ -146,6 +146,13 @@ of the web app is bundled). How to make and build it and the settings it needs a
   Better Auth itself (a code works once; the wrong secret or state is refused and sets no cookie; the app
   ends with a session of its own for the same person); the app's half is tested (secret, address checks,
   one try per answer, what the sign-in screen offers in the app).
+- **Also walked in a real browser** (Chromium against the real server, seeded with a signed-in person and
+  `ARK_IOS_URL_SCHEME` set): the page loads under its strict policy, names the signed-in account, hands
+  nothing to the app before the tap, and the tap navigates to `<scheme>://signed-in?code=…&state=…` with
+  the state unchanged; the app's exchange then refuses a wrong secret (and a wrong try spends the code, so
+  there is no second guess), accepts the right one once and sets a session of its own for the same person,
+  and refuses the code again. With the app's user agent, the Plan screen shows the plan and how many are
+  working and nothing to buy, and the sign-in screen offers Google and no company-address form.
 - **Not verified, and the largest gap in this document:** that the project **compiles** (no Xcode here),
   that SFSafariViewController hands a custom-scheme address back to the app, that Google accepts the
   sign-in in it, that the web view keeps the cookie, and everything about the App Store's review. The
