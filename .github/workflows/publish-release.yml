@@ -113,7 +113,7 @@ jobs:
   checks:
     needs: [metadata, verify]
     if: needs.metadata.outputs.is_release == 'true'
-    uses: $/.github/workflows/ci.yml
+    uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
@@ -441,3 +441,51 @@ jobs:
             gh release create "$VERSION" container-images.json \
               --title "$VERSION" --notes-file notes.md
           fi
+
+  # The installers, last, from the same commit as everything above. The desktop workflow builds the
+  # Windows, macOS and Linux apps and keeps them as run artifacts; the next job puts them on the
+  # release, so the page a person is sent to carries the downloads beside the notes. Unsigned until
+  # the company has its certificates (docs/ark/20-accounts-and-keys.md), which the first run will say
+  # in the installer's own warning, and the release notes should say too.
+  desktop:
+    name: desktop installers
+    needs: [metadata, github-release]
+    if: needs.metadata.outputs.is_release == 'true'
+    uses: ./.github/workflows/desktop.yml
+    with:
+      channel: release
+    permissions:
+      contents: read
+    secrets:
+      OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET: ${{ secrets.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET }}
+
+  attach-installers:
+    name: attach installers
+    needs: [metadata, desktop]
+    if: needs.metadata.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: openbot-desktop-*
+          path: installers
+          merge-multiple: true
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          files=(installers/**/*.dmg installers/**/*.exe installers/**/*.AppImage installers/**/*.deb installers/**/*.rpm)
+          # No installers is a failed build, not a release without downloads.
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::The desktop build produced no installers."
+            exit 1
+          fi
+          # Spaces in a file name become dots on a release page; say plainly what was attached.
+          printf 'Attaching %s\n' "${files[@]}"
+          gh release upload "$VERSION" "${files[@]}" --clobber

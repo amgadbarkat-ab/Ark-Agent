@@ -68,15 +68,23 @@ describe("the brand pack", () => {
     expect(new Set(fills)).toEqual(new Set([EMBER, INK]));
   });
 
-  test("the desktop's welcome screen draws the same tile", () => {
-    const welcome = text("desktop", "src", "Welcome.tsx");
-    const rects = [
-      ...text("brand", "mark.svg").matchAll(/<rect ([^>]*?)\/>/g),
-    ].map((m) => m[1].trim().replace(/\s+/g, " "));
-    expect(rects.length).toBe(4);
-    for (const rect of rects) {
-      // JSX writes the same attributes on one line, in the same order.
-      expect(welcome.replace(/\s+/g, " ")).toContain(`<rect ${rect} />`);
+  test("the still tile in the desktop and in the web app is the same drawing", () => {
+    /** The attributes of every rect in some markup, each as a sorted "name=value" list. */
+    const rects = (markup: string) =>
+      [...markup.matchAll(/<rect\b([^>]*?)\/?>/g)].map((match) =>
+        [...match[1].matchAll(/([a-zA-Z-]+)=["{]+([^"}]*)["}]+/g)]
+          .map((attribute) => `${attribute[1]}=${attribute[2]}`)
+          .sort()
+          .join(" "),
+      );
+    const mark = rects(text("brand", "mark.svg"));
+    expect(mark.length).toBe(4);
+    for (const file of [
+      ["desktop", "src", "ParticleMark.tsx"],
+      ["app", "src", "components", "brand", "particle-mark.tsx"],
+    ]) {
+      const drawn = rects(text(...file));
+      for (const rect of mark) expect(drawn).toContain(rect);
     }
   });
 });

@@ -615,18 +615,42 @@ details > summary:hover {
   border: 0;
 }
 
-/* The company's app tile beside the name. Its artwork is in Welcome.tsx, copied from brand/mark.svg. */
-.tile {
-  width: 34px;
-  height: 34px;
-  flex: none;
+/*
+ * The company's hero animation, on the dark card it needs: its points are additive light, so on this
+ * window's light ground they would wash out. One rounded focal element for the screen, as the rest of
+ * the window has. The card keeps the company's app tile until the animation is drawing, and for good
+ * where it cannot be (no WebGL), so there is never an empty box.
+ */
+.stage {
+  position: relative;
+  height: 11rem;
+  margin-bottom: 1.25rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: #070504;
+}
+
+.stage-still {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.stage[data-particles="on"] .stage-still {
+  display: none;
+}
+
+.stage canvas {
+  position: absolute;
+  inset: 0;
 }
 
 .lockup {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-bottom: 1.75rem;
+  margin-bottom: 0.9rem;
 }
 
 .lockup span {

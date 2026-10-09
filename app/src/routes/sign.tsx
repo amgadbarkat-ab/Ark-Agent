@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
-import AgentOrb from "@/components/agents/orb/agent-orb";
+import { ParticleMark } from "@/components/brand/particle-mark";
 import { ProviderLogo } from "@/components/auth/provider-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,9 +154,9 @@ function SignScreen() {
         <motion.div
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
-          className="flex items-center justify-center"
+          className="w-full"
         >
-          <AgentOrb size="56px" />
+          <ParticleMark className="h-40 w-full" />
         </motion.div>
         <motion.h1
           className="text-2xl font-medium tracking-tight text-center mt-8"
