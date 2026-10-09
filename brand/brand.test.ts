@@ -187,18 +187,48 @@ describe("the icons", () => {
     }
   });
 
-  test("the ArkAgent character's portrait is the same picture in all three places", () => {
-    const poster = read("brand", "arkagent", "arkagent-poster.jpg");
-    // A JPEG starts with the bytes FF D8, and the poster is the owner's, unaltered, 768 by 1152.
-    expect([poster[0], poster[1]]).toEqual([0xff, 0xd8]);
+  test("the characters' crops are the same pictures wherever they are used", () => {
+    const isJpeg = (bytes: Buffer) => bytes[0] === 0xff && bytes[1] === 0xd8;
+    // WebP is a RIFF file whose form type, at bytes 8 to 11, reads "WEBP". These are the owner's own
+    // pictures, kept as supplied.
+    for (const original of [
+      ["brand", "arkagent", "arkagent-poster.webp"],
+      ["brand", "arkteam", "arkteam-roster.webp"],
+    ]) {
+      const bytes = read(...original);
+      expect(bytes.subarray(0, 4).toString("latin1")).toBe("RIFF");
+      expect(bytes.subarray(8, 12).toString("latin1")).toBe("WEBP");
+    }
     const portrait = read("brand", "arkagent", "portrait.jpg");
-    expect([portrait[0], portrait[1]]).toEqual([0xff, 0xd8]);
+    expect(isJpeg(portrait)).toBe(true);
     expect(
       read("app", "public", "brand", "arkagent-portrait.jpg").equals(portrait),
     ).toBe(true);
     expect(
       read("desktop", "src", "assets", "arkagent-portrait.jpg").equals(
         portrait,
+      ),
+    ).toBe(true);
+    const roles = [
+      "sales",
+      "marketing",
+      "accounting",
+      "inventory-and-logistics",
+      "finance",
+      "chief-of-operations",
+      "chief-of-staff",
+      "front-desk",
+    ];
+    for (const role of roles) {
+      const face = read("brand", "arkteam", "roles", `${role}.jpg`);
+      expect(isJpeg(face)).toBe(true);
+      expect(
+        read("app", "public", "brand", "team", `${role}.jpg`).equals(face),
+      ).toBe(true);
+    }
+    expect(
+      read("app", "public", "brand", "team", "faces.jpg").equals(
+        read("brand", "arkteam", "team-faces.jpg"),
       ),
     ).toBe(true);
   });

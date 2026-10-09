@@ -17,8 +17,10 @@
 //   mobile/android/app/src/main/ the adaptive launcher icon (vector foreground, background colour) and the
 //                                company's 192 file as the icon for phones too old for an adaptive one
 //   app/public/brand/,           the ArkAgent character's head and shoulders, cropped from the poster the owner
-//   desktop/src/assets/,         supplied (brand/arkagent/arkagent-poster.jpg): the product's face, a circle crop
+//   desktop/src/assets/,         supplied (brand/arkagent/arkagent-poster.webp): the product's face, a circle crop
 //   brand/arkagent/              used on the first screens each app shows
+//   brand/arkteam/,              the Ark Team roster the owner supplied (brand/arkteam/arkteam-roster.webp), cut into its
+//   app/public/brand/team/      eight characters and a four-face picture for the plan screen
 //   desktop/src-tauri/icons/     icon.png, the 1024 master. The platform sizes are then made from it by
 //                                `bun run tauri icon` (brand/README.md says how), because that is the tool
 //                                that knows each platform's formats.
@@ -84,8 +86,25 @@ const maskableBody = `<rect width="${TILE}" height="${TILE}" fill="${EMBER}"/>${
 const DESKTOP_MARGIN = TILE / 14;
 const desktopViewBox = `${-DESKTOP_MARGIN} ${-DESKTOP_MARGIN} ${TILE + 2 * DESKTOP_MARGIN} ${TILE + 2 * DESKTOP_MARGIN}`;
 
-/** Where the character's head and shoulders are in the 768 by 1152 poster: a square of this side, from this corner. */
-const PORTRAIT_CROP = { x: 325, y: 88, size: 350 };
+/** Where the character's head and shoulders are in the 864 by 1152 poster: a square of this side, from this corner. */
+const PORTRAIT_CROP = { x: 430, y: 74, size: 346 };
+
+/**
+ * Where each character's head and shoulders are in the 1280 by 720 Ark Team roster: a square of
+ * ROLE_SIZE from this corner. Row one is Sales, Marketing, Accounting, Inventory and logistics; row two is
+ * Finance, Chief of operations, Chief of staff, Front desk.
+ */
+const ROLE_SIZE = 150;
+const ROLES = [
+  { slug: "sales", x: 110, y: 114 },
+  { slug: "marketing", x: 403, y: 114 },
+  { slug: "accounting", x: 701, y: 114 },
+  { slug: "inventory-and-logistics", x: 993, y: 114 },
+  { slug: "finance", x: 110, y: 392 },
+  { slug: "chief-of-operations", x: 403, y: 392 },
+  { slug: "chief-of-staff", x: 701, y: 392 },
+  { slug: "front-desk", x: 993, y: 392 },
+];
 
 // ---------- PNG writing (no dependencies) ----------
 
@@ -255,6 +274,37 @@ function copy(from, to) {
   console.log(`copied ${to.slice(root.length + 1)}`);
 }
 
+/** A JPEG made of rectangles cut from one picture and drawn at their own size (never scaled up). */
+async function cut(page, source, mime, pieces, size) {
+  const encoded = await page.evaluate(
+    async ({ encoded, mime, pieces, size }) => {
+      const image = new Image();
+      image.src = `data:${mime};base64,${encoded}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = size.w;
+      canvas.height = size.h;
+      const context = canvas.getContext("2d");
+      for (const piece of pieces) {
+        context.drawImage(
+          image,
+          piece.sx,
+          piece.sy,
+          piece.sw,
+          piece.sh,
+          piece.dx,
+          piece.dy,
+          piece.dw,
+          piece.dh,
+        );
+      }
+      return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+    },
+    { encoded: source.toString("base64"), mime, pieces, size },
+  );
+  return Buffer.from(encoded, "base64");
+}
+
 const browser = await loadChromium();
 try {
   const page = await browser.newPage();
@@ -326,39 +376,64 @@ try {
     ),
   );
 
-  // The ArkAgent character, head and shoulders, from the owner's poster (the poster itself carries the
-  // retired v2 logo, so only the figure is used). A square, drawn at its own size and never scaled up.
-  const poster = readFileSync(at("brand/arkagent/arkagent-poster.jpg"));
-  const portrait = Buffer.from(
-    await page.evaluate(
-      async ({ encoded, crop }) => {
-        const image = new Image();
-        image.src = `data:image/jpeg;base64,${encoded}`;
-        await image.decode();
-        const canvas = document.createElement("canvas");
-        canvas.width = crop.size;
-        canvas.height = crop.size;
-        const context = canvas.getContext("2d");
-        context.drawImage(
-          image,
-          crop.x,
-          crop.y,
-          crop.size,
-          crop.size,
-          0,
-          0,
-          crop.size,
-          crop.size,
-        );
-        return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+  // The ArkAgent character, head and shoulders, from the owner's poster.
+  const poster = readFileSync(at("brand/arkagent/arkagent-poster.webp"));
+  const portrait = await cut(
+    page,
+    poster,
+    "image/webp",
+    [
+      {
+        sx: PORTRAIT_CROP.x,
+        sy: PORTRAIT_CROP.y,
+        sw: PORTRAIT_CROP.size,
+        sh: PORTRAIT_CROP.size,
+        dx: 0,
+        dy: 0,
+        dw: PORTRAIT_CROP.size,
+        dh: PORTRAIT_CROP.size,
       },
-      { encoded: poster.toString("base64"), crop: PORTRAIT_CROP },
-    ),
-    "base64",
+    ],
+    { w: PORTRAIT_CROP.size, h: PORTRAIT_CROP.size },
   );
   write(at("brand/arkagent/portrait.jpg"), portrait);
   write(at("app/public/brand/arkagent-portrait.jpg"), portrait);
   write(at("desktop/src/assets/arkagent-portrait.jpg"), portrait);
+
+  // The Ark Team roster, cut into its eight characters, and four of them together for the plan screen.
+  const roster = readFileSync(at("brand/arkteam/arkteam-roster.webp"));
+  const piece = (role, dx, dy, d) => ({
+    sx: role.x,
+    sy: role.y,
+    sw: ROLE_SIZE,
+    sh: ROLE_SIZE,
+    dx,
+    dy,
+    dw: d,
+    dh: d,
+  });
+  for (const role of ROLES) {
+    const face = await cut(
+      page,
+      roster,
+      "image/webp",
+      [piece(role, 0, 0, ROLE_SIZE)],
+      { w: ROLE_SIZE, h: ROLE_SIZE },
+    );
+    write(at(`brand/arkteam/roles/${role.slug}.jpg`), face);
+    write(at(`app/public/brand/team/${role.slug}.jpg`), face);
+  }
+  const faces = await cut(
+    page,
+    roster,
+    "image/webp",
+    ROLES.slice(0, 4).map((role, index) =>
+      piece(role, (index % 2) * 96, Math.floor(index / 2) * 96, 96),
+    ),
+    { w: 192, h: 192 },
+  );
+  write(at("brand/arkteam/team-faces.jpg"), faces);
+  write(at("app/public/brand/team/faces.jpg"), faces);
 } finally {
   await browser.close();
 }

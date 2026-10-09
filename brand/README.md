@@ -24,24 +24,29 @@ the letterhead and the quotation and invoice templates (they are the company's o
 product's), and the PDF guide (it is the company's to keep; the rules that matter to the product are
 summarised below).
 
-## The ArkAgent character
+## The characters
 
-On 2026-10-09 the owner supplied a poster of the product's character: a dark humanoid in a black suit with
-a headset and gold accents, with the line "Your business AI assistant" and four promises (trusted, insightful,
-efficient, professional). It is **the face of ArkAgent**, the product's own persona. The coworkers a person
-creates keep their own orbs.
+The owner supplied two pieces of artwork on 2026-10-09, both in the v3 (Ember) colours: black figures in black
+suits with a headset and ember-orange accents, wearing the BlackArk tile as a lapel pin.
 
-- `arkagent/arkagent-poster.jpg` is kept exactly as supplied (768 by 1152).
-- `render-icons.mjs` crops the head and shoulders into `arkagent/portrait.jpg` and copies it to
-  `app/public/brand/` and `desktop/src/assets/`. It is shown beside the name on the desktop's Welcome screen
-  and on the web app's welcome and terms screens, where the animated orb was.
-- **Two things on the poster are not the current identity, so only the figure is used.** Its logo ("BlackArk.uk
-  BUSINESS AI" with a gold "B") is the retired v2 mark, and its gold is the retired v2 accent; v3 (Ember)
-  replaced both on 2026-10-04. The character's own gold details (the head plate, the headset ring, the pocket
-  square) were left as drawn. If the company wants them recoloured ember to match v3, that is a change to the
-  artwork, not to the code.
-- Its words are usable as store-listing copy once the owner approves them: "Intelligent. Reliable.
-  Professional.", "Your business AI assistant", "Intelligent AI. Real business impact."
+- **ArkAgent** (`arkagent/arkagent-poster.webp`, unaltered, 864 by 1152). One digital employee, shown as the
+  Sales character. It is the face of the product: the head and shoulders are cut from it into
+  `arkagent/portrait.jpg` and shown beside the name on the desktop's Welcome screen, on the web app's welcome
+  and terms screens (where the animated orb was) and beside the ArkAgent plan on the Plan screen.
+- **Ark Team** (`arkteam/arkteam-roster.webp`, unaltered, 1280 by 720). The full digital roster of eight roles:
+  Sales, Marketing, Accounting, Inventory and logistics, Finance ("Named person approves."), Chief of
+  operations, Chief of staff and Front desk. Each is cut into `arkteam/roles/<role>.jpg`, and four together
+  into `arkteam/team-faces.jpg`, which stands for Ark Team (and Ark Team Enterprise) on the Plan screen.
+  The website's list has nine roles; the roster has eight, so the ninth has no picture yet.
+
+`render-icons.mjs` makes every crop from the originals and copies them to `app/public/brand/` (and
+`desktop/src/assets/`). The coworkers a person creates keep their own orbs; these characters are the
+products' faces, not coworkers. The wording on the posters is the company's own product copy and can be used
+for store listings once the owner approves it: "One digital employee", "Runs a written routine", "A person
+keeps judgment", "Hands off outside the procedure", "Built to transform. Built to distribute."
+
+An earlier poster the owner sent the same day (the same figure in gold, with the retired v2 logo) was replaced
+by these and is not kept.
 
 ## The rules that matter for the product
 

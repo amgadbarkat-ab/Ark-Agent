@@ -89,6 +89,12 @@ Checked, here:
   the globe, falls back to the company's tile with no WebGL, and shows one still frame under "reduce
   motion". Its tests and the window's own (148) pass.
 
+The first two runs on GitHub (macOS, Windows and Linux) found three real problems that nothing run on Linux
+could have: the Windows job's PowerShell did not expand a variable the build-version step used (now bash), a
+macOS-only test still listed the services without the hub, and two tests still expected the removed Claude and
+ChatGPT plan sign-ins to start (they now assert the refusal). In the same runs the app, the macOS disk image
+(its version and ad-hoc signature verified), the Windows installer and the Linux package all built.
+
 Not checked, and the first real run will say:
 
 - **macOS has never been cross-checked from here** (the toolchain needs Apple's SDK), so the CI run is the first

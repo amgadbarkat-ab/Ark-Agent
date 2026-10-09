@@ -362,6 +362,17 @@ function PlanPage() {
   );
 }
 
+/**
+ * The picture beside each plan, from the company's characters (brand/README.md): ArkAgent's own for the
+ * plan that is one digital employee, and the Ark Team roster for the plans that run many. A plan with
+ * no entry (the internal one is never listed) simply has no picture.
+ */
+const PLAN_PICTURE: Record<string, string> = {
+  agent: "/brand/arkagent-portrait.jpg",
+  team: "/brand/team/faces.jpg",
+  enterprise: "/brand/team/faces.jpg",
+};
+
 function PlanRow({
   busy,
   current,
@@ -375,8 +386,14 @@ function PlanRow({
   plan: PlanOffer;
   selfService: boolean;
 }) {
+  const picture = PLAN_PICTURE[plan.id];
   return (
     <Item size="sm">
+      {picture ? (
+        <ItemMedia variant="image">
+          <img alt="" src={picture} />
+        </ItemMedia>
+      ) : null}
       <ItemContent>
         <ItemTitle>
           {plan.name}

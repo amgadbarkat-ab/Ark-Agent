@@ -6525,6 +6525,18 @@ fn main() {
             "root":root, "apiUrl":"https://intelligence.example.test", "gatewayWsUrl":"wss://gateway.example.test",
             "apiKey":"synthetic-intelligence-key", "model":model, "harness":choice,
         })).expect_err("intentional migration barrier prevents host/DB startup");
+        if case.ends_with("-plan") {
+            // The chat-plan sign-ins were removed (docs/ark/04-llm-providers.md). Start refuses one in a
+            // sentence, before it writes a setting or runs a service, so this case now says so.
+            let said = problem["said"].as_str().unwrap_or_default();
+            assert!(said.contains("cannot be connected by plan"), "{problem:?}");
+            let commands = std::fs::read_to_string(&record).unwrap_or_default();
+            assert!(
+                !commands.contains(" up -d "),
+                "nothing was started: {commands}"
+            );
+            return;
+        }
         let commands = std::fs::read_to_string(&record).unwrap_or_default();
         assert!(
             problem["detail"]
@@ -6661,20 +6673,16 @@ fn main() {
     }
 
     #[test]
-    fn chatgpt_plan_harness_start_ipc_overrides_remote_choice() {
-        if crate::test_support::isolated_process(
-            "tests::chatgpt_plan_harness_start_ipc_overrides_remote_choice",
-        ) {
+    fn chatgpt_plan_start_is_refused() {
+        if crate::test_support::isolated_process("tests::chatgpt_plan_start_is_refused") {
             return;
         }
         harness_start_ipc_case("chatgpt-plan");
     }
 
     #[test]
-    fn claude_plan_harness_start_ipc_overrides_remote_choice() {
-        if crate::test_support::isolated_process(
-            "tests::claude_plan_harness_start_ipc_overrides_remote_choice",
-        ) {
+    fn claude_plan_start_is_refused() {
+        if crate::test_support::isolated_process("tests::claude_plan_start_is_refused") {
             return;
         }
         harness_start_ipc_case("claude-plan");
