@@ -37,20 +37,22 @@ Settled by the owner on 2026-10-09:
    checkout domain by name, and sign-in cookies belong to one host. Needs a DNS record and a certificate
    when the product is deployed (`docs/ark/13-azure-hosting.md`).
 
-Not yet confirmed:
+Settled by the owner (2026-10-09):
 
-3. **The identifiers.** Proposed, from the company's own domain written backwards:
+3. **The identifiers: `blackark.arkagent`, for all three.** The owner chose this one name for the Android
+   package, the iOS bundle identifier and the desktop app.
 
-   | Where | Proposed identifier | Permanent once published? |
+   | Where | Identifier | Permanent once published? |
    | --- | --- | --- |
-   | Android package name | `uk.blackark.arkagent` | **Yes**, forever |
-   | iOS bundle identifier | `uk.blackark.arkagent` | **Yes**, forever |
-   | Desktop identifier (macOS and Windows) | `uk.blackark.arkagent.desktop` | Effectively yes: it names the app's data and its keychain entries. Still `ai.copilotkit.openbot.desktop` today; I change it once you confirm. |
+   | Android package name | `blackark.arkagent` | **Yes**, forever |
+   | iOS bundle identifier | `blackark.arkagent` | **Yes**, forever |
+   | Desktop identifier (macOS and Windows) | `blackark.arkagent` | Effectively yes: it names the app's data folder and its keychain entries. Set in `tauri.conf.json`. |
 
-   The owner's reply left this unanswered and wrote the proposal without its leading `uk.`. Reverse-domain
-   order puts the country code first (`blackark.uk` becomes `uk.blackark`); an identifier without it is
-   allowed but is not what either store's examples show. Nothing needs it until the first store record is
-   created.
+   Both stores accept a two-part name (checked against the validators in `server/src/mobile/links.ts`; the iOS
+   form with a Team ID is `ABCDE12345.blackark.arkagent`). One difference from the usual reverse-domain
+   form: it does not start with the country code, so it is not literally the company's domain written
+   backwards (`uk.blackark`). That is allowed, and the owner has chosen it. Neither store requires it to
+   match a domain.
 
    The product name is **ArkAgent**, one word, as on the company's website and on the character poster the
    owner supplied (2026-10-09). It has not been cleared as a trademark; see "Where the apps are offered"
@@ -150,7 +152,7 @@ page; developers publishing through Play go through the Console's own verificati
    to contact them if there is no confirmation within 24 hours of paying. The person who enrols is the
    **Account Holder**.
 5. When active, open **Certificates, Identifiers & Profiles, Identifiers, +, App IDs, App** and register the
-   bundle identifier `uk.blackark.arkagent`. Note the **Team ID** (Membership details): ten characters.
+   bundle identifier `blackark.arkagent`. Note the **Team ID** (Membership details): ten characters.
 6. In **App Store Connect, Apps, +, New App**: platform iOS, name, primary language, the bundle identifier
    above, an SKU of your choice (for example `ark-agent-ios`).
 7. Make the **App Store Connect API key** the build signs with. App Store Connect, **Users and Access,
@@ -166,7 +168,7 @@ page; developers publishing through Play go through the Console's own verificati
    ```
 8. In the `mobile-release` environment add the secrets `ARK_IOS_ASC_KEY_BASE64` (the base64 text),
    `ARK_IOS_ASC_KEY_ID`, `ARK_IOS_ASC_ISSUER_ID`, and the variables `ARK_IOS_APP_ID` (the Team ID, a dot, then
-   the bundle identifier, for example `ABCDE12345.uk.blackark.arkagent`) and `ARK_IOS_URL_SCHEME` (a short
+   the bundle identifier, for example `ABCDE12345.blackark.arkagent`) and `ARK_IOS_URL_SCHEME` (a short
    lower-case word such as `arkagent`).
 9. The listing needs: description, keywords, a support address, a **privacy policy address**, the **App
    Privacy** answers, the age rating, export-compliance answers, screenshots for the required iPhone sizes,

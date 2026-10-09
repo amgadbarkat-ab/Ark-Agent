@@ -24,8 +24,8 @@ have a minute.
 | Piece | State | Who |
 | --- | --- | --- |
 | The installers (Windows, macOS, Linux) | **Build in CI from this branch**; unsigned. See "What was checked". | done; signing needs certificates (20-accounts-and-keys.md) |
-| A published release: the application's source at a tag, the six container images, and `container-images.json` | **Not made yet.** `publish-release.yml` makes all three, but only runs on the main branch, from a reviewed release pull request. | the owner approves a pull request, then runs the release (below) |
-| A place the customer's computer can download that release from without logging in | **Not decided.** The release lives in a private repository and a private registry today, so a customer's computer is refused. | the owner (below) |
+| A published release: the application's source at a tag, the container images, and `container-images.json` | **Not made yet.** `publish-release.yml` makes all three (and `source.tar.gz` and `latest.json`, the files the website serves), but only runs on the main branch, from a reviewed release pull request. | the owner approves a pull request, then runs the release (below) |
+| A place on the company's website the customer's computer downloads from without logging in | **Decided: the website, nothing else (2026-10-09).** The app supports it (`ARK_RELEASE_BASE_URL`); the folder, the images' registry and the build setting are still to be made. See "Where the downloads live". | the owner |
 | The AI the demo will use | The presenter's own key (OpenAI, Anthropic or Google), or the customer's. | the owner |
 | A computer to demo on | Windows 10 or 11, 64-bit, with virtualisation switched on and, as a sensible floor that nobody has measured, 8 GB of memory; or an Apple-silicon Mac. An **Intel Mac** cannot get an engine installed for it (Podman publishes Arm packages only), so it needs Docker Desktop first. | the presenter |
 
@@ -34,8 +34,8 @@ have a minute.
 The pipeline is the inherited one and it is careful on purpose: nothing is published by hand.
 
 1. **Open a pull request from `claude/intelligent-archimedes-681fim` into `main` and merge it.** Until the
-   code is on `main`, GitHub does not even list the workflows, so none of them can be started. I do not open
-   pull requests unless asked; this is the one that is needed.
+   code is on `main`, GitHub does not even list the workflows, so none of them can be started. The owner
+   approved this pull request on 2026-10-09; merging it is the owner's.
 2. **Actions, "Create release PR", Run workflow**, `minor` (so the first Ark release is 0.1.0). It reads
    the notes under `## Unreleased` in `CHANGELOG.md` (the first entry is written for Ark), moves the version
    and opens a release pull request.
@@ -43,31 +43,63 @@ The pipeline is the inherited one and it is careful on purpose: nothing is publi
    application image and the six component images (for Intel/AMD and for Arm), pins them by digest,
    writes `container-images.json`, tags the commit, creates the GitHub Release, and then builds the three
    desktop installers and attaches them to it.
-4. **Make the downloads reachable.** See the next section.
+4. **Put the downloads on the website.** See the next section.
 
 Cost: the desktop build is the expensive part on a private repository (the Mac runner counts ten times). A
 full run is on the order of a few hundred billed minutes; a free personal account has 2,000 a month. Making
 the repository public would make it free.
 
-## Where the customer's computer downloads from: a decision
+## Where the downloads live: the company's website
 
-The desktop app downloads three things with no login: the release's source (at
-`github.com/<repo>/archive/refs/tags/<tag>.tar.gz`), `container-images.json` (a release asset), and the
-images (from `ghcr.io/<owner>/ark-*`). **For a private repository all three are refused.** This is how the
-app was designed (the installer stays small, and the deployment moves forward without a new installer), so the
-choices are about where the public copy lives:
+**Decided by the owner (2026-10-09): customers download the app from the company's own website and nowhere
+else.** The repository and its container packages are private, so a customer's computer could not use GitHub
+anyway. There are two kinds of download, and both come from the website:
 
-| Option | What it means | Good | Cost |
-| --- | --- | --- | --- |
-| **A. Make this repository public** | Everything in it, including `docs/ark` (the pen-test findings, the pricing and the competitor notes), becomes public. | Nothing to build; the free Actions minutes. | The internal documents would have to be moved out first, and the code is public. |
-| **B. A second, public repository for releases** (recommended) | Only what a customer's computer needs is published there: the deployment's source (`docker-compose.yml`, `server`, `app`, `worker`, `shared`, `examples`, the lockfile and the scripts), the images, the installers. This repository stays private. A job in the pipeline copies the sanitised tree across on each release. The app is built with `ARK_RELEASE_REPO=<owner>/<that repo>` (the app already supports this). | Internal documents stay internal. | One more repository, one access token for the job, and a decision about what the public tree contains. I can write the job once the repository exists. |
-| **C. Keep it private, for the presenter only** | The presenter downloads the installer and the release files while signed in to GitHub, puts them in the install folder by hand, and signs the container engine in to the registry. The customer sees it run on the presenter's computer. | Needs no decision about publishing. | Not something a customer can install. Fiddly, so only for a first demo. |
+1. **The installer** a person clicks (`.exe`, `.dmg`, `.AppImage`/`.deb`). The release attaches all of them
+   to the GitHub Release; the owner copies them to the website, and the website's Download page links to
+   them. Nothing about the installer points at GitHub.
+2. **The release the installer then fetches**, which is why the installer stays small. The app downloads
+   two files, then starts the stack. The app is built with `ARK_RELEASE_BASE_URL` (a repository **variable**
+   of that name, read by `desktop.yml`) set to the folder that holds them, so it never contacts GitHub.
+
+   ```
+   <base>/latest.json                      {"tag_name": "v0.1.0"}      names the newest version
+   <base>/v0.1.0/source.tar.gz             the deployment's files only (docker-compose.yml, server, app, worker,
+                                           shared, examples, scripts and the lockfile: no internal documents)
+   <base>/v0.1.0/container-images.json     the images this version runs, pinned by digest
+   ```
+
+   The release job produces `source.tar.gz` and `latest.json` beside `container-images.json`, so copying the
+   three files from the release into `<base>/<version>/` (and `latest.json` into `<base>/`) is the whole
+   publishing step; `scripts/release-source.test.ts` keeps the archive's contents equal to what the app
+   unpacks. Any `https` web address works; the app ignores anything else, including `http`.
+
+**One piece is not on the website: the images.** They are large (one is about 500 MB compressed), so they
+are pulled by the container engine from a registry, not downloaded as files. The registry has to allow an
+anonymous pull. Two ways, and I recommend the first:
+
+- **Make the images' GitHub packages public.** A package's visibility is a setting of its own, so the
+  repository stays private. This is the simplest and costs nothing. **I have not confirmed that GitHub allows
+  it for packages made by a private repository on a personal account**; the first release will show it, in
+  each package's settings. Anyone could then pull the application images, which is the same as saying a
+  customer's computer holds them, as it must.
+- **An Azure container registry with anonymous pull switched on**, which would move `publish-release.yml`
+  from GitHub's registry to Azure's. More work, a monthly cost, and it keeps everything under the company's
+  own account.
 
 Whatever is chosen, **the customer's computer receives the application's source** (the server and app run on
 it as ordinary processes), which is how the product was built. If the company does not want customers to hold
 the source, the desktop has to ship compiled programs instead; that is a change of design, not of settings.
 
-## Warnings the first customer will see (the installers are not signed)
+**Until the first release exists, a demo does not need any of this.** Copy `latest.json`, a folder named for the
+version with the two files in it, to any `https` address (a storage account, a page on the website) and build the
+installer with that address; or install on the presenter's own computer with the files already in the
+install folder (the stamp `.openbot-deployment` and `container-images.json` make the app skip the download).
+
+## Warnings the first customer will see (the installers are issued unsigned)
+
+**Decided by the owner (2026-10-09):** the first installers go out unsigned and the certificates come later.
+The warnings below are what a customer sees until then, so the first customers should be told to expect them.
 
 - **Windows:** SmartScreen shows "Windows protected your PC". Choose **More info**, then **Run anyway**. The
   publisher reads "unknown" until the company's signing is in place.
@@ -103,16 +135,17 @@ Not checked, and the first real run will say:
   starting the stack, a conversation. That needs a real release to download (above) and a real computer.
   The inherited tests cover these steps piece by piece; the walk through all of them has not been done by anyone.
 - The installers are unsigned, and the release pipeline has never run (no workflow has ever run on `main`).
-- The `ai.copilotkit.openbot.desktop` identifier is still the app's identity on disk (data folder, keychain
-  entries); it changes once the owner confirms the new one (20-accounts-and-keys.md), and before the first release.
+- The identifier is now `blackark.arkagent` (the owner's choice), so the app's data folder and keychain entries are
+  named for ArkAgent; no earlier installation of this app exists, so nothing is migrated.
 
-## Decisions only the owner can make
+## What is still open
 
-1. **Let me open the pull request into `main`** (and merge it, or merge it yourself). Nothing else can start.
-2. **Where the public copy lives**: A, B or C above. I recommend B.
-3. **Which AI the demo uses**, and whose key. A key goes into the app's own setup screen on the demo
+1. **Merge the pull request into `main`** (approved; opened 2026-10-09). Nothing else can start before this.
+2. **The website's download folder.** Which address will `ARK_RELEASE_BASE_URL` be (for example
+   `https://www.blackark.uk/get`), and who can upload to it? I need the address to set the variable; the
+   files come from the release.
+3. **The images' registry**: public GitHub packages (recommended; the first release will show if GitHub
+   allows it) or an Azure container registry.
+4. **Which AI the demo uses**, and whose key. A key goes into the app's own setup screen on the demo
    computer, never into this repository or a message to me.
-4. **The identifier** (the open question in 20-accounts-and-keys.md), so the app's data and keychain entries
-   are named for the company before anybody installs it for real.
-5. **Signing**, when there is time: the lead times in 20-accounts-and-keys.md are the long pole for a
-   warning-free install.
+5. **Signing**, later: certificates are the long pole for a warning-free install (20-accounts-and-keys.md).

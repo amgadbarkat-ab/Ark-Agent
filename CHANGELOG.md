@@ -22,6 +22,11 @@ installation made earlier keeps the folder it already uses). The installers are 
 Value Data IKE as publisher, and are **not signed yet**: Windows will show an "unknown publisher" warning and
 macOS needs the person to allow the app in System Settings, until the company's certificates are in place.
 
+The desktop app, the Android package and the iOS bundle are identified as `blackark.arkagent`. Customers
+download ArkAgent from the company's website only: the app can fetch its release from a web address the
+company chooses (`ARK_RELEASE_BASE_URL`), and each release now also produces `source.tar.gz` and `latest.json`
+for that address.
+
 The first screen has the company's animation: the rack, the globe and the BlackArk mark, drawn on a dark card.
 
 ### Dictate messages and talk to a coworker in a live voice call

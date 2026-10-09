@@ -80,13 +80,16 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set. The mechanism
    is built; the procedure for setting the prices from cost is in 17-cloud-runtime.md.
-2. **The identifiers.** Proposed `uk.blackark.arkagent` for the Android package and the iOS bundle
-   identifier, `uk.blackark.arkagent.desktop` for the desktop (the owner's reply left this unanswered and
-   wrote it without the leading `uk.`). The first two are permanent once published
-   (20-accounts-and-keys.md).
 
 ## Answered
 
+- **Identifiers: `blackark.arkagent`** for the Android package, the iOS bundle identifier and the desktop
+  app. Permanent once published (20-accounts-and-keys.md). (2026-10-09)
+- **Customers download the app from the company's own website only**, not from GitHub (21-desktop-demo.md,
+  "Where the downloads live"). (2026-10-09)
+- **The first installers are issued unsigned** and the signing certificates come later; customers see the
+  system warnings until then (21-desktop-demo.md). (2026-10-09)
+- **The pull request into `main` is approved** so the release workflows can run. (2026-10-09)
 - **The product is spelled ArkAgent**, one word (the owner's character poster and the company website); the three-bar mark and the ember palette are the company's v3 identity, and the character below is its face. (2026-10-09)
 - **The legal entity is Value Data IKE** (a Greek ΙΚΕ); **BlackArk is its trade name.** Stores and
   Microsoft enrol the legal entity, so the seller and the publisher are named "Value Data IKE".

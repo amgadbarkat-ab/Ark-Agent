@@ -178,8 +178,8 @@ Nothing below can be done from here. Each item blocks the thing after it. **The 
 account and key is in 20-accounts-and-keys.md.**
 
 1. **The product's hostname and the identifiers.** The brand is in (decision D8; the icons are in
-   `brand/README.md`) and the company domain is `blackark.uk`. The product runs on `app.blackark.uk`. Still open: the
-   package and bundle identifiers (proposed `uk.blackark.arkagent`), which cannot be changed after
+   `brand/README.md`) and the company domain is `blackark.uk`. The product runs on `app.blackark.uk`. The package and bundle
+   identifier is `blackark.arkagent` (the owner's choice, 2026-10-09); it cannot be changed after
    publishing (20-accounts-and-keys.md).
 2. **A Google Play Console account** (one-off fee, identity verification, and for a new personal
    account a closed test with testers before production). The package name, then the **App signing

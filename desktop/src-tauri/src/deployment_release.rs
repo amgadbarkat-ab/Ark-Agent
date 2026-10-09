@@ -6,19 +6,13 @@ use serde::Deserialize;
 
 use crate::deployment;
 
-fn latest_release_url() -> String {
-    format!(
-        "https://api.github.com/repos/{}/releases/latest",
-        deployment::release_repo()
-    )
-}
-
-/// Only new deployments consult GitHub. The fetcher records the exact tag after the source and
-/// image manifest have both downloaded successfully; restarts and repairs retain that pin.
+/// Only new deployments ask which version is newest, and they ask the company's own copy when it
+/// serves one (`ARK_RELEASE_BASE_URL`), else GitHub. The fetcher records the exact tag after the
+/// source and image manifest have both downloaded successfully; restarts and repairs retain that pin.
 /// Uses blocking HTTP, so callers in an async runtime must use a blocking task.
 pub fn resolve_version(root: &Path) -> Result<String, String> {
     resolve_version_with(root, || {
-        let body = deployment::get(&latest_release_url())
+        let body = deployment::get(&deployment::latest_url())
             .map_err(|error| format!("could not find the latest ArkAgent release: {error}"))?;
         release_tag(&body)
     })

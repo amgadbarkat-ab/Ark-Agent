@@ -70,23 +70,105 @@ fn release_repo_from(runtime: Option<&str>, built: Option<&str>) -> String {
         .to_string()
 }
 
-/// The tarball GitHub publishes for a tag.
+/// Where the company serves its own releases from, when it does: an `https` address that the
+/// per-version folders sit under (`<base>/<version>/source.tar.gz`, `<base>/<version>/container-images.json`,
+/// and `<base>/latest.json` naming the newest version).
+///
+/// Fixed when the app is built (`ARK_RELEASE_BASE_URL`) and overridable on a machine with the same
+/// variable. The company's customers download ArkAgent from its website and nowhere else, and its
+/// repository is private, so a customer's computer cannot be sent to GitHub. When this is set it wins
+/// over [`release_repo`]; a value that is not a plain `https` address is ignored, because this string
+/// ends up in a URL the app downloads and runs code from.
+pub fn release_base() -> Option<String> {
+    release_base_from(
+        std::env::var("ARK_RELEASE_BASE_URL").ok().as_deref(),
+        option_env!("ARK_RELEASE_BASE_URL"),
+    )
+}
+
+fn release_base_from(runtime: Option<&str>, built: Option<&str>) -> Option<String> {
+    let well_formed = |value: &str| {
+        let Some(rest) = value.strip_prefix("https://") else {
+            return false;
+        };
+        let mut parts = rest.split('/');
+        let host = parts.next().unwrap_or_default();
+        let (name, port) = match host.split_once(':') {
+            Some((name, port)) => (name, Some(port)),
+            None => (host, None),
+        };
+        let name_ok = !name.is_empty()
+            && name.split('.').all(|label| {
+                !label.is_empty()
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+            });
+        let port_ok = match port {
+            None => true,
+            Some(port) => {
+                !port.is_empty() && port.len() <= 5 && port.chars().all(|c| c.is_ascii_digit())
+            }
+        };
+        name_ok
+            && port_ok
+            && parts.all(|segment| {
+                !segment.is_empty()
+                    && segment != "."
+                    && segment != ".."
+                    && segment
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+            })
+    };
+    [runtime, built]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .map(|value| value.trim_end_matches('/'))
+        .find(|value| well_formed(value))
+        .map(str::to_string)
+}
+
+/// The tarball a release is installed from: the company's own copy when it serves one, otherwise
+/// the one GitHub publishes for a tag.
 ///
 /// A release asset rather than a branch, and https rather than git, so nothing needs a git client
 /// or credentials to get a deployment.
 pub fn tarball_url(version: &str) -> String {
-    format!(
-        "https://github.com/{}/archive/refs/tags/{version}.tar.gz",
-        release_repo()
-    )
+    tarball_url_from(release_base().as_deref(), &release_repo(), version)
+}
+
+fn tarball_url_from(base: Option<&str>, repo: &str, version: &str) -> String {
+    match base {
+        Some(base) => format!("{base}/{version}/source.tar.gz"),
+        None => format!("https://github.com/{repo}/archive/refs/tags/{version}.tar.gz"),
+    }
 }
 
 /// Where the release publishes its image manifest.
 pub fn images_url(version: &str) -> String {
-    format!(
-        "https://github.com/{}/releases/download/{version}/{IMAGES}",
-        release_repo()
-    )
+    images_url_from(release_base().as_deref(), &release_repo(), version)
+}
+
+fn images_url_from(base: Option<&str>, repo: &str, version: &str) -> String {
+    match base {
+        Some(base) => format!("{base}/{version}/{IMAGES}"),
+        None => format!("https://github.com/{repo}/releases/download/{version}/{IMAGES}"),
+    }
+}
+
+/// Where the newest version is named: `latest.json` beside the release folders when the company
+/// serves its own, otherwise GitHub's "latest release" answer. Both carry a `tag_name`.
+pub fn latest_url() -> String {
+    latest_url_from(release_base().as_deref(), &release_repo())
+}
+
+fn latest_url_from(base: Option<&str>, repo: &str) -> String {
+    match base {
+        Some(base) => format!("{base}/latest.json"),
+        None => format!("https://api.github.com/repos/{repo}/releases/latest"),
+    }
 }
 
 pub fn images_path(root: &Path) -> PathBuf {
@@ -473,22 +555,104 @@ mod tests {
 
     #[test]
     fn no_address_the_app_downloads_from_names_copilotkit() {
-        for url in [tarball_url("v1.0.0"), images_url("v1.0.0")] {
+        for url in [
+            tarball_url_from(None, DEFAULT_RELEASE_REPO, "v1.0.0"),
+            images_url_from(None, DEFAULT_RELEASE_REPO, "v1.0.0"),
+            tarball_url_from(
+                Some("https://get.example.test"),
+                DEFAULT_RELEASE_REPO,
+                "v1.0.0",
+            ),
+        ] {
             assert!(!url.to_lowercase().contains("copilotkit"), "{url}");
-            assert!(url.starts_with("https://github.com/"), "{url}");
+            assert!(url.starts_with("https://"), "{url}");
         }
     }
 
     #[test]
+    fn the_company_can_serve_its_own_releases_and_nothing_else_is_a_place_to_download_from() {
+        assert_eq!(release_base_from(None, None), None);
+        assert_eq!(
+            release_base_from(Some("https://get.example.test/releases/"), None).as_deref(),
+            Some("https://get.example.test/releases"),
+            "a trailing slash is not part of the address"
+        );
+        // A machine's own setting wins over the one the app was built with.
+        assert_eq!(
+            release_base_from(Some("https://a.test"), Some("https://b.test")).as_deref(),
+            Some("https://a.test")
+        );
+        assert_eq!(
+            release_base_from(None, Some("https://b.test:8443/x")).as_deref(),
+            Some("https://b.test:8443/x")
+        );
+        // Anything that is not a plain https address is not somewhere to download and run code from.
+        for bad in [
+            "",
+            "get.example.test",
+            "http://get.example.test",
+            "ftp://get.example.test",
+            "https://",
+            "https:///x",
+            "https://-bad.test",
+            "https://bad..test",
+            "https://user@get.example.test",
+            "https://get.example.test:port",
+            "https://get.example.test/../x",
+            "https://get.example.test//x",
+            "https://get.example.test/x?y=1",
+            "https://get.example.test/x#frag",
+            "https://get.example.test/a b",
+        ] {
+            assert_eq!(release_base_from(Some(bad), None), None, "{bad:?}");
+        }
+        // A bad runtime value falls through to the built one, not past it.
+        assert_eq!(
+            release_base_from(Some("http://nope.test"), Some("https://b.test")).as_deref(),
+            Some("https://b.test")
+        );
+    }
+
+    #[test]
+    fn a_company_copy_is_laid_out_one_folder_per_version() {
+        let base = Some("https://get.example.test/releases");
+        assert_eq!(
+            tarball_url_from(base, "o/r", "v0.1.0"),
+            "https://get.example.test/releases/v0.1.0/source.tar.gz"
+        );
+        assert_eq!(
+            images_url_from(base, "o/r", "v0.1.0"),
+            "https://get.example.test/releases/v0.1.0/container-images.json"
+        );
+        assert_eq!(
+            latest_url_from(base, "o/r"),
+            "https://get.example.test/releases/latest.json"
+        );
+        // With no company copy the addresses are GitHub's, unchanged.
+        assert_eq!(
+            tarball_url_from(None, "o/r", "v0.1.0"),
+            "https://github.com/o/r/archive/refs/tags/v0.1.0.tar.gz"
+        );
+        assert_eq!(
+            images_url_from(None, "o/r", "v0.1.0"),
+            "https://github.com/o/r/releases/download/v0.1.0/container-images.json"
+        );
+        assert_eq!(
+            latest_url_from(None, "o/r"),
+            "https://api.github.com/repos/o/r/releases/latest"
+        );
+    }
+
+    #[test]
     fn the_image_manifest_is_fetched_from_the_same_version_as_the_tree() {
-        let url = images_url("v0.0.7");
+        let url = images_url_from(None, DEFAULT_RELEASE_REPO, "v0.0.7");
         assert!(url.contains("/download/v0.0.7/"), "{url}");
         assert!(url.ends_with("container-images.json"), "{url}");
     }
 
     #[test]
     fn the_tarball_is_a_tag_rather_than_a_branch() {
-        let url = tarball_url("v0.0.7");
+        let url = tarball_url_from(None, DEFAULT_RELEASE_REPO, "v0.0.7");
         assert!(url.contains("/refs/tags/v0.0.7"), "{url}");
         assert!(!url.contains("/heads/"), "a branch is not a version: {url}");
         assert!(

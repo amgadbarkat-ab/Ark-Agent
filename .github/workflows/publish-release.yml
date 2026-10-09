@@ -434,11 +434,23 @@ jobs:
               -f "ref=refs/tags/$VERSION" -f "sha=$GITHUB_SHA" >/dev/null
           fi
 
+          # What the desktop app downloads, in the layout the company's website serves it in
+          # (docs/ark/21-desktop-demo.md): the source at this commit, under one top-level folder
+          # which the app strips, and the file naming the newest version. The website copy is what
+          # customers use; these are the same files, kept on the release so nothing is rebuilt.
+          # Only what a deployment runs, because the website serves this file to anybody: the same
+          # list the desktop app unpacks (REQUIRED and ALSO_COPIED in desktop/src-tauri/src/deployment.rs),
+          # so internal documents never leave the repository.
+          git archive --format=tar.gz --prefix="ark-${VERSION}/" -o source.tar.gz "$GITHUB_SHA" -- \
+            docker-compose.yml server app worker shared examples package.json bun.lock scripts \
+            tsconfig.base.json bunfig.toml
+          jq -n --arg tag "$VERSION" '{tag_name: $tag}' > latest.json
+
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release edit "$VERSION" --title "$VERSION" --notes-file notes.md
-            gh release upload "$VERSION" container-images.json --clobber
+            gh release upload "$VERSION" container-images.json source.tar.gz latest.json --clobber
           else
-            gh release create "$VERSION" container-images.json \
+            gh release create "$VERSION" container-images.json source.tar.gz latest.json \
               --title "$VERSION" --notes-file notes.md
           fi
 

@@ -119,6 +119,9 @@ jobs:
         working-directory: desktop
         env:
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform.name == 'macos' && '-' || '' }}
+          # Where the app downloads a release from: the company's own website, because customers
+          # download from there and the repository is private. Unset builds fall back to GitHub.
+          ARK_RELEASE_BASE_URL: ${{ vars.ARK_RELEASE_BASE_URL }}
           OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_ID: ${{ vars.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_ID }}
           OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET: ${{ secrets.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET }}
           OPENBOT_GOOGLE_MODEL_OAUTH_QUOTA_PROJECT: ${{ vars.OPENBOT_GOOGLE_MODEL_OAUTH_QUOTA_PROJECT }}
