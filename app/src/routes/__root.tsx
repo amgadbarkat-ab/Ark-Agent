@@ -6,6 +6,7 @@ import {
 import { useEffect } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useNativeSignInReturn } from "@/lib/native/listener";
 import type { RouterContext } from "../router-context";
 import "@fontsource-variable/inter/wght.css";
 
@@ -118,6 +119,7 @@ export function useUnclaimedDropGuard() {
 
 function RootComponent() {
   useUnclaimedDropGuard();
+  useNativeSignInReturn();
   return (
     <div className="min-h-dvh w-full antialiased">
       <ThemeProvider>

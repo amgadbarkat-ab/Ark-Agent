@@ -68,6 +68,16 @@ config:
           name: ark-secrets
           key: web-push-vapid-private-key
           optional: true
+    # The store apps (docs/ark/19-mobile.md). None is a secret; each is the owner's once the apps exist.
+    # The Android fingerprint is the Play Console's "App signing key certificate".
+    # - name: ARK_ANDROID_APP_ID
+    #   value: <package name>
+    # - name: ARK_ANDROID_CERT_SHA256
+    #   value: <SHA-256 fingerprint>
+    # - name: ARK_IOS_APP_ID
+    #   value: <team id>.<bundle identifier>
+    # - name: ARK_IOS_URL_SCHEME
+    #   value: <the app's address scheme>
     # Uncomment once the lawyer has finished docs/legal/terms-of-service.md: customers then have to
     # accept the version in force before using the app, and it is recorded. Off, nobody is asked.
     # - name: TERMS_ACCEPTANCE

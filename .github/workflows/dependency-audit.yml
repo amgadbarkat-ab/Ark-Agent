@@ -21,6 +21,7 @@ on:
       - package.json
       - bun.lock
       - "*/package.json"
+      - mobile/ios/bun.lock
       - security/audit-allowlist.json
       - scripts/audit-check.ts
   workflow_dispatch:
@@ -49,3 +50,11 @@ jobs:
       # about something that is gone, and is removed rather than left to pile up.
       - name: Audit
         run: bun scripts/audit-check.ts --strict
+      # The iOS shell is installed on its own (mobile/ios/package.json), so it has a lockfile of its own
+      # that the audit above never reads. Same gate and same allow-list; not `--strict`, because an
+      # entry for the root's dependencies matches nothing here and that is not a stale decision.
+      - run: bun install --frozen-lockfile
+        working-directory: mobile/ios
+      - name: Audit the iOS shell
+        working-directory: mobile/ios
+        run: bun ../../scripts/audit-check.ts --allowlist ../../security/audit-allowlist.json

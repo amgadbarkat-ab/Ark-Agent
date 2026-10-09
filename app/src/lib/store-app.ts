@@ -27,6 +27,14 @@ import { queryClient } from "@/query-client";
 /** What the iOS shell appends to the user agent. */
 export const IOS_USER_AGENT_TOKEN = "ArkStoreApp/ios";
 
+/** Whether this page is the iOS app's own web view. */
+export function isIosApp(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    navigator.userAgent.includes(IOS_USER_AGENT_TOKEN)
+  );
+}
+
 /** The one thing kept across the page loads of a visit, so a sign-in round trip cannot forget it. */
 const REMEMBERED = "ark.opened-by";
 

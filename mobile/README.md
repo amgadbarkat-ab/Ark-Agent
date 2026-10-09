@@ -6,11 +6,10 @@ to provide are in [docs/ark/19-mobile.md](../docs/ark/19-mobile.md).
 ```
 mobile/
   android/   The Google Play app: a Trusted Web Activity (Gradle project, no code of our own)
-  scripts/   Checks the deployment's names and writes the file the Android build reads
+  ios/       The App Store app: a thin Capacitor shell around the site (the Xcode project is generated)
+  scripts/   Check the deployment's names, and make or configure each app's project from them
   tests/     Tests for those checks
 ```
-
-The iOS shell is not here yet (see the decision record).
 
 ## Android
 
@@ -83,3 +82,71 @@ Google Play's lowest accepted `targetSdk` (raised every August; it is `targetSdk
 `android/app/build.gradle`), the Android Gradle plugin (`android/build.gradle`) with the Gradle version
 (`android/gradle/wrapper/gradle-wrapper.properties`, which pins the download's checksum), and the
 `androidbrowserhelper` library.
+
+## iOS
+
+The app is a window onto the deployment's own site: nothing of the web app is bundled, so it is always
+the version the server is running. Apple has no equivalent of Android's Trusted Web Activity, so this is
+a native shell (Capacitor) around a web view. Two things follow from that, and both are handled:
+
+- **Google refuses to sign anybody in inside a web view.** Signing in opens the system browser at
+  `/api/auth/native` on the server, which signs in with the chosen provider and sends a one-time code
+  back to the app by opening its own address (`<scheme>://signed-in`). The code is bound to a secret
+  that never leaves the phone, works once, and is exchanged for a session of the app's own. Google and
+  Microsoft sign-in work this way; company sign-in (Okta, a registered identity provider) is not offered
+  in the app yet.
+- **Apple does not allow Web Push in a web view.** The app has no notifications yet. They would need
+  Apple's own push service (APNs) and a second sending path on the server; see the decision record.
+
+### The names it needs
+
+| Setting | What it is |
+| --- | --- |
+| `ARK_IOS_APP_ID` | The Apple team id, a dot, then the bundle identifier: `ABCDE12345.com.example.ark`. The same value the server publishes in `apple-app-site-association`. The bundle identifier is permanent once published. |
+| `ARK_APP_URL` | The site, `https://host`, with no path. |
+| `ARK_APP_NAME` | The name under the icon. |
+| `ARK_IOS_URL_SCHEME` | The address scheme the system browser returns to, such as `arkapp`. Set the same value on the server (`ARK_IOS_URL_SCHEME`), which is what makes the sign-in page exist. Another app can claim the same scheme, which is why the code in it is useless without the secret. |
+| `ARK_IOS_BUILD_NUMBER` | A whole number that goes up with every upload to App Store Connect. |
+| `ARK_IOS_VERSION_NAME` | Optional, up to three numbers (`1.4.0`). Defaults to the repository's version. |
+
+The App Store icon is a brand asset the owner provides at `mobile/ios/brand/AppIcon-1024.png`: a PNG of
+exactly 1024 by 1024 pixels with **no transparency** (the build checks and says what is wrong). Without
+it the app carries Capacitor's placeholder icon, which the App Store refuses.
+
+### Make the project
+
+```sh
+(cd mobile/ios && bun install)
+ARK_IOS_APP_ID=ABCDE12345.com.example.ark ARK_APP_URL=https://ark.example ARK_APP_NAME=Ark \
+ARK_IOS_URL_SCHEME=arkapp ARK_IOS_BUILD_NUMBER=1 bun mobile/scripts/prepare-ios.ts
+```
+
+This works on any machine (Capacitor makes the Xcode project without Xcode), checks the names first, and
+starts the project afresh each time so nothing from an earlier deployment's names can be left in it.
+It adds the address scheme and the export-compliance answer to `Info.plist`, copies the icon, and prints
+the version settings to hand to `xcodebuild`. **Building needs a Mac.** Open
+`mobile/ios/ios/App/App.xcodeproj`, or run the commands in `.github/workflows/mobile-ios.yml`.
+
+### The release workflow
+
+`.github/workflows/mobile-ios.yml` makes the project against made-up names and builds it for the
+simulator on every change, and a person can start it by hand to archive and export the signed app. For
+the by-hand run the owner sets, in the same `mobile-release` GitHub environment as Android:
+
+- variables `ARK_IOS_APP_ID`, `ARK_APP_URL`, `ARK_APP_NAME`, `ARK_IOS_URL_SCHEME`;
+- secrets `ARK_IOS_ASC_KEY_BASE64` (an App Store Connect API key, the `.p8` file, base64),
+  `ARK_IOS_ASC_KEY_ID`, `ARK_IOS_ASC_ISSUER_ID`.
+
+Xcode signs with that key (automatic signing, certificates and profiles managed by Apple), so no
+certificate or profile is stored. The `.ipa` is kept as a build artifact; uploading it to TestFlight and
+the store is done in App Store Connect.
+
+### Not done, and why
+
+- **The project has never been compiled.** Capacitor makes it here; Xcode builds it, and there is no
+  Xcode here. The workflow's first run is the first build.
+- **No offline page in the app.** It would need the web view's app-bound-domains setting for a service
+  worker to run, and an app that cannot be tested here should not be given a setting that can make the
+  whole window refuse to load.
+- **Links into the site do not open the app** (universal links). They need an Associated Domains
+  capability in the project. Signing in does not depend on them.

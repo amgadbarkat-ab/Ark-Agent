@@ -1,0 +1,5 @@
+# The Xcode project is made from the deployment's names by `bun mobile/scripts/prepare-ios.ts`, every
+# time. It is not the repository's: it holds one deployment's bundle identifier and address.
+ios/
+capacitor.config.json
+node_modules/

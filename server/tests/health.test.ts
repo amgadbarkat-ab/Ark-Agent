@@ -49,6 +49,8 @@ describe("runtime capabilities", () => {
       voice: false,
       // The Android app's package name, public already; null where there is no Android app.
       androidPackage: null,
+      // The iOS app's address scheme, public already; null where there is no iOS app.
+      appUrlScheme: null,
       // Names only. The sign-in screen reads this to know which buttons to draw.
       authProviders: ["google"],
       // A boolean, not a list: naming the registered providers would tell anybody who loads the
@@ -74,6 +76,7 @@ describe("runtime capabilities", () => {
       "transcription",
       "voice",
       "androidPackage",
+      "appUrlScheme",
       "authProviders",
       "ssoConfigured",
     ]);

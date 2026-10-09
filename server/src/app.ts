@@ -30,7 +30,7 @@ import {
   requireAdmin,
 } from "./auth/guards";
 import type { IdentityProviderStore } from "./auth/identity-provider-store";
-import { desktopAuthPage } from "./auth/native-browser";
+import { appAuthPage, desktopAuthPage } from "./auth/native-browser";
 import {
   createAttachmentRoutes,
   createChannelAttachmentRoutes,
@@ -492,6 +492,12 @@ export function createApp(
        */
       androidPackage: config.mobileLinks?.android?.appId ?? null,
       /*
+       * The address scheme the iOS app is opened by, which is where the system browser sends a person
+       * back after signing in. The app builds the address it expects from it. Public: it is in the
+       * app's own Info.plist.
+       */
+      appUrlScheme: config.appUrlScheme ?? null,
+      /*
        * Which identity providers this deployment can sign somebody in with.
        *
        * Ids only, never the credentials: `configuredAuthProviders` returns names, and the clients
@@ -556,6 +562,20 @@ export function createApp(
         context.req.raw,
         configuredAuthProviders(config.auth),
       );
+    }
+    if (
+      context.req.method === "GET" &&
+      new URL(context.req.url).pathname === "/api/auth/native"
+    ) {
+      // The iOS app's sign-in, in the system browser. Absent unless the operator named the app's
+      // scheme, so a deployment with no iOS app has no such page.
+      return config.appUrlScheme
+        ? appAuthPage(
+            context.req.raw,
+            configuredAuthProviders(config.auth),
+            config.appUrlScheme,
+          )
+        : context.notFound();
     }
     if (!auth) {
       return context.json(

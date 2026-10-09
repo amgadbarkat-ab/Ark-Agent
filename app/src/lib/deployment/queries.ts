@@ -26,6 +26,11 @@ export type DeploymentCapabilities = {
    * that links to the site.
    */
   androidPackage?: string | null;
+  /**
+   * The address scheme the iOS app is opened by, where the system browser sends a person back after
+   * signing in. Null where this deployment has no iOS app, and then signing in inside it is not offered.
+   */
+  appUrlScheme?: string | null;
 };
 
 export const deploymentKeys = {
@@ -64,6 +69,7 @@ export function deploymentCapabilitiesQueryOptions() {
         transcription?: boolean;
         voice?: boolean;
         androidPackage?: unknown;
+        appUrlScheme?: unknown;
       };
 
       return {
@@ -72,6 +78,8 @@ export function deploymentCapabilitiesQueryOptions() {
         voice: body.voice === true,
         androidPackage:
           typeof body.androidPackage === "string" ? body.androidPackage : null,
+        appUrlScheme:
+          typeof body.appUrlScheme === "string" ? body.appUrlScheme : null,
       };
     },
   });

@@ -81,3 +81,40 @@ export function appleAppSiteAssociation(
     webcredentials: { apps: [ios.appId] },
   };
 }
+
+/**
+ * Schemes that mean something to a browser or the system, and so can never be an app's own.
+ *
+ * The scheme is where the system browser sends a person back to the app after signing in. If it were
+ * `https` it would be an open redirect, and `javascript:` would be a script; the others open other
+ * programs. An app's own scheme is a name nobody else has any reason to use.
+ */
+const RESERVED_SCHEMES = new Set([
+  "http",
+  "https",
+  "file",
+  "ftp",
+  "ws",
+  "wss",
+  "data",
+  "javascript",
+  "vbscript",
+  "blob",
+  "about",
+  "mailto",
+  "tel",
+  "sms",
+  "facetime",
+  "intent",
+  "chrome",
+  "safari",
+  "itms",
+  "itms-apps",
+  "maps",
+  "webcal",
+  "view-source",
+]);
+
+/** The custom address scheme an app is opened by (`name://…`), at least three characters. */
+export const isAppUrlScheme = (value: string) =>
+  /^[a-z][a-z0-9+.-]{2,31}$/.test(value) && !RESERVED_SCHEMES.has(value);

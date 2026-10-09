@@ -12,7 +12,11 @@ import {
   signInWith,
   signInWithEmailDomain,
 } from "@/lib/auth/client";
+import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { appConfig } from "@/lib/generated/application-config";
+import { openSystemBrowser } from "@/lib/native/listener";
+import { beginNativeSignIn, NATIVE_PROVIDERS } from "@/lib/native/sign-in";
+import { isIosApp } from "@/lib/store-app";
 import {
   type AuthProviderId,
   authProvidersQueryOptions,
@@ -26,6 +30,9 @@ const ENTRANCE_STAGGER_SECONDS = 0.08;
 const ENTRANCE_OFFSET = "translateY(12px)";
 
 export const Route = createFileRoute("/sign")({
+  // Set when the iOS app was opened with an answer from the system browser that did not work.
+  validateSearch: (search: Record<string, unknown>): { native?: "failed" } =>
+    search.native === "failed" ? { native: "failed" } : {},
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(
       currentUserQueryOptions(),
@@ -46,7 +53,25 @@ function SignScreen() {
   const [opening, setOpening] = useState<AuthProviderId | "sso" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { data: options } = useQuery(authProvidersQueryOptions());
-  const providers = options?.providers ?? [];
+  const search = Route.useSearch();
+  /*
+   * Inside the iOS app sign-in happens in the system browser, because Google refuses an embedded web
+   * view (lib/native/sign-in.ts). Only the providers that page can start are offered there, and the
+   * company-address form is not: both need a way back into the app that does not exist for them yet.
+   */
+  const inIosApp = isIosApp();
+  const capabilities = useQuery({
+    ...deploymentCapabilitiesQueryOptions(),
+    enabled: inIosApp,
+  });
+  const appUrlScheme = capabilities.data?.appUrlScheme ?? null;
+  const allProviders = options?.providers ?? [];
+  const providers = inIosApp
+    ? allProviders.filter((provider) =>
+        (NATIVE_PROVIDERS as readonly string[]).includes(provider),
+      )
+    : allProviders;
+  const showCompanySignIn = Boolean(options?.sso) && !inIosApp;
   const [email, setEmail] = useState("");
 
   /**
@@ -77,6 +102,23 @@ function SignScreen() {
     setOpening(provider);
 
     try {
+      if (inIosApp) {
+        if (
+          !appUrlScheme ||
+          !(NATIVE_PROVIDERS as readonly string[]).includes(provider)
+        ) {
+          throw new Error("Signing in is not set up in this app yet.");
+        }
+        await beginNativeSignIn({
+          provider: provider as (typeof NATIVE_PROVIDERS)[number],
+          scheme: appUrlScheme,
+          origin: window.location.origin,
+          open: openSystemBrowser,
+        });
+        // The browser is open over this screen. Coming back to it, the buttons work again.
+        setOpening(null);
+        return;
+      }
       await signInWith(provider);
     } catch (caughtError) {
       setError(
@@ -159,9 +201,11 @@ function SignScreen() {
                 </Button>
               ))}
             </div>
-          ) : options?.sso ? null : (
+          ) : showCompanySignIn ? null : (
             <p className="text-center text-sm text-muted-foreground">
-              No sign-in provider is configured for this deployment.
+              {inIosApp
+                ? "Signing in with this account type is not available in the app."
+                : "No sign-in provider is configured for this deployment."}
             </p>
           )}
           {/*
@@ -170,7 +214,7 @@ function SignScreen() {
            * Below the buttons, because a deployment with both has more people arriving through the
            * buttons: the registered providers are for the companies whose IdP was added by hand.
            */}
-          {options?.sso ? (
+          {showCompanySignIn ? (
             <form className="mt-3" onSubmit={handleDomainSignIn}>
               {providers.length > 0 ? (
                 <div className="mb-3 flex items-center gap-3">
@@ -203,6 +247,10 @@ function SignScreen() {
           {error ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
               {error}
+            </p>
+          ) : search.native === "failed" ? (
+            <p className="mt-3 text-sm text-destructive" role="alert">
+              Signing in did not finish. Please try again.
             </p>
           ) : null}
         </motion.div>

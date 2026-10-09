@@ -39,7 +39,7 @@ Rejected, and why:
 | `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`, from `ARK_ANDROID_APP_ID`, `ARK_ANDROID_CERT_SHA256`, `ARK_IOS_APP_ID` | `server/src/mobile/links.ts` | Built and tested. Nothing is served until the operator names the apps. |
 | Nothing to buy inside the store apps | `app/src/lib/store-app.ts`, the Plan screen, `server/src/accounts/run-gate.ts`, `server/src/cloud/gate.ts` | Built and tested (below). |
 | Android package (Trusted Web Activity), its build checks and release workflow | `mobile/android/`, `mobile/scripts/`, `.github/workflows/mobile-android.yml` | Built here with the real Android SDK; see "Android". |
-| iOS shell and system-browser sign-in | `mobile/ios/` | See "iOS". |
+| iOS shell, system-browser sign-in, build checks and release workflow | `mobile/ios/`, `server/src/auth/native-browser.ts`, `app/src/lib/native/`, `.github/workflows/mobile-ios.yml` | Project made and configured here; **never compiled**. Sign-in tested end to end against Better Auth; see "iOS". |
 
 ## Store rules, and what the apps do about them
 
@@ -95,7 +95,8 @@ Ark signs in with Google, Microsoft or the company's directory (decision D9).
 - **Android (Trusted Web Activity):** the site is open in Chrome, so every provider works as it does in
   the browser, and the session is shared with Chrome. Nothing to build.
 - **iOS shell:** Google refuses sign-in inside an embedded web view, so the shell opens sign-in in the
-  system browser and receives the result by a one-time code (see "iOS").
+  system browser and receives the result by a one-time code bound to a secret that stays on the phone
+  (see "iOS").
 - **Home Screen web app on iOS:** works as in Safari.
 
 ## Android
@@ -120,6 +121,38 @@ settings it needs and how the site vouches for it are in [mobile/README.md](../.
 - **The release workflow was never run on GitHub.** It uses the same commands as the hand build, only
   actions this repository already pins, and passes zizmor. It stops short of uploading to Google Play.
 
+## iOS
+
+`mobile/ios/` makes a Capacitor shell: a native app whose window shows the deployment's own site (nothing
+of the web app is bundled). How to make and build it and the settings it needs are in
+[mobile/README.md](../../mobile/README.md).
+
+- **Signing in** is the part with design in it. Google refuses a web view, so the app opens the system
+  browser at `/api/auth/native`; the browser signs in with the chosen provider; the person taps a button
+  that names the account (a link alone must never hand a session to the app); and the browser opens the
+  app by its own address with a one-time code. It reuses Better Auth's transfer (the electron plugin the
+  server already runs, which the desktop app used): the code is bound to a challenge the app made, is
+  redeemable only with the secret it came from, works once, expires in two minutes, and is exchanged for
+  a **new session of the app's own** (the browser's is not shared). Another app on the phone can claim
+  the same scheme and read the code out of the address, and gets nothing: it does not have the secret.
+  The page only ever sends a person back to `<scheme>://signed-in`, the scheme is the operator's
+  (`ARK_IOS_URL_SCHEME`, refused if it is one a browser would act on), and the page does not exist
+  until it is set.
+- **What is offered:** Google and Microsoft. Company sign-in (Okta, an identity provider registered by an
+  administrator) is not offered in the app yet: it needs its own start-up call on the page.
+- **Verified here:** the project is made from the deployment's names and holds them (bundle identifier,
+  display name, the remote address, the user agent token the site looks for, the address scheme in
+  `Info.plist`, which parses as a valid plist); the page and the exchange are tested, the latter against
+  Better Auth itself (a code works once; the wrong secret or state is refused and sets no cookie; the app
+  ends with a session of its own for the same person); the app's half is tested (secret, address checks,
+  one try per answer, what the sign-in screen offers in the app).
+- **Not verified, and the largest gap in this document:** that the project **compiles** (no Xcode here),
+  that SFSafariViewController hands a custom-scheme address back to the app, that Google accepts the
+  sign-in in it, that the web view keeps the cookie, and everything about the App Store's review. The
+  build workflow's first run is the first compile.
+- **Not in the app yet:** notifications (Apple does not allow Web Push in a web view, so they need APNs and
+  a second sending path), an offline page, and links into the site opening the app.
+
 ## Notifications
 
 Web Push everywhere a browser can receive it: Chrome, the Android app (it is Chrome), and the Home
@@ -141,8 +174,10 @@ Nothing below can be done from here. Each item blocks the thing after it.
    account a closed test with testers before production). The package name, then the **App signing
    key certificate fingerprint** from Play Console, for `ARK_ANDROID_CERT_SHA256`.
 3. **An Apple Developer Program account** (annual fee; for an organisation, a D-U-N-S number, which
-   takes time). The team id and bundle identifier for `ARK_IOS_APP_ID`, signing certificates and, for
-   notifications in the shell, an APNs key.
+   takes time). The team id and bundle identifier for `ARK_IOS_APP_ID`; an **App Store Connect API key**
+   (the build signs with it, so no certificate or profile is stored); the address scheme for
+   `ARK_IOS_URL_SCHEME`; the **1024 by 1024 App Store icon** with no transparency, at
+   `mobile/ios/brand/AppIcon-1024.png`; and, for notifications in the shell, an APNs key.
 4. **Review accounts** for both stores: an account on a plan, with something in it.
 5. **A privacy policy address and the store questionnaires** (data safety on Google, privacy labels on
    Apple). The privacy notice in docs/legal is the starting text; the lawyer's review comes first.

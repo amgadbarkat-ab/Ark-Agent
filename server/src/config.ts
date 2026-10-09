@@ -17,6 +17,7 @@ import {
 import { voiceConfig, type VoiceConfig } from "./voice/config";
 import {
   isAndroidAppId,
+  isAppUrlScheme,
   isIosAppId,
   type MobileLinksConfig,
   normalizeFingerprint,
@@ -211,6 +212,11 @@ export type WebPushConfig = {
 };
 
 export type DeploymentConfig = {
+  /**
+   * The address scheme the iOS app is opened by (`name://`), where the system browser sends a person
+   * back after signing in. Absent means the hand-off page does not exist. See auth/native-browser.ts.
+   */
+  appUrlScheme?: string;
   /**
    * The names that tie this site to its Android and iOS apps, published as the files those systems
    * ask for. Absent means there is no store app and neither file is served. See server/src/mobile.
@@ -1387,6 +1393,20 @@ const base64urlBytes = (value: string): number[] | undefined => {
   }
 };
 
+/** `ARK_IOS_URL_SCHEME`: the scheme the iOS app is opened by, which is where sign-in returns to. */
+function appUrlSchemeSetting(
+  environment: Environment,
+): { appUrlScheme: string } | Record<string, never> {
+  const scheme = optional(environment, "ARK_IOS_URL_SCHEME");
+  if (scheme === undefined) return {};
+  if (!isAppUrlScheme(scheme)) {
+    throw new Error(
+      "ARK_IOS_URL_SCHEME is not an app's own address scheme: three to thirty-two lowercase letters, digits, dots, plus signs or hyphens, starting with a letter, and not one the system already uses (such as https).",
+    );
+  }
+  return { appUrlScheme: scheme };
+}
+
 /**
  * `ARK_ANDROID_APP_ID` with `ARK_ANDROID_CERT_SHA256`, and `ARK_IOS_APP_ID`.
  *
@@ -1639,6 +1659,7 @@ export function loadConfig(
     termsAcceptance: termsAcceptanceMode(environment),
     ...webPushSetting(environment, appUrl),
     ...mobileLinksSetting(environment),
+    ...appUrlSchemeSetting(environment),
     requestLog: parseRequestLogMode(optional(environment, "REQUEST_LOG")),
     auditShipping: auditShippingMode(environment),
     shutdown: shutdownSetting(environment),

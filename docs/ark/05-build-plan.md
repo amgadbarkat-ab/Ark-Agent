@@ -159,7 +159,9 @@ for the App Store, as a free companion app that sells nothing (the default for o
       to upgrade are left out.
 - [x] Android package (Trusted Web Activity): builds a debug app and a signed bundle with the real SDK;
       its release workflow is written, never run on GitHub; never installed on a phone.
-- [ ] iOS shell and its build job (written, never run from here).
+- [x] iOS shell (Capacitor), with sign-in through the system browser (Google refuses a web view): the
+      project is made and configured here and its sign-in is tested; **never compiled** (no Xcode here),
+      and its build workflow was never run.
 - [ ] **Owner:** brand and domain (D8), a Google Play account, an Apple Developer account, review
       accounts; confirm or change the companion-app default.
 - Not built: reaching a person's own desktop from a phone (needs a relay); notifications in the iOS

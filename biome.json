@@ -12,6 +12,8 @@
       "!mobile/android/build",
       "!mobile/android/.gradle",
       "!mobile/android/app/build",
+      "!mobile/ios/ios",
+      "!mobile/ios/capacitor.config.json",
       "!server/drizzle"
     ]
   },

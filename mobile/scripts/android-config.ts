@@ -11,6 +11,16 @@
  * reads the environment and writes the file Gradle reads.
  */
 import { isAndroidAppId } from "../../server/src/mobile/links";
+import {
+  APP_NAME,
+  APP_NAME_RULE,
+  COLOUR,
+  type Environment,
+  need,
+  siteFrom,
+} from "./shared";
+
+export { siteFrom };
 
 export type AndroidConfig = {
   applicationId: string;
@@ -25,58 +35,13 @@ export type AndroidConfig = {
   versionName: string;
 };
 
-type Environment = Record<string, string | undefined>;
-
 /** What the web app's own manifest says about its colours. The app and the site look the same by construction. */
 export type WebManifestColors = {
   theme_color?: string;
   background_color?: string;
 };
 
-const COLOUR = /^#[0-9A-Fa-f]{6}$/;
-/** Letters, digits, spaces and a few marks: it is written into an Android string resource unescaped. */
-const APP_NAME = /^[\p{L}\p{N}][\p{L}\p{N} .\-_]{0,29}$/u;
 const VERSION_NAME = /^\d+(\.\d+){0,3}([-+][0-9A-Za-z.-]{1,20})?$/;
-
-const need = (environment: Environment, name: string): string => {
-  const value = environment[name]?.trim();
-  if (!value) throw new Error(`${name} is not set.`);
-  return value;
-};
-
-/** The deployment's address as an origin an Android app can be tied to, or an explanation. */
-export function siteFrom(address: string): { url: string; host: string } {
-  let url: URL;
-  try {
-    url = new URL(address);
-  } catch {
-    throw new Error("ARK_APP_URL is not an address.");
-  }
-  if (url.protocol !== "https:") {
-    throw new Error(
-      "ARK_APP_URL must be https: an Android app can only be tied to a site served over https.",
-    );
-  }
-  if (url.username || url.password) {
-    throw new Error("ARK_APP_URL must not carry a user name or password.");
-  }
-  if (url.port && url.port !== "443") {
-    throw new Error("ARK_APP_URL must use the standard https port.");
-  }
-  if (url.pathname !== "/" || url.search || url.hash) {
-    throw new Error(
-      "ARK_APP_URL is the site itself (https://host), with no path, query or fragment.",
-    );
-  }
-  const host = url.hostname.toLowerCase();
-  // An address is not a name the site can be verified under, and `localhost` cannot be reached from a phone.
-  if (/^[\d.]+$/.test(host) || host.includes(":") || !host.includes(".")) {
-    throw new Error(
-      "ARK_APP_URL must be a domain name (such as https://ark.example), not an IP address or a single word.",
-    );
-  }
-  return { url: `https://${host}`, host };
-}
 
 export function androidConfigFrom(
   environment: Environment,
@@ -94,7 +59,7 @@ export function androidConfigFrom(
   const appName = need(environment, "ARK_APP_NAME");
   if (!APP_NAME.test(appName)) {
     throw new Error(
-      "ARK_APP_NAME is the name under the icon: up to 30 letters, digits, spaces, dots, hyphens and underscores, starting with a letter or digit.",
+      `ARK_APP_NAME is the name under the icon: ${APP_NAME_RULE}.`,
     );
   }
 
