@@ -30,6 +30,36 @@ describe("the brand pack", () => {
     expect(INK).toBe("#1A0B03");
   });
 
+  test("the css tokens carry the same colours as the json", () => {
+    const css = text("brand", "brand-tokens.css").toLowerCase();
+    expect(css).toContain(`--ba-ember:${EMBER.toLowerCase()}`);
+    expect(css).toContain(`--ba-text-on-ember:${INK.toLowerCase()}`);
+  });
+
+  test("the logos and the fonts, with the font licence, are all here", () => {
+    for (const file of [
+      "logo-lockup-on-dark.png",
+      "logo-lockup-on-light.png",
+      "logo-lockup-transparent.png",
+      "logo-icon-bars.png",
+      "logo-icon-bars.svg",
+    ]) {
+      expect(existsSync(join(root, "brand", "logos", file))).toBe(true);
+    }
+    for (const file of [
+      "Geist-Variable.woff2",
+      "GeistMono-Regular.woff2",
+      "GeistMono-Medium.woff2",
+      "LICENSE.txt",
+    ]) {
+      expect(existsSync(join(root, "brand", "fonts", file))).toBe(true);
+    }
+    // A font shipped without its licence is not ours to ship.
+    expect(text("brand", "fonts", "LICENSE.txt")).toContain(
+      "SIL OPEN FONT LICENSE",
+    );
+  });
+
   test("the mark is drawn in the company's two colours and nothing else", () => {
     const mark = text("brand", "mark.svg");
     const fills = [...mark.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) =>

@@ -1,15 +1,15 @@
 # Privacy notice
 
 > **DRAFT for review by a lawyer before publication.** Written by engineering from what the product
-> actually does (docs/ark/14-data-protection.md). Items in [square brackets] are for Black Ark to fill
+> actually does (docs/ark/14-data-protection.md). Items in [square brackets] are for Value Data IKE to fill
 > in; nothing else here should need inventing. The app shows this text at `/privacy`.
 
 **Last updated:** [date of publication]
 
 ## Who we are
 
-Ark is run by **Black Ark** ("we", "us", "Ark"), [legal form and registration number], of [registered
-address]. For the personal data described here, Black Ark is the **controller**, except where a company
+Ark is run by **Value Data IKE**, a private company (ΙΚΕ) registered in Greece that trades as **BlackArk**
+("we", "us", "Ark"), [registration number in the Greek commercial registry (ΓΕΜΗ)], of [registered address]. For the personal data described here, Value Data IKE is the **controller**, except where a company
 has bought Ark for its staff: for what those staff put into Ark, the company is the controller and Black
 Ark acts for it as a processor (see "If your employer or organisation uses Ark").
 

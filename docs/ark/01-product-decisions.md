@@ -80,17 +80,18 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set. The mechanism
    is built; the procedure for setting the prices from cost is in 17-cloud-runtime.md.
-2. **Which hostname the product runs on.** The marketing site is `www.blackark.uk`. The product needs its own
-   host (recommended `app.blackark.uk`): the Android app is bound to one host by `/.well-known/assetlinks.json`,
-   Paddle approves the checkout domain by name, and cookies belong to one host. Not yet answered.
-3. **The identifiers.** Proposed `uk.blackark.arkagent` for the Android package and the iOS bundle
-   identifier, `uk.blackark.arkagent.desktop` for the desktop. The first two are permanent once published
+2. **The identifiers.** Proposed `uk.blackark.arkagent` for the Android package and the iOS bundle
+   identifier, `uk.blackark.arkagent.desktop` for the desktop (the owner's reply left this unanswered and
+   wrote it without the leading `uk.`). The first two are permanent once published
    (20-accounts-and-keys.md).
-4. **Black Ark's legal form and exact registered name.** It decides whether the stores and Microsoft take
-   it as an organisation or as an individual (20-accounts-and-keys.md).
+3. **The product's spelling:** "Ark Agent" (this repository) or "ArkAgent" (the website's product list).
 
 ## Answered
 
+- **The legal entity is Value Data IKE** (a Greek ΙΚΕ); **BlackArk is its trade name.** Stores and
+  Microsoft enrol the legal entity, so the seller and the publisher are named "Value Data IKE".
+  (2026-10-09)
+- **The product runs on `app.blackark.uk`;** the marketing site stays on `www.blackark.uk`. (2026-10-09)
 - **Mobile store rules: customers always pay on the website, through Paddle only.** The store apps are free
   companion apps that sell nothing and point nowhere to buy (19-mobile.md). Confirmed by the owner. (2026-10-09)
 - **Domain and brand:** the company domain `blackark.uk`; the identity is the company's own v3 (Ember),

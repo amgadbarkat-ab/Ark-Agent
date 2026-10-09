@@ -9,6 +9,8 @@
       "!app/src/routeTree.gen.ts",
       "!desktop/src-tauri/gen",
       "!**/target",
+      "!brand/brand-tokens.json",
+      "!brand/brand-tokens.css",
       "!mobile/android/build",
       "!mobile/android/.gradle",
       "!mobile/android/app/build",

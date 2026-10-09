@@ -2,11 +2,12 @@
 
 > **DRAFT TEMPLATE for review by a lawyer.** For customers on Ark Team and Ark Team Enterprise, whose
 > staff put the customer's own information into Ark. It follows GDPR Article 28. Items in [square
-> brackets] are for Black Ark or the customer to fill in. It is meant to be attached to the main
+> brackets] are for Value Data IKE or the customer to fill in. It is meant to be attached to the main
 > agreement (the plan terms), which governs liability and everything not covered here.
 
-**Between** [Customer legal name and address] (the **Controller**) **and Black Ark**, [legal form,
-registration number and registered address] (the **Processor**).
+**Between** [Customer legal name and address] (the **Controller**) **and Value Data IKE**, a private company
+(ΙΚΕ) registered in Greece that trades as BlackArk, [ΓΕΜΗ registration number and registered address] (the
+**Processor**).
 
 ## 1. What this covers
 
@@ -137,7 +138,7 @@ These describe what is in place at the date of this agreement. Detail: docs/ark/
 | --- | --- | --- |
 | Microsoft Ireland Operations Ltd (Azure) [confirm the contracting entity on the Azure agreement] | Hosting, storage, backups, logs | Western Europe; backups also in the paired European region |
 | Composio | Connecting the Controller's staff to the apps they link | [location; to confirm] |
-| [Any managed model access Black Ark provides: provider, purpose, location] | [Only if Black Ark supplies model access in the plan] | [location] |
+| [Any managed model access Value Data IKE provides: provider, purpose, location] | [Only if Value Data IKE supplies model access in the plan] | [location] |
 
 Not sub-processors: **Paddle** (the seller of the plan, an independent controller of payment data), and
 the **model providers and apps that the Controller's staff connect** themselves.

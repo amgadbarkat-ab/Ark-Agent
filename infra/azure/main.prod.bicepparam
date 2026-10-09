@@ -6,7 +6,7 @@ using './main.bicep'
 param environment = 'prod'
 param alertEmail = 'ops@example.com'
 param adminGroupObjectId = '00000000-0000-0000-0000-000000000000'
-param publicUrl = 'https://ark.example.com'
+param publicUrl = 'https://app.blackark.uk'
 param monthlyBudget = 1500
 // The offices and the VPN staff administer from. Leave empty only while setting up.
 param authorizedIpRanges = []

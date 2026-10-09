@@ -1,4 +1,4 @@
-# Accounts and keys: what Black Ark has to obtain, and how
+# Accounts and keys: what Value Data IKE (BlackArk) has to obtain, and how
 
 Written 2026-10-09 for the owner. Everything here is something only the company can do, because it needs
 the company's identity, a payment card, or a signature. Each step names the exact setting I will read, so
@@ -9,36 +9,52 @@ Facts about the stores and the certificate rules were read from the vendors' own
 (links at the end). They change; each section says where to look again. Prices are the vendors' and are
 not checked beyond what the page said.
 
-## Start here: three facts to settle first
+## Start here: what is settled and what is not
 
-Everything below branches on these, and the first one changes which accounts are possible at all.
+Settled by the owner on 2026-10-09:
 
-1. **What Black Ark is, legally, and its exact registered name.** The company's website names the legal
-   entity "Black Ark Technology"; the owner wrote "Black Ark". The form matters:
-   - a company with its own legal personality (a private company or ΙΚΕ, a société anonyme or ΑΕ, an ΕΠΕ,
-     and the partnerships ΟΕ and ΕΕ) is a **legal entity**: it can enrol as an organisation everywhere;
-   - a **sole proprietorship** (ατομική επιχείρηση) is the owner as a person. Apple says to enrol such a
-     business as an *individual*, and then the seller shown on the App Store is the owner's personal legal
-     name, not "Black Ark". Google treats it as a personal account. Microsoft's Artifact Signing is not
-     open to individuals outside the United States and Canada.
-   The registered name has to be spelled **identically** on the D-U-N-S record, with Apple, with Google and
-   with Microsoft. A mismatch is the most common reason an enrolment stalls.
-2. **Which hostname the product runs on.** The marketing site is `www.blackark.uk`. The product needs its own
-   host (recommended: `app.blackark.uk`), because the Android app is bound to one host by a file the
-   product serves at `/.well-known/assetlinks.json`, Paddle approves the checkout domain by name, and
-   sign-in cookies belong to one host. Pointing `www.blackark.uk` itself at the product would take the
-   marketing site off the air.
+1. **The legal entity is Value Data IKE**, a Greek private company (ιδιωτική κεφαλαιουχική εταιρεία, ΙΚΕ),
+   which is a legal entity in its own right. **BlackArk is its trade name**, not a company. (The website
+   calls BlackArk "the successor to Value Data Technology": the D-U-N-S record and every document below
+   must be those of the ΙΚΕ, not the older business.) What follows from that:
+   - **Apple enrols the legal entity, never a trade name.** Its page says it does not accept "DBAs,
+     fictitious businesses, trade names, or branches". So the Apple account is **Value Data IKE**, and the
+     seller shown on the App Store is "Value Data IKE", not "BlackArk". The app itself can still be called
+     Ark Agent.
+   - **Google Play** takes an organisation account on the same legal name and D-U-N-S number. The
+     developer name that customers see is a separate field in the Console; check what it offers, because
+     Google also shows the verified legal name.
+   - **Microsoft's Artifact Signing** validates the legal entity, and the publisher name on the signature
+     is that validated name (it cannot be customised). Windows will show "Value Data IKE" as the publisher.
+   - **The trademark:** "BlackArk" was cleared in the UK (confirmed 2026-09-04). Ask the lawyer to confirm
+     that the mark is, or will be, held by Value Data IKE, since the stores and Microsoft will name that
+     company as the seller or publisher.
+   - **The company's registered name has to be spelled identically** on the D-U-N-S record, with Apple, with
+     Google and with Microsoft. A mismatch is the most common reason an enrolment stalls. Take the spelling
+     from the ΓΕΜΗ certificate.
+2. **The product runs on `app.blackark.uk`.** The marketing site stays on `www.blackark.uk`. The Android app
+   is bound to one host by a file the product serves at `/.well-known/assetlinks.json`, Paddle approves the
+   checkout domain by name, and sign-in cookies belong to one host. Needs a DNS record and a certificate
+   when the product is deployed (`docs/ark/13-azure-hosting.md`).
+
+Not yet confirmed:
+
 3. **The identifiers.** Proposed, from the company's own domain written backwards:
 
    | Where | Proposed identifier | Permanent once published? |
    | --- | --- | --- |
    | Android package name | `uk.blackark.arkagent` | **Yes**, forever |
    | iOS bundle identifier | `uk.blackark.arkagent` | **Yes**, forever |
-   | Desktop identifier (macOS and Windows) | `uk.blackark.arkagent.desktop` | Effectively yes: it names the app's data and its keychain entries. Still `ai.copilotkit.openbot.desktop` today; I will change it only once you confirm, and before the first release. |
+   | Desktop identifier (macOS and Windows) | `uk.blackark.arkagent.desktop` | Effectively yes: it names the app's data and its keychain entries. Still `ai.copilotkit.openbot.desktop` today; I change it once you confirm. |
 
-   The product name "Ark Agent" has not been cleared as a trademark. What is cleared is "BlackArk", in the
-   United Kingdom only (confirmed 2026-09-04). Ask the lawyer about "Ark Agent" before the store listings
-   exist, and see "Where the apps are offered" below.
+   The owner's reply left this unanswered and wrote the proposal without its leading `uk.`. Reverse-domain
+   order puts the country code first (`blackark.uk` becomes `uk.blackark`); an identifier without it is
+   allowed but is not what either store's examples show. Nothing needs it until the first store record is
+   created.
+
+   The product name "Ark Agent" has not been cleared as a trademark either, and the website writes it as
+   one word, "ArkAgent". Settle the spelling before any store listing exists, and see "Where the apps are
+   offered" below.
 
 ## Order, lead times and costs
 
@@ -57,11 +73,9 @@ check.
 
 ## 1. A D-U-N-S number (organisation only)
 
-A sole proprietor skips this section.
-
 1. Go to Apple's **D-U-N-S lookup** (`developer.apple.com/enroll/duns-lookup`). Enter the legal name, the
    headquarters address, a mailing address and a work contact.
-2. If Black Ark already has a number, it shows. If not, the same page lets you submit the details to Dun &
+2. If Value Data IKE already has a number, it shows. If not, the same page lets you submit the details to Dun &
    Bradstreet for a **free** number. Have the registration documents from the Greek commercial registry
    (ΓΕΜΗ) to hand: D&B may ask for the business type and number of employees.
 3. Allow up to **5 business days**. After 2 weeks without an answer, email D&B. Once you have it, allow up to 2
@@ -79,17 +93,15 @@ stay consistent with the D&B profile.
 
 1. Use a Google account that belongs to the company (a shared mailbox such as `apps@blackark.uk`, not a
    personal address), with 2-step verification on. It becomes the owner of the Play account.
-2. Open the Play Console sign-up (`play.google.com/console/signup`). Choose **Organization** for a company
-   (**Personal** for a sole proprietor).
-3. Enter the exact registered name and address, the D-U-N-S number, a public contact email and phone, and
+2. Open the Play Console sign-up (`play.google.com/console/signup`). Choose **Organization**.
+3. Enter the exact registered name (Value Data IKE) and address, the D-U-N-S number, a public contact email and phone, and
    the website. Pay the **25 USD** one-off fee by card (prepaid cards are refused). Google may ask for a
    government ID and a card, "both under your legal name".
 4. Verify the contact phone and email when asked. A new account may also ask you to confirm access to an
    Android device through the Play Console phone app.
-5. **A personal account created after 13 November 2023 cannot publish until a closed test has run with at
-   least 12 testers opted in for 14 days in a row.** Google's page applies this to personal accounts, and an
-   organisation account is not subject to it (check this in the Console's Dashboard when you register). It is
-   one more reason the legal form matters.
+5. Google's closed-test rule (12 testers opted in for 14 days in a row before a first release) applies to
+   personal accounts created after 13 November 2023. An organisation account, which is what Value Data IKE
+   registers, is not subject to it; confirm this on the Console's Dashboard when you register.
 6. Create the app: **All apps, Create app**. Name "Ark Agent" (see the trademark note above), language,
    **App** (not game), **Free**. Play will ask for the package name when the first bundle is uploaded; it must
    be the one in the table above.
@@ -130,8 +142,7 @@ page; developers publishing through Play go through the Console's own verificati
    on the company's domain, which Apple checks for an organisation) with two-factor authentication on. The
    person who enrols must be the legal age of majority, and an owner, founder, executive or someone with
    legal authority to bind the company.
-2. Enrol at `developer.apple.com/programs/enroll`. Choose **Company / Organization** (a sole proprietor
-   chooses **Individual**, using their own legal name and their own card).
+2. Enrol at `developer.apple.com/programs/enroll`. Choose **Company / Organization**.
 3. Enter the exact legal name, the D-U-N-S number and the headquarters address. The company website must be
    public and working, on the company's own domain; social pages are not accepted. Apple may ask for a
    reference who can confirm the person's authority, or for notarised business documents.
@@ -180,7 +191,7 @@ It needs the paid membership of section 3; the free tier cannot notarise.
    another route). Make a signing request on any machine:
    ```sh
    openssl req -new -newkey rsa:2048 -nodes -keyout developer-id.key \
-     -out developer-id.csr -subj "/CN=Black Ark Developer ID/O=Black Ark"
+     -out developer-id.csr -subj "/CN=Value Data IKE Developer ID/O=Value Data IKE"
    ```
    (On a Mac, Keychain Access, Certificate Assistant, **Request a Certificate From a Certificate Authority**
    does the same and keeps the key in the keychain.)
@@ -200,7 +211,7 @@ It needs the paid membership of section 3; the free tier cannot notarise.
    secrets `APPLE_CERTIFICATE` (the base64 `.p12`), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_API_KEY` (the Key
    ID), `APPLE_API_ISSUER`, `APPLE_API_KEY_BASE64` (the base64 `.p8`; the job writes it to a temporary file and
    sets `APPLE_API_KEY_PATH`, which is the name Tauri wants), and the variable `APPLE_SIGNING_IDENTITY`
-   (`Developer ID Application: <registered name> (<Team ID>)`, exactly as the certificate shows).
+   (`Developer ID Application: Value Data IKE (<Team ID>)`, exactly as the certificate shows).
 
 The workflow that uses these is **not written yet**; it cannot be tested without them, and the first run
 will need a Mac to open the result. I write it as soon as the secrets exist, so the first run tests it.
@@ -211,11 +222,11 @@ will need a Mac to open the result. I write it as soon as the secrets exist, so 
 "unknown publisher". Even signed, a new program is flagged until enough people have downloaded it; reputation
 builds with use. (Microsoft's service does not issue EV certificates and says it will not.)
 
-### Option A (recommended for a registered company): Microsoft Artifact Signing
+### Option A (recommended; Value Data IKE is an EU company): Microsoft Artifact Signing
 
 Formerly Trusted Signing. Public-trust certificates are open to **organisations in the EU** (and the US,
 Canada, UK, Australia, New Zealand, Japan, South Korea, Singapore, Switzerland, Norway and Israel).
-**Individuals only in the United States and Canada**, so a Greek sole proprietor cannot use it.
+Individuals only in the United States and Canada, which does not matter here: Value Data IKE applies as an organisation.
 There is no certificate to buy, store, renew or lose: Microsoft's service signs, and the certificate it
 issues lasts three days, which is why a timestamp is always added.
 
@@ -248,7 +259,7 @@ issues lasts three days, which is why a timestamp is always added.
 
 ### Option B: a certificate from a certificate authority
 
-Needed for a sole proprietor, or if the validation in A fails. Two rules to know before buying:
+Only if the validation in A fails. Two rules to know before buying:
 
 - Since June 2023 the private key of an OV or EV code-signing certificate has to live on hardware that meets
   FIPS 140 Level 2 or Common Criteria EAL 4+: a token the authority posts you, or the authority's cloud

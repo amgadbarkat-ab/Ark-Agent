@@ -25,7 +25,7 @@ reasoning, the day-to-day operation and what is and is not verified are in
 1. **An Azure subscription** and the Azure CLI, signed in (`az login`) as an owner while setting up.
    Azure Cloud Shell has the CLI already signed in; nothing needs installing.
 2. **Two DNS names** under a domain you own, one for the application and one for the hub (for example
-   `ark.example.com`, `hub.ark.example.com`). You need the domain *name* now, and the records at the
+   `app.blackark.uk`, `hub.blackark.uk`). You need the domain *name* now, and the records at the
    very end (step 6 below), once the ingress has an address.
 3. **A mailbox somebody reads**, for alerts and for Let's Encrypt.
 4. **The identities in Microsoft Entra ID**, made by one script that can be run again safely:

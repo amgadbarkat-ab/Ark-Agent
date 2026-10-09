@@ -13,8 +13,9 @@ lawyer's review before the first customer. Items only the owner can supply are m
   Ark. For that content Ark is the company's **processor**, and the company is the controller. Ark
   therefore needs a **data processing agreement** to offer those customers. **[owner]** (the standard
   clauses are short; the substance is this page.)
-- **The legal entity is Black Ark** (named by the owner, 2026-10-08). Still to supply **[owner]**: the
-  registration number and legal form, the registered address, the mailbox that answers privacy
+- **The legal entity is Value Data IKE**, a Greek private company (ΙΚΕ) that trades as **BlackArk** (named
+  by the owner, 2026-10-09; earlier called "Black Ark"). Still to supply **[owner]**: the ΓΕΜΗ registration
+  number, the registered address, the mailbox that answers privacy
   requests, and the country of establishment, which decides which data-protection authority supervises. Whether a Data Protection
   Officer is required depends on scale and should be asked of the lawyer.
 
@@ -148,7 +149,7 @@ the app at `/privacy`, which is also the address Google's sign-in consent screen
 customers, and [the terms of service](../legal/terms-of-service.md) (shown at `/terms`; the sign-in
 screen links to it, and `TERMS_ACCEPTANCE=required` makes a customer accept the version in force before
 anything else, recording which version and when; staff are never asked). The terms are a draft with
-bracketed items for Black Ark and clauses (liability, governing law, consumer rights) marked for the
+bracketed items for Value Data IKE and clauses (liability, governing law, consumer rights) marked for the
 lawyer. Acceptance is not asked while the setting is `off`, which is the default, because recording
 agreement to a draft records agreement to nothing: **switch it on when the text is final**, and bump
 the `**Version:**` line (then run `bun scripts/generate-app-config.ts`) whenever a change must be

@@ -20,7 +20,7 @@ config:
   # (a single Microsoft directory, Google when it verified the address, Okta, a company provider).
   initialAdminEmails: you@example.com
   # REPLACE: where people reach Ark.
-  publicUrl: https://ark.example.com
+  publicUrl: https://app.blackark.uk
   auth:
     microsoft:
       # REPLACE: the app registration for Ark's own staff directory, a single-tenant one.
@@ -131,17 +131,17 @@ hub:
     repository: REPLACE.azurecr.io/ark-hub
     tag: ""
   # Its own name, for the browser's live connection.
-  publicUrl: wss://hub.ark.example.com
+  publicUrl: wss://hub.blackark.uk
   ingress:
     enabled: true
-    host: hub.ark.example.com
+    host: hub.blackark.uk
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt
       # The managed NGINX closes an idle connection after a minute unless told a socket may stay open.
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     tls:
-      - hosts: [hub.ark.example.com]
+      - hosts: [hub.blackark.uk]
         secretName: ark-hub-tls
 
 ingress:
@@ -162,12 +162,12 @@ ingress:
     nginx.ingress.kubernetes.io/limit-req-status-code: "429"
     nginx.ingress.kubernetes.io/limit-conn-status-code: "429"
   hosts:
-    - host: ark.example.com
+    - host: app.blackark.uk
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - hosts: [ark.example.com]
+    - hosts: [app.blackark.uk]
       secretName: ark-tls
 
 server:

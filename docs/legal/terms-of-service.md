@@ -2,8 +2,8 @@
 
 > **DRAFT for review by a lawyer before publication.** Written by engineering from what the product
 > actually does (docs/ark/14-data-protection.md, 12-paddle.md, 17-cloud-runtime.md). Items in [square
-> brackets] are for Black Ark to fill in or decide; nothing else here should need inventing. Several
-> clauses (liability, governing law, consumer rights) depend on where Black Ark is and who it sells to,
+> brackets] are for Value Data IKE to fill in or decide; nothing else here should need inventing. Several
+> clauses (liability, governing law, consumer rights) depend on where Value Data IKE is and who it sells to,
 > and are marked for the lawyer. The app shows this text at `/terms`.
 >
 > **To publish a change that people must accept again:** change the version line below, then run
@@ -16,8 +16,9 @@
 
 ## 1. Who these terms are between
 
-These terms are between you and **Black Ark** ("we", "us", "Ark"), [legal form and registration
-number], of [registered address]. By creating an account or using Ark you agree to them. If you use Ark
+These terms are between you and **Value Data IKE**, a private company (ΙΚΕ) registered in Greece that
+trades as **BlackArk** ("we", "us", "Ark"), [registration number in the Greek commercial registry (ΓΕΜΗ)],
+of [registered address]. By creating an account or using Ark you agree to them. If you use Ark
 for a company or other organisation, you confirm you may accept these terms for it, and "you" means
 that organisation.
 

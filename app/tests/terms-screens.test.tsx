@@ -76,7 +76,7 @@ test("the public terms page is the document, with its draft banner and its secti
   );
   expect(heading.tagName).toBe("H1");
   const text = (document.body.textContent ?? "").replace(/\s+/g, " ");
-  expect(text).toContain("Black Ark");
+  expect(text).toContain("Value Data IKE");
   expect(text).toContain("DRAFT for review by a lawyer");
   // The promise that matters most to a customer is there in so many words.
   expect(text).toContain(

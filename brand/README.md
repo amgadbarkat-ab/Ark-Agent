@@ -1,18 +1,27 @@
 # Brand
 
 Ark Agent uses Black Ark's own identity: **BlackArk Visual Identity v3 (Ember)**, issued 4 October 2026
-by the company (its `brand-tokens.json`, kept here as read from the company's OneDrive). Nothing in this repository invents
-a mark, a colour or a name; if the company changes its identity, this folder is where the change starts.
+by the company and handed over as a kit by the owner on 2026-10-09. Its token file is kept here exactly as
+issued. Nothing in this repository invents a mark, a colour or a name; if the company changes its identity,
+this folder is where the change starts.
 
 ## What is here
 
 | File | What it is |
 | --- | --- |
-| `brand-tokens.json` | The company's v3 token file as read from its OneDrive (`Chief of Operations/visual-identity/v3-ember/`). The reading tool may have turned a dash into a hyphen in the names, so the original there is the authority; the values are exact. The colours, type and rules below come from it. |
+| `brand-tokens.json`, `brand-tokens.css` | The company's v3 token files, exactly as issued in the kit. The colours, type and rules below come from them. |
 | `mark.svg` | The app tile: an ember square with three ascending bars, as the company publishes it on its website (its favicon and home-screen icon). |
-| `official/` | The company's own published icon files (`favicon.ico`, `favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`). Used as they are, not redrawn. |
+| `official/` | The company's own published icon files (`favicon.ico`, `favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`), identical to the kit's `favicon/`. Used as they are, not redrawn. |
+| `logos/` | The company's logo files: the lockups on dark, on light and transparent, and the three-bar icon as PNG and as true vector. For store listings, the About screen and documents; the app tile above is what goes on a home screen. |
+| `fonts/` | Geist and Geist Mono (SIL Open Font License; the licence text is in the folder). Kept for when the interface moves to the v3 type; not loaded by any screen yet. |
+| `og-image.png` | The 1200 by 630 share image, the same file the website serves. |
 | `render-icons.mjs` | Draws every other icon Ark ships from `mark.svg` and writes it where it is used. |
 | `brand.test.ts` | Checks that every icon in the repository is the brand's: the right colours, sizes and kinds, and that the copies of the company's files have not drifted. |
+
+Not copied from the kit, on purpose: the staff cards and the e-mail signatures (they are about named people),
+the letterhead and the quotation and invoice templates (they are the company's office documents, not the
+product's), and the PDF guide (it is the company's to keep; the rules that matter to the product are
+summarised below).
 
 ## The rules that matter for the product
 
@@ -58,11 +67,11 @@ from the new master as `desktop/src-tauri/icons/README.md` says.
 - **The web app's screens are still the inherited OpenBot design**: its own greys, its own type. Moving
   the interface to the v3 tokens (ember accent, paper surfaces, Geist) is a design change to every
   screen and is not done. It needs a decision on how far to go, and on whether the product is dark first.
-- The wordmark and lockup ("Logo 08, Ligature Lockup") are in the company's pack as SVG and a zip that
-  could not be fetched through the connection used here. They are not imported. Store listings need
-  them (and screenshots, a feature graphic for Google Play, and a short description), so the company
-  should supply them from its pack.
-- Fonts are not bundled. Geist is open-licensed and can be, once the interface is moved to the tokens.
+- The lockup and fonts are in this folder but no screen uses them yet. Store listings also need screenshots,
+  a feature graphic for Google Play (1024 by 500) and a short description, which are the company's to
+  supply or approve.
+- The lockup PNGs are recoloured from the v2 artwork, so their lettering still uses a stand-in typeface
+  (the kit's own note); real Geist is in `fonts/` for the next regeneration.
 - The desktop app's own wording (setup window, messages, tray, installer) now says Ark Agent. What was left alone
   on purpose is listed in `docs/ark/10-desktop-replatform.md`.
 - Nothing has been looked at on a real phone, Mac or Windows machine.

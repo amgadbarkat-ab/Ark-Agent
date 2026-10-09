@@ -46,7 +46,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "copyright": "Black Ark",
+    "copyright": "Value Data IKE (BlackArk)",
     "category": "DeveloperTool",
     "shortDescription": "Run Ark Agent on your own computer",
     "longDescription": "Ark Agent for desktop installs the container engine, raises the stack, and keeps it running."
