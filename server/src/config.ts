@@ -15,6 +15,12 @@ import {
   type TranscriptionConfig,
 } from "./dictation/config";
 import { voiceConfig, type VoiceConfig } from "./voice/config";
+import {
+  isAndroidAppId,
+  isIosAppId,
+  type MobileLinksConfig,
+  normalizeFingerprint,
+} from "./mobile/links";
 
 export type RuntimeCapabilities = {
   mode: "intelligence";
@@ -205,6 +211,11 @@ export type WebPushConfig = {
 };
 
 export type DeploymentConfig = {
+  /**
+   * The names that tie this site to its Android and iOS apps, published as the files those systems
+   * ask for. Absent means there is no store app and neither file is served. See server/src/mobile.
+   */
+  mobileLinks?: MobileLinksConfig;
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
   voice?: VoiceConfig;
@@ -1377,6 +1388,55 @@ const base64urlBytes = (value: string): number[] | undefined => {
 };
 
 /**
+ * `ARK_ANDROID_APP_ID` with `ARK_ANDROID_CERT_SHA256`, and `ARK_IOS_APP_ID`.
+ *
+ * The Android pair goes together: a package name with no fingerprint publishes a file Android will
+ * refuse, and a fingerprint with no package names nothing. Each is checked against its own shape,
+ * because the failure otherwise is a store app that opens in a browser tab and no sentence anywhere
+ * saying that the file was wrong.
+ */
+function mobileLinksSetting(
+  environment: Environment,
+): { mobileLinks: MobileLinksConfig } | Record<string, never> {
+  const androidId = optional(environment, "ARK_ANDROID_APP_ID");
+  const fingerprints = commaSeparated(environment, "ARK_ANDROID_CERT_SHA256");
+  const iosId = optional(environment, "ARK_IOS_APP_ID");
+  const links: MobileLinksConfig = {};
+
+  if (androidId !== undefined || fingerprints.length > 0) {
+    if (androidId === undefined || fingerprints.length === 0) {
+      throw new Error(
+        "ARK_ANDROID_APP_ID and ARK_ANDROID_CERT_SHA256 go together: set both or neither.",
+      );
+    }
+    if (!isAndroidAppId(androidId)) {
+      throw new Error(
+        "ARK_ANDROID_APP_ID is not an Android package name (letters, digits and underscores in dotted parts, such as com.example.ark).",
+      );
+    }
+    const normalized = fingerprints.map(normalizeFingerprint);
+    if (normalized.some((value) => value === undefined)) {
+      throw new Error(
+        "ARK_ANDROID_CERT_SHA256 holds a value that is not a SHA-256 fingerprint (32 bytes in hex, with or without colons). Several are separated by commas.",
+      );
+    }
+    links.android = {
+      appId: androidId,
+      certFingerprints: [...new Set(normalized as string[])],
+    };
+  }
+  if (iosId !== undefined) {
+    if (!isIosAppId(iosId)) {
+      throw new Error(
+        "ARK_IOS_APP_ID is not an iOS app identifier: the ten-character team id, a dot, then the bundle identifier (such as ABCDE12345.com.example.ark).",
+      );
+    }
+    links.ios = { appId: iosId };
+  }
+  return links.android || links.ios ? { mobileLinks: links } : {};
+}
+
+/**
  * `WEB_PUSH_VAPID_PUBLIC_KEY` and `WEB_PUSH_VAPID_PRIVATE_KEY`, both or neither.
  *
  * Refused when only one is set, or when either is not the shape a P-256 key has: a deployment that
@@ -1578,6 +1638,7 @@ export function loadConfig(
     contentSecurityPolicy: contentSecurityPolicyMode(environment),
     termsAcceptance: termsAcceptanceMode(environment),
     ...webPushSetting(environment, appUrl),
+    ...mobileLinksSetting(environment),
     requestLog: parseRequestLogMode(optional(environment, "REQUEST_LOG")),
     auditShipping: auditShippingMode(environment),
     shutdown: shutdownSetting(environment),

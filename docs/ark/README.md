@@ -24,6 +24,7 @@ research and plans. Each file says when it was written.
 | [16-penetration-test.md](16-penetration-test.md) | The internal penetration test: how it was run, the seven findings and their fixes, what held, what it could not reach, and how to re-run it. |
 | [17-cloud-runtime.md](17-cloud-runtime.md) | Where a coworker runs (device or Ark's cloud), what is measured, how the price is worked out and set from cost, how a month is charged exactly once, and what has not been verified. |
 | [18-capacity.md](18-capacity.md) | Load: a burst that hung the server and how it was fixed, where a page load spends its time, and what has not been measured. |
+| [19-mobile.md](19-mobile.md) | Android and iOS: the web app first, a Trusted Web Activity for Google Play, a thin shell for the App Store, why nothing in either app sells, what the owner must provide, and what is not built. |
 | [../legal/](../legal/) | Drafts for a lawyer: privacy notice (shown in the app at /privacy), terms of service (at /terms; acceptance recorded per version) and a data processing agreement template. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.

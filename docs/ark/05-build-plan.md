@@ -149,10 +149,19 @@ Built and verified; see 11-marketplace.md.
   Secrets and private data are refused before publishing, with a review step and report/takedown.
 - Search, categories, publisher profiles.
 
-### Phase 6. Mobile apps (L)
-- Android and iOS apps as clients of the cloud API plus a secure relay to the user's desktop.
-- Evaluate Tauri 2's mobile support against a native or React Native client before committing.
-- Mobile store subscription rules to be settled first (open question 6).
+### Phase 6. Mobile apps (L): decided and partly built, see 19-mobile.md
+Decision (2026-10-09): the web app first, then a Trusted Web Activity for Google Play and a thin shell
+for the App Store, as a free companion app that sells nothing (the default for open question 2).
+- [x] Installable web app: manifest, icons, offline page, a service worker that keeps nothing from `/api`.
+- [x] Notifications (Web Push) with an opt-in per device on Settings; routine outcomes notify.
+- [x] The two files that tie the site to a store app (`assetlinks.json`, `apple-app-site-association`).
+- [x] Nothing to buy inside the store apps: the Plan screen is read-only there, and the server's offers
+      to upgrade are left out.
+- [ ] Android package and iOS shell, and their build jobs (written, never run from here).
+- [ ] **Owner:** brand and domain (D8), a Google Play account, an Apple Developer account, review
+      accounts; confirm or change the companion-app default.
+- Not built: reaching a person's own desktop from a phone (needs a relay); notifications in the iOS
+  shell (needs APNs).
 
 ### Phase 7. Production hosting and hardening (M) — built, not yet deployed
 Hosting target confirmed: Microsoft Azure, with Microsoft Entra ID for staff sign-in (D9).

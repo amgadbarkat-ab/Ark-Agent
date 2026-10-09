@@ -33,7 +33,14 @@ const DEFAULT_QUEUE_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_POLL_MS = 1_500;
 const DEFAULT_HEARTBEAT_MS = 30_000;
 
-/** What the person is told when every place is taken, with the way to get more. */
+/**
+ * What the person is told when every place is taken, with the way to get more.
+ *
+ * THE OFFER IS ONE WHOLE LINK, written as its own sentence. The store apps may not show a way to buy
+ * (docs/ark/19-mobile.md), and the app leaves out a link to the plan page together with the words
+ * that make it up. If the offer were a phrase inside a sentence, leaving it out would leave half a
+ * sentence behind.
+ */
 export function queuedNotice(
   entitlement: Entitlement,
   active: number,
@@ -42,7 +49,7 @@ export function queuedNotice(
   const limit = entitlement.maxActiveBots ?? active;
   const up = nextPlanUp(entitlement.planId);
   const offer = up
-    ? ` To run more at once, [upgrade to ${up.name}](${upgradePath}) (${formatEur(up.priceEurCents)} a month, up to ${up.maxActiveBots} at the same time).`
+    ? ` [To run more at once, upgrade to ${up.name} (${formatEur(up.priceEurCents)} a month, up to ${up.maxActiveBots} at the same time).](${upgradePath})`
     : "";
   return `${entitlement.planName} lets ${limit === 1 ? "1 digital employee" : `${limit} digital employees`} work at the same time, and ${active === 1 ? "1 is" : `${active} are`} working now. I'll start as soon as one finishes.${offer}`;
 }
@@ -53,7 +60,10 @@ export function timedOutNotice(
   upgradePath: string,
 ): string {
   const up = nextPlanUp(entitlement.planId);
-  return `Still waiting for a free place after ${minutes} minutes, so this was not started. Try again when another digital employee has finished${up ? `, or [upgrade to ${up.name}](${upgradePath}) to run more at once` : ""}.`;
+  const offer = up
+    ? ` [To run more at once, upgrade to ${up.name}.](${upgradePath})`
+    : "";
+  return `Still waiting for a free place after ${minutes} minutes, so this was not started. Try again when another digital employee has finished.${offer}`;
 }
 
 /**

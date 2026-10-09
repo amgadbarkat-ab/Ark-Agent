@@ -30,6 +30,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
+import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/settings/plan")({
@@ -51,8 +52,17 @@ function goTo(address: string) {
 function statusLine(
   account: AccountOverview["account"],
   waiting: boolean,
+  purchasesAllowed: boolean,
 ): string {
   if (waiting) return "Waiting for confirmation";
+  // The server's wording for an account with no plan tells the person to choose one, which inside a
+  // store app is an invitation to buy and may not be made there (docs/ark/19-mobile.md).
+  if (
+    !purchasesAllowed &&
+    (account.blockedCode === "no_plan" || account.blockedCode === "canceled")
+  ) {
+    return "This account does not have an active plan.";
+  }
   const until = account.currentPeriodEnd
     ? new Date(account.currentPeriodEnd).toLocaleDateString()
     : null;
@@ -134,10 +144,20 @@ function PlanPage() {
 
   const data = overview.data;
   const failure = choose.error ?? portal.error ?? cancel.error;
+  /*
+   * Inside a store app this screen is a statement of what the account has and nothing more: no plans,
+   * no prices, no billing, no cloud add-on, no sentence about choosing or changing a plan. Those are
+   * sold on the website, and the app may neither sell them nor point there (docs/ark/19-mobile.md).
+   */
+  const purchasesAllowed = usePurchasesAllowed();
 
   return (
     <PageShell
-      description="What you have, how much of it is in use, and how to change it. A coworker counts only while it is working."
+      description={
+        purchasesAllowed
+          ? "What you have, how much of it is in use, and how to change it. A coworker counts only while it is working."
+          : "What you have and how much of it is in use. A coworker counts only while it is working."
+      }
       title="Plan"
     >
       {overview.isPending ? null : overview.error || !data ? (
@@ -157,9 +177,13 @@ function PlanPage() {
           ) : null}
           {!waiting && !data.account.canRun && data.account.blockedReason ? (
             <p className="mt-4 text-sm" role="status">
-              {data.account.blockedCode === "no_plan"
-                ? "Choose a plan to start your digital employees."
-                : data.account.blockedReason}
+              {!purchasesAllowed &&
+              (data.account.blockedCode === "no_plan" ||
+                data.account.blockedCode === "canceled")
+                ? "This account does not have an active plan."
+                : data.account.blockedCode === "no_plan"
+                  ? "Choose a plan to start your digital employees."
+                  : data.account.blockedReason}
             </p>
           ) : null}
           {failure ? (
@@ -184,7 +208,7 @@ function PlanPage() {
                 <ItemContent>
                   <ItemTitle>{data.account.planName}</ItemTitle>
                   <ItemDescription className="line-clamp-none">
-                    {statusLine(data.account, waiting)}
+                    {statusLine(data.account, waiting, purchasesAllowed)}
                   </ItemDescription>
                 </ItemContent>
               </Item>
@@ -201,7 +225,7 @@ function PlanPage() {
             </PageRows>
           </PageSection>
 
-          {data.billing.mode === "subscriptions" ? (
+          {purchasesAllowed && data.billing.mode === "subscriptions" ? (
             <PageSection
               description="Every plan is for one person. Switch any time; your coworkers keep their work."
               title="Plans"
@@ -245,11 +269,15 @@ function PlanPage() {
             </PageSection>
           ) : null}
 
-          {data.billing.mode === "subscriptions" && data.account.canRun ? (
+          {purchasesAllowed &&
+          data.billing.mode === "subscriptions" &&
+          data.account.canRun ? (
             <CloudRunningSection />
           ) : null}
 
-          {data.billing.mode === "subscriptions" && data.billing.selfService ? (
+          {purchasesAllowed &&
+          data.billing.mode === "subscriptions" &&
+          data.billing.selfService ? (
             <PageSection title="Billing">
               <PageRows>
                 <Item size="sm">

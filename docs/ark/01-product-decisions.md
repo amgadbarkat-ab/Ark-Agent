@@ -75,7 +75,10 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 1. **Cloud add-on price list.** Needs measured cost per bot-hour before prices are set. The mechanism
    is built; the procedure for setting the prices from cost is in 17-cloud-runtime.md.
 2. **Mobile store rules.** Apple and Google take a cut of in-app subscriptions and restrict how paid
-   digital goods are sold. Check current terms before choosing how mobile users pay.
+   digital goods are sold. **Working default (2026-10-09): a free companion app that sells nothing and
+   points nowhere to buy; customers pay on the website through Paddle.** It is built that way
+   (19-mobile.md). The owner confirms or changes it; changing it means selling through the stores for
+   those customers, with their share and their tax handling.
 
 ## Answered
 

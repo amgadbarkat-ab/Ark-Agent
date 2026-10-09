@@ -47,6 +47,8 @@ describe("runtime capabilities", () => {
       generativeUi: true,
       transcription: false,
       voice: false,
+      // The Android app's package name, public already; null where there is no Android app.
+      androidPackage: null,
       // Names only. The sign-in screen reads this to know which buttons to draw.
       authProviders: ["google"],
       // A boolean, not a list: naming the registered providers would tell anybody who loads the
@@ -71,6 +73,7 @@ describe("runtime capabilities", () => {
       "generativeUi",
       "transcription",
       "voice",
+      "androidPackage",
       "authProviders",
       "ssoConfigured",
     ]);

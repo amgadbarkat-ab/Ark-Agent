@@ -107,6 +107,10 @@ afterAll(async () => {
   await database.$client.close();
 });
 
+/** What a person reads once every link to the plan page is taken out, as a store app does. */
+const withoutPurchaseLinks = (message: string) =>
+  message.replace(/\s*\[[^\]]*\]\(\/settings\/plan[^)]*\)/g, "");
+
 describe("the rules", () => {
   test("a deployment that has not decided to charge asks nobody anything, and runs", async () => {
     const who = await person();
@@ -171,6 +175,9 @@ describe("the rules", () => {
     });
     expect(decision).toMatchObject({ ok: false, code: "not_enabled" });
     expect(decision.ok ? "" : decision.reason).toContain("(/settings/plan)");
+    expect(decision.ok ? "" : withoutPurchaseLinks(decision.reason)).toBe(
+      "Running in Ark's cloud is not switched on for this account. You can also run this digital employee on your own computer.",
+    );
   });
 
   test("switched on, it runs; switched off again, it does not", async () => {
@@ -520,7 +527,7 @@ describe("in front of a real run", () => {
       .filter((event) => event.type === EventType.TEXT_MESSAGE_CONTENT)
       .map((event) => (event as unknown as { delta: string }).delta)
       .join("");
-    expect(said).toContain("add-on");
+    expect(said).toContain("not switched on");
     expect(said).toContain("(/settings/plan)");
     expect(
       events.some(

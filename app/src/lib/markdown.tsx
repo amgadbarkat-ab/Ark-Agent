@@ -5,6 +5,7 @@ import {
   IconTable,
 } from "@tabler/icons-react";
 import type { ComponentProps } from "react";
+import { isPurchaseLink, usePurchasesAllowed } from "@/lib/store-app";
 
 /**
  * Shared markdown rendering for Bot prose and tool results.
@@ -71,6 +72,13 @@ export function documentChipKind(href: string | undefined) {
 
 export const markdownComponents = {
   a: ({ href, children, ...rest }: ComponentProps<"a">) => {
+    /*
+     * A sentence that offers to buy something is left out inside a store app, which may not show one
+     * (docs/ark/19-mobile.md). The server writes each such offer as one whole link to the plan page,
+     * so leaving the link out leaves the message whole.
+     */
+    const purchasesAllowed = usePurchasesAllowed();
+    if (!purchasesAllowed && isPurchaseLink(href)) return null;
     const kind = documentChipKind(href);
 
     if (kind) {

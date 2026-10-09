@@ -70,6 +70,7 @@ import { requestObservability, unhandledError } from "./observability";
 import type { OnboardingStore } from "./people/onboarding";
 import type { TermsStore } from "./people/terms";
 import { adminOverviewRoutes } from "./overview/routes";
+import { assetLinks, appleAppSiteAssociation } from "./mobile/links";
 import { pushRoutes } from "./push/routes";
 import { MAX_PAGE, type PeopleStore } from "./people/store";
 import type { ComposioBroker } from "./plugins/broker";
@@ -483,6 +484,13 @@ export function createApp(
       generativeUi: config.generativeUi,
       transcription: Boolean(config.transcription),
       voice: Boolean(config.voice),
+      /*
+       * The Android app's package name, where there is one. The browser reads it to tell this
+       * deployment's own app from any other Android app that happened to open the site: both show up
+       * as an `android-app://` referrer, and only the first may hide a way to buy (docs/ark/19-mobile.md).
+       * Public already: it is in the store listing and in `/.well-known/assetlinks.json`.
+       */
+      androidPackage: config.mobileLinks?.android?.appId ?? null,
       /*
        * Which identity providers this deployment can sign somebody in with.
        *
@@ -1963,6 +1971,30 @@ export function createApp(
       ),
     );
   }
+
+  /*
+   * The two files that tie this site to its Android and iOS apps (server/src/mobile/links.ts).
+   *
+   * Public and secret-free, served only where the operator named the apps. Everything else under
+   * `/.well-known/` is a plain 404, never the app's HTML: a verifier handed a web page decides the
+   * file is wrong and says nothing about why.
+   */
+  const mobileLinks = config.mobileLinks;
+  app.get("/.well-known/assetlinks.json", (context) =>
+    mobileLinks?.android
+      ? context.json(assetLinks(mobileLinks.android), 200, {
+          "cache-control": "public, max-age=3600",
+        })
+      : context.notFound(),
+  );
+  app.get("/.well-known/apple-app-site-association", (context) =>
+    mobileLinks?.ios
+      ? context.json(appleAppSiteAssociation(mobileLinks.ios), 200, {
+          "cache-control": "public, max-age=3600",
+        })
+      : context.notFound(),
+  );
+  app.get("/.well-known/*", (context) => context.notFound());
 
   /*
    * The built app, served by the API that serves it.

@@ -20,6 +20,12 @@ export type DeploymentCapabilities = {
   generativeUi: boolean;
   transcription?: boolean;
   voice?: boolean;
+  /**
+   * The package name of this deployment's Android app, or null where it has none. Compared with the
+   * `android-app://` address that opened the page to know it is that app and not another Android app
+   * that links to the site.
+   */
+  androidPackage?: string | null;
 };
 
 export const deploymentKeys = {
@@ -57,12 +63,15 @@ export function deploymentCapabilitiesQueryOptions() {
         generativeUi?: boolean;
         transcription?: boolean;
         voice?: boolean;
+        androidPackage?: unknown;
       };
 
       return {
         generativeUi: body.generativeUi === true,
         transcription: body.transcription === true,
         voice: body.voice === true,
+        androidPackage:
+          typeof body.androidPackage === "string" ? body.androidPackage : null,
       };
     },
   });

@@ -79,6 +79,12 @@ const PUBLIC: Record<string, string> = {
     "a vendor redirects the browser here; the state is checked",
   "POST /api/csp-report":
     "the browser says what the content policy would have blocked; small, limited, logs a few clean fields",
+  "GET /.well-known/assetlinks.json":
+    "Android reads it to trust the app; it names a package and the fingerprint of a public certificate",
+  "GET /.well-known/apple-app-site-association":
+    "iOS reads it to open links in the app; it names an app identifier",
+  "GET /.well-known/*":
+    "anything else under it is a plain 404, never the app's page",
   "GET /api/host-access/desktop/next": "the desktop app, with its own token",
   "POST /api/host-access/desktop/result": "the desktop app, with its own token",
 };

@@ -128,6 +128,10 @@ const until = async (check: () => boolean | Promise<boolean>, ms = 3000) => {
   throw new Error("timed out waiting");
 };
 
+/** What a person reads once every link to the plan page is taken out, as a store app does. */
+const withoutPurchaseLinks = (message: string) =>
+  message.replace(/\s*\[[^\]]*\]\(\/settings\/plan[^)]*\)/g, "");
+
 const text = (events: BaseEvent[]) =>
   events
     .filter((e) => e.type === EventType.TEXT_MESSAGE_CONTENT)
@@ -216,7 +220,16 @@ describe("a run at the limit", () => {
     expect(notice).toContain(
       "Ark Agent lets 1 digital employee work at the same time",
     );
-    expect(notice).toContain("[upgrade to Ark Team](/settings/plan)");
+    expect(notice).toContain("upgrade to Ark Team");
+    expect(notice).toContain("](/settings/plan)");
+    // The offer is one whole link, so a store app that may not show a way to buy can leave it out and
+    // be left with the rest of the message, whole.
+    const withoutOffer = withoutPurchaseLinks(notice);
+    expect(withoutOffer).not.toContain("upgrade");
+    expect(withoutOffer).not.toContain("€");
+    expect(withoutOffer.endsWith("I'll start as soon as one finishes.")).toBe(
+      true,
+    );
     expect(notice).toContain("€100");
 
     first.finishAll();
@@ -240,6 +253,13 @@ describe("a run at the limit", () => {
     await until(() => waiting.done.complete);
     expect(second.runs).toHaveLength(0);
     expect(text(waiting.events)).toContain("Still waiting for a free place");
+    const withoutOffer = withoutPurchaseLinks(text(waiting.events));
+    expect(withoutOffer).not.toContain("upgrade");
+    expect(
+      withoutOffer.endsWith(
+        "Try again when another digital employee has finished.",
+      ),
+    ).toBe(true);
     expect(waiting.events.at(-1)?.type).toBe(EventType.RUN_FINISHED);
     expect(await slots.activeBots(ann.tenantId)).toBe(1);
     first.finishAll();

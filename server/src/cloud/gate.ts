@@ -78,6 +78,11 @@ export function createCloudGate(deps: {
   store: CloudStore;
   meter: CloudMeter;
   runLocationOf: (botId: string) => Promise<RunLocation | null>;
+  /**
+   * Where a customer changes how they pay. Every sentence below that points there is written as one
+   * whole link, so the store apps, which may not show a way to buy (docs/ark/19-mobile.md), can leave
+   * it out and what remains still reads as a sentence.
+   */
   planPath?: string;
   now?: () => Date;
 }): CloudGate {
@@ -161,7 +166,7 @@ export function createCloudGate(deps: {
           return {
             ok: false,
             code: "on_device",
-            reason: `This digital employee is set to run on your own computer, so it was not started here. Open the Ark desktop app to run it, or [let it run in Ark's cloud](${planPath}).`,
+            reason: `This digital employee is set to run on your own computer, so it was not started here. Open the Ark desktop app to run it. [Let it run in Ark's cloud instead.](${planPath})`,
           };
         }
       }
@@ -181,14 +186,14 @@ export function createCloudGate(deps: {
         return {
           ok: false,
           code: "not_enabled",
-          reason: `Running in Ark's cloud is an add-on, priced at what it costs. [See the prices and switch it on](${planPath}), or run this digital employee on your own computer.`,
+          reason: `Running in Ark's cloud is not switched on for this account. [See the prices and switch it on.](${planPath}) You can also run this digital employee on your own computer.`,
         };
       }
       if (ratesChangedFor(account, rates)) {
         return {
           ok: false,
           code: "rates_changed",
-          reason: `The prices for running in Ark's cloud changed, so this was not started. [See the new prices and agree to them](${planPath}), or run this digital employee on your own computer.`,
+          reason: `The prices for running in Ark's cloud changed, so this was not started. [See the new prices and agree to them.](${planPath}) You can also run this digital employee on your own computer.`,
         };
       }
       const cap = account.monthlyCapCents ?? config.defaultCapCents;
@@ -197,7 +202,7 @@ export function createCloudGate(deps: {
         return {
           ok: false,
           code: "cap_reached",
-          reason: `This month's limit for cloud running has been reached, so this was not started. [Raise the limit](${planPath}) or wait for next month.`,
+          reason: `This month's limit for cloud running has been reached, so this was not started. [Raise the limit.](${planPath}) Otherwise it can run again next month.`,
         };
       }
       return { ok: true };
