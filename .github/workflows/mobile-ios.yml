@@ -67,7 +67,9 @@ jobs:
         run: bun mobile/scripts/prepare-ios.ts > "$RUNNER_TEMP/versions.txt"
       - name: Build for the simulator, unsigned
         run: |
-          mapfile -t versions < "$RUNNER_TEMP/versions.txt"
+          # macOS ships bash 3.2, which has no `mapfile`; read the file a line at a time instead.
+          versions=()
+          while IFS= read -r line; do versions+=("$line"); done < "$RUNNER_TEMP/versions.txt"
           xcodebuild build \
             -project mobile/ios/ios/App/App.xcodeproj \
             -scheme App \
@@ -120,7 +122,9 @@ jobs:
         run: |
           # The identifier was checked by the previous step: the team is what comes before the first dot.
           team="${ARK_IOS_APP_ID%%.*}"
-          mapfile -t versions < "$RUNNER_TEMP/versions.txt"
+          # macOS ships bash 3.2, which has no `mapfile`; read the file a line at a time instead.
+          versions=()
+          while IFS= read -r line; do versions+=("$line"); done < "$RUNNER_TEMP/versions.txt"
           auth=(
             -allowProvisioningUpdates
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8"

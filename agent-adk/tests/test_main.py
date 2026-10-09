@@ -179,13 +179,17 @@ def test_a_namespaced_model_name_is_sent_to_the_endpoint(monkeypatch, provider, 
     app = importlib.reload(main).app
 
     async def roundtrip():
+        # A thread and a message of this model's own. With the same ids for both parameters, the second
+        # one got the first one's reply and the endpoint was never asked (seen with the unpinned
+        # google-adk 2.11 and ag-ui-adk, which keep sessions for the whole process; a reload of `main`
+        # does not clear them).
         body = {
-            "threadId": "namespaced-model",
+            "threadId": f"namespaced-{model}",
             "runId": "first-run",
             "state": {},
             "context": [],
             "forwardedProps": {},
-            "messages": [{"id": "user", "role": "user", "content": "Say hello."}],
+            "messages": [{"id": f"user-{model}", "role": "user", "content": "Say hello."}],
             "tools": [],
         }
         async with httpx.AsyncClient(

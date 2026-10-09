@@ -113,7 +113,7 @@ jobs:
   checks:
     needs: [metadata, verify]
     if: needs.metadata.outputs.is_release == 'true'
-    uses: ./.github/workflows/ci.yml
+    uses: $/.github/workflows/ci.yml
     permissions:
       contents: read
 
@@ -463,7 +463,7 @@ jobs:
     name: desktop installers
     needs: [metadata, github-release]
     if: needs.metadata.outputs.is_release == 'true'
-    uses: ./.github/workflows/desktop.yml
+    uses: $/.github/workflows/desktop.yml
     with:
       channel: release
     permissions:

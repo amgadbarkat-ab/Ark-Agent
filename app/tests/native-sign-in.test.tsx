@@ -14,17 +14,18 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
+  createRoute,
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { exchangeNativeSignInMutationOptions } from "@/lib/native/mutations";
 import {
   type CompleteDeps,
   completeNativeSignIn,
   FAILED_PATH,
   useNativeSignInReturn,
 } from "@/lib/native/listener";
+import { exchangeNativeSignInMutationOptions } from "@/lib/native/mutations";
 import {
   beginNativeSignIn,
   challengeFor,
@@ -32,8 +33,8 @@ import {
   MOST_MS,
   type Pending,
   type PendingStore,
-  randomToken,
   RETURN_HOST,
+  randomToken,
 } from "@/lib/native/sign-in";
 import { IOS_USER_AGENT_TOKEN } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
@@ -354,11 +355,23 @@ describe("the sign-in screen", () => {
 
   function renderSign() {
     queryClient.setDefaultOptions({ queries: { retry: false } });
+    /*
+     * The screen reads its search with `Route.useSearch()`, which asks the router for the match
+     * whose id is the route's own. That id is not fixed: it is unset until some router is built over
+     * the real route tree and "/sign" from then on, and `app/src/router.tsx` builds one the moment it
+     * is imported. Bun runs every test file in one process, so whether this file saw an id depended on
+     * which file ran before it, and in CI four of these failed with "Could not find an active match
+     * from /sign". A route of this own path and id answers either way.
+     */
+    const rootRoute = createRootRoute();
+    const signRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: "/sign",
+      component: SignRoute.options.component as never,
+    });
     const router = createRouter({
-      routeTree: createRootRoute({
-        component: SignRoute.options.component as never,
-      }),
-      history: createMemoryHistory({ initialEntries: ["/"] }),
+      routeTree: rootRoute.addChildren([signRoute]),
+      history: createMemoryHistory({ initialEntries: ["/sign"] }),
     });
     return render(
       <QueryClientProvider client={queryClient}>

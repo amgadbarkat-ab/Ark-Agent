@@ -34,8 +34,12 @@ const since = sinceFlag === -1 ? await lastReleaseTag() : rest[sinceFlag + 1];
  * somebody could be upgrading FROM. The chart has not been released yet, so today that is nothing
  * and this falls back to `origin/main`: a key this branch adds on top of what is already merged.
  * Once the chart ships, the tag becomes the honest baseline on its own.
+ *
+ * Neither may have the chart at all: the pull request that first brings it to `main` is compared
+ * with a `main` that has no chart, and a deployment that was never installed has no stored values to
+ * be missing a key. That is `null`, and it is a pass, not a failure to find a baseline.
  */
-async function lastReleaseTag(): Promise<string> {
+async function lastReleaseTag(): Promise<string | null> {
   const tags = await run(["git", "tag", "--list", "v*", "--sort=-v:refname"]);
   for (const tag of tags
     .split("\n")
@@ -47,7 +51,11 @@ async function lastReleaseTag(): Promise<string> {
     );
     if (has.exitCode === 0) return tag;
   }
-  return "origin/main";
+  const main = Bun.spawnSync(
+    ["git", "cat-file", "-e", "origin/main:charts/openbot/values.yaml"],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  return main.exitCode === 0 ? "origin/main" : null;
 }
 
 async function run(command: string[]): Promise<string> {
@@ -71,6 +79,13 @@ function paths(value: unknown, prefix = ""): string[] {
       paths(child, prefix ? `${prefix}.${key}` : key),
     ),
   );
+}
+
+if (since === null) {
+  console.log(
+    "No release and not main has the chart yet, so no deployment exists to upgrade from: nothing to check.",
+  );
+  process.exit(0);
 }
 
 const before = new Set(
