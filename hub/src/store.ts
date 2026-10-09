@@ -112,6 +112,11 @@ function decodeCursor(cursor: string): { at: string; id: string } | null {
 export class HubStore {
   constructor(private readonly sql: Sql) {}
 
+  /** One round trip, to know the database is there. */
+  async ping(): Promise<void> {
+    await this.sql`select 1`;
+  }
+
   // ---- threads -------------------------------------------------------------
 
   async createThread(input: {

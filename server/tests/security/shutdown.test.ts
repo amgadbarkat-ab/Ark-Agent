@@ -46,7 +46,20 @@ run("leaving", () => {
       env: { SHUTDOWN_SETTLE_SECONDS: "1", SHUTDOWN_GRACE_SECONDS: "10" },
     });
 
-    const { code, milliseconds } = await target.terminate();
+    // Ready while it is serving, and not asked for anything.
+    const before = await fetch(`${target.url}/ready`);
+    expect(before.status).toBe(200);
+    expect(await before.json()).toEqual({ status: "ok" });
+
+    const leaving = target.terminate();
+    // Within the settle second it is still answering, and says it is leaving, so what routes to it
+    // stops without waiting to notice.
+    await Bun.sleep(300);
+    const during = await fetch(`${target.url}/ready`);
+    expect(during.status).toBe(503);
+    expect(await during.json()).toEqual({ status: "draining" });
+    expect((await fetch(`${target.url}/health`)).status).toBe(200);
+    const { code, milliseconds } = await leaving;
 
     expect(code).toBe(0);
     // The settle second, and not the ten of the grace: nothing was waiting.

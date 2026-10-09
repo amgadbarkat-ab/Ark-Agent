@@ -25,7 +25,10 @@ try {
     graceMs: config.shutdown?.graceMs ?? 8000,
   });
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
-    process.on(signal, () => void drain.begin(signal));
+    process.on(signal, () => {
+      running.hub.draining = true;
+      void drain.begin(signal);
+    });
   }
 } catch (error) {
   if (error instanceof HubConfigError) {

@@ -149,7 +149,9 @@ spec:
             failureThreshold: 40
           readinessProbe:
             httpGet:
-              path: /health
+              # Whether to send it requests (its database answers, it has not been told to stop), as
+              # against `/health`, whether it is alive.
+              path: /ready
               port: http
             periodSeconds: 10
             timeoutSeconds: 3

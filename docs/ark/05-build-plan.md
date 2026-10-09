@@ -191,6 +191,10 @@ Still to do:
       prepared; the client now sends them unprepared. Found by `scripts/load-profile.ts`, regression
       test `server/tests/db-burst.integration.test.ts` (fails on the old client). Per-route timings and
       what is not yet measured (the real cluster, the hub under load, the work pool) are in 18.
+- [x] **Readiness is not liveness**: `/ready` (server and hub) checks the database and says `draining`
+      as soon as the process is told to stop; the chart's readiness probe uses it, so a pod that cannot
+      reach its database, or has a wedged pool, leaves rotation. A guard against a module-loading race
+      (`require() async module`) was added to the server entry.
 - [x] **A deploy no longer cuts off replies being streamed** (13): the server used to exit on the
       spot when told to stop. It now keeps serving while the platform takes it out of rotation, stops
       listening, waits for requests under way (a streaming reply counts) up to a grace, then closes the

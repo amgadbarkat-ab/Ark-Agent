@@ -1,3 +1,4 @@
+import { createReadiness } from "../../shared/readiness";
 import { timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -46,6 +47,16 @@ export function createRestApp(hub: Hub) {
   const { store, config } = hub;
 
   app.get("/health", (c) => c.json({ status: "ok" }));
+  // Whether to send this process requests: the database answers, and it has not been told to stop.
+  // `/health` stays the question of whether it is alive, and does not ask the database.
+  const ready = createReadiness({
+    ping: () => store.ping(),
+    draining: () => hub.draining,
+  });
+  app.get("/ready", async (c) => {
+    const answer = await ready();
+    return c.json({ status: answer.status }, answer.ok ? 200 : 503);
+  });
 
   const authenticate = async (
     c: Parameters<Parameters<typeof app.use>[1]>[0],

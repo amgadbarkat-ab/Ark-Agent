@@ -1,4 +1,10 @@
 {
   "extends": "../tsconfig.base.json",
-  "include": ["src", "tests", "../shared/metrics.ts", "../shared/drain.ts"]
+  "include": [
+    "src",
+    "tests",
+    "../shared/metrics.ts",
+    "../shared/drain.ts",
+    "../shared/readiness.ts"
+  ]
 }

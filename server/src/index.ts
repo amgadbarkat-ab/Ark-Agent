@@ -1,12 +1,20 @@
 // Must stay first: it decides, before the SDK loads, that nothing is reported to its vendor.
 import "./no-telemetry";
+// Second, and for a reason that is easy to undo by accident. The MCP client the runtime loads is
+// CommonJS and `require`s `eventsource`, which is an ES module with a top-level await. Bun can only
+// `require` such a module once it has finished evaluating, and it loads sibling imports in parallel,
+// so whether it had finished by then depended on the order imports were listed in. Loading the
+// application's graph without this line failed on about three starts in ten ("require() async module
+// is unsupported"), and a harness start failed the same way a few times in fifty. Naming it first makes
+// it finish first. If the error ever returns, this is where to look.
+import "eventsource";
 import { randomUUID } from "node:crypto";
 import {
   CopilotKitIntelligence,
   IntelligenceAgentRunner,
 } from "@copilotkit/runtime/v2";
 import { serve } from "bun";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
 import { workOwner } from "../../shared/work-owner";
@@ -105,6 +113,7 @@ import {
   serverMetrics,
 } from "./observability";
 import { createDrain } from "../../shared/drain";
+import { createReadiness } from "../../shared/readiness";
 import { createOnboardingStore } from "./people/onboarding";
 import { createTermsStore } from "./people/terms";
 import { TERMS_VERSION } from "../../shared/terms-version";
@@ -1564,6 +1573,15 @@ const isProxiedStream = (data: SocketData): data is StreamData =>
 const asChannelSocket = (ws: { data: SocketData }) =>
   ws as unknown as ChannelSocket;
 
+// Whether this process may be sent requests: its database answers, and it has not been told to stop.
+// `/health` stays the question of whether it is alive and does not ask the database. Answered here, before
+// the application, so it cannot be held up by anything the application does.
+const lifecycle = { draining: false };
+const readiness = createReadiness({
+  ping: () => database.execute(sql`select 1`),
+  draining: () => lifecycle.draining,
+});
+
 const server = serve<SocketData>({
   port,
   // The largest thing legitimately sent here is a conversation with attachments inlined (up to 32 MB
@@ -1572,6 +1590,13 @@ const server = serve<SocketData>({
   maxRequestBodySize: MAX_REQUEST_BYTES,
   async fetch(request, server) {
     const url = new URL(request.url);
+    if (url.pathname === "/ready" && request.method === "GET") {
+      const answer = await readiness();
+      return Response.json(
+        { status: answer.status },
+        { status: answer.ok ? 200 : 503 },
+      );
+    }
     if (url.pathname === "/api/audio/transcriptions") {
       server.timeout(request, DICTATION_HTTP_IDLE_SECONDS);
     }
@@ -1734,7 +1759,10 @@ const drain = createDrain({
   graceMs: config.shutdown.graceMs,
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => void drain.begin(signal));
+  process.on(signal, () => {
+    lifecycle.draining = true;
+    void drain.begin(signal);
+  });
 }
 
 console.info(`OpenBot server listening on http://127.0.0.1:${port}`);

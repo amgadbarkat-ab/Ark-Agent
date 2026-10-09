@@ -100,7 +100,10 @@ not a rollback.
 ### Look at it
 
 - **Is it up?** The availability test in Application Insights calls `/health` from three places; the
-  alert fires when two of three fail.
+  alert fires when two of three fail. `/health` is *alive* and never asks the database. `/ready` is
+  *send it requests*: the database answers within two seconds and the process has not been told to stop
+  (it says `draining` the moment it is). The chart's readiness probe uses `/ready`, so a pod whose
+  database has gone, or whose pool is wedged, is taken out of rotation instead of timing requests out.
 - **Logs.** Log Analytics holds the cluster's and the database's logs. The server writes a line for
   every request that failed (5xx) or took three seconds or more, and a `request-failed` line for
   anything that threw: see "What to watch" below.

@@ -10,6 +10,9 @@ export type ThreadOperation = "created" | "updated" | "archived" | "deleted";
  * what gets announced to whom.
  */
 export class Hub {
+  /** Set once the process has been told to stop, so `/ready` says so before the platform notices. */
+  draining = false;
+
   constructor(
     readonly config: HubConfig,
     readonly store: HubStore,
