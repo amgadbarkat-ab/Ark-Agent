@@ -2977,8 +2977,13 @@ fn missing_script(root: &Path) -> Option<String> {
 const APP_SCRIPT: &str = "serve";
 
 /// Where the shell keeps the deployment it manages.
+///
+/// `ArkAgent`, one word: a person sees this path on the first screen, and a space in it is one more
+/// thing for every script and engine that is handed it to get wrong. An installation made before the
+/// name changed keeps its own folder, because the one a person chose is remembered (`selected_root`)
+/// and this is only the suggestion for somebody who has not chosen.
 pub fn default_root() -> PathBuf {
-    dirs_home().join("OpenBot")
+    dirs_home().join("ArkAgent")
 }
 
 /// The deployment directory somebody typed, as a path.

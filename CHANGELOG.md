@@ -8,6 +8,22 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Ark Agent: the desktop app and the service run without CopilotKit
+
+The desktop app and the hosted service no longer depend on any CopilotKit service. Conversations are kept by
+Ark Hub, which the desktop runs on the person's own computer and the cloud runs beside the server; nobody
+signs in to anything to set it up, and nothing is sent to CopilotKit. Conversations a person had in an earlier
+version's CopilotKit-hosted service are not moved: they were never on the computer. Their coworkers,
+settings and saved keys stay.
+
+The product is called Ark Agent, from BlackArk (Value Data IKE). The desktop installers, window, tray
+and messages say so, and the setup folder it suggests is `ArkAgent` in the person's home folder (an
+installation made earlier keeps the folder it already uses). The installers are the company's icon, name
+Value Data IKE as publisher, and are **not signed yet**: Windows will show an "unknown publisher" warning and
+macOS needs the person to allow the app in System Settings, until the company's certificates are in place.
+
+The first screen has the company's animation: the rack, the globe and the BlackArk mark, drawn on a dark card.
+
 ### Dictate messages and talk to a coworker in a live voice call
 
 Deployments can configure transcription separately from their Bots' models, with a waveform composer

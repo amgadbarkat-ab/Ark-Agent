@@ -100,6 +100,9 @@ jobs:
         run: bun test scripts/desktop-version.test.ts
         working-directory: desktop
       - name: Prepare build version
+        # bash on every platform: the Windows runner's default shell is PowerShell, which does not
+        # expand "$CHANNEL" and handed the script its own name (the first run on Windows said so).
+        shell: bash
         run: bun scripts/desktop-version.ts "$CHANNEL"
         working-directory: desktop
         env:
