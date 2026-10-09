@@ -216,6 +216,13 @@ export type DeploymentConfig = {
    */
   requestLog: RequestLogMode;
   /**
+   * How the process leaves when it is told to stop (shared/drain.ts): it keeps serving for
+   * `settleMs` while the platform takes it out of rotation, stops listening, waits up to `graceMs` for
+   * requests under way (a reply being streamed is one), then closes what is left. The two together have
+   * to be less than the platform's own limit, which the chart derives from them.
+   */
+  shutdown: { settleMs: number; graceMs: number };
+  /**
    * Whether each audit event is also written to the process log as it happens: `log`, or `off` (the
    * default). The log goes where the application cannot rewrite it, which is what makes the trail
    * checkable against its table. It is a second copy of what the table holds, so turning it on is a
@@ -1339,6 +1346,28 @@ function termsAcceptanceMode(environment: Environment): "off" | "required" {
   );
 }
 
+/** `SHUTDOWN_SETTLE_SECONDS` and `SHUTDOWN_GRACE_SECONDS`: whole seconds, 0 to 600. */
+function shutdownSetting(environment: Environment): {
+  settleMs: number;
+  graceMs: number;
+} {
+  const seconds = (name: string, fallback: number) => {
+    const raw = optional(environment, name);
+    if (raw === undefined) return fallback;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0 || value > 600) {
+      throw new Error(
+        `${name} must be a whole number of seconds from 0 to 600`,
+      );
+    }
+    return value;
+  };
+  return {
+    settleMs: seconds("SHUTDOWN_SETTLE_SECONDS", 0) * 1000,
+    graceMs: seconds("SHUTDOWN_GRACE_SECONDS", 8) * 1000,
+  };
+}
+
 /** Whether the audit trail is copied to the log. A word, and anything else is refused. */
 function auditShippingMode(environment: Environment): "off" | "log" {
   const value = optional(environment, "AUDIT_SHIPPING")?.trim().toLowerCase();
@@ -1463,6 +1492,7 @@ export function loadConfig(
     termsAcceptance: termsAcceptanceMode(environment),
     requestLog: parseRequestLogMode(optional(environment, "REQUEST_LOG")),
     auditShipping: auditShippingMode(environment),
+    shutdown: shutdownSetting(environment),
     ...metricsPortSetting(environment),
     keyEncryptionKey: keyEncryptionKey(environment),
     previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),

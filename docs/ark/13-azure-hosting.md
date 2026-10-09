@@ -76,6 +76,16 @@ healthy is rolled back by Helm itself and the run fails.
 Every image is tagged with the commit that built it, so "what is running" is
 `helm get values ark -n ark | grep tag`.
 
+**What a deploy does to people who are working.** Each pod is told to stop and does it in four steps
+(`shared/drain.ts`): keep serving for 8 seconds while the platform takes it out of rotation, stop
+listening, wait up to 45 seconds for requests under way (a reply being streamed to somebody is one),
+then close what is left and exit. A pod with nothing under way leaves after the 8 seconds, so a quiet
+deploy is not slowed. A reply that is still going after 53 seconds is cut, and the person sees it end;
+their conversation is intact (the hub stores it as it is said) and they can ask again. The hub does the
+same with 5 and 15 seconds; its sockets reconnect to the other pod and are caught up from the log. The
+chart derives `terminationGracePeriodSeconds` from the two numbers (`server.shutdown`, `hub.shutdown`),
+so the platform's limit is never shorter than the wait. Each step is logged (`"type":"shutdown"`).
+
 ### Roll back
 
 ```sh

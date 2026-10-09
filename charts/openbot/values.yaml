@@ -20,6 +20,16 @@ imagePullSecrets: []
 
 server:
   replicaCount: 2
+  # Leaving without cutting anybody off. A stopping pod keeps serving for `settleSeconds` (the platform
+  # takes it out of rotation at the same moment it tells it to stop, and the news takes a few seconds to
+  # reach everything that routes to it), stops listening, then waits up to `graceSeconds` for requests
+  # under way, a reply being streamed among them, before it closes what is left. The platform's own
+  # limit, `terminationGracePeriodSeconds`, is derived from these two plus seven seconds to clean up, so
+  # the platform never kills the process in the middle of the wait. A deploy that finds nothing under
+  # way takes `settleSeconds`, not `graceSeconds`.
+  shutdown:
+    settleSeconds: 8
+    graceSeconds: 45
   # Two by default because horizontal is the point. Everything that has to survive a replica is in
   # PostgreSQL, and one replica hides every bug that is not.
 
@@ -108,6 +118,11 @@ hub:
     tag: ""
     pullPolicy: IfNotPresent
   port: 7100
+  # As `server.shutdown`. Shorter, because what the hub holds is sockets that reconnect to another hub
+  # and are caught up from the log, and the requests it answers are quick.
+  shutdown:
+    settleSeconds: 5
+    graceSeconds: 15
   # WHERE A BROWSER OPENS ITS LIVE CONNECTION, e.g. wss://hub.example.com. Required. The hub is reached
   # from the browser directly, so it needs a name of its own (see `ingress` below).
   publicUrl: ""

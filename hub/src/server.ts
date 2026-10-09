@@ -13,6 +13,10 @@ export interface RunningHub {
   apiUrl: string;
   /** Base URL of the sockets; the SDK derives `/runner` and `/client` from it. */
   wsUrl: string;
+  /** Requests being answered now, including replies still streaming. */
+  pendingRequests(): number;
+  /** Refuse new connections and leave the ones open alone. */
+  stopListening(): void;
   stop(): Promise<void>;
 }
 
@@ -58,6 +62,8 @@ export async function startHub(
     hub,
     apiUrl: `http://127.0.0.1:${port}`,
     wsUrl: `ws://127.0.0.1:${port}`,
+    pendingRequests: () => server.pendingRequests,
+    stopListening: () => void server.stop(),
     async stop() {
       await server.stop(true);
       await bus.close();

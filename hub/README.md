@@ -64,6 +64,7 @@ INTELLIGENCE_API_KEY=<the same value as HUB_API_KEY>
 | `HUB_JOIN_TOKEN_TTL_SECONDS` | `86400` | |
 | `HUB_DEFAULT_LOCK_TTL_SECONDS` | `60` | when the caller does not say |
 | `HUB_METRICS_PORT` | unset | serve Prometheus `/metrics` on this port (not the hub's own): sockets by kind, events stored, storage errors, and browsers read back from the log by reason. Nothing is labelled with a thread or a person |
+| `HUB_SHUTDOWN_SETTLE_SECONDS`, `HUB_SHUTDOWN_GRACE_SECONDS` | `0`, `8` (the chart sets `5`, `15`) | leaving without cutting anybody off: keep serving while the platform takes the pod out of rotation, stop listening, wait up to the grace for requests under way, then close the sockets (browsers and runners reconnect to another hub and are caught up from the log) |
 | `HUB_BUS` | `postgres` | how live events travel between sockets. `postgres`: through the database, so any number of hub processes share them. `memory`: inside one process; only right for exactly one |
 
 ## Tests

@@ -69,6 +69,13 @@ export type Target = {
   /** What the server tried to reach that it must never reach (CopilotKit's hosts), one per line. */
   tripwire: () => Promise<string[]>;
   stop: () => Promise<void>;
+  /**
+   * Tell the server to stop, the way the platform does, and wait for it to go: the exit code, and how
+   * long it took. For the tests of leaving without cutting anybody off.
+   */
+  terminate: () => Promise<{ code: number | null; milliseconds: number }>;
+  /** What the server has written to its log so far. */
+  log: () => Promise<string>;
 };
 
 async function freePort(): Promise<number> {
@@ -226,6 +233,10 @@ export async function startTarget(
         ).exists())
           ? { APP_DIST_DIR: join(SERVER_DIR, "..", "app", "dist") }
           : {}),
+        // Leaving: no pause before it stops listening, and a short wait for requests under way, so a
+        // test that stops the server is not made to wait for the pause a deployment needs.
+        SHUTDOWN_SETTLE_SECONDS: "0",
+        SHUTDOWN_GRACE_SECONDS: "1",
         ARK_BILLING_MODE: "subscriptions",
         ARK_BILLING_PROVIDER: "paddle",
         // Cloud running as a paid add-on, which is the shape with money in it.
@@ -314,8 +325,22 @@ export async function startTarget(
         ? (await file.text()).split("\n").filter(Boolean)
         : [];
     },
+    terminate: async () => {
+      const started = performance.now();
+      server.kill();
+      const code = await server.exited;
+      return { code, milliseconds: performance.now() - started };
+    },
+    log: async () =>
+      Bun.file(logFile)
+        .text()
+        .catch(() => ""),
     stop: async () => {
       server.kill();
+      // Told politely first; a server still waiting on something it was asked for does not hold up
+      // the test that is finished with it.
+      await Promise.race([server.exited, Bun.sleep(3000)]);
+      server.kill("SIGKILL");
       await server.exited;
       await database.$client.close();
       await owner.unsafe(

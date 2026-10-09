@@ -173,6 +173,8 @@ Two things are worth knowing before pointing a deployment at any gateway. Not ev
 | `REQUEST_LOG` | `errors` | Which requests the server writes a line for: `errors` (a 5xx, or 3 seconds or more), `all`, or `off`. A line has the method, route pattern, status, time and a request id, and nothing about a person. The numbers per request are kept either way. |
 | `AUDIT_SHIPPING` | `off` | `log`: each audit event is also written to the process log as it happens (the same redacted payload, cut at 4,000 characters), so a change to the table can be noticed by comparing it with a store the application cannot rewrite. It is a second copy of that data, kept as long as the log is. |
 | `METRICS_PORT` | unset | Serve Prometheus `/metrics` on this port, which must not be the API's. Unset serves none. Meant for the cluster only; the chart sets it with `metrics.enabled`. |
+| `SHUTDOWN_SETTLE_SECONDS` | `0` (the chart sets `8`) | When told to stop (every deploy does), the server keeps serving this long while the platform takes it out of rotation, then stops listening. |
+| `SHUTDOWN_GRACE_SECONDS` | `8` (the chart sets `45`) | After it stops listening it waits up to this long for requests under way, a reply being streamed among them, then closes what is left and exits. A deploy that finds nothing under way does not wait this long. The chart sets the platform's own limit from these two (plus seven seconds), so the platform never kills it mid-wait. |
 
 `enforce` is refused at start-up unless `OPENBOT_GENERATIVE_UI=false` as well: generated interfaces and
 administrator-written components run from inline script, and would silently stop drawing. The policy

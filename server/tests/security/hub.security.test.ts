@@ -48,6 +48,10 @@ beforeAll(async () => {
       HUB_DATABASE_URL: databaseUrl.toString(),
       HUB_API_KEY: API_KEY,
       HUB_JOIN_SECRET: JOIN_SECRET,
+      // No pause before it stops listening, and a short wait for requests under way: a test that stops
+      // the hub is not made to sit through the pause a deployment needs.
+      HUB_SHUTDOWN_SETTLE_SECONDS: "0",
+      HUB_SHUTDOWN_GRACE_SECONDS: "1",
     },
     stdout: "ignore",
     stderr: "ignore",

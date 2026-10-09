@@ -63,6 +63,8 @@ spec:
 {{ toYaml . | indent 8 }}
         {{- end }}
     spec:
+      # Long enough for the process's own settle, wait and clean-up (server.shutdown), never shorter.
+      terminationGracePeriodSeconds: {{ add (int .Values.server.shutdown.settleSeconds) (int .Values.server.shutdown.graceSeconds) 7 }}
       serviceAccountName: {{ include "openbot.serviceAccountName" . }}
       automountServiceAccountToken: {{ include "openbot.automountToken" . }}
       {{- with .Values.imagePullSecrets }}
@@ -108,6 +110,10 @@ spec:
               protocol: TCP
             {{- end }}
           env:
+            - name: SHUTDOWN_SETTLE_SECONDS
+              value: {{ .Values.server.shutdown.settleSeconds | quote }}
+            - name: SHUTDOWN_GRACE_SECONDS
+              value: {{ .Values.server.shutdown.graceSeconds | quote }}
             {{- if .Values.metrics.enabled }}
             - name: METRICS_PORT
               value: {{ .Values.metrics.serverPort | quote }}

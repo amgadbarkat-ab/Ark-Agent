@@ -64,6 +64,8 @@ spec:
         {{- end }}
       {{- end }}
     spec:
+      # Long enough for the process's own settle, wait and clean-up (hub.shutdown), never shorter.
+      terminationGracePeriodSeconds: {{ add (int .Values.hub.shutdown.settleSeconds) (int .Values.hub.shutdown.graceSeconds) 7 }}
       serviceAccountName: {{ include "openbot.serviceAccountName" . }}
       # The hub talks to Postgres and to sockets. It has no use for the cluster's API.
       automountServiceAccountToken: false
@@ -108,6 +110,10 @@ spec:
               protocol: TCP
             {{- end }}
           env:
+            - name: HUB_SHUTDOWN_SETTLE_SECONDS
+              value: {{ .Values.hub.shutdown.settleSeconds | quote }}
+            - name: HUB_SHUTDOWN_GRACE_SECONDS
+              value: {{ .Values.hub.shutdown.graceSeconds | quote }}
             {{- if .Values.metrics.enabled }}
             - name: HUB_METRICS_PORT
               value: {{ .Values.metrics.hubPort | quote }}

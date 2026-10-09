@@ -26,6 +26,13 @@ export interface HubConfig {
    * none. The numbers are for whoever runs the service (see shared/metrics.ts).
    */
   metricsPort?: number;
+  /**
+   * How the process leaves when told to stop (shared/drain.ts): it keeps serving for `settleMs` while
+   * the platform takes it out of rotation, stops listening, waits up to `graceMs` for requests under
+   * way, then closes the sockets (browsers and runners reconnect to another hub and are caught up from
+   * the log). Together they have to be less than the platform's own limit.
+   */
+  shutdown?: { settleMs: number; graceMs: number };
 }
 
 export class HubConfigError extends Error {
@@ -95,7 +102,27 @@ export function loadConfig(
     ),
     bus: busMode(env.HUB_BUS),
     ...metricsPort(env),
+    shutdown: {
+      settleMs: shutdownSeconds(env, "HUB_SHUTDOWN_SETTLE_SECONDS", 0) * 1000,
+      graceMs: shutdownSeconds(env, "HUB_SHUTDOWN_GRACE_SECONDS", 8) * 1000,
+    },
   };
+}
+
+function shutdownSeconds(
+  env: Record<string, string | undefined>,
+  name: string,
+  fallback: number,
+) {
+  const raw = env[name]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0 || value > 600) {
+    throw new HubConfigError(
+      `${name} must be a whole number of seconds from 0 to 600.`,
+    );
+  }
+  return value;
 }
 
 function metricsPort(env: Record<string, string | undefined>): {

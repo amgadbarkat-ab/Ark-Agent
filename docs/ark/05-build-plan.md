@@ -191,6 +191,13 @@ Still to do:
       prepared; the client now sends them unprepared. Found by `scripts/load-profile.ts`, regression
       test `server/tests/db-burst.integration.test.ts` (fails on the old client). Per-route timings and
       what is not yet measured (the real cluster, the hub under load, the work pool) are in 18.
+- [x] **A deploy no longer cuts off replies being streamed** (13): the server used to exit on the
+      spot when told to stop. It now keeps serving while the platform takes it out of rotation, stops
+      listening, waits for requests under way (a streaming reply counts) up to a grace, then closes the
+      rest; the hub the same, shorter. The chart derives the platform's limit from the settings.
+      Tested against the real process (`server/tests/security/shutdown.test.ts`, fails on the old
+      behaviour). Not covered: a run that outlasts the grace is still cut (the grace is 45 s; a longer
+      one needs the run to survive its pod, which it does not yet).
 - [x] Observability: a log line for a failed or slow request and for anything that threw (route pattern,
       status, time, a request id the person is shown; nothing about a person), Prometheus `/metrics` on
       a port of its own for the server (traffic and latency per route, accounts by state, runs, cloud

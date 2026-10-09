@@ -36,8 +36,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY hub/package.json hub/package.json
 COPY hub/src hub/src
-# The counters and the text a scraper reads them as, shared with the API server.
-COPY shared/metrics.ts shared/metrics.ts
+# The counters and the text a scraper reads them as, and how to leave without cutting anybody off:
+# shared with the API server.
+COPY shared/metrics.ts shared/drain.ts shared/
 # Applied on start, in order, each once.
 COPY hub/migrations hub/migrations
 

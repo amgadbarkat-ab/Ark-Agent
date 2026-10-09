@@ -104,6 +104,7 @@ import {
   serveMetrics,
   serverMetrics,
 } from "./observability";
+import { createDrain } from "../../shared/drain";
 import { createOnboardingStore } from "./people/onboarding";
 import { createTermsStore } from "./people/terms";
 import { TERMS_VERSION } from "../../shared/terms-version";
@@ -1563,7 +1564,7 @@ const isProxiedStream = (data: SocketData): data is StreamData =>
 const asChannelSocket = (ws: { data: SocketData }) =>
   ws as unknown as ChannelSocket;
 
-serve<SocketData>({
+const server = serve<SocketData>({
   port,
   // The largest thing legitimately sent here is a conversation with attachments inlined (up to 32 MB
   // of files, a third more as base64). Bun's own ceiling is 128 MB, which is a reason for nobody;
@@ -1709,18 +1710,31 @@ if (config.singleUser) {
   );
 }
 
-// Each listener holds a connection of its own for the life of the process. Released on the way out,
-// so a watch-mode restart does not leave two behind on every reload.
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    void Promise.allSettled([
+// Leaving is not exiting: a deploy replaces every pod, and exiting on the spot would end every reply
+// being streamed to somebody. The process keeps serving while it is taken out of rotation, stops
+// listening, waits for what is under way, then closes the rest (shared/drain.ts).
+//
+// Each listener holds a connection of its own for the life of the process. Released on the way out, so
+// a watch-mode restart does not leave two behind on every reload.
+const drain = createDrain({
+  pending: () => server.pendingRequests,
+  stopListening: () => void server.stop(),
+  closeAll: () => void server.stop(true),
+  cleanup: () =>
+    Promise.allSettled([
       channelActivityListener.stop(),
       policyListener.stop(),
       // Started only where handing work between Bots is switched on, so it is often not there.
       workOfferedListener?.stop() ?? Promise.resolve(),
       Promise.resolve(retentionSweeps.stop()),
-    ]).finally(() => process.exit(0));
-  });
+    ]),
+  exit: (code) => process.exit(code),
+  log: (line) => console.log(line),
+  settleMs: config.shutdown.settleMs,
+  graceMs: config.shutdown.graceMs,
+});
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => void drain.begin(signal));
 }
 
 console.info(`OpenBot server listening on http://127.0.0.1:${port}`);
