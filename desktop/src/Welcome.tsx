@@ -9,7 +9,13 @@ export function Welcome({ onStart }: { onStart: () => void }) {
   return (
     <div className="sheet">
       <div className="lockup">
-        <div className="orb" aria-hidden="true" />
+        <svg className="tile" viewBox="0 0 160 160" aria-hidden="true">
+          {/* The company's app tile (brand/mark.svg): ember, with three ascending bars. */}
+          <rect width="160" height="160" rx="28" fill="#FF7A1A" />
+          <rect x="34" y="88" width="26" height="42" rx="6" fill="#1A0B03" />
+          <rect x="67" y="64" width="26" height="66" rx="6" fill="#1A0B03" />
+          <rect x="100" y="34" width="26" height="96" rx="6" fill="#1A0B03" />
+        </svg>
         <span>OpenBot</span>
       </div>
       <h1>Your own AI coworkers, on this computer.</h1>
