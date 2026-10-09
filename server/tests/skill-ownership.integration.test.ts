@@ -285,8 +285,8 @@ describe("what a person may do over HTTP", () => {
 
     expect(edit.status).toBe(404);
     expect(await edit.json()).toEqual(await missing.json());
-    // Deleting what she is not shown does nothing, the same as deleting what is already gone.
-    expect(remove.status).toBe(200);
+    // What she is not shown is answered as no skill at all, and nothing is deleted.
+    expect(remove.status).toBe(404);
     expect(await store.skillOwner(bobSkillId)).toBe(bob);
     const bobs = (await store.listSkills({ id: bob, isAdmin: false })).find(
       (skill) => skill.id === bobSkillId,

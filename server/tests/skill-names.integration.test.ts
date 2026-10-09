@@ -204,7 +204,12 @@ describe("two customers with the same name", () => {
     const gone = await asAlice().request(`/skills/${bobId}`, {
       method: "DELETE",
     });
-    expect(gone.status).toBe(200);
+    const nothing = await asAlice().request(`/skills/sk_none_${suite}`, {
+      method: "DELETE",
+    });
+    // The same answer for his skill as for one that was never there.
+    expect(gone.status).toBe(404);
+    expect(await gone.json()).toEqual(await nothing.json());
     // Still there, still Bob's, still on his Bot.
     expect((await listed(asBob())).some((skill) => skill.id === bobId)).toBe(
       true,

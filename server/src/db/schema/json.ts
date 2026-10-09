@@ -24,6 +24,5 @@ export const jsonb = customType<{
   driverData: unknown;
 }>({
   dataType: () => "jsonb",
-  // Straight through. The double `JSON.stringify` is the whole bug.
-  toDriver: (value) => value,
+  toDriver: (value) => JSON.stringify(value),
 });

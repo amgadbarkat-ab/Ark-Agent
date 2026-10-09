@@ -185,6 +185,12 @@ Still to do:
       kept as a CI job (16-penetration-test.md). An outside test of what it could not reach (bots'
       computers, a live run, real sign-in providers, the deployed estate) is the owner's call (15, O1).
 - [x] A content-security-policy, image scanning, scheduled dependency audit (15, O3–O5): built in 9.2–9.4.
+- [x] **Load-dependent hang fixed** (18): a burst of 20-30 concurrent requests at a freshly started
+      server left some hanging for good and then wedged every later request, while `/health` still said
+      fine. Bun's SQL pool loses queries when demand exceeds the pool and statements are not yet
+      prepared; the client now sends them unprepared. Found by `scripts/load-profile.ts`, regression
+      test `server/tests/db-burst.integration.test.ts` (fails on the old client). Per-route timings and
+      what is not yet measured (the real cluster, the hub under load, the work pool) are in 18.
 - [x] Observability: a log line for a failed or slow request and for anything that threw (route pattern,
       status, time, a request id the person is shown; nothing about a person), Prometheus `/metrics` on
       a port of its own for the server (traffic and latency per route, accounts by state, runs, cloud

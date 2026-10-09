@@ -140,6 +140,25 @@ export function createDatabase(
   const client = new SQL({
     ...addressOf(databaseUrl),
     ...(options.max === undefined ? {} : { max: options.max }),
+    /*
+     * NO NAMED PREPARED STATEMENTS, because Bun's pool loses queries when it has them.
+     *
+     * Found by timing the API under a burst: when more requests ask at once than the pool has
+     * connections (the default is ten) and the statements they use have not been prepared yet, some
+     * queries never come back, no error and no timeout. The request waits forever, the connection
+     * stays checked out, and a few of those leave the process answering nothing at all. `/health`
+     * does not touch the database, so the platform's probes still pass and nobody restarts it.
+     * Reproduced without this application: one query then three in parallel, thirty flows at once, a
+     * fresh pool, drizzle over Bun's SQL on Bun 1.3.14. With `prepare: false` the same thirty
+     * complete every time, as they do with a pool at least as large as the burst or with one
+     * connection (docs/ark/18-capacity.md has the measurements).
+     *
+     * The cost is that Postgres parses each statement again instead of once per connection, which
+     * is small next to a network round trip for the statements this application sends. It also lets
+     * the database sit behind a connection pooler in transaction mode, which named statements
+     * cannot. Revisit when Bun's pool is fixed and the reproduction in that document passes.
+     */
+    prepare: false,
   });
 
   return drizzle({ client, schema });

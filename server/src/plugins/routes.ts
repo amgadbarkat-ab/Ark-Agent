@@ -2251,8 +2251,9 @@ export function createPluginRoutes(
   routes.delete("/skills/:ref", requireUser, async (context) => {
     const actor = skillActor(context);
     const found = await store.findSkill(context.req.param("ref"), actor);
-    // Nothing the person could see by that name: done, the same as deleting what is already gone.
-    if (!found) return context.json({ ok: true });
+    // Nothing the person could see by that name. The same answer whether it is somebody else's or was
+    // never there, so the answer cannot be used to find out which.
+    if (!found) return context.json({ error: "There is no such skill." }, 404);
     const refusal = skillRefusal(context, found);
     if (refusal) return context.json({ error: refusal }, 403);
 

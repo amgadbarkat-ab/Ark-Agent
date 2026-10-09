@@ -60,7 +60,9 @@ export async function stampSignIn(
     await database
       .update(users)
       .set({
-        lastSignedInAt: sql`greatest(coalesce(${users.lastSignedInAt}, ${at}), ${at})`,
+        // Cast, because a date sent without a prepared statement carries no type and `greatest` cannot
+        // guess one for it.
+        lastSignedInAt: sql`greatest(coalesce(${users.lastSignedInAt}, ${at.toISOString()}::timestamptz), ${at.toISOString()}::timestamptz)`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));

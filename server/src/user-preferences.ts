@@ -32,7 +32,7 @@ export function createUserPreferencesStore(
         .update(users)
         .set({
           // Merge in Postgres so simultaneous updates to different preferences are preserved.
-          preferences: sql`${users.preferences} || ${preferences}::jsonb`,
+          preferences: sql`${users.preferences} || ${JSON.stringify(preferences)}::jsonb`,
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId))

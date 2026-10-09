@@ -23,6 +23,7 @@ research and plans. Each file says when it was written.
 | [15-security-review.md](15-security-review.md) | Security self-review: what was found and fixed (including the administrator-takeover flaw), what is open, and what a penetration tester should target. |
 | [16-penetration-test.md](16-penetration-test.md) | The internal penetration test: how it was run, the seven findings and their fixes, what held, what it could not reach, and how to re-run it. |
 | [17-cloud-runtime.md](17-cloud-runtime.md) | Where a coworker runs (device or Ark's cloud), what is measured, how the price is worked out and set from cost, how a month is charged exactly once, and what has not been verified. |
+| [18-capacity.md](18-capacity.md) | Load: a burst that hung the server and how it was fixed, where a page load spends its time, and what has not been measured. |
 | [../legal/](../legal/) | Drafts for a lawyer: privacy notice (shown in the app at /privacy), terms of service (at /terms; acceptance recorded per version) and a data processing agreement template. |
 
 Codebase status: the repo contains CopilotKit's OpenBot (MIT) as the base we are modifying.
