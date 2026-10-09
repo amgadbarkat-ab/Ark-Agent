@@ -4,8 +4,10 @@
 # password exists), then upgrades the Helm release on the cluster, and fails the run if the release
 # does not come up healthy. A failed upgrade rolls itself back (`--atomic`).
 #
-# NOT the CopilotKit release workflows next to it (publish-release.yml, release.yml), which name
-# CopilotKit's registry and must not be run from this repository.
+# Not the release workflows next to it (publish-release.yml, release.yml). Those cut a release when a
+# release pull request is merged and publish its images to this repository owner's GitHub registry
+# (ghcr.io/<owner>/ark-*), which is where the desktop app's installer pulls from. This one is the
+# cloud's, and never touches that registry.
 #
 # What it needs, set once on the repository (Settings > Variables, none of it secret):
 #   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID  an app registration that trusts this

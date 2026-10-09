@@ -32,17 +32,61 @@ pub struct Installed {
     pub version: String,
 }
 
+/// Where Ark's releases are published, as a GitHub `owner/name`.
+///
+/// Fixed when the app is built (`ARK_RELEASE_REPO`), and overridable on a machine with the same
+/// variable in its own environment, which is how a company that mirrors releases points its people at
+/// the mirror. A value that is not `owner/name` is ignored rather than used to build an address from:
+/// this string ends up in a URL the app downloads and runs code from.
+pub const DEFAULT_RELEASE_REPO: &str = "amgadbarkat-ab/ark-agent";
+
+pub fn release_repo() -> String {
+    release_repo_from(
+        std::env::var("ARK_RELEASE_REPO").ok().as_deref(),
+        option_env!("ARK_RELEASE_REPO"),
+    )
+}
+
+fn release_repo_from(runtime: Option<&str>, built: Option<&str>) -> String {
+    let well_formed = |value: &str| {
+        let mut parts = value.split('/');
+        let (Some(owner), Some(name), None) = (parts.next(), parts.next(), parts.next()) else {
+            return false;
+        };
+        [owner, name].iter().all(|part| {
+            !part.is_empty()
+                && !part.starts_with('.')
+                && part
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        })
+    };
+    [runtime, built]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|value| well_formed(value))
+        .unwrap_or(DEFAULT_RELEASE_REPO)
+        .to_string()
+}
+
 /// The tarball GitHub publishes for a tag.
 ///
 /// A release asset rather than a branch, and https rather than git, so nothing needs a git client
 /// or credentials to get a deployment.
 pub fn tarball_url(version: &str) -> String {
-    format!("https://github.com/CopilotKit/OpenBot/archive/refs/tags/{version}.tar.gz")
+    format!(
+        "https://github.com/{}/archive/refs/tags/{version}.tar.gz",
+        release_repo()
+    )
 }
 
 /// Where the release publishes its image manifest.
 pub fn images_url(version: &str) -> String {
-    format!("https://github.com/CopilotKit/OpenBot/releases/download/{version}/{IMAGES}")
+    format!(
+        "https://github.com/{}/releases/download/{version}/{IMAGES}",
+        release_repo()
+    )
 }
 
 pub fn images_path(root: &Path) -> PathBuf {
@@ -386,6 +430,48 @@ mod tests {
         ]));
         let error = missing.expect_err("an incomplete manifest is not a deployment");
         assert!(error.contains("agent-langgraph"), "{error}");
+    }
+
+    #[test]
+    fn releases_come_from_ark_unless_a_well_formed_other_place_is_named() {
+        assert_eq!(release_repo_from(None, None), DEFAULT_RELEASE_REPO);
+        assert_eq!(
+            release_repo_from(Some("example-org/ark-mirror"), None),
+            "example-org/ark-mirror"
+        );
+        // A machine's own setting wins over the one the app was built with.
+        assert_eq!(release_repo_from(Some("a/b"), Some("c/d")), "a/b",);
+        assert_eq!(release_repo_from(None, Some("c/d")), "c/d");
+        // Anything that is not `owner/name` is not a place to download and run code from.
+        for bad in [
+            "",
+            "no-slash",
+            "a/b/c",
+            "/b",
+            "a/",
+            "a/../b",
+            "a b/c",
+            "https://evil.example/x",
+            "a/b?x=1",
+            "a/b#frag",
+            "a@evil/b",
+        ] {
+            assert_eq!(
+                release_repo_from(Some(bad), None),
+                DEFAULT_RELEASE_REPO,
+                "{bad:?}"
+            );
+        }
+        // A bad runtime value falls through to the built one, not past it.
+        assert_eq!(release_repo_from(Some("a/../b"), Some("c/d")), "c/d");
+    }
+
+    #[test]
+    fn no_address_the_app_downloads_from_names_copilotkit() {
+        for url in [tarball_url("v1.0.0"), images_url("v1.0.0")] {
+            assert!(!url.to_lowercase().contains("copilotkit"), "{url}");
+            assert!(url.starts_with("https://github.com/"), "{url}");
+        }
     }
 
     #[test]

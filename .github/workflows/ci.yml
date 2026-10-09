@@ -496,8 +496,8 @@ jobs:
             -e KEY_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
             -e TRUSTED_ORIGINS=http://localhost:3001 \
              -e OPENBOT_SINGLE_USER=true \
-             -e INTELLIGENCE_API_URL=https://api.intelligence.copilotkit.ai \
-            -e INTELLIGENCE_GATEWAY_WS_URL=wss://realtime.intelligence.copilotkit.ai \
+            -e INTELLIGENCE_API_URL=http://127.0.0.1:7100 \
+            -e INTELLIGENCE_GATEWAY_WS_URL=ws://127.0.0.1:7100 \
             -e INTELLIGENCE_API_KEY=ci-not-a-real-key \
             openbot:ci
           for attempt in $(seq 1 150); do

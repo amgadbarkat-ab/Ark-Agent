@@ -51,7 +51,7 @@ test("problem_ui_has_no_credential_restore_action", () => {
 
 for (const Component of [Failure, InlineFailure]) {
   test(`${Component.name} offers external setup help without including error data`, () => {
-    delete process.env.VITE_OPENBOT_SUPPORT_URL;
+    process.env.VITE_OPENBOT_SUPPORT_URL = "https://support.example.test/ark";
     const view = render(
       <Component
         problem={{
@@ -61,9 +61,7 @@ for (const Component of [Failure, InlineFailure]) {
       />,
     );
     const help = view.getByRole("link", { name: "Get setup help" });
-    expect(help.getAttribute("href")).toBe(
-      "https://github.com/CopilotKit/OpenBot/issues/new/choose",
-    );
+    expect(help.getAttribute("href")).toBe("https://support.example.test/ark");
     expect(help.getAttribute("target")).toBe("_blank");
     expect(help.getAttribute("rel")).toBe("noreferrer");
     expect(invokeCalls).toEqual([]);
@@ -71,11 +69,22 @@ for (const Component of [Failure, InlineFailure]) {
     expect(invokeCalls).toEqual([
       {
         command: "plugin:opener|open_url",
-        args: {
-          url: "https://github.com/CopilotKit/OpenBot/issues/new/choose",
-        },
+        args: { url: "https://support.example.test/ark" },
       },
     ]);
+  });
+}
+
+for (const Component of [Failure, InlineFailure]) {
+  test(`${Component.name} sends nobody anywhere when no support page has been chosen`, () => {
+    delete process.env.VITE_OPENBOT_SUPPORT_URL;
+    const view = render(
+      <Component problem={{ said: "Synthetic start failure." }} />,
+    );
+    expect(view.queryByRole("link", { name: "Get setup help" }) === null).toBe(
+      true,
+    );
+    expect(view.container.innerHTML).not.toMatch(/copilotkit/i);
   });
 }
 
@@ -95,7 +104,7 @@ test("setup help honors a branded support URL", () => {
 });
 
 test("setup help reports a failed browser open and allows retry", async () => {
-  delete process.env.VITE_OPENBOT_SUPPORT_URL;
+  process.env.VITE_OPENBOT_SUPPORT_URL = "https://support.example.test/ark";
   invokeFailure = "synthetic browser refusal";
   const view = render(<Failure problem={{ said: "Synthetic failure." }} />);
   const help = view.getByRole("link", { name: "Get setup help" });
@@ -103,9 +112,7 @@ test("setup help reports a failed browser open and allows retry", async () => {
   fireEvent.click(help);
   const failure = await view.findByText(/Could not open your browser/);
   expect(failure.textContent).toContain("synthetic browser refusal");
-  expect(failure.textContent).toContain(
-    "https://github.com/CopilotKit/OpenBot/issues/new/choose",
-  );
+  expect(failure.textContent).toContain("https://support.example.test/ark");
 
   invokeFailure = null;
   fireEvent.click(help);

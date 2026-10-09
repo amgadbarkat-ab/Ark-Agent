@@ -24,10 +24,15 @@ export function asProblem(thrown: unknown): Problem {
 }
 
 function SetupHelp() {
-  // Whitelabel builds can choose their own support page. Never prefill it with error data.
-  const url =
-    import.meta.env.VITE_OPENBOT_SUPPORT_URL?.trim() ||
-    "https://github.com/CopilotKit/OpenBot/issues/new/choose";
+  /*
+   * A support page of Ark's own, once there is one.
+   *
+   * A build chooses it (`VITE_OPENBOT_SUPPORT_URL`) and never prefills it with error data. Without
+   * one there is no link at all: this used to point at CopilotKit's issue tracker, which is not
+   * where an Ark customer's problem belongs and not somewhere to send their output.
+   */
+  const url = import.meta.env.VITE_OPENBOT_SUPPORT_URL?.trim();
+  if (!url) return null;
   return (
     <ExternalLink className="setup-help" href={url}>
       Get setup help

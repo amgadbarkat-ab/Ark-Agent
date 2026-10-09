@@ -4,6 +4,7 @@
   "agent-bot",
   "agent-langgraph",
   "server",
+  "hub",
   "agent-crewai",
   "agent-llamaindex",
   "agent-agno",
