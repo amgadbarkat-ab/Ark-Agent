@@ -32,9 +32,9 @@ test("the public notice names the company, and shows every row of what is collec
   expect(heading.tagName).toBe("H1");
   const text = (document.body.textContent ?? "").replace(/\s+/g, " ");
   expect(text).toContain("Black Ark");
-  // The ten rows of the first table (and its header) are all in the page, not behind a scrollbox.
+  // The eleven rows of the first table (and its header) are all in the page, not behind a scrollbox.
   // Cloud running is one of them: it is held about a person only if they choose it.
-  expect(document.querySelectorAll("table")[0]?.rows.length).toBe(11);
+  expect(document.querySelectorAll("table")[0]?.rows.length).toBe(12);
   expect(text).toContain("Cloud running");
   expect(text).toContain(
     "we do not use your conversations or files to train AI models",

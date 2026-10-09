@@ -206,6 +206,25 @@ function SignScreen() {
             </p>
           ) : null}
         </motion.div>
+        {/*
+         * Where the terms and the privacy notice are, before anyone signs up. Acceptance is asked for
+         * after sign-in (the terms screen), by an act of ticking; this is the notice that it will be.
+         */}
+        <motion.p
+          className="mt-6 text-center text-muted-foreground text-xs"
+          transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
+          variants={{ hidden, shown }}
+        >
+          By continuing you will be asked to agree to the{" "}
+          <a className="underline underline-offset-4" href="/terms">
+            terms of service
+          </a>
+          . How we handle your data is in the{" "}
+          <a className="underline underline-offset-4" href="/privacy">
+            privacy notice
+          </a>
+          .
+        </motion.p>
       </motion.div>
     </div>
   );

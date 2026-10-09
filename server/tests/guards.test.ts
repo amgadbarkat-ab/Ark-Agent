@@ -72,6 +72,8 @@ describe("server authorization", () => {
         role: "user",
         // No store was passed, so this deployment tracks no onboarding and the app gates nobody.
         onboarding: null,
+        // Nor does it record acceptance of the terms of service.
+        terms: null,
       },
     });
   });

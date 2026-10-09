@@ -20,6 +20,7 @@ node_modules
 **/dist/
 app/src/lib/generated/application-config.ts
 app/src/lib/generated/privacy-notice.ts
+app/src/lib/generated/terms.ts
 .logs/
 .demo-logs/
 **/.impeccable

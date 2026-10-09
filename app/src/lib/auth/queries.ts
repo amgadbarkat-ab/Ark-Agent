@@ -12,6 +12,18 @@ export type OnboardingStatus = {
   completedAt: string | null;
 };
 
+/**
+ * Where this person stands against the terms of service in force.
+ *
+ * `required` is the server's decision (the deployment asks, and this person is a customer rather than
+ * staff), so the app never works it out from anything else.
+ */
+export type TermsStatus = {
+  version: string;
+  required: boolean;
+  acceptedAt: string | null;
+};
+
 export type AuthenticatedUser = {
   id: string;
   email: string;
@@ -20,7 +32,16 @@ export type AuthenticatedUser = {
   role: "admin" | "user";
   /** Null means this deployment does not track onboarding, which reads as nothing to finish. */
   onboarding: OnboardingStatus | null;
+  /** Null means this deployment does not record acceptance, which reads as nothing to accept. */
+  terms: TermsStatus | null;
 };
+
+/** Whether the gate holds: the terms are required and this person has not accepted this version. */
+export function needsTerms(user: AuthenticatedUser): boolean {
+  // `?.` because a server that predates this field (a rolling update) sends none, and that reads as
+  // nothing to accept rather than as a screen that cannot draw.
+  return user.terms?.required === true && user.terms.acceptedAt === null;
+}
 
 /** Whether the gate holds: there is an onboarding to do and this person has not finished it. */
 export function needsOnboarding(user: AuthenticatedUser): boolean {

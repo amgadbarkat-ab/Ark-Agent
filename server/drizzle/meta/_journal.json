@@ -400,6 +400,13 @@
       "when": 1791496047372,
       "tag": "0056_skills_per_owner_names",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1791505551070,
+      "tag": "0057_terms_acceptances",
+      "breakpoints": true
     }
   ]
 }

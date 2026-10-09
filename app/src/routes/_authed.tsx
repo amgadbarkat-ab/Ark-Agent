@@ -1,5 +1,9 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { currentUserQueryOptions, needsOnboarding } from "../lib/auth/queries";
+import {
+  currentUserQueryOptions,
+  needsOnboarding,
+  needsTerms,
+} from "../lib/auth/queries";
 import { CopilotProvider } from "../lib/copilot/provider";
 import { AppHotkeys } from "../lib/hotkeys/app-hotkeys";
 
@@ -10,6 +14,14 @@ export const Route = createFileRoute("/_authed")({
     );
     if (!user) {
       throw redirect({ to: "/sign" });
+    }
+    /*
+     * The terms come first, before anything else is shown: nobody is walked through the product, or
+     * let into it, on terms they have not accepted. Checked against the destination so the screen
+     * that asks stays reachable.
+     */
+    if (needsTerms(user) && location.pathname !== "/accept-terms") {
+      throw redirect({ to: "/accept-terms" });
     }
     /*
      * Somebody who has not finished onboarding goes there and nowhere else. Here rather than in

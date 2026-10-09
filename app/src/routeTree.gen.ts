@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignRouteImport } from './routes/sign'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthedAppRouteImport } from './routes/_authed/_app'
+import { Route as AuthedAcceptTermsRouteImport } from './routes/_authed/accept-terms'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedSettingsRouteRouteImport } from './routes/_authed/settings/route'
@@ -69,8 +71,18 @@ const SignRoute = SignRouteImport.update({
   path: '/sign',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedAppRoute = AuthedAppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedAcceptTermsRoute = AuthedAcceptTermsRouteImport.update({
+  id: '/accept-terms',
+  path: '/accept-terms',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAdminRouteRoute = AuthedAdminRouteRouteImport.update({
@@ -298,8 +310,10 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedAppIndexRoute
   '/privacy': typeof PrivacyRoute
   '/sign': typeof SignRoute
+  '/terms': typeof TermsRoute
   '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/settings': typeof AuthedSettingsRouteRouteWithChildren
+  '/accept-terms': typeof AuthedAcceptTermsRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/bot': typeof AuthedAppBotRoute
   '/routines': typeof AuthedAppRoutinesRoute
@@ -343,6 +357,8 @@ export interface FileRoutesByTo {
   '/': typeof AuthedAppIndexRoute
   '/privacy': typeof PrivacyRoute
   '/sign': typeof SignRoute
+  '/terms': typeof TermsRoute
+  '/accept-terms': typeof AuthedAcceptTermsRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/bot': typeof AuthedAppBotRoute
   '/routines': typeof AuthedAppRoutinesRoute
@@ -387,9 +403,11 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/sign': typeof SignRoute
+  '/terms': typeof TermsRoute
   '/_authed/admin': typeof AuthedAdminRouteRouteWithChildren
   '/_authed/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/_authed/_app': typeof AuthedAppRouteWithChildren
+  '/_authed/accept-terms': typeof AuthedAcceptTermsRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/_authed/_app/bot': typeof AuthedAppBotRoute
   '/_authed/_app/routines': typeof AuthedAppRoutinesRoute
@@ -436,8 +454,10 @@ export interface FileRouteTypes {
     | '/'
     | '/privacy'
     | '/sign'
+    | '/terms'
     | '/admin'
     | '/settings'
+    | '/accept-terms'
     | '/onboarding'
     | '/bot'
     | '/routines'
@@ -481,6 +501,8 @@ export interface FileRouteTypes {
     | '/'
     | '/privacy'
     | '/sign'
+    | '/terms'
+    | '/accept-terms'
     | '/onboarding'
     | '/bot'
     | '/routines'
@@ -524,9 +546,11 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/privacy'
     | '/sign'
+    | '/terms'
     | '/_authed/admin'
     | '/_authed/settings'
     | '/_authed/_app'
+    | '/_authed/accept-terms'
     | '/_authed/onboarding'
     | '/_authed/_app/bot'
     | '/_authed/_app/routines'
@@ -572,6 +596,7 @@ export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   SignRoute: typeof SignRoute
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -597,11 +622,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authed/_app': {
       id: '/_authed/_app'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthedAppRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/accept-terms': {
+      id: '/_authed/accept-terms'
+      path: '/accept-terms'
+      fullPath: '/accept-terms'
+      preLoaderRoute: typeof AuthedAcceptTermsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/admin': {
@@ -1006,6 +1045,7 @@ interface AuthedRouteChildren {
   AuthedAdminRouteRoute: typeof AuthedAdminRouteRouteWithChildren
   AuthedSettingsRouteRoute: typeof AuthedSettingsRouteRouteWithChildren
   AuthedAppRoute: typeof AuthedAppRouteWithChildren
+  AuthedAcceptTermsRoute: typeof AuthedAcceptTermsRoute
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute
 }
 
@@ -1013,6 +1053,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAdminRouteRoute: AuthedAdminRouteRouteWithChildren,
   AuthedSettingsRouteRoute: AuthedSettingsRouteRouteWithChildren,
   AuthedAppRoute: AuthedAppRouteWithChildren,
+  AuthedAcceptTermsRoute: AuthedAcceptTermsRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
 }
 
@@ -1023,6 +1064,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   SignRoute: SignRoute,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

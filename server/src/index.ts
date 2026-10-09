@@ -100,6 +100,8 @@ import { createHostAccessBroker } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
 import { createOnboardingStore } from "./people/onboarding";
+import { createTermsStore } from "./people/terms";
+import { TERMS_VERSION } from "../../shared/terms-version";
 import { createPeopleStore } from "./people/store";
 import { createProviderOAuthProxy } from "./provider-oauth";
 import { useRoutineTools } from "./plugins/builtin-routines";
@@ -1485,6 +1487,12 @@ const app = createApp(
     meter: cloudMeter,
     database,
   },
+  // Which version of the terms each person accepted; asked of customers only when the deployment
+  // requires it (TERMS_ACCEPTANCE=required).
+  createTermsStore(database, {
+    version: TERMS_VERSION,
+    required: config.termsAcceptance === "required",
+  }),
 );
 
 /**

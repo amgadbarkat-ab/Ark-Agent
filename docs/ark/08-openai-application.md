@@ -65,7 +65,8 @@ usage reporting OpenAI requires.
 
 - Legal entity and VAT/registration number.
 - Production domain and the redirect URI(s) the OAuth client will use.
-- Privacy policy and terms of service URLs (not yet written: Phase 7).
+- Privacy policy and terms of service URLs: `/privacy` and `/terms` on the production domain (both are
+  drafts for a lawyer to finish, docs/legal).
 - A named security contact.
 
 ## What must NOT happen while waiting

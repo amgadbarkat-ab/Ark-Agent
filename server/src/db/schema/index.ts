@@ -9,5 +9,6 @@ export * from "./marketplace";
 export * from "./models";
 export * from "./plugins";
 export * from "./tenants";
+export * from "./terms";
 export * from "./work";
 export * from "./voice";

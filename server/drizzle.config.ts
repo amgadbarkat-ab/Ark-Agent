@@ -29,6 +29,7 @@ export default defineConfig({
     "./src/db/schema/tenants.ts",
     "./src/db/schema/marketplace.ts",
     "./src/db/schema/cloud.ts",
+    "./src/db/schema/terms.ts",
   ],
   out: "./drizzle",
   dbCredentials: {

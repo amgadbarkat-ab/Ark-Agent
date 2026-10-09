@@ -47,6 +47,7 @@ const customerScreens = [
   "/settings/privacy",
   "/marketplace",
   "/privacy",
+  "/terms",
 ];
 const adminScreens = [
   "/admin",

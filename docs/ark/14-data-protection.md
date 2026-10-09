@@ -28,6 +28,7 @@ application; `hub`, the conversations). There is no other store of customer data
 | **Identity**: name, address, picture, when they signed in, how (Google, Microsoft, Okta), session records | `openbot`: `users`, `accounts`, `sessions` | Signing in; telling people apart | While the account exists. Sessions expire. |
 | **Role** (administrator or not) | `user_roles` | Deciding who may reach the admin screens | While the account exists |
 | **Account and plan**: which plan, status, the payment provider's customer and subscription ids, every billing event | `tenants`, `tenant_memberships`, `subscriptions`, `billing_events` | Selling and enforcing the plan | While the account exists. Not card or bank details: those never reach us. |
+| **Terms accepted**: which version of the terms of service, and when | `terms_acceptances` | Showing what they agreed to | While the account exists. Included in the data export. Deleted with the account. |
 | **Cloud running**, if they use Ark's cloud: whether it is on, their monthly limit, the prices they agreed to and when (each set of prices, with the dates it applied); the months charged, with the hours used and the amount; and a record of when each coworker's runs, computer and storage were in use | `cloud_accounts`, `cloud_charges`, `cloud_intervals` | Charging for what they chose to use, at the prices they agreed to; keeping them to their limit; explaining a charge | While the account exists. Included in the data export (without the payment service's reference or our notes). Deleted with the account. Staff's one row of prices (`cloud_rates`) holds no personal data. |
 | **Coworkers** (bots) they created: name, instructions, the model they use, which tools they may use | `agent_profiles`, `agents`, `plugin_grants`, `bot_model_choices` | Doing the work | Until the coworker is deleted or the person is erased |
 | **Conversations**: everything said to and by a coworker | `hub` database (threads and their event log); the application keeps only an index | Showing the conversation back; the coworker's memory of it | Until deleted or the person is erased |
@@ -144,7 +145,15 @@ delay. So:
 Written from this page, for a lawyer to review: [the privacy notice](../legal/privacy-notice.md) (shown in
 the app at `/privacy`, which is also the address Google's sign-in consent screen asks for) and a
 [data processing agreement template](../legal/data-processing-agreement.md) for Team and Enterprise
-customers. There are no terms of service yet; the plan terms the agreement refers to are still to be written.
+customers, and [the terms of service](../legal/terms-of-service.md) (shown at `/terms`; the sign-in
+screen links to it, and `TERMS_ACCEPTANCE=required` makes a customer accept the version in force before
+anything else, recording which version and when; staff are never asked). The terms are a draft with
+bracketed items for Black Ark and clauses (liability, governing law, consumer rights) marked for the
+lawyer. Acceptance is not asked while the setting is `off`, which is the default, because recording
+agreement to a draft records agreement to nothing: **switch it on when the text is final**, and bump
+the `**Version:**` line (then run `bun scripts/generate-app-config.ts`) whenever a change must be
+accepted again. Acceptance is enforced by the app, not the server: a script that talks to the API
+directly is not stopped, and the record shows who did accept.
 
 **Statements in those drafts that must be true on the day they are published.** Each is a promise to
 customers, so check each one rather than assume it:
@@ -161,7 +170,8 @@ customers, so check each one rather than assume it:
 
 ## Before the first customer
 
-- [ ] Privacy notice and data processing agreement reviewed by a lawyer; their [bracketed] items filled in.
+- [ ] Privacy notice, terms of service and data processing agreement reviewed by a lawyer; their
+      [bracketed] items filled in; `TERMS_ACCEPTANCE=required` set in the deployment.
 - [ ] Microsoft's data protection addendum, Paddle's terms, Composio's DPA and each default model
       provider's DPA in place; standard contractual clauses for any transfer outside the EEA.
 - [ ] A named person and mailbox who answers privacy requests within the month.

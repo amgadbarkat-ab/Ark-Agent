@@ -201,6 +201,13 @@ export type DeploymentConfig = {
    * only `frame-ancestors`. See server/src/csp.ts.
    */
   contentSecurityPolicy: CspMode;
+  /**
+   * Whether customers have to accept the terms of service before using the app: `required`, or `off`
+   * (the default). Left off until the text in docs/legal/terms-of-service.md is final, because asking
+   * people to accept a draft records agreement to nothing. Acceptances are recorded whenever they are
+   * offered either way. Staff are never asked.
+   */
+  termsAcceptance: "off" | "required";
   keyEncryptionKey: string;
   /**
    * Keys that used to be `keyEncryptionKey`, kept only so what they sealed can still be read until
@@ -1301,6 +1308,19 @@ function contentSecurityPolicyMode(environment: Environment): CspMode {
 }
 
 /**
+ * Whether the terms of service have to be accepted. A word, not a flag, and anything else is refused:
+ * "we thought we had turned it on" is the wrong way for a control like this to fail.
+ */
+function termsAcceptanceMode(environment: Environment): "off" | "required" {
+  const value = optional(environment, "TERMS_ACCEPTANCE")?.trim().toLowerCase();
+  if (value === undefined || value === "" || value === "off") return "off";
+  if (value === "required") return "required";
+  throw new Error(
+    `TERMS_ACCEPTANCE must be "required" or "off" (it is "${value}").`,
+  );
+}
+
+/**
  * How long the audit trail is kept.
  *
  * Refused rather than coerced, like everything else here. "We accepted your retention policy but not
@@ -1395,6 +1415,7 @@ export function loadConfig(
     databaseUrl: required(environment, "DATABASE_URL"),
     cloud: cloudConfig(environment),
     contentSecurityPolicy: contentSecurityPolicyMode(environment),
+    termsAcceptance: termsAcceptanceMode(environment),
     keyEncryptionKey: keyEncryptionKey(environment),
     previousKeyEncryptionKeys: previousKeyEncryptionKeys(environment),
     ...(managedAgent ? { managedAgent } : {}),

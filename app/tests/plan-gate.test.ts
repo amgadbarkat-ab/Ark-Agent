@@ -22,6 +22,7 @@ const user = (role: "admin" | "user" = "user"): AuthenticatedUser => ({
   email: "ann@example.com",
   role,
   onboarding: null,
+  terms: null,
 });
 
 function overview(

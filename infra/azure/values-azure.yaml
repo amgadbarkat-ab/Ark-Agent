@@ -48,6 +48,10 @@ config:
           name: ark-secrets
           key: key-encryption-key-previous
           optional: true
+    # Uncomment once the lawyer has finished docs/legal/terms-of-service.md: customers then have to
+    # accept the version in force before using the app, and it is recorded. Off, nobody is asked.
+    # - name: TERMS_ACCEPTANCE
+    #   value: required
     - name: ARK_BILLING_MODE
       value: subscriptions
     - name: ARK_BILLING_PROVIDER

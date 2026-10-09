@@ -37,6 +37,7 @@ import {
   userRoles,
   users,
   voiceSessions,
+  termsAcceptances,
 } from "../src/db/schema";
 import {
   type ConversationService,
@@ -295,6 +296,12 @@ async function furnished(
     userId: who.id,
     expiresAt: new Date(Date.now() + 60_000),
   });
+  // The terms of service they accepted.
+  await database.insert(termsAcceptances).values({
+    userId: who.id,
+    version: "2026-11-01-test",
+    acceptedAt: new Date("2026-11-02T10:00:00Z"),
+  });
   // Running in Ark's cloud: the agreement, a month charged, and the time the coworker ran.
   const rates = {
     computeCentsPerHour: 60,
@@ -517,6 +524,12 @@ async function rowsFor(
             .where(eq(cloudCharges.tenantId, tenantId)),
         )
       : 0,
+    termsAccepted: await n(
+      database
+        .select({ n: count() })
+        .from(termsAcceptances)
+        .where(eq(termsAcceptances.userId, userId)),
+    ),
     cloudUsage: tenantId
       ? await n(
           database
@@ -851,6 +864,14 @@ describe("what a person is sent", () => {
     expect(file.conversations).toHaveLength(2);
     expect(file.conversations[0].messages[0].content).toContain("hello from");
     expect(file.notIncluded.length).toBeGreaterThan(0);
+  });
+
+  test("includes which version of the terms they accepted, and when", async () => {
+    const ann = await furnished("ann");
+    const file = JSON.parse(await exported(ann.id));
+    expect(file.termsAccepted).toEqual([
+      { version: "2026-11-01-test", acceptedAt: "2026-11-02T10:00:00.000Z" },
+    ]);
   });
 
   test("includes what they agreed to for cloud running, the months charged and the time their coworkers ran", async () => {

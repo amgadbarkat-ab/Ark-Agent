@@ -98,7 +98,8 @@ Still to do in this phase:
       party's integration (`XAI_CLIENT` in `provider_oauth.rs`). Remove it, or get xAI's written
       permission, or register Ark's own client. Until then treat xAI as API-key only.
 - [ ] Local models: hardware detection, suggested model, managed download (Ollama / llama.cpp).
-- [ ] Usage metering in the gateway; audit events for connection changes.
+- [x] Audit events for connection changes (9.1).
+- [ ] Usage metering in the gateway.
 
 ### Phase 3. Accounts, plans, quotas (L) — core done, details in 09-accounts-plans-quotas.md
 Done:
@@ -183,8 +184,12 @@ Still to do:
 - [x] **Internal penetration test**: 56 attacks on the running server and the hub, seven findings fixed,
       kept as a CI job (16-penetration-test.md). An outside test of what it could not reach (bots'
       computers, a live run, real sign-in providers, the deployed estate) is the owner's call (15, O1).
-- [ ] A content-security-policy, image scanning, scheduled dependency audit (15, O3–O5).
-- [ ] Legal items only the owner can supply: privacy notice, data processing agreement, the
+- [x] A content-security-policy, image scanning, scheduled dependency audit (15, O3–O5): built in 9.2–9.4.
+- [x] Terms of service: a draft for a lawyer (docs/legal/terms-of-service.md), shown at `/terms`, with
+      acceptance recorded per version (`TERMS_ACCEPTANCE=required` makes a customer accept before using the
+      app; off by default until the text is final). Not done: enforcement at the API for non-app clients
+      (the desktop and mobile apps will need the same screen).
+- [ ] Legal items only the owner can supply: privacy notice, terms of service, data processing agreement, the
       sub-processors' agreements (14, "Before the first customer").
 
 ## Order and dependencies

@@ -67,6 +67,7 @@ import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import { parsePageLimit } from "./paging";
 import type { OnboardingStore } from "./people/onboarding";
+import type { TermsStore } from "./people/terms";
 import { MAX_PAGE, type PeopleStore } from "./people/store";
 import type { ComposioBroker } from "./plugins/broker";
 import { createPluginRoutes } from "./plugins/routes";
@@ -404,6 +405,11 @@ export function createApp(
     Parameters<typeof adminCloudRoutes>[0],
     "config" | "store" | "meter" | "database"
   > & { gate: CloudGate },
+  /**
+   * Which version of the terms of service each person accepted. Last, for the positional reason
+   * above. Absent leaves `/api/me` reporting no terms to accept.
+   */
+  terms?: TermsStore,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use(
@@ -824,9 +830,64 @@ export function createApp(
         onboarding: onboardingStore
           ? await onboardingStore.status(context.var.actor.id)
           : null,
+        /*
+         * Where this person stands against the terms in force. Null means this deployment does not
+         * record acceptance. `required` is false for staff, who are not customers, and wherever the
+         * deployment has not turned the requirement on.
+         */
+        terms: terms
+          ? await terms.status(
+              context.var.actor.id,
+              context.var.actor.role === "admin",
+            )
+          : null,
       },
     }),
   );
+  /*
+   * Accepting the terms. The version is sent back, and refused (409, with the version in force) if it
+   * is not the one in force: the person was looking at a text that has changed since, and recording
+   * agreement to it would record agreement to something they were not shown.
+   */
+  app.post("/api/me/terms", requireUser, async (context) => {
+    if (!terms) {
+      return context.json({ error: "Terms are not available." }, 503);
+    }
+    const body = (await context.req.json().catch(() => undefined)) as
+      | { version?: unknown }
+      | undefined;
+    if (typeof body?.version !== "string" || !body.version) {
+      return context.json(
+        { error: "Send the version of the terms you are accepting." },
+        400,
+      );
+    }
+    const staff = context.var.actor.role === "admin";
+    const before = await terms.status(context.var.actor.id, staff);
+    if (!(await terms.accept(context.var.actor.id, body.version))) {
+      return context.json(
+        {
+          error:
+            "These terms have changed since you opened them. Read the current version and accept that.",
+          version: before.version,
+        },
+        409,
+      );
+    }
+    // One row, the first time only: accepting again is not a new fact.
+    if (auditStore && before.acceptedAt === null) {
+      await recordAuditEvent(auditStore, {
+        eventType: "terms.accepted",
+        targetType: "terms",
+        targetId: body.version,
+        actorUserId: context.var.actor.id,
+        payload: { version: body.version },
+      }).catch(() => undefined);
+    }
+    return context.json({
+      terms: await terms.status(context.var.actor.id, staff),
+    });
+  });
   app.post("/api/me/onboarding", requireUser, async (context) => {
     if (!onboardingStore) {
       return context.json({ error: "Onboarding is not available." }, 503);

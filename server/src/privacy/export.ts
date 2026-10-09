@@ -22,6 +22,7 @@ import {
   pluginGrants,
   routines,
   skills,
+  termsAcceptances,
   subscriptions,
   tenantMemberships,
   tenants,
@@ -213,6 +214,14 @@ export function exportPerson(
       }),
     );
 
+    sections.termsAccepted = await database
+      .select({
+        version: termsAcceptances.version,
+        acceptedAt: termsAcceptances.acceptedAt,
+      })
+      .from(termsAcceptances)
+      .where(eq(termsAcceptances.userId, userId))
+      .orderBy(asc(termsAcceptances.acceptedAt));
     sections.skills = await database
       .select({
         slug: skills.slug,

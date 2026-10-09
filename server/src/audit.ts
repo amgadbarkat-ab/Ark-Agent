@@ -448,6 +448,8 @@ export const auditEventTypes = [
    * withholds; the offered credential never does.
    */
   "routines.dispatch_refused",
+  /** Somebody accepted the terms of service. The row names the version; nothing else is kept. */
+  "terms.accepted",
   /** A staff member changed what an account has bought, or whether it is paid up. */
   "account.plan_changed",
   /** A staff member suspended an account, with the reason shown to the customer. */
