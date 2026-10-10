@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.2
+
 ### Ark Hub's image starts
 
 The conversation service's container image (`ark-hub`) built and then stopped at once with `Cannot find package
