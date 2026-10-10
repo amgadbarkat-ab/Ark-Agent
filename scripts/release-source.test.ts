@@ -21,7 +21,7 @@ const rust = readFile(
 async function archivePaths(): Promise<string[]> {
   const text = await workflow;
   const match = text.match(
-    /source\.tar\.gz "\$GITHUB_SHA" -- \\\n((?:\s+.*\\\n)*\s+.*)\n/,
+    /source\.tar "\$GITHUB_SHA" -- \\\n((?:\s+.*\\\n)*\s+.*)\n/,
   );
   if (!match) throw new Error("the git archive command was not found");
   return match[1]
@@ -73,6 +73,19 @@ describe("the source archive the website serves", () => {
         carried,
         `${workspace} is a workspace but not in the archive`,
       ).toBe(true);
+    }
+  });
+
+  test("the pre-built app's marker is the same word in the pipeline, the app and the desktop", async () => {
+    const marker = ".openbot-prebuilt";
+    const files = [
+      ".github/workflows/publish-release.yml",
+      "app/scripts/build-cache.ts",
+      "desktop/src-tauri/src/stack.rs",
+    ];
+    for (const file of files) {
+      const text = await readFile(new URL(file, root), "utf8");
+      expect(text, `${file} must name ${marker}`).toContain(marker);
     }
   });
 

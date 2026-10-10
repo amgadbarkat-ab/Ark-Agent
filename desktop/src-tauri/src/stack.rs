@@ -838,6 +838,32 @@ pub fn down(engine: &Address, root: &Path) -> Result<(), String> {
     Err(command_said(&output.stderr))
 }
 
+/// Written into `app/dist` by the release pipeline (and read by `app/scripts/build-cache.ts`): the
+/// app in this deployment was built for exactly this tree, so it is served as it is.
+const PREBUILT_MARKER: &str = ".openbot-prebuilt";
+
+/// What `bun install` is asked for.
+///
+/// A release carries its web app already built, and a deployment with one needs only what the server
+/// and the worker import. The full install is about 170,000 files and 1.4 GB, most of it the tools and
+/// libraries that build the web page (icon sets, a diagram library, Vite); on Windows, with the virus
+/// scanner reading each file as it lands, that was minutes, and the first real install sat on it.
+/// Production dependencies of the two workspaces that run on the host are about a third of that. A
+/// deployment without a pre-built app (a source checkout) still gets the full install, because it has
+/// to build the app itself.
+fn dependency_install_args(root: &Path) -> Vec<&'static str> {
+    let mut args = vec!["install", "--frozen-lockfile", "--ignore-scripts"];
+    if root
+        .join("app")
+        .join("dist")
+        .join(PREBUILT_MARKER)
+        .is_file()
+    {
+        args.extend(["--production", "--filter", "server", "--filter", "worker"]);
+    }
+    args
+}
+
 /// Install the deployment's dependencies.
 ///
 /// The three host processes are `bun` processes run from the source, so the source alone is not
@@ -855,7 +881,7 @@ pub fn install_dependencies(root: &Path, bun: &Path) -> Result<(), String> {
     // containers are already up. Found on a Linux machine with bun and no node.
     let output = command(bun)
         .current_dir(root)
-        .args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .args(dependency_install_args(root))
         .output()
         .map_err(|error| format!("could not run bun install: {error}"))?;
 
@@ -4547,6 +4573,38 @@ fn main() {
             }
             Err(error) => panic!("could not bind the IPv6 regression listener: {error}"),
         }
+    }
+
+    #[test]
+    fn a_release_with_its_app_already_built_installs_only_what_the_host_processes_need() {
+        let root = temp_root("dependency-install-args");
+        std::fs::create_dir_all(root.join("app/dist")).unwrap();
+
+        // No pre-built app: the full install, because the app has to be built here.
+        assert_eq!(
+            dependency_install_args(&root),
+            ["install", "--frozen-lockfile", "--ignore-scripts"]
+        );
+
+        // A build alone is not a release's own build; only the marker the pipeline writes is.
+        std::fs::write(root.join("app/dist/index.html"), "<html></html>").unwrap();
+        assert_eq!(dependency_install_args(&root).len(), 3);
+
+        std::fs::write(root.join("app/dist").join(PREBUILT_MARKER), "v0.1.1\n").unwrap();
+        assert_eq!(
+            dependency_install_args(&root),
+            [
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts",
+                "--production",
+                "--filter",
+                "server",
+                "--filter",
+                "worker"
+            ]
+        );
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

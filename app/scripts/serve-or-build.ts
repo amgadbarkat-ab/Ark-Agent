@@ -1,9 +1,10 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  type BuildCachePaths,
+  isPrebuiltRelease,
   isReusableBuild,
   writeBuildCacheManifest,
-  type BuildCachePaths,
 } from "./build-cache";
 
 type RunCommand = (command: string[], cwd: string) => Promise<void>;
@@ -41,6 +42,13 @@ export async function prepareProductionBuild(
   paths: BuildCachePaths,
   runCommand: RunCommand = run,
 ): Promise<"reused" | "rebuilt"> {
+  // A release's own build, on a machine that has no build tools: serve it. Nothing is generated and
+  // nothing is hashed, because both would need the tooling that is deliberately not installed.
+  if (await isPrebuiltRelease(paths)) {
+    console.log("Serving the release's pre-built app/dist");
+    return "reused";
+  }
+
   await runCommand(
     [process.execPath, "run", "--cwd", paths.rootDir, "generate:app-config"],
     paths.rootDir,
