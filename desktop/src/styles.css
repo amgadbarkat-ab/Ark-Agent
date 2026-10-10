@@ -490,6 +490,9 @@ details > summary:hover {
   margin: 0;
   color: var(--ink-soft);
   font-size: 0.85rem;
+  /* Line breaks in an instruction are meant: a command is shown alone on its line so that it is
+     copied alone. */
+  white-space: pre-line;
 }
 
 .setup-help {

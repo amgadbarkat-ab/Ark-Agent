@@ -97,13 +97,24 @@ impl Blocker {
                  there, which ArkAgent cannot do: restart, open the firmware settings, and enable \
                  Intel VT-x or AMD-V."
             }
+            // One command to a line, on purpose. This used to be a sentence with the three commands
+            // joined by commas, and a person who copied it into PowerShell got `/norestart, dism.exe`:
+            // PowerShell reads a comma as "make a list", so DISM was handed the second `dism.exe`
+            // as an option and answered "Error: 87". The screen shows the line breaks as they are.
+            // "Administrator" is the account's current token, which is not elevated on an
+            // administrator's own computer either, so the first sentence covers that case.
             Blocker::NotAdministrator => {
-                "Setting up Windows Subsystem for Linux needs administrator rights. Ask an \
-                 administrator to open Windows Terminal or PowerShell as an administrator and run \
-                 `dism.exe /online /enable-feature \
-                 /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart`, \
-                 `dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart`, \
-                 and `wsl --install`. Restart Windows, then start ArkAgent again in your own account."
+                "Setting up Windows Subsystem for Linux needs administrator rights, which ArkAgent \
+                 does not have in this window. Open Windows Terminal or PowerShell as an \
+                 administrator (on your own computer: right-click it and choose Run as \
+                 administrator; otherwise ask an administrator to). Run these three commands one \
+                 at a time, pressing Enter after each and waiting for it to finish:\n\
+                 \n\
+                 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart\n\
+                 dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart\n\
+                 wsl --install\n\
+                 \n\
+                 Restart Windows, then start ArkAgent again in your own account."
             }
         }
     }
@@ -1490,15 +1501,33 @@ mod tests {
     }
 
     fn assert_administrator_setup_instruction(instruction: &str) {
+        // Each command alone on its line, because that is what is copied. In one sentence the commas
+        // between them became a PowerShell list and DISM answered "Error: 87".
         for command in [
             "wsl --install",
             "dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart",
             "dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart",
         ] {
-            assert!(instruction.contains(command), "missing admin setup command: {instruction}");
+            assert!(
+                instruction.lines().any(|line| line == command),
+                "missing admin setup command on a line of its own: {instruction}"
+            );
         }
-        assert!(instruction.contains("Ask an administrator"));
-        assert!(instruction.contains("Windows Terminal or PowerShell as an administrator and run"));
+        for line in instruction
+            .lines()
+            .filter(|line| line.starts_with("dism.exe ") || line.starts_with("wsl "))
+        {
+            assert!(
+                !line.contains(','),
+                "a command line must not carry a comma: {line}"
+            );
+            assert!(
+                line.matches("dism.exe").count() <= 1,
+                "two commands on one line: {line}"
+            );
+        }
+        assert!(instruction.contains("Run as administrator"));
+        assert!(instruction.contains("Windows Terminal or PowerShell as an administrator"));
         assert!(instruction.to_ascii_lowercase().contains("restart"));
         assert!(instruction.contains("your own account"));
         assert!(!instruction.contains("run ArkAgent once"));
