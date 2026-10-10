@@ -49,6 +49,13 @@ describe("the source archive the website serves", () => {
     );
   });
 
+  test("carries only the legal documents from docs/", async () => {
+    const underDocs = (await archivePaths()).filter(
+      (path) => path === "docs" || path.startsWith("docs/"),
+    );
+    expect(underDocs).toEqual(["docs/legal"]);
+  });
+
   test("is cut under one top-level folder, which is the shape the app strips", async () => {
     expect(await workflow).toMatch(/--prefix="ark-\$\{VERSION\}\/"/);
   });

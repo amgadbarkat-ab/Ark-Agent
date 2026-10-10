@@ -36,6 +36,9 @@ COPY shared shared
 # `server/src/tenant-package`, so the app cannot be built without it.
 COPY server server
 COPY examples examples
+# The privacy notice and the terms the app shows are generated from these files, by the same
+# `prebuild` step. Without them the build stops with ENOENT on docs/legal/privacy-notice.md.
+COPY docs/legal docs/legal
 RUN bun run --cwd app build
 
 

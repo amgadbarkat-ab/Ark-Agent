@@ -75,7 +75,7 @@ anyway. There are two kinds of download, and both come from the website:
 
    ```
    https://www.blackark.uk/get/release/latest.json                      {"tag_name": "v0.1.0"}
-   https://www.blackark.uk/get/release/v0.1.0/source.tar.gz             the deployment's files only (no internal documents)
+   https://www.blackark.uk/get/release/v0.1.0/source.tar.gz             the deployment's files only (and of docs/, only the legal texts the app reads when it starts)
    https://www.blackark.uk/get/release/v0.1.0/container-images.json     the images this version runs, pinned by digest
    ```
 

@@ -429,6 +429,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The application image is a 2,400-package install plus Chromium, and with the build cache it
+      # outgrew what the runner leaves free: the first build on main died copying node_modules with
+      # "no space left on device". These are the large things the runner ships that a build never uses.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Loaded rather than pushed: this runs on pull requests, including from forks, and it proves
       # the image builds without granting anything the ability to publish one.

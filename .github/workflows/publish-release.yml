@@ -138,6 +138,13 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # The application image is a 2,400-package install plus Chromium, and with the build cache it
+      # outgrew what the runner leaves free: the first build on main died copying node_modules with
+      # "no space left on device". These are the large things the runner ships that a build never uses.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -440,9 +447,10 @@ jobs:
           # customers use; these are the same files, kept on the release so nothing is rebuilt.
           # Only what a deployment runs, because the website serves this file to anybody: the same
           # list the desktop app unpacks (REQUIRED and ALSO_COPIED in desktop/src-tauri/src/deployment.rs),
-          # so internal documents never leave the repository.
+          # so internal documents never leave the repository. Of docs/ only docs/legal goes: the app's
+          # config generator reads the privacy notice and terms from it.
           git archive --format=tar.gz --prefix="ark-${VERSION}/" -o source.tar.gz "$GITHUB_SHA" -- \
-            docker-compose.yml server app worker shared examples package.json bun.lock scripts \
+            docker-compose.yml server app worker shared examples docs/legal package.json bun.lock scripts \
             tsconfig.base.json bunfig.toml
           jq -n --arg tag "$VERSION" '{tag_name: $tag}' > latest.json
 

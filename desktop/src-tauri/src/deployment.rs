@@ -308,8 +308,11 @@ pub fn needs_fetch(root: &Path, wanted: &str) -> bool {
 pub const REQUIRED: [&str; 4] = ["docker-compose.yml", "server", "app", "worker"];
 
 /// The rest of what a deployment needs, which is not what it is checked for.
-pub const ALSO_COPIED: [&str; 7] = [
+pub const ALSO_COPIED: [&str; 8] = [
     "shared",
+    // The app's config generator reads the privacy notice and the terms from here every time it
+    // builds or serves, and stops with ENOENT without them. Only this folder of `docs`.
+    "docs/legal",
     "examples",
     "package.json",
     "bun.lock",
@@ -371,14 +374,12 @@ fn destination_in(root: &Path, path: &Path) -> Result<Option<PathBuf>, String> {
     }
 
     // Only what a deployment needs. The rest of the tree is a place to develop, not to run.
-    let wanted = relative
-        .components()
-        .next()
-        .map(|first| {
-            let name = first.as_os_str().to_string_lossy().into_owned();
-            REQUIRED.contains(&name.as_str()) || ALSO_COPIED.contains(&name.as_str())
-        })
-        .unwrap_or(false);
+    // `starts_with` compares whole path components, so `docs/legal` takes in `docs/legal/x.md` and
+    // not `docs/legal-notes/x.md`, and not the rest of `docs`.
+    let wanted = REQUIRED
+        .iter()
+        .chain(ALSO_COPIED.iter())
+        .any(|entry| relative.starts_with(entry));
     if !wanted {
         return Ok(None);
     }
@@ -898,17 +899,33 @@ mod tests {
             ("OpenBot-0.0.8/docker-compose.yml", b"services: {}"),
             // Not part of a deployment: skipped, not refused.
             ("OpenBot-0.0.8/docs/readme.md", b"# hi"),
+            (
+                "OpenBot-0.0.8/docs/legal-notes/x.md",
+                b"# not the legal folder",
+            ),
+            // The one folder of docs/ that is: the app's config generator reads it.
+            ("OpenBot-0.0.8/docs/legal/privacy-notice.md", b"# privacy"),
         ]);
         unpack(&dir, &archive).expect("an ordinary download is laid out");
 
         let app = std::fs::read_to_string(dir.join("app/index.ts")).ok();
         let compose = std::fs::read_to_string(dir.join("docker-compose.yml")).ok();
-        let docs = dir.join("docs").exists();
+        let legal = std::fs::read_to_string(dir.join("docs/legal/privacy-notice.md")).ok();
+        let other_docs =
+            dir.join("docs/readme.md").exists() || dir.join("docs/legal-notes").exists();
         let _ = std::fs::remove_dir_all(&dir);
 
         assert_eq!(app.as_deref(), Some("export {}"));
         assert_eq!(compose.as_deref(), Some("services: {}"));
-        assert!(!docs, "the rest of the tree is not part of a deployment");
+        assert_eq!(
+            legal.as_deref(),
+            Some("# privacy"),
+            "the app's generator needs it"
+        );
+        assert!(
+            !other_docs,
+            "the rest of the tree is not part of a deployment"
+        );
     }
 
     #[test]
