@@ -8,6 +8,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### ArkAgent desktop: containers start on a Windows computer that does not hand out the `pids` controller
+
+On some Windows computers the containers did not start, and setup stopped with `crun: controller `pids` is not
+available`. The engine's virtual machine does not give the person's account the cgroup `pids` controller, and
+Podman asks for it by default so that a container cannot start more than 2048 processes. When that exact refusal
+comes back, ArkAgent now tells the engine it created (and only that one) to start containers without a limit on
+processes, and starts the containers again once. A Podman or Docker the person set up themselves is never
+reconfigured; they are told which setting to change.
+
 ## 0.1.1
 
 ### ArkAgent desktop: the first setup finishes, and its dependency step is much shorter

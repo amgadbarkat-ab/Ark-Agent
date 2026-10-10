@@ -610,6 +610,30 @@ pub fn pull(
     crate::pull_metrics::run(command, None, json_progress, on_complete)
 }
 
+/// Whether a refused start is the machine's missing `pids` controller, and the machine this app
+/// owns has now been told not to ask for it, so the same start is worth running once more.
+///
+/// An engine that is somebody else's is never reconfigured: it gets the plain explanation in
+/// `problem.rs` instead.
+fn repaired_for_missing_pids_controller(
+    engine: &Address,
+    said: &str,
+    repair: impl FnOnce(&Address) -> Result<(), String>,
+) -> bool {
+    crate::acquire::missing_pids_controller(said) && repair(engine).is_ok()
+}
+
+/// What follows `compose` when raising the containers. A start repeated after a repair also
+/// recreates what the refused one left behind, because those containers were created with the
+/// limit that failed.
+fn up_arguments(recreate: bool) -> Vec<&'static str> {
+    let mut args = vec!["up", "-d", "--no-build", "--pull", "never"];
+    if recreate {
+        args.push("--force-recreate");
+    }
+    args
+}
+
 /// Raise the containers.
 ///
 /// `--no-build` is the point of the whole published-images job: a desktop install has no toolchain,
@@ -632,15 +656,26 @@ pub fn up(
      * `up`, because `--profile` is an option of `compose` itself and not of the subcommand.
      */
     let requested = selected_services(harness, bots);
-    let mut command = compose_start_command(engine, root, secrets, std::env::consts::OS)?;
-    if harness {
-        command.args(["--profile", "harness"]);
+    let start = |recreate: bool| -> Result<std::process::Output, crate::problem::Problem> {
+        let mut command = compose_start_command(engine, root, secrets, std::env::consts::OS)?;
+        if harness {
+            command.args(["--profile", "harness"]);
+        }
+        command.args(up_arguments(recreate));
+        Ok(command.args(&requested).output().map_err(|error| {
+            format!("could not run {} compose: {error}", engine.engine.binary())
+        })?)
+    };
+    let mut output = start(false)?;
+    if !output.status.success()
+        && repaired_for_missing_pids_controller(
+            engine,
+            &command_said(&output.stderr),
+            crate::acquire::allow_containers_without_pids_limit,
+        )
+    {
+        output = start(true)?;
     }
-    let output = command
-        .args(["up", "-d", "--no-build", "--pull", "never"])
-        .args(&requested)
-        .output()
-        .map_err(|error| format!("could not run {} compose: {error}", engine.engine.binary()))?;
 
     if output.status.success() {
         return Ok(requested);
@@ -666,10 +701,24 @@ pub fn migrate(
 ) -> Result<(), crate::problem::Problem> {
     // The installation step supplies this image. `run` does not accept `--no-build`, and its
     // explicit no-pull policy must report a missing image without starting another download.
-    let output = compose_start_command(engine, root, secrets, std::env::consts::OS)?
-        .args(["run", "--rm", "--pull", "never", "migrate"])
-        .output()
-        .map_err(|error| format!("could not run migrations: {error}"))?;
+    let run = || -> Result<std::process::Output, crate::problem::Problem> {
+        Ok(
+            compose_start_command(engine, root, secrets, std::env::consts::OS)?
+                .args(["run", "--rm", "--pull", "never", "migrate"])
+                .output()
+                .map_err(|error| format!("could not run migrations: {error}"))?,
+        )
+    };
+    let mut output = run()?;
+    if !output.status.success()
+        && repaired_for_missing_pids_controller(
+            engine,
+            &command_said(&output.stderr),
+            crate::acquire::allow_containers_without_pids_limit,
+        )
+    {
+        output = run()?;
+    }
 
     if output.status.success() {
         return Ok(());
@@ -7202,6 +7251,53 @@ fn main() {
                 .contains("synthetic invalid deployment override")
         );
         assert!(!std::fs::read_to_string(record).unwrap().contains(" up "));
+    }
+
+    #[test]
+    fn a_start_refused_for_a_missing_pids_controller_is_retried_only_after_a_repair() {
+        let ours = Address::new(
+            crate::engine::Engine::Podman,
+            Some(crate::acquire::MACHINE.to_string()),
+        );
+        let refused = "Error response from daemon: crun: controller `pids` is not available under \
+                       /sys/fs/cgroup/non-systemd/user.slice/libpod-1.scope/container/cgroup.controllers";
+
+        let mut repaired = 0;
+        assert!(repaired_for_missing_pids_controller(&ours, refused, |_| {
+            repaired += 1;
+            Ok(())
+        }));
+        assert_eq!(repaired, 1);
+
+        assert_eq!(
+            up_arguments(false),
+            ["up", "-d", "--no-build", "--pull", "never"]
+        );
+        assert_eq!(
+            up_arguments(true),
+            [
+                "up",
+                "-d",
+                "--no-build",
+                "--pull",
+                "never",
+                "--force-recreate"
+            ]
+        );
+
+        // A repair that fails is not a reason to start again: the same refusal would follow.
+        assert!(!repaired_for_missing_pids_controller(
+            &ours,
+            refused,
+            |_| Err("no machine".into())
+        ));
+
+        // Any other failure never touches the engine's settings.
+        assert!(!repaired_for_missing_pids_controller(
+            &ours,
+            "Bind for 0.0.0.0:4202 failed: port is already allocated",
+            |_| panic!("an unrelated failure must not reconfigure the engine"),
+        ));
     }
 
     #[test]

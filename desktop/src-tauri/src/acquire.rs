@@ -81,6 +81,7 @@ pub const MACHINE: &str = "openbot";
 
 const USER_MODE_NETWORKING_FLAG: &str = "--user-mode-networking=true";
 const HOST_GATEWAY_CONFIG: &str = ".config/containers/containers.conf.d/90-openbot-host.conf";
+const NO_PIDS_LIMIT_CONFIG: &str = ".config/containers/containers.conf.d/91-arkagent-pids.conf";
 
 fn podman(args: &[&str]) -> Result<String, String> {
     podman_with(args, || {
@@ -290,9 +291,58 @@ pub fn prepare_for_compose(address: &Address) -> Result<(), String> {
 }
 
 fn owned_windows_podman_address(address: &Address, target_is_windows: bool) -> bool {
-    target_is_windows
-        && address.engine == Engine::Podman
-        && address.connection.as_deref() == Some(MACHINE)
+    target_is_windows && owned_podman_address(address)
+}
+
+fn owned_podman_address(address: &Address) -> bool {
+    address.engine == Engine::Podman && address.connection.as_deref() == Some(MACHINE)
+}
+
+/// Whether the engine refused to start a container because this user's cgroup does not carry the
+/// `pids` controller, which Podman asks for by default (`pids_limit = 2048`). Measured on the first
+/// Windows install: `crun: controller `pids` is not available under /sys/fs/cgroup/non-systemd/...`.
+pub fn missing_pids_controller(output: &str) -> bool {
+    let lower = output.to_lowercase();
+    lower.contains("controller `pids` is not available")
+        || lower.contains("controller 'pids' is not available")
+}
+
+/// Let containers start in the machine this app owns without a limit on their process count.
+///
+/// Some machines (WSL2 was the first) do not hand the `pids` controller to a rootless user, and
+/// Podman's default of 2048 processes per container then fails every container before it starts.
+/// `pids_limit = 0` is the documented way to ask for no limit, so Podman stops requesting the
+/// controller. Only the machine this app created is touched: a person's own engine is theirs, and
+/// the repair is never a reason to rewrite its configuration.
+pub fn allow_containers_without_pids_limit(address: &Address) -> Result<(), String> {
+    allow_containers_without_pids_limit_with(address, podman)
+}
+
+fn allow_containers_without_pids_limit_with(
+    address: &Address,
+    mut run: impl FnMut(&[&str]) -> Result<String, String>,
+) -> Result<(), String> {
+    if !owned_podman_address(address) {
+        return Err("the container engine is not the one ArkAgent created".into());
+    }
+    let script = no_pids_limit_config_script();
+    run(&["machine", "ssh", MACHINE, &script]).map(|_| ())
+}
+
+fn no_pids_limit_config_script() -> String {
+    format!(
+        "set -e; \
+         mkdir -p \"$HOME/.config/containers/containers.conf.d\"; \
+         target=\"$HOME/{NO_PIDS_LIMIT_CONFIG}\"; \
+         tmp=\"$target.tmp\"; \
+         cat > \"$tmp\" <<'EOF'\n[containers]\npids_limit=0\nEOF\n\
+         if [ -f \"$target\" ] && cmp -s \"$tmp\" \"$target\"; then \
+           rm \"$tmp\"; \
+         else \
+           mv \"$tmp\" \"$target\"; \
+           systemctl --user try-restart podman.service; \
+         fi"
+    )
 }
 
 fn first_valid_host_gateway_ip(raw: &str) -> Result<Ipv4Addr, String> {
@@ -925,6 +975,96 @@ mod tests {
         );
         let systemctl_calls = std::fs::read_to_string(&calls).unwrap();
         assert_eq!(systemctl_calls, "--user try-restart podman.service\n");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// The line a customer's Windows PC printed on the first real install.
+    const PIDS_FAILURE: &str = "Error response from daemon: crun: controller `pids` is not \
+        available under /sys/fs/cgroup/non-systemd/user.slice/user-1000.slice/user@1000.service/\
+        user.slice/libpod-4bec61b3d091441ef944c90811ecd663a45be90260625d1abab03488cde1299a.scope/\
+        container/cgroup.controllers: OCI runtime error";
+
+    #[test]
+    fn a_missing_pids_controller_is_recognised_and_other_failures_are_not() {
+        assert!(missing_pids_controller(PIDS_FAILURE));
+        assert!(missing_pids_controller(
+            "crun: controller 'PIDS' is not available under /sys/fs/cgroup/x"
+        ));
+        assert!(!missing_pids_controller(
+            "crun: controller `memory` is not available under /sys/fs/cgroup/x"
+        ));
+        assert!(!missing_pids_controller("port is already allocated"));
+    }
+
+    #[test]
+    fn only_the_machine_this_app_created_is_told_to_drop_the_process_limit() {
+        let mut calls = Vec::new();
+        let ours = Address::new(Engine::Podman, Some(MACHINE.to_string()));
+        allow_containers_without_pids_limit_with(&ours, |args| {
+            calls.push(args.iter().map(|arg| arg.to_string()).collect::<Vec<_>>());
+            Ok(String::new())
+        })
+        .unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(&calls[0][..3], ["machine", "ssh", MACHINE]);
+        assert!(calls[0][3].contains("pids_limit=0"), "{}", calls[0][3]);
+
+        for theirs in [
+            Address::new(Engine::Podman, Some("podman-machine-default".into())),
+            Address::new(Engine::Podman, None),
+            Address::new(Engine::Docker, None),
+        ] {
+            let result = allow_containers_without_pids_limit_with(&theirs, |_| {
+                panic!("somebody else's engine must not be reconfigured")
+            });
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn the_process_limit_script_writes_once_and_restarts_the_api_only_when_it_changed() {
+        let root = temp_root("arkagent-no-pids-limit-home");
+        let home = root.join("home");
+        let bin = root.join("bin");
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(&bin).unwrap();
+        let calls = root.join("systemctl-calls");
+        let fake_systemctl = bin.join("systemctl");
+        std::fs::write(
+            &fake_systemctl,
+            format!("#!/bin/sh\nprintf '%s\n' \"$*\" >> '{}'\n", calls.display()),
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&fake_systemctl, std::fs::Permissions::from_mode(0o755))
+                .unwrap();
+        }
+        let script = no_pids_limit_config_script();
+        let path = format!(
+            "{}:{}",
+            bin.display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        for _ in 0..2 {
+            let status = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&script)
+                .env("HOME", &home)
+                .env("PATH", &path)
+                .status()
+                .expect("execute the remote command under sh");
+            assert!(status.success(), "script failed: {status}");
+        }
+        assert_eq!(
+            std::fs::read_to_string(home.join(NO_PIDS_LIMIT_CONFIG)).unwrap(),
+            "[containers]\npids_limit=0\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&calls).unwrap(),
+            "--user try-restart podman.service\n"
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
