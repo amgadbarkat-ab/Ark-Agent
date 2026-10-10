@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildCacheManifestPath,
+  isPrebuiltRelease,
   isReusableBuild,
+  prebuiltMarkerPath,
   readBuildCacheManifest,
   writeBuildCacheManifest,
 } from "../scripts/build-cache";
@@ -185,6 +187,45 @@ describe("production build cache", () => {
       expect(await readFile(join(paths.rootDir, "startup.log"), "utf8")).toBe(
         "generate\n",
       );
+    });
+  });
+
+  test("a release's own build is served as it is, with no generator and no Vite", async () => {
+    await withProject(async (paths) => {
+      // Nothing to generate with and nothing to build with: a root package.json with no scripts and no
+      // Vite. If the script tried either, it would fail, which is what a desktop install would see.
+      await writeFile(
+        join(paths.rootDir, "package.json"),
+        JSON.stringify({ version: "1.2.3" }),
+      );
+      expect(await isPrebuiltRelease(paths)).toBe(false);
+      await writeFile(prebuiltMarkerPath(paths), "v1.2.3\n");
+      expect(await isPrebuiltRelease(paths)).toBe(true);
+
+      const child = Bun.spawn({
+        cmd: [process.execPath, serveOrBuildScriptPath],
+        env: {
+          ...process.env,
+          OPENBOT_BUILD_CACHE_ROOT_DIR: paths.rootDir,
+          OPENBOT_BUILD_CACHE_APP_DIR: paths.appDir,
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [exitCode, said] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+      ]);
+      expect(exitCode).toBe(0);
+      expect(said).toContain("pre-built");
+    });
+  });
+
+  test("the marker alone is not a build, and a build alone is not a release's", async () => {
+    await withProject(async (paths) => {
+      await rm(join(paths.appDir, "dist/index.html"));
+      await writeFile(prebuiltMarkerPath(paths), "v1.2.3\n");
+      expect(await isPrebuiltRelease(paths)).toBe(false);
     });
   });
 

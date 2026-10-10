@@ -37,6 +37,30 @@ const sourceExtensions = new Set([
   ".yml",
 ]);
 
+/**
+ * Written into `app/dist` by the release pipeline, and only there.
+ *
+ * It says "this build was made for exactly this tree by the release, and the machine that serves it
+ * has no build tools". A desktop install is such a machine: it installs only what the server and the
+ * worker need, so Vite is not there to rebuild with, and a rebuild would only fail. Where the marker
+ * exists the build is served as it is; everywhere else (a laptop, a container build) it never does,
+ * and the content-addressed cache below decides as before.
+ */
+const PREBUILT_MARKER = ".openbot-prebuilt";
+
+export function prebuiltMarkerPath({ appDir }: BuildCachePaths): string {
+  return join(appDir, "dist", PREBUILT_MARKER);
+}
+
+export async function isPrebuiltRelease(
+  paths: BuildCachePaths,
+): Promise<boolean> {
+  return (
+    (await existingFile(join(paths.appDir, "dist", "index.html"))) &&
+    (await existingFile(prebuiltMarkerPath(paths)))
+  );
+}
+
 export function buildCacheManifestPath({ appDir }: BuildCachePaths): string {
   return join(appDir, "dist", MANIFEST_NAME);
 }
