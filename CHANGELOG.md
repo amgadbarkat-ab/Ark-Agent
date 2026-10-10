@@ -8,6 +8,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Ark Hub's image starts
+
+The conversation service's container image (`ark-hub`) built and then stopped at once with `Cannot find package
+'hono'`, because the image was missing the service's own libraries, so no conversation could be kept on any
+computer. It carries them now, and the release checks start the image's code before it is published. 0.1.1's hub
+image has this fault; use 0.1.2 or later.
+
 ### ArkAgent desktop: containers start on a Windows computer that does not hand out the `pids` controller
 
 On some Windows computers the containers did not start, and setup stopped with `crun: controller `pids` is not

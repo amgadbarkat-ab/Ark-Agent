@@ -609,6 +609,14 @@ jobs:
             docker buildx build --file "$image/Dockerfile" --platform linux/amd64 .
             echo "::endgroup::"
           done < <(jq -r '.[]' .github/published-images.json)
+      # Building proves a Dockerfile is valid, not that what it built can start. The hub image built
+      # for a release and then stopped on its first line, `Cannot find package 'hono'`, on the first
+      # computer it ran on. Loading the hub's code is the cheapest thing that would have caught it.
+      - name: The hub image can load its code
+        run: |
+          set -euo pipefail
+          docker buildx build --file hub/Dockerfile --platform linux/amd64 --load --tag ark-hub-smoke .
+          docker run --rm --entrypoint bun ark-hub-smoke -e 'await import("/app/hub/src/server.ts")'
 
   # One check for branch protection to require. A new job above is covered by this without anybody
   # remembering to add it to a list, and a job that was skipped for the wrong reason is not a pass.
