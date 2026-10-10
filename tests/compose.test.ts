@@ -450,7 +450,13 @@ test("builds the deployment image with Playwright's Chromium payload only", () =
         "{PLAYWRIGHT_VERSION}" +
         '" install --with-deps chromium',
     );
-    expect(dockerfile).not.toMatch(/\bnodejs\b|\bnpm\b/);
+    // Node comes from the Node image, never from the distribution's `nodejs` or `npm` packages. The
+    // one place npm is named is the Node stage, which upgrades the copy that image carries so its
+    // bundled tar is not the critical one (see the next test); everything after that stage is the
+    // distribution's territory and must not mention either.
+    const { toolchain, rest } = splitAtToolchain(dockerfile);
+    expect(toolchain).not.toMatch(/\bnodejs\b/);
+    expect(rest).not.toMatch(/\bnodejs\b|\bnpm\b/);
     expect(dockerfile).not.toMatch(
       /\binstall(?:\s+--with-deps)?\s+(firefox|webkit)\b/,
     );
@@ -465,6 +471,30 @@ test("builds the deployment image with Playwright's Chromium payload only", () =
       "      dockerfile: agent-computer/Dockerfile",
     ].join("\n"),
   );
+});
+
+/** The Node stage of a Dockerfile, and everything after it. */
+function splitAtToolchain(dockerfile: string) {
+  const start = dockerfile.indexOf("AS node-toolchain");
+  const next = dockerfile.indexOf("\nFROM ", start);
+  return {
+    toolchain: dockerfile.slice(0, next),
+    rest: dockerfile.slice(next),
+  };
+}
+
+test("both computer images upgrade the npm that Node ships with, to the same pinned release", () => {
+  // The npm in node:24.18.1 bundles tar 7.5.15 (CVE-2026-59873, critical, fixed in 7.5.19), which
+  // the image scan in CI refuses. The pin must be exact, and must be checked in the build.
+  const pins = [];
+  for (const dockerfile of [rootDockerfile(), agentComputerDockerfile()]) {
+    const { toolchain } = splitAtToolchain(dockerfile);
+    const pin = toolchain.match(/npm install -g npm@(\d+\.\d+\.\d+)\b/)?.[1];
+    expect(pin).toBeDefined();
+    expect(toolchain).toContain("npm still bundles an old tar");
+    pins.push(pin);
+  }
+  expect(pins[0]).toBe(pins[1]);
 });
 
 test("takes Bun from the same immutable release in both computer images", () => {
