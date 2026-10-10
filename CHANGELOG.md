@@ -8,6 +8,19 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### ArkAgent desktop: the first setup finishes, and its dependency step is much shorter
+
+The desktop app's setup stopped at "installing the deployment's dependencies" with `Workspace not found "hub"`,
+because the release's source archive left out the Ark Hub package list that the install needs. The archive carries
+it now, and a test keeps the archive and the desktop's unpacking in step.
+
+The dependency step was also minutes long: it installed the whole project (about 170,000 files and 1.4 GB, most of
+it tools that only build the web page) and then built the page on the person's computer. A release now carries the
+web app already built, and the desktop installs only what the server and the worker need (about 545 MB). The first
+start takes the shorter path by itself; an installation made from a source checkout still builds its own page.
+Installations made from 0.1.0 keep the folder and files they have; delete the `ArkAgent` folder in your home folder
+to take this version.
+
 ## 0.1.0
 
 ### ArkAgent: the desktop app and the service run without CopilotKit
