@@ -1,0 +1,52 @@
+<!--
+  The ArkAgent app download button, for www.blackark.uk. Paste it on BOTH pages:
+    product-arkagent.html
+    product-ark-team.html
+
+  Where: inside <div class="pd-sidebar-cta">, between the "Talk to sales" link and the
+  "Download product PDF" link. It uses the page's own classes (pd-trial-btn, pd-note), so it needs no
+  new CSS.
+
+  What it needs on the server: the three installer files in /get/ under these exact names (the
+  release attaches them with these names, so nothing is renamed). See docs/ark/21-desktop-demo.md.
+
+    https://www.blackark.uk/get/ArkAgent-windows-x64-setup.exe
+    https://www.blackark.uk/get/ArkAgent-macos-arm64.dmg
+    https://www.blackark.uk/get/ArkAgent-linux-x64.AppImage
+
+  Without JavaScript the button downloads the Windows installer, and the Mac and Linux links under it
+  work as plain links. With JavaScript it picks the file for the visitor's computer.
+
+  Remove the last <div> (the "unknown publisher" notice) once the installers are signed.
+-->
+<a href="https://www.blackark.uk/get/ArkAgent-windows-x64-setup.exe" class="pd-trial-btn" id="ark-download">Download the ArkAgent app</a>
+<div class="pd-note" id="ark-download-others">
+  Also for
+  <a href="https://www.blackark.uk/get/ArkAgent-macos-arm64.dmg">Mac (Apple silicon)</a> ·
+  <a href="https://www.blackark.uk/get/ArkAgent-linux-x64.AppImage">Linux</a>.
+  Runs on your own computer.
+</div>
+<div class="pd-note">
+  The first versions are not signed yet. Windows may say "Windows protected your PC": choose
+  <strong>More info</strong>, then <strong>Run anyway</strong>. On a Mac, open <strong>System Settings,
+  Privacy &amp; Security</strong> and choose <strong>Open Anyway</strong>.
+</div>
+<script>
+  (() => {
+    var button = document.getElementById("ark-download");
+    if (!button) return;
+    var base = "https://www.blackark.uk/get/";
+    var files = {
+      windows: "ArkAgent-windows-x64-setup.exe",
+      mac: "ArkAgent-macos-arm64.dmg",
+      linux: "ArkAgent-linux-x64.AppImage"
+    };
+    var agent = navigator.userAgent || "";
+    var kind = null;
+    if (/Windows/i.test(agent)) kind = "windows";
+    else if (/iPhone|iPad|iPod|Android/i.test(agent)) kind = null;
+    else if (/Macintosh|Mac OS X/i.test(agent)) kind = "mac";
+    else if (/Linux|X11/i.test(agent)) kind = "linux";
+    if (kind) button.setAttribute("href", base + files[kind]);
+  })();
+</script>

@@ -1,0 +1,95 @@
+{
+  "name": "BlackArk Visual Identity v3 (Ember)",
+  "date": "2026-10-04",
+  "supersedes": "v2 (2026-09-23)",
+  "change": "Accent moves from amber gold #DD9231 to ember orange #FF7A1A. Geometry, layouts and type unchanged.",
+  "chosen_designs": {
+    "logo": "Logo 08 - Ligature Lockup",
+    "staff_id_card": "Card 07 - Role Icon Strip",
+    "email_signature": "Sig 04 - Card Chip"
+  },
+  "color": {
+    "dark_mode": {
+      "paper": "#070504",
+      "paper_raised": "#110B07",
+      "card": "#160F0A",
+      "card_raised": "#1B130E",
+      "text_on_dark": "#F3F2EF",
+      "slate_on_dark": "#9B9893",
+      "ember": "#FF7A1A",
+      "ember_deep": "#E8650F",
+      "ember_light": "#FF9A3C",
+      "apricot": "#FFB067",
+      "flame": "#F2551B",
+      "flame_deep": "#E5481A",
+      "text_on_ember": "#1A0B03",
+      "good": "#249057"
+    },
+    "light_mode": {
+      "background": "#FFFFFF",
+      "text_dark": "#1A0B03",
+      "slate_light": "#6B6560",
+      "ember": "#FF7A1A",
+      "ember_deep": "#E8650F",
+      "ember_text_on_light": "#B84A00",
+      "signature_chip_bg": "#FAF8F4",
+      "paper_light": "#F7F5F0"
+    },
+    "gradient": "linear-gradient(105deg,#FFB067 0%,#FF7A1A 38%,#F2551B 78%,#E5481A 100%)",
+    "retired": {
+      "amber": "#DD9231",
+      "amber_deep": "#C17D2C",
+      "text_on_amber": "#160D07",
+      "paper": "#0C0A08",
+      "paper_raised": "#161311",
+      "gold": "#FFB547",
+      "gold_light": "#FFC04D",
+      "hot": "#F2643E",
+      "pink": "#E0509A",
+      "teal": "#34C5C0",
+      "violet": "#8B7CF6"
+    },
+    "contrast": {
+      "ember_on_paper": "7.8:1",
+      "text_on_ember": "7.4:1",
+      "ember_on_white": "2.6:1 (fails for text; graphics only)",
+      "ember_text_on_light_#B84A00_on_white": "5.2:1"
+    }
+  },
+  "typography": {
+    "primary": {
+      "family": "Geist",
+      "files": "fonts/Geist-Variable.woff2",
+      "usage": "Wordmark, headings, UI",
+      "license": "SIL Open Font License"
+    },
+    "mono": {
+      "family": "Geist Mono",
+      "files": "fonts/GeistMono-Regular.woff2, GeistMono-Medium.woff2",
+      "usage": "Labels, codes, dates, tags"
+    },
+    "office_and_email": {
+      "family": "Calibri, Arial, sans-serif; Consolas for the signature tagline",
+      "usage": "Word, Excel, Outlook signature"
+    }
+  },
+  "brand_mark": {
+    "description": "Three ascending bars, rounded caps, Ember at 0.55 / 0.8 / 1.0 opacity.",
+    "vector_source": "logos/logo-icon-bars.svg"
+  },
+  "messaging": {
+    "tagline": "Built to transform. Built to distribute.",
+    "lead_with": "Digital transformation and SaaS products",
+    "supporting_line": "Technology distribution",
+    "region_wording": "Europe and the Middle East",
+    "trademark": "BlackArk is cleared in the UK only (confirmed 2026-09-04); Greece, EU and Middle East clearance still open."
+  },
+  "staff_id_card": {
+    "ratio": "CR80",
+    "render_size_px": "1440x906",
+    "role_distinction": {
+      "human": "Person icon + label HUMAN",
+      "ai_agent": "Chip icon + label AI AGENT"
+    }
+  }
+}

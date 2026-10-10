@@ -1,0 +1,176 @@
+{{- if (.Values.hub).enabled }}
+{{- $component := "hub" -}}
+{{/*
+Ark Hub, one process or several.
+
+With the default bus (`hub.bus: postgres`) live events travel between hub processes through the
+database, so a runner on one replica and a person on another still see each other, and a rolling
+update is safe: the new pod starts beside the old one, takes over, and the old one's sockets
+reconnect and replay what they missed. With `hub.bus: memory` events stay inside one process, so
+exactly one may run and a new version REPLACES the old (`Recreate`): two at once would each hold some
+of a conversation's sockets and neither would see the other's events. Everything is stored before it
+is acknowledged either way, so a gap costs a reconnect and a replay, not a message.
+
+Nothing here writes to disk: it reads its own files and talks to Postgres and to sockets, so the root
+filesystem is read-only and `/tmp` is a scratch directory the runtime may want.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" $component) }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" $component) | indent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+spec:
+  {{- /* Defaulted through kindIs: an upgrade that reuses values from before this key existed has none. */}}
+  {{- $bus := "postgres" -}}
+  {{- if not (kindIs "invalid" (.Values.hub).bus) -}}{{- $bus = .Values.hub.bus -}}{{- end }}
+  {{- $replicas := 1 -}}
+  {{- if not (kindIs "invalid" (.Values.hub).replicaCount) -}}{{- $replicas = .Values.hub.replicaCount -}}{{- end }}
+  replicas: {{ if eq $bus "memory" }}1{{ else }}{{ $replicas }}{{ end }}
+  {{- if eq $bus "memory" }}
+  strategy:
+    type: Recreate
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # The new pod is up and ready before the old one goes, so there is always one listening.
+      maxSurge: 1
+      maxUnavailable: 0
+  {{- end }}
+  selector:
+    matchLabels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 6 }}
+  template:
+    metadata:
+      labels:
+{{ include "openbot.componentSelectorLabels" (dict "root" . "component" $component) | indent 8 }}
+        {{- with .Values.hub.podLabels }}
+{{ toYaml . | indent 8 }}
+        {{- end }}
+      {{- if or .Values.hub.podAnnotations (and .Values.metrics.enabled .Values.metrics.annotations) }}
+      annotations:
+        {{- if and .Values.metrics.enabled .Values.metrics.annotations }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.metrics.hubPort | quote }}
+        prometheus.io/path: /metrics
+        {{- end }}
+        {{- with .Values.hub.podAnnotations }}
+{{ toYaml . | indent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      # Long enough for the process's own settle, wait and clean-up (hub.shutdown), never shorter.
+      terminationGracePeriodSeconds: {{ add (int .Values.hub.shutdown.settleSeconds) (int .Values.hub.shutdown.graceSeconds) 7 }}
+      serviceAccountName: {{ include "openbot.serviceAccountName" . }}
+      # The hub talks to Postgres and to sockets. It has no use for the cluster's API.
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.hub.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.hub.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.hub.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      containers:
+        - name: hub
+          image: {{ include "openbot.hubImage" . }}
+          imagePullPolicy: {{ default "IfNotPresent" .Values.hub.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ include "openbot.hubPort" . }}
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.hubPort }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: HUB_SHUTDOWN_SETTLE_SECONDS
+              value: {{ .Values.hub.shutdown.settleSeconds | quote }}
+            - name: HUB_SHUTDOWN_GRACE_SECONDS
+              value: {{ .Values.hub.shutdown.graceSeconds | quote }}
+            {{- if .Values.metrics.enabled }}
+            - name: HUB_METRICS_PORT
+              value: {{ .Values.metrics.hubPort | quote }}
+            {{- end }}
+            - name: HUB_PORT
+              value: {{ include "openbot.hubPort" . | quote }}
+            - name: HUB_JOIN_TOKEN_TTL_SECONDS
+              value: {{ default 86400 .Values.hub.joinTokenTtlSeconds | quote }}
+            - name: HUB_DEFAULT_LOCK_TTL_SECONDS
+              value: {{ default 60 .Values.hub.defaultLockTtlSeconds | quote }}
+            - name: HUB_BUS
+              value: {{ $bus | quote }}
+            - name: HUB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openbot.secretName" . }}
+                  key: hub-api-key
+            - name: HUB_JOIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openbot.secretName" . }}
+                  key: hub-join-secret
+            - name: HUB_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openbot.secretName" . }}
+                  key: hub-database-url
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              # Whether to send it requests (its database answers, it has not been told to stop), as
+              # against `/health`, whether it is alive.
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          {{- with .Values.hub.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

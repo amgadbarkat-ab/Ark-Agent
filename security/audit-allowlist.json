@@ -1,0 +1,11 @@
+{
+  "about": "Known vulnerabilities in dependencies that we have looked at and decided to carry for now. Read by scripts/audit-check.ts, which fails the weekly dependency audit on any high or critical advisory that is not here, or whose date has passed. A line is a decision with a reason and an expiry (at most 200 days away); when the date comes, fix it or write the reason again. See docs/ark/15-security-review.md, O4.",
+  "allow": [
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "Stack exhaustion on deeply nested brace patterns. braces is reached only through fast-glob and micromatch in the build-time tooling of the app (shadcn, ts-morph), which is given our own file patterns, never a customer's input. No fixed release exists (3.0.3 is the latest).",
+      "expires": "2026-12-31"
+    }
+  ]
+}

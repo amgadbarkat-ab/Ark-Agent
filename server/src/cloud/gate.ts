@@ -1,0 +1,211 @@
+import {
+  chargeCents,
+  chargeForParts,
+  type CloudRates,
+  type CloudUsage,
+  NO_USAGE,
+} from "../../../shared/cloud-pricing";
+import type { RunLocation } from "../agents/profile-types";
+import type { CloudConfig } from "../config";
+import { billableFor } from "./billable";
+import { periodOf } from "./intervals";
+import type { CloudMeter } from "./meter";
+import { type CloudStore, ratesChangedFor } from "./store";
+
+/**
+ * Whether a run may use the cloud, and what a person is shown about it.
+ *
+ * The rules are D5's. A coworker set to run on the person's computer is not run in the cloud behind
+ * their back. Where cloud running is an add-on (`metered`), it runs only for an account that has
+ * switched it on having seen the prices, and only until the month's limit they set. Where it is
+ * `included`, it is not asked about at all, so a deployment that has not decided to charge for it
+ * behaves exactly as it always has.
+ *
+ * Every refusal says what to do next, as a link, because a person who is turned away from something
+ * they pay for should never have to guess.
+ */
+
+export type CloudDecision =
+  | { ok: true }
+  | {
+      ok: false;
+      code:
+        | "off"
+        | "on_device"
+        | "no_rates"
+        | "not_enabled"
+        | "rates_changed"
+        | "cap_reached";
+      reason: string;
+    };
+
+export type CloudStatus = {
+  mode: CloudConfig["mode"];
+  /** A hosted service with customers, as against a company's own deployment. */
+  hosted: boolean;
+  /** Whether this account has to opt in at all. */
+  addOn: boolean;
+  /** Whether it can be switched on yet: there are prices to agree to. */
+  priced: boolean;
+  rates: CloudRates | null;
+  enabled: boolean;
+  /**
+   * The person agreed to prices that staff have since changed. What they already used is priced at
+   * what they agreed to; nothing new runs in the cloud until they agree to the new ones.
+   */
+  ratesChanged: boolean;
+  monthlyCapCents: number;
+  defaultCapCents: number;
+  period: string;
+  usage: CloudUsage;
+  hours: number;
+  /** What this month would be charged if it ended now. */
+  chargeSoFarCents: number;
+  /** At or over four fifths of the limit. */
+  nearCap: boolean;
+  atCap: boolean;
+};
+
+export type CloudGate = {
+  check: (input: { tenantId: string; botId: string }) => Promise<CloudDecision>;
+  status: (tenantId: string) => Promise<CloudStatus>;
+};
+
+export function createCloudGate(deps: {
+  config: CloudConfig;
+  /** A hosted service with customers (`subscriptions`), as against a company's own deployment. */
+  hosted: boolean;
+  store: CloudStore;
+  meter: CloudMeter;
+  runLocationOf: (botId: string) => Promise<RunLocation | null>;
+  /**
+   * Where a customer changes how they pay. Every sentence below that points there is written as one
+   * whole link, so the store apps, which may not show a way to buy (docs/ark/19-mobile.md), can leave
+   * it out and what remains still reads as a sentence.
+   */
+  planPath?: string;
+  now?: () => Date;
+}): CloudGate {
+  const { config, hosted, store, meter } = deps;
+  const planPath = deps.planPath ?? "/settings/plan";
+  const now = deps.now ?? (() => new Date());
+  const addOn = hosted && config.mode === "metered";
+
+  /**
+   * What this month costs the account so far: what they agreed to, for the time after they agreed.
+   * Where it is not an add-on there is no agreement and nothing is charged, but the time is still
+   * counted so that a company can see what the cloud costs.
+   */
+  async function monthSoFar(
+    tenantId: string,
+    account: Awaited<ReturnType<CloudStore["account"]>>,
+    rates: CloudRates | null,
+  ): Promise<{ usage: CloudUsage; chargeCents: number }> {
+    const period = periodOf(now());
+    if (!addOn) {
+      const usage = await meter.usageFor(tenantId, period);
+      return { usage, chargeCents: rates ? chargeCents(usage, rates) : 0 };
+    }
+    // An add-on that was never agreed to has nothing chargeable, whatever was recorded before.
+    if (account.agreements.length === 0) {
+      return { usage: { ...NO_USAGE }, chargeCents: 0 };
+    }
+    const billable = await billableFor(meter, tenantId, period, account);
+    return {
+      usage: billable.usage,
+      chargeCents: chargeForParts(
+        billable.parts,
+        0,
+        billable.closing ?? undefined,
+      ),
+    };
+  }
+
+  async function status(tenantId: string): Promise<CloudStatus> {
+    const [rates, account] = await Promise.all([
+      store.rates(),
+      store.account(tenantId),
+    ]);
+    const month = await monthSoFar(tenantId, account, rates);
+    const cap = account.monthlyCapCents ?? config.defaultCapCents;
+    const charge = month.chargeCents;
+    return {
+      mode: config.mode,
+      hosted,
+      addOn,
+      priced: rates !== null,
+      rates,
+      enabled: account.enabled,
+      ratesChanged: addOn && ratesChangedFor(account, rates),
+      monthlyCapCents: cap,
+      defaultCapCents: config.defaultCapCents,
+      period: periodOf(now()),
+      usage: month.usage,
+      hours: month.usage.computeSeconds / 3600,
+      chargeSoFarCents: charge,
+      nearCap: addOn && cap > 0 && charge >= cap * 0.8,
+      atCap: addOn && charge >= cap,
+    };
+  }
+
+  return {
+    status,
+
+    async check({ tenantId, botId }) {
+      if (config.mode === "off") {
+        return {
+          ok: false,
+          code: "off",
+          reason:
+            "Running in the cloud is switched off on this service, so this was not started.",
+        };
+      }
+      if (hosted) {
+        const where = await deps.runLocationOf(botId);
+        if (where === "device") {
+          return {
+            ok: false,
+            code: "on_device",
+            reason: `This digital employee is set to run on your own computer, so it was not started here. Open the Ark desktop app to run it. [Let it run in Ark's cloud instead.](${planPath})`,
+          };
+        }
+      }
+      if (!addOn) return { ok: true };
+
+      const rates = await store.rates();
+      if (!rates) {
+        return {
+          ok: false,
+          code: "no_rates",
+          reason:
+            "Running in Ark's cloud is not available yet. Run this digital employee on your own computer for now.",
+        };
+      }
+      const account = await store.account(tenantId);
+      if (!account.enabled) {
+        return {
+          ok: false,
+          code: "not_enabled",
+          reason: `Running in Ark's cloud is not switched on for this account. [See the prices and switch it on.](${planPath}) You can also run this digital employee on your own computer.`,
+        };
+      }
+      if (ratesChangedFor(account, rates)) {
+        return {
+          ok: false,
+          code: "rates_changed",
+          reason: `The prices for running in Ark's cloud changed, so this was not started. [See the new prices and agree to them.](${planPath}) You can also run this digital employee on your own computer.`,
+        };
+      }
+      const cap = account.monthlyCapCents ?? config.defaultCapCents;
+      const charge = (await monthSoFar(tenantId, account, rates)).chargeCents;
+      if (charge >= cap) {
+        return {
+          ok: false,
+          code: "cap_reached",
+          reason: `This month's limit for cloud running has been reached, so this was not started. [Raise the limit.](${planPath}) Otherwise it can run again next month.`,
+        };
+      }
+      return { ok: true };
+    },
+  };
+}

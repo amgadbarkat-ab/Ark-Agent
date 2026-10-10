@@ -1,0 +1,48 @@
+{{- if and (.Values.hub).enabled ((.Values.hub).ingress | default dict).enabled }}
+{{/*
+The hub's own name, for the browser's live connection.
+
+The hub is reached by browsers directly, so it needs its own host. A WebSocket upgrade must pass, and
+what makes it pass is the controller's: those annotations are `hub.ingress.annotations`, not guesses
+made here.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "openbot.componentName" (dict "root" . "component" "hub") }}
+  labels:
+{{ include "openbot.componentLabels" (dict "root" . "component" "hub") | indent 4 }}
+  {{- with .Values.hub.ingress.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+spec:
+  {{- with (default .Values.ingress.className .Values.hub.ingress.className) }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.hub.ingress.tls }}
+  tls:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.hub.ingress.host | quote }}
+      http:
+        paths:
+          {{- /*
+            ONLY WHAT A BROWSER NEEDS. The hub's REST API and its runner socket are for this
+            deployment's own server, which reaches them inside the cluster, and each is protected by a
+            key. Publishing them on the internet as well adds an attack surface (a login prompt for
+            a key, every route of an HTTP service) for no use, so the public host answers the browser's
+            socket and nothing else. `hub.ingress.paths` widens it, deliberately, for a deployment
+            whose server is outside the cluster.
+          */}}
+          {{- range (.Values.hub.ingress.paths | default (list "/client/websocket")) }}
+          - path: {{ . }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "openbot.componentName" (dict "root" $ "component" "hub") }}
+                port:
+                  number: {{ include "openbot.hubPort" $ }}
+          {{- end }}
+{{- end }}

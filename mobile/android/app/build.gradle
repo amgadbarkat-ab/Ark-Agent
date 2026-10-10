@@ -1,0 +1,93 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The deployment's names, checked and written by `bun mobile/scripts/prepare-android.ts`. Nothing about
+// the deployment is written in this file: the package name cannot be changed once published, so it is
+// the owner's to give and is never defaulted.
+def arkFile = rootProject.file('ark.properties')
+if (!arkFile.exists()) {
+    throw new GradleException(
+        'mobile/android/ark.properties is missing. Run `bun mobile/scripts/prepare-android.ts` with the ' +
+        'ARK_* settings in mobile/README.md, then build again.')
+}
+def ark = new Properties()
+arkFile.withInputStream { ark.load(it) }
+def arkValue = { String key ->
+    def value = ark.getProperty(key)
+    if (!value) throw new GradleException("ark.properties has no ${key}; run prepare-android.ts again.")
+    value
+}
+
+// The site tells Android which app may open it (/.well-known/assetlinks.json); this is the app saying
+// which site it opens. Both directions are required for the address bar to go away. Written with the
+// quotes escaped, because Android reads a string resource's unescaped quote as quoting syntax.
+def assetStatements = groovy.json.JsonOutput.toJson([[
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target  : [namespace: 'web', site: arkValue('siteUrl')]
+]]).replace('"', '\\"')
+
+// The signing key of the upload to Google Play. Read from the environment each time and written
+// nowhere. Without it a release is built unsigned, which Play and phones refuse, and says so.
+def keystoreFile = System.getenv('ARK_ANDROID_KEYSTORE_FILE')
+def signed = keystoreFile && file(keystoreFile).exists()
+
+android {
+    // The name the generated R class lives in. It is not the app's identity and is never shown.
+    namespace 'ark.mobile.twa'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId arkValue('applicationId')
+        minSdk 24
+        // Google Play moves the lowest accepted target every August: check it at each submission.
+        targetSdk 36
+        versionCode arkValue('versionCode').toInteger()
+        versionName arkValue('versionName')
+
+        manifestPlaceholders = [
+            siteHost: arkValue('siteHost'),
+            siteUrl : arkValue('siteUrl'),
+        ]
+        resValue 'string', 'app_name', arkValue('appName')
+        resValue 'string', 'asset_statements', assetStatements
+        resValue 'color', 'theme_color', "#${arkValue('themeColor').substring(1)}"
+        resValue 'color', 'background_color', "#${arkValue('backgroundColor').substring(1)}"
+    }
+
+    buildFeatures {
+        resValues true
+    }
+
+    signingConfigs {
+        if (signed) {
+            release {
+                storeFile file(keystoreFile)
+                storePassword System.getenv('ARK_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ARK_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ARK_ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // There is no code of ours to shrink: the app is a manifest and a library.
+            minifyEnabled false
+            if (signed) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn('ARK_ANDROID_KEYSTORE_FILE is not set: the release is unsigned and cannot be uploaded or installed.')
+            }
+        }
+    }
+
+    // A reproducible, dependency-only build. Android lint is run by CI as its own step.
+    lint {
+        abortOnError true
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}

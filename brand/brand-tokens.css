@@ -1,0 +1,10 @@
+:root{
+  /* BlackArk Visual Identity v3 (Ember), 2026-10-04 */
+  --ba-paper:#070504; --ba-paper-raised:#110B07; --ba-card:#160F0A; --ba-card-raised:#1B130E;
+  --ba-ink:#F3F2EF; --ba-slate:#9B9893; --ba-text-on-ember:#1A0B03;
+  --ba-ember:#FF7A1A; --ba-ember-deep:#E8650F; --ba-ember-light:#FF9A3C; --ba-apricot:#FFB067;
+  --ba-flame:#F2551B; --ba-flame-deep:#E5481A; --ba-good:#249057;
+  --ba-ember-text-on-light:#B84A00;
+  --ba-gradient:linear-gradient(105deg,#FFB067 0%,#FF7A1A 38%,#F2551B 78%,#E5481A 100%);
+  --ba-line:rgba(255,255,255,.11);
+}

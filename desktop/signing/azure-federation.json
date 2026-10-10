@@ -1,0 +1,7 @@
+{
+  "name": "ark-windows-signing",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:amgadbarkat-ab/Ark-Agent:environment:windows-signing",
+  "description": "ArkAgent protected Windows signing workflow",
+  "audiences": ["api://AzureADTokenExchange"]
+}

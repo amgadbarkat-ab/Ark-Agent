@@ -1,0 +1,59 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist",
+      "!.",
+      "!app/src/lib/generated/application-config.ts",
+      "!app/src/routeTree.gen.ts",
+      "!desktop/src-tauri/gen",
+      "!**/target",
+      "!brand/brand-tokens.json",
+      "!brand/brand-tokens.css",
+      "!brand/logos/logo-icon-bars.svg",
+      "!mobile/android/build",
+      "!mobile/android/.gradle",
+      "!mobile/android/app/build",
+      "!mobile/ios/ios",
+      "!mobile/ios/capacitor.config.json",
+      "!server/drizzle"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "linter": {
+    "enabled": true
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/tests/**", "**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["app/src/components/ui/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useSemanticElements": "off",
+            "noLabelWithoutControl": "off",
+            "useKeyWithClickEvents": "off"
+          }
+        }
+      }
+    }
+  ]
+}

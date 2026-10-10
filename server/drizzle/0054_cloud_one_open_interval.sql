@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "cloud_intervals_one_open_idx" ON "cloud_intervals" USING btree ("source","bot_id") WHERE "cloud_intervals"."ended_at" is null and "cloud_intervals"."source" <> 'run';

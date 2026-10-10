@@ -1,0 +1,192 @@
+You are helping somebody set up ArkAgent on their own machine.
+
+Read this whole file before running anything. Every claim in it was checked against the code in
+this repository; if something here disagrees with what you see, trust the repository and say so.
+
+ASK THIS BEFORE YOU DO ANYTHING ELSE
+
+There are three supported paths, and they are different jobs:
+
+  A. They have the ArkAgent desktop app, or they want to try/run it locally without developer
+     tools. Use the desktop setup flow. It installs what it needs and asks only for an AI provider.
+  B. They want a server/container deployment. Use the published Docker images and an env file.
+  C. They want to change ArkAgent itself or edit a tenant package from source. Use the clone.
+
+Most people asking to "try ArkAgent" want A. Do not send them to Bun, Docker, Node, `npx`, or a
+clone unless they specifically mean B or C.
+
+ArkAgent is built on OpenBot (MIT). The desktop app and the containers run it locally or on a
+company's own infrastructure; the clone is for changing the product, tenant package, Bots, channels,
+skills, or branding. The hosted service for customers (docs/ark/13-azure-hosting.md) is a separate
+deployment of the same code.
+
+A. DESKTOP APP: LOCAL SETUP WITHOUT DEVELOPER TOOLS
+
+Tell them to open the desktop app and follow the screens:
+
+  1. Set up.
+  2. Keep the default Bot unless they know they want a specific framework.
+  3. Choose where it lives. This is the local deployment folder the app prepares.
+  4. Click Install.
+  5. Choose an AI provider (choosing it starts the app).
+  6. Answer the one question that proves the Bot answers.
+
+There is no sign-in to anything but the AI provider's own key. The desktop app runs Ark Hub, the
+conversation service, on their computer, makes its keys itself and keeps them in the system's
+credential store.
+
+Do not tell desktop users to install Bun, Node, or run `bun install`. The desktop installer acquires
+the pinned Bun runtime itself when it is missing. Do not tell them to clone the repository: the
+desktop app fetches the released deployment tree and uses the release's digest-pinned container
+images.
+
+The desktop app uses an existing Docker/Podman runtime when one is already usable. If it needs to
+install Podman, the platform decides what that looks like: Windows uses a per-user installer, macOS
+asks for the normal administrator approval, and Linux uses the distribution package manager through
+the desktop authorization prompt. It also places a Compose provider when needed. If setup reports a
+Windows WSL or virtualization blocker, follow the exact sentence in the app; that blocker is the
+source of truth.
+
+The AI provider screen offers OpenAI, Anthropic, and one OpenAI-compatible endpoint row. A compatible
+endpoint means an endpoint or gateway that speaks the OpenAI API shape, such as Ollama, vLLM, Azure
+OpenAI, or a company gateway. Do not describe raw Bedrock as OpenAI-compatible unless there is a
+gateway in front of it that provides that API.
+
+Chat-plan sign-ins (ChatGPT, Claude) are not offered: a model is reached with an API key, an
+OpenAI-compatible endpoint, or a model running on the person's own computer.
+
+The desktop wizard's last built-in question proves that the selected Bot can answer. After it opens
+the app, validate the main path with a real browser action and a visible chart, not just a text
+reply. If they are running an already-installed release, check its version first; source-tree fixes
+land in a desktop/container install only after that release is published. Ask a Bot to open a
+simple public site, report something visible on the page, and show the result as a bar or line
+chart. Passing means you saw the browser activity and the chart rendered in the transcript.
+
+B. SERVER OR ONE-CONTAINER DEPLOYMENT
+
+Use this when they are deploying a container, not when they are just trying the desktop app.
+
+  docker run -p 3001:3001 --env-file .env \
+    -e EMBEDDED_POSTGRES=on -v openbot-data:/var/lib/postgresql \
+    ghcr.io/amgadbarkat-ab/ark:latest
+
+One port. The app is on 3001 as well, so open http://localhost:3001, not 3010. `latest` is the most
+recent release; a version tag such as `:v0.0.13` pins one.
+
+The image does not carry Ark Hub, the conversation service. Run its image
+(ghcr.io/amgadbarkat-ab/ark-hub) beside it, and point INTELLIGENCE_API_URL,
+INTELLIGENCE_GATEWAY_WS_URL and INTELLIGENCE_API_KEY (names kept from before; they mean "the hub")
+at it, with the key the hub was given as HUB_API_KEY. The env file also needs a model credential, a
+real KEY_ENCRYPTION_KEY, and either an identity provider or OPENBOT_SINGLE_USER=true. Start from
+`.env.example` in this repository, or write the handful by hand. `EMBEDDED_POSTGRES=on` runs PostgreSQL inside the
+container, creates the database and the `vector` extension the first time, and applies migrations on
+every start. With your own DATABASE_URL, leave EMBEDDED_POSTGRES off and enable the `vector`
+extension in that database.
+
+Mount the volume at `/var/lib/postgresql`, the parent, not `/var/lib/postgresql/data`. `initdb` will
+not initialise into a directory that already contains `lost+found`.
+
+The one-container image does not carry the separate framework Bot images that `docker-compose.yml`
+starts. Leave MANAGED_AGENT_AG_UI_URL unset unless a Bot endpoint is actually reachable from this
+container. If their `.env` still has the laptop default `http://localhost:4201/ag-ui`, unset it for
+this path. See docs/deployment.md for platform notes, sizing and migrations.
+
+C. CLONE: CHANGE ARK AGENT OR A TENANT PACKAGE
+
+Use this only when they want to edit code or configuration in the repository.
+
+Requirements for the clone path:
+- Bun 1.3.14. The repository pins it in package.json.
+- Docker CLI plus Docker Compose, or a compatible `docker` command/socket. `scripts/start.sh`
+  calls `docker compose` for PostgreSQL and shipped Bots; Podman works only when it is exposed
+  through that Docker-compatible command path.
+- A model credential. The current source tree supports OpenAI or Anthropic for the example built-in
+  Bots and the LangGraph framework Bot. Use the provider-specific key and model variables below.
+  Google is supported by the LangGraph framework Bot, not by the example built-in package model.
+
+The default OpenAI clone setup needs one value from the person:
+
+  OPENAI_API_KEY              the model credential
+
+`scripts/start.sh` fills the local secrets it owns: COMPUTER_TOKEN and WORKER_SHARED_SECRET have dev
+defaults, MANAGED_AGENT_TOKEN and AGENT_TOOL_TOKEN are generated and written back into `.env`, and so
+are the conversation hub's HUB_API_KEY and HUB_JOIN_SECRET, with the three INTELLIGENCE_* settings
+pointed at the hub it then starts (`bash scripts/hub.sh secrets` does just that part).
+Everything else in `.env.example` is either already correct, optional, or generated. Do not walk the
+person through every blank line.
+
+The clone commands are:
+
+  cp .env.example .env
+
+There is no CopilotKit account, key or licence step. Leave COPILOTKIT_LICENSE_TOKEN unset: a wrong
+one makes the browser show a licence warning.
+
+For the default OpenAI path, put the OpenAI model key in OPENAI_API_KEY. For Anthropic, set all three lines together:
+
+  ANTHROPIC_API_KEY=...
+  BOT_PROVIDER=anthropic
+  BOT_MODEL=claude-sonnet-4-5
+
+That BOT_MODEL line is not optional in the clone path: docker-compose defaults BOT_MODEL to an
+OpenAI model. For a compatible endpoint, set OPENAI_BASE_URL, OPENAI_API_KEY if that endpoint needs
+one, and BOT_MODEL to the model name the endpoint publishes. Do not paste ChatGPT or Claude
+browser-session tokens into `.env`.
+
+Then:
+
+  bun install
+  bash scripts/start.sh
+
+It starts Docker services, applies migrations, starts the conversation hub on 7100, starts the API
+on 3001, starts the app on 3010, starts the local routine worker, and waits for each service to answer its own health route. Open
+http://localhost:3010.
+
+`bash scripts/stop.sh` takes down the app, worker, API server, Docker services, and each Bot's
+computer. Pass `--keep-computers` only when they deliberately want browser sessions left signed in.
+Nothing is deleted either way: the database, files and browser profiles are volumes.
+
+WHAT YOU MUST NOT DO FOR THEM
+- Do not put their API keys into any file you did not just tell them about, and do not echo
+  values back.
+- Do not change INTELLIGENCE_API_URL or INTELLIGENCE_GATEWAY_WS_URL on a clone: start.sh points them
+  at the local hub.
+
+FAILURES YOU WILL ACTUALLY SEE
+The server refuses to start rather than running half-configured. The message names the variable.
+
+- "A conversation service is required and is not configured. Missing: ..."
+  The hub's keys were not written. Run `bash scripts/hub.sh secrets`, or just `bash scripts/start.sh`.
+
+- "No identity provider is configured. Set GOOGLE_OAUTH_* ... or set OPENBOT_SINGLE_USER=true"
+  `.env.example` already sets OPENBOT_SINGLE_USER=true. On a laptop, put it back. On a shared URL,
+  configure real sign-in instead.
+
+- "KEY_ENCRYPTION_KEY must be a base64-encoded 32-byte key"
+  Generate one with `openssl rand -base64 32`. The example value is local-only.
+
+- "Model credential is not configured for <Bot>. Add the package credential or set OPENAI_API_KEY."
+  or the same sentence naming ANTHROPIC_API_KEY. Set the key for the provider the deployment is
+  actually using.
+
+- A port is taken: start.sh names the port and process. Re-run with APP_PORT=<free port> or
+  SERVER_PORT=<free port>, or stop the other process.
+
+- `.env is missing`: they skipped `cp .env.example .env`.
+
+HOW TO KNOW IT WORKED
+
+For a clone, `curl -s localhost:3001/api/capabilities` should return JSON with
+`"mode":"intelligence"`. Then use the app, not just curl: ask a Bot to open a public site in its
+browser, report something visible on the page, and show a small chart. A plain text/math answer is
+not enough for the main path because it does not prove browser tools or component rendering.
+
+WHEN THEY WANT TO MAKE IT THEIRS
+
+The Bots, channels and skills are configuration: `examples/fintech` is a worked example pointed at
+by TENANT_PACKAGE_DIR. Copy it, edit `agents.yaml`, and point TENANT_PACKAGE_DIR at the copy.
+The server runs from `server/`, so TENANT_PACKAGE_DIR is relative to that; the default is
+`../examples/fintech`, not `examples/fintech`.
+
+Further reading: README.md, docs/development.md, docs/deployment.md, and docs/configuration.md for
+every variable.

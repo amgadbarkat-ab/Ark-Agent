@@ -1,0 +1,254 @@
+# Ark on AKS: the Helm values for charts/openbot, for the infrastructure main.bicep creates.
+#
+#   helm upgrade --install ark charts/openbot -n ark --create-namespace -f infra/azure/values-azure.yaml \
+#     --set image.tag=<commit> --set hub.image.tag=<commit> --atomic --wait
+#
+# Everything marked REPLACE is a value only you know. Nothing secret is here: secrets come from the
+# vault through External Secrets (see `externalSecrets` at the bottom) and are named, never written.
+
+# Short names, so the secret is called `ark-secrets` and the services `ark-server` and `ark-hub`.
+fullnameOverride: ark
+
+image:
+  # REPLACE: `registryLoginServer` from the deployment, then /ark. Built from the repository's own Dockerfile.
+  repository: REPLACE.azurecr.io/ark
+  # Set on the command line to the commit being deployed, so a rollout is always to a known build.
+  tag: ""
+
+config:
+  # REPLACE: who is an administrator. Only a sign-in that can vouch for the address makes them one
+  # (a single Microsoft directory, Google when it verified the address, Okta, a company provider).
+  initialAdminEmails: you@example.com
+  # REPLACE: where people reach Ark.
+  publicUrl: https://app.blackark.uk
+  auth:
+    microsoft:
+      # REPLACE: the app registration for Ark's own staff directory, a single-tenant one.
+      clientId: 00000000-0000-0000-0000-000000000000
+      # REPLACE with your directory's id (a GUID). Never `common`, `organizations` or `consumers`.
+      tenantId: 00000000-0000-0000-0000-000000000000
+    google:
+      # REPLACE: for customers.
+      clientId: REPLACE.apps.googleusercontent.com
+  tenantPackageDir: /app/examples/fintech
+  # What turns Ark from a company's own tool into a service customers pay for. The Paddle values are
+  # public (prices, the client-side token) or come from the vault; see docs/ark/12-paddle.md.
+  extraEnv:
+    # The audit trail is kept for a year, then trimmed. It is the record of who did what, so it is
+    # not erased with a person (see docs/ark/14-data-protection.md); it is what the retention period
+    # is for.
+    - name: AUDIT_RETENTION_DAYS
+      value: "365"
+    # Each audit event is also written to the container log, which goes to Log Analytics, where the
+    # application cannot rewrite it: the check on the table (docs/ark/15-security-review.md, O8). The log
+    # keeps it for the workspace's retention (90 days in prod), the table for a year.
+    - name: AUDIT_SHIPPING
+      value: log
+    # Present only while the data encryption key is being rotated: the key being retired, so what it
+    # sealed can still be read until it has been re-sealed. `optional` is why a deployment that is not
+    # rotating starts without it. The steps are in docs/ark/13-azure-hosting.md.
+    - name: KEY_ENCRYPTION_KEY_PREVIOUS
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: key-encryption-key-previous
+          optional: true
+    # Notifications on phones and browsers (docs/ark/19-mobile.md). Present only once the key pair is in
+    # the vault and listed in externalSecrets.data below; `optional` is why a deployment that has not
+    # done that starts without them, with notifications off. The steps are in docs/ark/13-azure-hosting.md.
+    - name: WEB_PUSH_VAPID_PUBLIC_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: web-push-vapid-public-key
+          optional: true
+    - name: WEB_PUSH_VAPID_PRIVATE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: web-push-vapid-private-key
+          optional: true
+    # The store apps (docs/ark/19-mobile.md). None is a secret; each is the owner's once the apps exist.
+    # The Android fingerprint is the Play Console's "App signing key certificate".
+    # - name: ARK_ANDROID_APP_ID
+    #   value: <package name>
+    # - name: ARK_ANDROID_CERT_SHA256
+    #   value: <SHA-256 fingerprint>
+    # - name: ARK_IOS_APP_ID
+    #   value: <team id>.<bundle identifier>
+    # - name: ARK_IOS_URL_SCHEME
+    #   value: <the app's address scheme>
+    # Uncomment once the lawyer has finished docs/legal/terms-of-service.md: customers then have to
+    # accept the version in force before using the app, and it is recorded. Off, nobody is asked.
+    # - name: TERMS_ACCEPTANCE
+    #   value: required
+    - name: ARK_BILLING_MODE
+      value: subscriptions
+    - name: ARK_BILLING_PROVIDER
+      value: paddle
+    - name: PADDLE_ENVIRONMENT
+      value: production
+    - name: PADDLE_CLIENT_TOKEN
+      value: live_REPLACE
+    - name: PADDLE_PRICE_AGENT
+      value: pri_REPLACE
+    - name: PADDLE_PRICE_TEAM
+      value: pri_REPLACE
+    - name: PADDLE_PRICE_ENTERPRISE
+      value: pri_REPLACE
+    # Add this when cloud running is switched to `metered` (see `cloud:` below): the product a month of
+    # it is charged under, printed by server/scripts/paddle-setup.ts. Left out until then on purpose,
+    # so a placeholder that was never replaced cannot stop the server starting.
+    #
+    # - name: PADDLE_PRODUCT_CLOUD
+    #   value: pro_xxxxxxxxxxxxxxxxxxxxxxxxxx
+    - name: PADDLE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: paddle-api-key
+    - name: PADDLE_WEBHOOK_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: ark-secrets
+          key: paddle-webhook-secret
+
+# The database is Azure's, not a pod's. The address is in the vault.
+postgresql:
+  enabled: false
+database:
+  existingSecret: ark-secrets
+  existingSecretKey: database-url
+
+# Ark Hub, the conversation service, in this release.
+hub:
+  enabled: true
+  # Two, sharing live events through the database: a node drain or an update never leaves the
+  # conversations without one, and a deploy has no gap. (`bus: memory` would allow exactly one.)
+  replicaCount: 2
+  image:
+    # REPLACE: the same registry, /ark-hub. Built from hub/Dockerfile.
+    repository: REPLACE.azurecr.io/ark-hub
+    tag: ""
+  # Its own name, for the browser's live connection.
+  publicUrl: wss://hub.blackark.uk
+  ingress:
+    enabled: true
+    host: hub.blackark.uk
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+      # The managed NGINX closes an idle connection after a minute unless told a socket may stay open.
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    tls:
+      - hosts: [hub.blackark.uk]
+        secretName: ark-hub-tls
+
+ingress:
+  enabled: true
+  className: webapprouting.kubernetes.azure.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    # A first line against floods, per client address, in front of every route (the sign-in library's
+    # own limiter is per replica and only on in production; docs/ark/15-security-review.md, O7).
+    # Generous on purpose: an office shares one address, and loading the app is dozens of requests in a
+    # second. 100 a second sustained with a burst five times that; 60 open connections.
+    # This stops a script hammering a route. It does not stop a distributed flood: that is Azure Front
+    # Door with its WAF in front of the cluster, which is a decision about cost and is not made here.
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/limit-connections: "60"
+    # Refused with 429 (Too Many Requests), which is what it is, rather than nginx's default 503.
+    nginx.ingress.kubernetes.io/limit-req-status-code: "429"
+    nginx.ingress.kubernetes.io/limit-conn-status-code: "429"
+  hosts:
+    - host: app.blackark.uk
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts: [app.blackark.uk]
+      secretName: ark-tls
+
+server:
+  replicaCount: 2
+
+# Scheduled work for digital employees, and the hourly sweep of attachments nobody sent.
+routines:
+  enabled: true
+
+# One browser for every bot, run by this chart. A browser each (the cloud runtime) needs the
+# agent-sandbox controller on the cluster; see docs/ark/17-cloud-runtime.md.
+computers:
+  mode: shared
+
+# Running in Ark's cloud is an add-on customers pay for at cost. It stays `included` (nothing asked,
+# nothing charged) until real cost has been measured and staff have set the prices in Admin, Cloud
+# costs; then set `metered` and turn charging on. The steps are in docs/ark/17-cloud-runtime.md.
+#
+# Charging also needs PADDLE_PRODUCT_CLOUD (the product `paddle-setup` prints) in `config.extraEnv`
+# above, and the same Paddle key the server holds.
+cloud:
+  mode: included
+  charging:
+    enabled: false
+
+# Fence the pods in. The database is on the private network the default rules cut out, so it is named:
+# the subnet is `databaseSubnetPrefix` from the deployment, and the ingress controller's namespace is
+# the one AKS creates for its managed ingress.
+networkPolicy:
+  enabled: true
+  extraEgress:
+    - to:
+        - ipBlock:
+            cidr: 10.40.16.0/24
+      ports:
+        - port: 5432
+          protocol: TCP
+  hubExtraIngress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app-routing-system
+
+# Numbers about the service on ports the ingress does not reach (docs/ark/13-azure-hosting.md, "What to
+# watch"). AKS's managed Prometheus runs in kube-system, so that is who may read them.
+metrics:
+  enabled: true
+  scrapeFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+
+# One Secret, written by External Secrets from the vault. Each key is a vault secret
+# scripts/bootstrap-secrets.sh created or a person set.
+externalSecrets:
+  enabled: true
+  secretStoreRef:
+    name: azure-key-vault
+    kind: ClusterSecretStore
+  data:
+    - secretKey: key-encryption-key
+      remoteRef: { key: ark-key-encryption-key }
+    - secretKey: better-auth-secret
+      remoteRef: { key: ark-better-auth-secret }
+    - secretKey: database-url
+      remoteRef: { key: ark-database-url }
+    - secretKey: hub-api-key
+      remoteRef: { key: ark-hub-api-key }
+    - secretKey: hub-join-secret
+      remoteRef: { key: ark-hub-join-secret }
+    - secretKey: hub-database-url
+      remoteRef: { key: ark-hub-database-url }
+    - secretKey: computer-token
+      remoteRef: { key: ark-computer-token }
+    - secretKey: worker-shared-secret
+      remoteRef: { key: ark-worker-shared-secret }
+    - secretKey: google-client-secret
+      remoteRef: { key: ark-google-client-secret }
+    - secretKey: microsoft-client-secret
+      remoteRef: { key: ark-microsoft-client-secret }
+    - secretKey: paddle-api-key
+      remoteRef: { key: ark-paddle-api-key }
+    - secretKey: paddle-webhook-secret
+      remoteRef: { key: ark-paddle-webhook-secret }
