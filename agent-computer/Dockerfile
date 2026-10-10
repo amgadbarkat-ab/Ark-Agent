@@ -3,6 +3,12 @@
 # The image tag and Playwright dependency must be pinned to the same exact version. Bump both or
 # neither.
 FROM node:24.18.1-bookworm-slim AS node-toolchain
+# npm carries its own copy of `tar`, and the one in this Node release is 7.5.15, which has a critical
+# advisory (CVE-2026-59873, fixed in 7.5.19). npm 11.19.1 bundles tar ^7.5.22. The same line, and the
+# same pin, as the root Dockerfile (tests/compose.test.ts keeps them equal); checked after, so a pin
+# that stops delivering a fixed copy fails the build.
+RUN npm install -g npm@11.19.1 \
+  && node -e "const [major, minor, patch] = require('/usr/local/lib/node_modules/npm/node_modules/tar/package.json').version.split('.').map(Number); if (major !== 7 || minor < 5 || (minor === 5 && patch < 19)) { console.error('npm still bundles an old tar'); process.exit(1); } console.log('npm bundles tar 7.' + minor + '.' + patch)"
 FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS bun-toolchain
 
 FROM ubuntu:24.04
