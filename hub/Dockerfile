@@ -34,6 +34,10 @@ RUN groupadd --system --gid 1001 ark \
 WORKDIR /app
 
 COPY --from=deps /app/node_modules node_modules
+# A filtered install puts the hub's own dependencies next to the hub and not at the root, so copying
+# only the root left this image without hono and postgres: it built, and then stopped on its first
+# line with `Cannot find package 'hono'` (v0.1.1, the first run on a real computer).
+COPY --from=deps /app/hub/node_modules hub/node_modules
 COPY hub/package.json hub/package.json
 COPY hub/src hub/src
 # The counters and the text a scraper reads them as, and how to leave without cutting anybody off:

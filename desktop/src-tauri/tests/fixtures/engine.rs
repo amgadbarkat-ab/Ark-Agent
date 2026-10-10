@@ -151,13 +151,13 @@ fn main() {
             ),
             _ => std::process::exit(42),
         },
-        "compose logs --tail 3 agent-computer" if SCENARIO == "dead-service" => {
+        "compose logs --tail 20 agent-computer" if SCENARIO == "dead-service" => {
             println!("agent-computer died after boot")
         }
-        "compose logs --tail 3 agent-bot" if SCENARIO == "anthropic" => {
+        "compose logs --tail 20 agent-bot" if SCENARIO == "anthropic" => {
             println!("agent-bot missing OPENAI_API_KEY")
         }
-        "compose logs --tail 3 agent-langgraph" if SCENARIO == "anthropic" => {
+        "compose logs --tail 20 agent-langgraph" if SCENARIO == "anthropic" => {
             println!("langgraph died after boot")
         }
         _ => {

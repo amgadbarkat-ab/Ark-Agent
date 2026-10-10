@@ -610,6 +610,30 @@ pub fn pull(
     crate::pull_metrics::run(command, None, json_progress, on_complete)
 }
 
+/// Whether a refused start is the machine's missing `pids` controller, and the machine this app
+/// owns has now been told not to ask for it, so the same start is worth running once more.
+///
+/// An engine that is somebody else's is never reconfigured: it gets the plain explanation in
+/// `problem.rs` instead.
+fn repaired_for_missing_pids_controller(
+    engine: &Address,
+    said: &str,
+    repair: impl FnOnce(&Address) -> Result<(), String>,
+) -> bool {
+    crate::acquire::missing_pids_controller(said) && repair(engine).is_ok()
+}
+
+/// What follows `compose` when raising the containers. A start repeated after a repair also
+/// recreates what the refused one left behind, because those containers were created with the
+/// limit that failed.
+fn up_arguments(recreate: bool) -> Vec<&'static str> {
+    let mut args = vec!["up", "-d", "--no-build", "--pull", "never"];
+    if recreate {
+        args.push("--force-recreate");
+    }
+    args
+}
+
 /// Raise the containers.
 ///
 /// `--no-build` is the point of the whole published-images job: a desktop install has no toolchain,
@@ -632,15 +656,26 @@ pub fn up(
      * `up`, because `--profile` is an option of `compose` itself and not of the subcommand.
      */
     let requested = selected_services(harness, bots);
-    let mut command = compose_start_command(engine, root, secrets, std::env::consts::OS)?;
-    if harness {
-        command.args(["--profile", "harness"]);
+    let start = |recreate: bool| -> Result<std::process::Output, crate::problem::Problem> {
+        let mut command = compose_start_command(engine, root, secrets, std::env::consts::OS)?;
+        if harness {
+            command.args(["--profile", "harness"]);
+        }
+        command.args(up_arguments(recreate));
+        Ok(command.args(&requested).output().map_err(|error| {
+            format!("could not run {} compose: {error}", engine.engine.binary())
+        })?)
+    };
+    let mut output = start(false)?;
+    if !output.status.success()
+        && repaired_for_missing_pids_controller(
+            engine,
+            &command_said(&output.stderr),
+            crate::acquire::allow_containers_without_pids_limit,
+        )
+    {
+        output = start(true)?;
     }
-    let output = command
-        .args(["up", "-d", "--no-build", "--pull", "never"])
-        .args(&requested)
-        .output()
-        .map_err(|error| format!("could not run {} compose: {error}", engine.engine.binary()))?;
 
     if output.status.success() {
         return Ok(requested);
@@ -666,10 +701,24 @@ pub fn migrate(
 ) -> Result<(), crate::problem::Problem> {
     // The installation step supplies this image. `run` does not accept `--no-build`, and its
     // explicit no-pull policy must report a missing image without starting another download.
-    let output = compose_start_command(engine, root, secrets, std::env::consts::OS)?
-        .args(["run", "--rm", "--pull", "never", "migrate"])
-        .output()
-        .map_err(|error| format!("could not run migrations: {error}"))?;
+    let run = || -> Result<std::process::Output, crate::problem::Problem> {
+        Ok(
+            compose_start_command(engine, root, secrets, std::env::consts::OS)?
+                .args(["run", "--rm", "--pull", "never", "migrate"])
+                .output()
+                .map_err(|error| format!("could not run migrations: {error}"))?,
+        )
+    };
+    let mut output = run()?;
+    if !output.status.success()
+        && repaired_for_missing_pids_controller(
+            engine,
+            &command_said(&output.stderr),
+            crate::acquire::allow_containers_without_pids_limit,
+        )
+    {
+        output = run()?;
+    }
 
     if output.status.success() {
         return Ok(());
@@ -2567,6 +2616,47 @@ pub fn services_that_exited(
     services_that_exited_among(engine, root, None)
 }
 
+/// How much of a stopped service's log is read to say why it stopped. Bun ends an uncaught error
+/// with its own version line, so the last line alone is "Bun v1.3.14 (Linux x64)", which names no
+/// cause: found on the first Windows install, where the hub stopped and that was all the window said.
+const EXIT_LOG_LINES: &str = "20";
+const EXIT_REASON_LINES: usize = 10;
+const EXIT_REASON_WIDTH: usize = 240;
+
+/// The last few lines of a stopped service's log, without the runtime's closing version line.
+fn exit_reason(log: &str) -> String {
+    let mut lines: Vec<&str> = log
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !is_bare_log_prefix(line))
+        .collect();
+    if lines.last().is_some_and(|line| is_runtime_banner(line)) {
+        lines.pop();
+    }
+    if lines.is_empty() {
+        return "no reason in its log".into();
+    }
+    let from = lines.len().saturating_sub(EXIT_REASON_LINES);
+    lines[from..]
+        .iter()
+        .map(|line| line.chars().take(EXIT_REASON_WIDTH).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `hub-1  |`: a blank line of a service's log, as Compose prints it.
+fn is_bare_log_prefix(line: &str) -> bool {
+    line.strip_suffix('|')
+        .is_some_and(|rest| !rest.trim().contains(' '))
+}
+
+/// `hub-1  | Bun v1.3.14 (Linux x64 baseline)`: what Bun prints after an uncaught error.
+fn is_runtime_banner(line: &str) -> bool {
+    let text = line.rsplit_once("| ").map_or(line, |(_, text)| text).trim();
+    text.strip_prefix("Bun v")
+        .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+}
+
 pub fn services_that_exited_among(
     engine: &Address,
     root: &Path,
@@ -2630,19 +2720,13 @@ pub fn services_that_exited_among(
         if requested_services.is_some_and(|requested| !requested.contains(service)) {
             continue;
         }
-        let why = compose_command(engine, root, &Secrets::new())
-            .args(["logs", "--tail", "3", service])
+        let log = compose_command(engine, root, &Secrets::new())
+            .args(["logs", "--tail", EXIT_LOG_LINES, service])
             .output()
             .ok()
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
             .unwrap_or_default();
-        let why = why
-            .lines()
-            .rfind(|line| !line.trim().is_empty())
-            .unwrap_or("no reason in its log")
-            .trim()
-            .to_string();
-        dead.push((service.to_string(), why));
+        dead.push((service.to_string(), exit_reason(&log)));
     }
     Ok(dead)
 }
@@ -4937,7 +5021,7 @@ fn main() {
         ("mixed", args) if args.starts_with("compose ps ") => {
             print!("agent-computer\tUp\nmigrate\tExited\nserver\tExited\n");
         }
-        ("mixed", args) if args == "compose logs --tail 3 server" => {
+        ("mixed", args) if args == "compose logs --tail 20 server" => {
             print!("line one\nlast reason\n");
         }
         _ => {
@@ -5299,9 +5383,10 @@ fn main() {
         let dead = services_that_exited(&Address::new(crate::engine::Engine::Docker, None), &root)
             .expect("service inspection should succeed");
 
+        // The whole tail, not its last line: the cause is usually above the line that ends the log.
         assert_eq!(
             dead,
-            vec![("server".to_string(), "last reason".to_string())]
+            vec![("server".to_string(), "line one\nlast reason".to_string())]
         );
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -7202,6 +7287,92 @@ fn main() {
                 .contains("synthetic invalid deployment override")
         );
         assert!(!std::fs::read_to_string(record).unwrap().contains(" up "));
+    }
+
+    #[test]
+    fn a_start_refused_for_a_missing_pids_controller_is_retried_only_after_a_repair() {
+        let ours = Address::new(
+            crate::engine::Engine::Podman,
+            Some(crate::acquire::MACHINE.to_string()),
+        );
+        let refused = "Error response from daemon: crun: controller `pids` is not available under \
+                       /sys/fs/cgroup/non-systemd/user.slice/libpod-1.scope/container/cgroup.controllers";
+
+        let mut repaired = 0;
+        assert!(repaired_for_missing_pids_controller(&ours, refused, |_| {
+            repaired += 1;
+            Ok(())
+        }));
+        assert_eq!(repaired, 1);
+
+        assert_eq!(
+            up_arguments(false),
+            ["up", "-d", "--no-build", "--pull", "never"]
+        );
+        assert_eq!(
+            up_arguments(true),
+            [
+                "up",
+                "-d",
+                "--no-build",
+                "--pull",
+                "never",
+                "--force-recreate"
+            ]
+        );
+
+        // A repair that fails is not a reason to start again: the same refusal would follow.
+        assert!(!repaired_for_missing_pids_controller(
+            &ours,
+            refused,
+            |_| Err("no machine".into())
+        ));
+
+        // Any other failure never touches the engine's settings.
+        assert!(!repaired_for_missing_pids_controller(
+            &ours,
+            "Bind for 0.0.0.0:4202 failed: port is already allocated",
+            |_| panic!("an unrelated failure must not reconfigure the engine"),
+        ));
+    }
+
+    #[test]
+    fn a_stopped_service_is_explained_by_its_error_and_not_by_the_runtime_banner() {
+        let log = "hub-1  | error: connect ECONNREFUSED 10.89.0.2:5432\n\
+                   hub-1  |       at connect (/app/hub/src/db.ts:30:9)\n\
+                   hub-1  | \n\
+                   hub-1  | Bun v1.3.14 (Linux x64 baseline)\n";
+        let why = exit_reason(log);
+        assert!(why.contains("ECONNREFUSED 10.89.0.2:5432"), "{why}");
+        assert!(why.contains("db.ts:30:9"), "{why}");
+        assert!(!why.contains("Bun v1.3.14"), "{why}");
+        assert_eq!(why.lines().count(), 2);
+    }
+
+    #[test]
+    fn a_crash_report_keeps_its_banner_because_the_banner_is_where_the_machine_is_named() {
+        let log =
+            "Bun v1.3.14 (abc123) Linux x64 baseline\nCPU: sse42 popcnt\npanic: Segmentation fault";
+        let why = exit_reason(log);
+        assert!(why.contains("Bun v1.3.14 (abc123)"), "{why}");
+        assert!(why.contains("Segmentation fault"), "{why}");
+    }
+
+    #[test]
+    fn a_stopped_service_reason_is_bounded_and_never_empty() {
+        assert_eq!(exit_reason(""), "no reason in its log");
+        assert_eq!(
+            exit_reason("Bun v1.3.14 (Linux x64)"),
+            "no reason in its log"
+        );
+        let long = (1..=40)
+            .map(|n| format!("line {n}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let why = exit_reason(&long);
+        assert_eq!(why.lines().count(), EXIT_REASON_LINES);
+        assert!(why.ends_with("line 40"), "{why}");
+        assert!(exit_reason(&"x".repeat(1000)).len() <= EXIT_REASON_WIDTH);
     }
 
     #[test]

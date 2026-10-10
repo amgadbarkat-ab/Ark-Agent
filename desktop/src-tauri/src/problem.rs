@@ -105,6 +105,15 @@ pub fn said_about(output: &str) -> String {
                 been published yet. Check for an ArkAgent update, and try again."
             .into();
     }
+    // Only reached when this app could not repair its own engine, which means the engine is the
+    // person's own (or the repair itself failed, and its detail is shown below).
+    if crate::acquire::missing_pids_controller(output) {
+        return "The container engine on this computer does not let programs start many \
+                processes, which ArkAgent's containers need. In Podman's settings \
+                (containers.conf) set pids_limit = 0, or let your user manage the \"pids\" \
+                cgroup controller, then try again."
+            .into();
+    }
     if lower.contains("port is already allocated") || lower.contains("address already in use") {
         return "Something else on this computer is using a port ArkAgent needs. Close it, or \
                 restart the computer, and try again."
@@ -154,6 +163,17 @@ mod tests {
         // The person is never told to run `docker login`, which is not a thing they have.
         assert!(!said.to_lowercase().contains("docker login"), "{said}");
         assert!(!said.contains("openbot-agent"), "{said}");
+    }
+
+    #[test]
+    fn an_engine_that_cannot_limit_processes_says_what_to_change() {
+        let said = said_about(
+            "Error response from daemon: crun: controller `pids` is not available under \
+             /sys/fs/cgroup/non-systemd/user.slice/user-1000.slice/user@1000.service/user.slice/\
+             libpod-4bec.scope/container/cgroup.controllers: OCI runtime error",
+        );
+        assert!(said.contains("pids_limit = 0"), "{said}");
+        assert!(!said.contains("libpod-4bec"), "{said}");
     }
 
     #[test]

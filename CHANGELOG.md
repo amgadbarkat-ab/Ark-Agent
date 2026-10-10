@@ -8,6 +8,26 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Ark Hub's image starts
+
+The conversation service's container image (`ark-hub`) built and then stopped at once with `Cannot find package
+'hono'`, because the image was missing the service's own libraries, so no conversation could be kept on any
+computer. It carries them now, and the release checks start the image's code before it is published. 0.1.1's hub
+image has this fault; use 0.1.2 or later.
+
+### ArkAgent desktop: containers start on a Windows computer that does not hand out the `pids` controller
+
+On some Windows computers the containers did not start, and setup stopped with `crun: controller `pids` is not
+available`. The engine's virtual machine does not give the person's account the cgroup `pids` controller, and
+Podman asks for it by default so that a container cannot start more than 2048 processes. When that exact refusal
+comes back, ArkAgent now tells the engine it created (and only that one) to start containers without a limit on
+processes, and starts the containers again once. A Podman or Docker the person set up themselves is never
+reconfigured; they are told which setting to change.
+
+When a part of ArkAgent stops during startup, the message now carries the last ten lines of that part's log, so the
+error itself is shown. It used to show only the last line, which for the conversation service (Bun) is the
+runtime's own version line and says nothing about the cause.
+
 ## 0.1.1
 
 ### ArkAgent desktop: the first setup finishes, and its dependency step is much shorter
