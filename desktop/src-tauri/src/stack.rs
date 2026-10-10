@@ -2616,6 +2616,47 @@ pub fn services_that_exited(
     services_that_exited_among(engine, root, None)
 }
 
+/// How much of a stopped service's log is read to say why it stopped. Bun ends an uncaught error
+/// with its own version line, so the last line alone is "Bun v1.3.14 (Linux x64)", which names no
+/// cause: found on the first Windows install, where the hub stopped and that was all the window said.
+const EXIT_LOG_LINES: &str = "20";
+const EXIT_REASON_LINES: usize = 10;
+const EXIT_REASON_WIDTH: usize = 240;
+
+/// The last few lines of a stopped service's log, without the runtime's closing version line.
+fn exit_reason(log: &str) -> String {
+    let mut lines: Vec<&str> = log
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !is_bare_log_prefix(line))
+        .collect();
+    if lines.last().is_some_and(|line| is_runtime_banner(line)) {
+        lines.pop();
+    }
+    if lines.is_empty() {
+        return "no reason in its log".into();
+    }
+    let from = lines.len().saturating_sub(EXIT_REASON_LINES);
+    lines[from..]
+        .iter()
+        .map(|line| line.chars().take(EXIT_REASON_WIDTH).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `hub-1  |`: a blank line of a service's log, as Compose prints it.
+fn is_bare_log_prefix(line: &str) -> bool {
+    line.strip_suffix('|')
+        .is_some_and(|rest| !rest.trim().contains(' '))
+}
+
+/// `hub-1  | Bun v1.3.14 (Linux x64 baseline)`: what Bun prints after an uncaught error.
+fn is_runtime_banner(line: &str) -> bool {
+    let text = line.rsplit_once("| ").map_or(line, |(_, text)| text).trim();
+    text.strip_prefix("Bun v")
+        .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+}
+
 pub fn services_that_exited_among(
     engine: &Address,
     root: &Path,
@@ -2679,19 +2720,13 @@ pub fn services_that_exited_among(
         if requested_services.is_some_and(|requested| !requested.contains(service)) {
             continue;
         }
-        let why = compose_command(engine, root, &Secrets::new())
-            .args(["logs", "--tail", "3", service])
+        let log = compose_command(engine, root, &Secrets::new())
+            .args(["logs", "--tail", EXIT_LOG_LINES, service])
             .output()
             .ok()
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
             .unwrap_or_default();
-        let why = why
-            .lines()
-            .rfind(|line| !line.trim().is_empty())
-            .unwrap_or("no reason in its log")
-            .trim()
-            .to_string();
-        dead.push((service.to_string(), why));
+        dead.push((service.to_string(), exit_reason(&log)));
     }
     Ok(dead)
 }
@@ -4986,7 +5021,7 @@ fn main() {
         ("mixed", args) if args.starts_with("compose ps ") => {
             print!("agent-computer\tUp\nmigrate\tExited\nserver\tExited\n");
         }
-        ("mixed", args) if args == "compose logs --tail 3 server" => {
+        ("mixed", args) if args == "compose logs --tail 20 server" => {
             print!("line one\nlast reason\n");
         }
         _ => {
@@ -5348,9 +5383,10 @@ fn main() {
         let dead = services_that_exited(&Address::new(crate::engine::Engine::Docker, None), &root)
             .expect("service inspection should succeed");
 
+        // The whole tail, not its last line: the cause is usually above the line that ends the log.
         assert_eq!(
             dead,
-            vec![("server".to_string(), "last reason".to_string())]
+            vec![("server".to_string(), "line one\nlast reason".to_string())]
         );
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -7298,6 +7334,45 @@ fn main() {
             "Bind for 0.0.0.0:4202 failed: port is already allocated",
             |_| panic!("an unrelated failure must not reconfigure the engine"),
         ));
+    }
+
+    #[test]
+    fn a_stopped_service_is_explained_by_its_error_and_not_by_the_runtime_banner() {
+        let log = "hub-1  | error: connect ECONNREFUSED 10.89.0.2:5432\n\
+                   hub-1  |       at connect (/app/hub/src/db.ts:30:9)\n\
+                   hub-1  | \n\
+                   hub-1  | Bun v1.3.14 (Linux x64 baseline)\n";
+        let why = exit_reason(log);
+        assert!(why.contains("ECONNREFUSED 10.89.0.2:5432"), "{why}");
+        assert!(why.contains("db.ts:30:9"), "{why}");
+        assert!(!why.contains("Bun v1.3.14"), "{why}");
+        assert_eq!(why.lines().count(), 2);
+    }
+
+    #[test]
+    fn a_crash_report_keeps_its_banner_because_the_banner_is_where_the_machine_is_named() {
+        let log =
+            "Bun v1.3.14 (abc123) Linux x64 baseline\nCPU: sse42 popcnt\npanic: Segmentation fault";
+        let why = exit_reason(log);
+        assert!(why.contains("Bun v1.3.14 (abc123)"), "{why}");
+        assert!(why.contains("Segmentation fault"), "{why}");
+    }
+
+    #[test]
+    fn a_stopped_service_reason_is_bounded_and_never_empty() {
+        assert_eq!(exit_reason(""), "no reason in its log");
+        assert_eq!(
+            exit_reason("Bun v1.3.14 (Linux x64)"),
+            "no reason in its log"
+        );
+        let long = (1..=40)
+            .map(|n| format!("line {n}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let why = exit_reason(&long);
+        assert_eq!(why.lines().count(), EXIT_REASON_LINES);
+        assert!(why.ends_with("line 40"), "{why}");
+        assert!(exit_reason(&"x".repeat(1000)).len() <= EXIT_REASON_WIDTH);
     }
 
     #[test]

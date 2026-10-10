@@ -17,6 +17,10 @@ comes back, ArkAgent now tells the engine it created (and only that one) to star
 processes, and starts the containers again once. A Podman or Docker the person set up themselves is never
 reconfigured; they are told which setting to change.
 
+When a part of ArkAgent stops during startup, the message now carries the last ten lines of that part's log, so the
+error itself is shown. It used to show only the last line, which for the conversation service (Bun) is the
+runtime's own version line and says nothing about the cause.
+
 ## 0.1.1
 
 ### ArkAgent desktop: the first setup finishes, and its dependency step is much shorter

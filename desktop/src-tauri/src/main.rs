@@ -6767,7 +6767,7 @@ fn main() {
             "{commands}"
         );
         assert!(
-            commands.contains("\tcompose logs --tail 3 agent-computer\n"),
+            commands.contains("\tcompose logs --tail 20 agent-computer\n"),
             "{commands}"
         );
         assert!(
@@ -6839,11 +6839,11 @@ fn main() {
             "stale, unrequested agent-bot exit must not fail this Anthropic Start: {detail}"
         );
         assert!(
-            !commands.contains("\tcompose logs --tail 3 agent-bot\n"),
+            !commands.contains("\tcompose logs --tail 20 agent-bot\n"),
             "stale unrequested agent-bot should not get reported: {commands}"
         );
         assert!(
-            commands.contains("\tcompose logs --tail 3 agent-langgraph\n"),
+            commands.contains("\tcompose logs --tail 20 agent-langgraph\n"),
             "selected dead LangGraph service should get reported: {commands}"
         );
         let _ = std::fs::remove_dir_all(root);
