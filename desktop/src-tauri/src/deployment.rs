@@ -308,11 +308,15 @@ pub fn needs_fetch(root: &Path, wanted: &str) -> bool {
 pub const REQUIRED: [&str; 4] = ["docker-compose.yml", "server", "app", "worker"];
 
 /// The rest of what a deployment needs, which is not what it is checked for.
-pub const ALSO_COPIED: [&str; 8] = [
+pub const ALSO_COPIED: [&str; 9] = [
     "shared",
     // The app's config generator reads the privacy notice and the terms from here every time it
     // builds or serves, and stops with ENOENT without them. Only this folder of `docs`.
     "docs/legal",
+    // The root manifest names `hub` as a workspace, and `bun install --frozen-lockfile` stops with
+    // `Workspace not found "hub"` if there is no manifest there. Only the manifest: the hub runs as
+    // a container, so its source is not part of a deployment. (Found on the first real install.)
+    "hub/package.json",
     "examples",
     "package.json",
     "bun.lock",
@@ -905,6 +909,9 @@ mod tests {
             ),
             // The one folder of docs/ that is: the app's config generator reads it.
             ("OpenBot-0.0.8/docs/legal/privacy-notice.md", b"# privacy"),
+            // The hub's manifest is needed for a frozen install; the hub's source is not.
+            ("OpenBot-0.0.8/hub/package.json", b"{}"),
+            ("OpenBot-0.0.8/hub/src/index.ts", b"export {}"),
         ]);
         unpack(&dir, &archive).expect("an ordinary download is laid out");
 
@@ -913,9 +920,19 @@ mod tests {
         let legal = std::fs::read_to_string(dir.join("docs/legal/privacy-notice.md")).ok();
         let other_docs =
             dir.join("docs/readme.md").exists() || dir.join("docs/legal-notes").exists();
+        let hub_manifest = dir.join("hub/package.json").exists();
+        let hub_source = dir.join("hub/src").exists();
         let _ = std::fs::remove_dir_all(&dir);
 
         assert_eq!(app.as_deref(), Some("export {}"));
+        assert!(
+            hub_manifest,
+            "a frozen install needs every workspace's manifest"
+        );
+        assert!(
+            !hub_source,
+            "the hub runs as a container; its source is not a deployment"
+        );
         assert_eq!(compose.as_deref(), Some("services: {}"));
         assert_eq!(
             legal.as_deref(),
