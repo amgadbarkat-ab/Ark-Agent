@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.1
+
 ### ArkAgent desktop: the first setup finishes, and its dependency step is much shorter
 
 The desktop app's setup stopped at "installing the deployment's dependencies" with `Workspace not found "hub"`,
