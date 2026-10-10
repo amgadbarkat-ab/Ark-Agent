@@ -25,7 +25,10 @@ macOS needs the person to allow the app in System Settings, until the company's 
 The desktop app, the Android package and the iOS bundle are identified as `blackark.arkagent`. Customers
 download ArkAgent from the company's website only: the app can fetch its release from a web address the
 company chooses (`ARK_RELEASE_BASE_URL`), and each release now also produces `source.tar.gz` and `latest.json`
-for that address.
+for that address. Downloads no longer have a 30-second limit for the whole file (the container engine's installer
+took longer on an ordinary home connection and failed with "error decoding response body"): a download is
+given up only when nothing arrives for a minute, and a dropped connection or a server error is tried three
+times.
 
 The first screen has the company's animation: the rack, the globe and the BlackArk mark, drawn on a dark card.
 

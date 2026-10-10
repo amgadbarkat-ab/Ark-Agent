@@ -12,6 +12,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -432,25 +433,150 @@ fn fetch_images(root: &Path, version: &str) -> Result<(), String> {
         .map_err(|error| format!("could not write {IMAGES}: {error}"))
 }
 
+/// How long to wait for a server to answer before an attempt is given up.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long a download may go without a single byte arriving before it is called stalled.
+///
+/// Deliberately not a limit on how long a download may take. The client used to be built with
+/// reqwest's default, which for the blocking client is thirty seconds for the whole request, body
+/// included. The container engine's installer is tens of megabytes, so on an ordinary home
+/// connection every attempt was cut off part-way and reported as "error decoding response body",
+/// which is reqwest's wording for a body that ended in a timeout.
+const STALL_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Tries before a download is reported as failed, and the pause (times the try number) between them.
+const ATTEMPTS: u32 = 3;
+const PAUSE: Duration = Duration::from_secs(2);
+
 /// Fetch a URL into memory.
 ///
 /// Shared with `install.rs`, which fetches the engine's installers through it and then checks their
 /// digests. One client, one user agent, one set of TLS defaults.
+///
+/// A connection that drops, or a server that answers 5xx or 429, is tried again; a 404 or any other
+/// refusal is not, because asking again gets the same answer.
 pub fn get(url: &str) -> Result<Vec<u8>, String> {
-    let response = reqwest::blocking::Client::builder()
+    get_with(url, CONNECT_TIMEOUT, STALL_TIMEOUT, ATTEMPTS, PAUSE)
+}
+
+fn get_with(
+    url: &str,
+    connect: Duration,
+    stall: Duration,
+    attempts: u32,
+    pause: Duration,
+) -> Result<Vec<u8>, String> {
+    let client = reqwest::blocking::Client::builder()
         .user_agent("openbot-desktop")
+        .timeout(None::<Duration>)
+        .connect_timeout(connect)
         .build()
-        .map_err(|error| format!("could not prepare the download: {error}"))?
-        .get(url)
-        .send()
-        .map_err(|error| format!("could not reach {url}: {error}"))?;
-    if !response.status().is_success() {
-        return Err(format!("{url} answered {}", response.status()));
+        .map_err(|error| format!("could not prepare the download: {error}"))?;
+
+    let mut last = String::new();
+    for attempt in 1..=attempts {
+        match attempt_once(&client, url, stall) {
+            Attempt::Done(body) => return Ok(body),
+            Attempt::Stop(message) => return Err(message),
+            Attempt::Retry(message) => last = message,
+        }
+        if attempt < attempts {
+            std::thread::sleep(pause * attempt);
+        }
     }
-    response
-        .bytes()
-        .map(|body| body.to_vec())
-        .map_err(|error| format!("the download did not finish: {error}"))
+    Err(format!("{last} (tried {attempts} times)"))
+}
+
+enum Attempt {
+    Done(Vec<u8>),
+    /// Worth asking again: the connection or the server, not the address.
+    Retry(String),
+    Stop(String),
+}
+
+/// What the thread doing the download tells the one waiting for it.
+enum Progress {
+    Status(reqwest::StatusCode),
+    Chunk(Vec<u8>),
+    End,
+    Failed(String),
+}
+
+/// One try, on a thread of its own so that the wait for each piece can be bounded.
+///
+/// The blocking client has no per-read timeout, and its whole-request timeout is the thing that
+/// cut the engine installer off. So the download runs on a worker and this function waits for each
+/// message from it for at most `stall`. A worker whose connection has gone quiet is left to end when
+/// the connection does; its channel is dropped, so it stops at the next thing it tries to send.
+fn attempt_once(client: &reqwest::blocking::Client, url: &str, stall: Duration) -> Attempt {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let worker_client = client.clone();
+    let address = url.to_string();
+    std::thread::spawn(move || {
+        use std::io::Read;
+        let mut response = match worker_client.get(&address).send() {
+            Ok(response) => response,
+            Err(error) => {
+                let _ = sender.send(Progress::Failed(format!(
+                    "could not reach {address}: {error}"
+                )));
+                return;
+            }
+        };
+        let status = response.status();
+        if sender.send(Progress::Status(status)).is_err() || !status.is_success() {
+            return;
+        }
+        let mut buffer = vec![0u8; 64 * 1024];
+        loop {
+            match response.read(&mut buffer) {
+                Ok(0) => {
+                    let _ = sender.send(Progress::End);
+                    return;
+                }
+                Ok(read) => {
+                    if sender
+                        .send(Progress::Chunk(buffer[..read].to_vec()))
+                        .is_err()
+                    {
+                        return;
+                    }
+                }
+                Err(error) => {
+                    let _ = sender.send(Progress::Failed(format!(
+                        "the download did not finish: {error}"
+                    )));
+                    return;
+                }
+            }
+        }
+    });
+
+    let quiet = || {
+        Attempt::Retry(format!(
+            "the download did not finish: nothing arrived from {url} for {} seconds",
+            stall.as_secs_f32().max(0.1)
+        ))
+    };
+    let mut body = Vec::new();
+    loop {
+        match receiver.recv_timeout(stall) {
+            Ok(Progress::Status(status)) if status.is_success() => {}
+            Ok(Progress::Status(status)) => {
+                let message = format!("{url} answered {status}");
+                return if status.is_server_error() || status.as_u16() == 429 {
+                    Attempt::Retry(message)
+                } else {
+                    Attempt::Stop(message)
+                };
+            }
+            Ok(Progress::Chunk(piece)) => body.extend_from_slice(&piece),
+            Ok(Progress::End) => return Attempt::Done(body),
+            Ok(Progress::Failed(message)) => return Attempt::Retry(message),
+            Err(_) => return quiet(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -844,5 +970,130 @@ mod tests {
             "a deployment is not a place to develop"
         );
         assert!(!REQUIRED.contains(&"docs"));
+    }
+
+    /// What a scripted server does with one connection.
+    type Answer = Box<dyn Fn(&mut std::net::TcpStream) + Send>;
+
+    /// An HTTP server whose answers are scripted, the nth connection getting the nth answer.
+    /// Returns its address and how many connections it has served.
+    fn scripted_server(
+        script: Vec<Answer>,
+    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::Read;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        let served = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&served);
+        std::thread::spawn(move || {
+            for answer in script {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                counted.fetch_add(1, Ordering::SeqCst);
+                // Each answer on its own thread, so one that stalls does not hold up the next try.
+                std::thread::spawn(move || {
+                    let mut request = [0u8; 2048];
+                    let _ = stream.read(&mut request);
+                    answer(&mut stream);
+                });
+            }
+        });
+        (address, served)
+    }
+
+    fn write_all(stream: &mut std::net::TcpStream, bytes: &[u8]) {
+        use std::io::Write;
+        let _ = stream.write_all(bytes);
+        let _ = stream.flush();
+    }
+
+    #[test]
+    fn a_slow_download_that_keeps_arriving_is_not_cut_off() {
+        // Three pieces, 400 ms apart: 1.2 s in all, longer than the 1 s stall limit, with no gap
+        // longer than it. A limit on the whole request would have ended this one; that was the bug.
+        let (address, served) = scripted_server(vec![Box::new(|stream| {
+            write_all(stream, b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\n");
+            for piece in [b"abc", b"def", b"ghi"] {
+                std::thread::sleep(Duration::from_millis(400));
+                write_all(stream, piece);
+            }
+        })]);
+        let body = get_with(
+            &address,
+            Duration::from_secs(5),
+            Duration::from_secs(1),
+            1,
+            Duration::ZERO,
+        )
+        .unwrap();
+        assert_eq!(body, b"abcdefghi");
+        assert_eq!(served.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_download_that_stops_arriving_is_tried_again_and_then_reported() {
+        let stalls = || -> Answer {
+            Box::new(|stream| {
+                write_all(stream, b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc");
+                std::thread::sleep(Duration::from_millis(1500));
+            })
+        };
+        let (address, served) = scripted_server(vec![stalls(), stalls()]);
+        let error = get_with(
+            &address,
+            Duration::from_secs(5),
+            Duration::from_millis(300),
+            2,
+            Duration::ZERO,
+        )
+        .unwrap_err();
+        assert!(error.contains("the download did not finish"), "{error}");
+        assert!(error.contains("tried 2 times"), "{error}");
+        assert_eq!(served.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_server_error_is_tried_again_and_a_refusal_is_not() {
+        let answer = |status: &'static str, body: &'static str| -> Answer {
+            Box::new(move |stream| {
+                let text = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\n\r\n{body}",
+                    body.len()
+                );
+                write_all(stream, text.as_bytes());
+            })
+        };
+
+        let (address, served) = scripted_server(vec![
+            answer("503 Service Unavailable", ""),
+            answer("200 OK", "fine"),
+        ]);
+        let body = get_with(
+            &address,
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+            3,
+            Duration::ZERO,
+        )
+        .unwrap();
+        assert_eq!(body, b"fine");
+        assert_eq!(served.load(std::sync::atomic::Ordering::SeqCst), 2);
+
+        let (address, served) =
+            scripted_server(vec![answer("404 Not Found", ""), answer("200 OK", "late")]);
+        let error = get_with(
+            &address,
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+            3,
+            Duration::ZERO,
+        )
+        .unwrap_err();
+        assert!(error.contains("404"), "{error}");
+        assert_eq!(served.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 }
