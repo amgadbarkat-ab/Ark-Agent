@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.0
+
 ### ArkAgent: the desktop app and the service run without CopilotKit
 
 The desktop app and the hosted service no longer depend on any CopilotKit service. Conversations are kept by
