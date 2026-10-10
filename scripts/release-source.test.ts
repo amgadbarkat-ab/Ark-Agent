@@ -37,7 +37,9 @@ async function unpackedPaths(): Promise<string[]> {
       new RegExp(`pub const ${name}: \\[&str; \\d+\\] = \\[([^\\]]*)\\];`),
     );
     if (!match) throw new Error(`${name} was not found`);
-    return [...match[1].matchAll(/"([^"]+)"/g)].map((word) => word[1]);
+    // Comments inside the array are prose, and may quote things that are not entries.
+    const entries = match[1].replace(/\/\/.*$/gm, "");
+    return [...entries.matchAll(/"([^"]+)"/g)].map((word) => word[1]);
   };
   return [...list("REQUIRED"), ...list("ALSO_COPIED")];
 }
@@ -54,6 +56,24 @@ describe("the source archive the website serves", () => {
       (path) => path === "docs" || path.startsWith("docs/"),
     );
     expect(underDocs).toEqual(["docs/legal"]);
+  });
+
+  test("has a manifest for every workspace the root manifest names", async () => {
+    // `bun install --frozen-lockfile` stops with `Workspace not found "hub"` when a workspace listed
+    // in package.json is absent from the tree, which is what the first real install of v0.1.0 did.
+    const { workspaces } = JSON.parse(
+      await readFile(new URL("package.json", root), "utf8"),
+    ) as { workspaces: string[] };
+    const paths = await archivePaths();
+    for (const workspace of workspaces) {
+      const carried = paths.some(
+        (path) => path === workspace || path === `${workspace}/package.json`,
+      );
+      expect(
+        carried,
+        `${workspace} is a workspace but not in the archive`,
+      ).toBe(true);
+    }
   });
 
   test("is cut under one top-level folder, which is the shape the app strips", async () => {

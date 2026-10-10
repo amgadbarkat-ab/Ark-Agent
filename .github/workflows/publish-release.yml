@@ -448,9 +448,10 @@ jobs:
           # Only what a deployment runs, because the website serves this file to anybody: the same
           # list the desktop app unpacks (REQUIRED and ALSO_COPIED in desktop/src-tauri/src/deployment.rs),
           # so internal documents never leave the repository. Of docs/ only docs/legal goes: the app's
-          # config generator reads the privacy notice and terms from it.
+          # config generator reads the privacy notice and terms from it. Of hub/ only its manifest: the root
+          # manifest names it as a workspace and a frozen install fails without it.
           git archive --format=tar.gz --prefix="ark-${VERSION}/" -o source.tar.gz "$GITHUB_SHA" -- \
-            docker-compose.yml server app worker shared examples docs/legal package.json bun.lock scripts \
+            docker-compose.yml server app worker shared examples docs/legal hub/package.json package.json bun.lock scripts \
             tsconfig.base.json bunfig.toml
           jq -n --arg tag "$VERSION" '{tag_name: $tag}' > latest.json
 
