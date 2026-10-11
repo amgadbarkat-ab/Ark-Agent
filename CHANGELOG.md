@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A Bot's computer starts on a machine that cannot limit processes
+
+On a Windows PC whose container engine runs without the cgroup `pids` controller, every Bot's computer
+failed to start, and the Bot's screen said `The supervisor could not reach Docker (… crun: controller
+`pids` is not available …)`, about an engine that was answering. Each computer is created with a limit of
+512 processes, and such an engine refuses to start a container that asks for one. The supervisor now builds
+the computer again without the limit when the engine gives exactly that refusal, and remembers the answer, so
+an engine that can enforce the limit still gets it. A computer an earlier attempt left behind with the limit
+is replaced; the Bot's profile and workspace are untouched. Any other failure to start is reported as before.
+
 ### The web app is the release's own, not built on the computer
 
 An installer with no company website address (`ARK_RELEASE_BASE_URL`) downloaded GitHub's automatic archive

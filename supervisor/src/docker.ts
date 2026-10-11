@@ -76,6 +76,38 @@ function statusOf(error: unknown): number | undefined {
   return (error as { statusCode?: number }).statusCode;
 }
 
+/**
+ * Whether this engine has refused a process limit, remembered for as long as the supervisor runs.
+ *
+ * A computer is created with `PidsLimit`, so a runaway Bot cannot fork its way into every other
+ * Bot's share of the host. That is a request for the cgroup `pids` controller, and an engine that
+ * is not given the controller refuses to start the container at all: `crun: controller \`pids\` is
+ * not available under /sys/fs/cgroup/...`. Found on the first Windows install of 0.1.2, whose
+ * Podman machine runs rootless and is not handed the controller; every Bot's computer then failed
+ * with "The supervisor could not reach Docker", about an engine that was answering.
+ *
+ * The limit is a cap on one resource, not what keeps a Bot off the host (the capabilities, the
+ * read-only identity and the unprivileged user do that), and a machine with one person on it has no
+ * other Bot to starve. So on exactly that refusal the computer is built again without the limit,
+ * once, and the answer is kept: an engine that can enforce the limit keeps getting it, an engine
+ * that cannot is not asked again for every Bot.
+ */
+let pidsLimitRefused = false;
+
+function refusesPidsController(error: unknown): boolean {
+  return (
+    statusOf(error) === 500 &&
+    /controller [`'"]?pids[`'"]? is not available/i.test(String(error))
+  );
+}
+
+function acceptNoPidsLimit(): void {
+  pidsLimitRefused = true;
+  console.warn(
+    "This container engine cannot limit the number of processes in a computer (the cgroup 'pids' controller is not available), so computers are started without that limit.",
+  );
+}
+
 /** One poll interval, used both by the health wait and by the retry that follows a lost race. */
 function pause(ms: number): Promise<void> {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -452,7 +484,7 @@ function hostConfig(names: ComputerNames, options: EnsureOptions) {
     CapDrop: ["ALL"],
     // A runaway Bot is a resource problem for itself, not for every other Bot on the host.
     ...(options.memoryBytes ? { Memory: options.memoryBytes } : {}),
-    PidsLimit: options.pidsLimit ?? 512,
+    ...(pidsLimitRefused ? {} : { PidsLimit: options.pidsLimit ?? 512 }),
     // Chromium's sandbox wants shared memory and will crash on the 64MB default.
     ShmSize: 1_073_741_824,
   };
@@ -531,6 +563,14 @@ export async function ensure(
           HostConfig: hostConfig(names, options),
         });
       } catch (error) {
+        // Refused at creation rather than at start, on an engine that checks sooner: build it
+        // again without the limit. Does not spend an attempt, and cannot repeat, because the
+        // answer is kept.
+        if (!pidsLimitRefused && refusesPidsController(error)) {
+          acceptNoPidsLimit();
+          attempt++;
+          continue;
+        }
         if (statusOf(error) !== 409) {
           throw new DockerUnavailableError(String(error));
         }
@@ -556,6 +596,29 @@ export async function ensure(
       try {
         await docker.getContainer(names.container).start();
       } catch (error) {
+        /*
+         * The engine would not start a container that asks for a process limit.
+         *
+         * What is there was created with that limit, by this request or by an earlier one that
+         * stopped at the same place, so it is taken away and built again without it. The Bot's
+         * profile and workspace are named volumes and are not touched. Only a container this
+         * supervisor owns can be here: `existing` was checked for ownership above, and a create
+         * that lost the name to a stranger was refused with `NameHeldError` before this.
+         */
+        if (!pidsLimitRefused && refusesPidsController(error)) {
+          try {
+            await docker
+              .getContainer(names.container)
+              .remove({ force: true, v: false });
+          } catch (removal) {
+            if (statusOf(removal) !== 404) {
+              throw new DockerUnavailableError(String(removal));
+            }
+          }
+          acceptNoPidsLimit();
+          attempt++;
+          continue;
+        }
         const status = statusOf(error);
         /*
          * Gone between creating it and starting it: a concurrent reset took the container away, the
