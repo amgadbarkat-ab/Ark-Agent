@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.3
+
 ### Deleting a leftover database works
 
 A computer whose first attempts had stopped half way, then had its ArkAgent folder deleted, was offered
