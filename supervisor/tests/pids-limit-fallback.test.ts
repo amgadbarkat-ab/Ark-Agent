@@ -1,7 +1,25 @@
-import { expect, test } from "bun:test";
+import { test as bunTest, expect } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+/**
+ * Whether the supervisor's own dependencies are installed.
+ *
+ * The supervisor is not a root workspace: it is built from its own lockfile, and only its own CI job
+ * installs it. The root `tests` job does not, and must not start to, because the Docker client it
+ * would then find also switches on the lifecycle test in `docker.integration.test.ts` there. So
+ * without the client these cases skip, the way that test does, and the supervisor job runs them.
+ */
+const hasDockerClient = (() => {
+  try {
+    Bun.resolveSync("dockerode", join(import.meta.dir, "..", "src"));
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const test = hasDockerClient ? bunTest : bunTest.skip;
 
 /**
  * A computer on an engine that cannot enforce a process limit.
