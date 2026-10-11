@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.4
+
 ### A Bot's computer starts on a machine that cannot limit processes
 
 On a Windows PC whose container engine runs without the cgroup `pids` controller, every Bot's computer
