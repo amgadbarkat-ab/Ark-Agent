@@ -33,7 +33,10 @@ export function DatabaseReset({
         chats, Bots, and settings. Only continue if you want a fresh
         installation and do not need that data.
       </p>
-      <p>To keep your data, restore its original encryption key instead.</p>
+      <p>
+        The previous installation’s database service is stopped and removed with
+        it. To keep your data, restore its original encryption key instead.
+      </p>
       <div className="row">
         <button
           type="button"
