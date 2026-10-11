@@ -4592,9 +4592,30 @@ mod tests {
                 "isolated Postgres must start after recovery: {}",
                 String::from_utf8_lossy(&started.stderr)
             );
+            // A container that is not this project's can mount the volume too. ArkAgent must leave
+            // it, and the project's running database, alone.
+            let foreign = format!("{project}-foreign");
+            let created = address
+                .command()
+                .current_dir(&root)
+                .args([
+                    "create",
+                    "--name",
+                    &foreign,
+                    "--volume",
+                    &format!("{volume}:/data"),
+                    "docker.io/pgvector/pgvector:pg17",
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                created.status.success(),
+                "foreign container must be created: {}",
+                String::from_utf8_lossy(&created.stderr)
+            );
             assert!(
                 stack::reset_leftover_database(&address, &root, &secrets, &volume).is_err(),
-                "the real engine must refuse an attached database volume"
+                "a container that is not this project's must block the reset"
             );
             let ready = address
                 .command()
@@ -4614,7 +4635,47 @@ mod tests {
                 ready.status.success(),
                 "Postgres must remain ready after the refused attached-volume reset"
             );
+            // With nothing foreign left, the project's own running database service goes with
+            // the data it served. The engine alone would refuse this volume while it ran.
+            let dropped = address
+                .command()
+                .current_dir(&root)
+                .args(["rm", "--force", &foreign])
+                .output()
+                .unwrap();
+            assert!(
+                dropped.status.success(),
+                "foreign container must be removed"
+            );
+            stack::reset_leftover_database(&address, &root, &secrets, &volume).unwrap();
+            assert!(
+                !stack::postgres_volume_exists(&address, &root, &secrets).unwrap(),
+                "the volume is deleted"
+            );
+            let remaining = address
+                .command()
+                .current_dir(&root)
+                .args([
+                    "ps",
+                    "--all",
+                    "--quiet",
+                    "--filter",
+                    &format!("label=com.docker.compose.project={project}"),
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                String::from_utf8_lossy(&remaining.stdout).trim().is_empty(),
+                "the project's database service is removed with its data"
+            );
         });
+        // Whatever the workflow reached, remove only this fixture's own leftovers.
+        address
+            .command()
+            .current_dir(&root)
+            .args(["rm", "--force", &format!("{project}-foreign")])
+            .output()
+            .ok();
         let stopped = address
             .command()
             .current_dir(&root)
@@ -4623,7 +4684,7 @@ mod tests {
             .unwrap();
         let removed = address
             .command()
-            .args(["volume", "rm", &volume])
+            .args(["volume", "rm", "--force", &volume])
             .output()
             .unwrap();
         std::fs::remove_dir_all(&root).unwrap();

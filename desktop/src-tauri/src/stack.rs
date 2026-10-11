@@ -241,6 +241,15 @@ pub fn leftover_database_volume(
     root: &Path,
     secrets: &Secrets,
 ) -> Result<Option<String>, Problem> {
+    Ok(owned_database_volume(engine, root, secrets)?.map(|(_, volume)| volume))
+}
+
+/// The Compose project and the volume name, once the engine has confirmed the project made it.
+fn owned_database_volume(
+    engine: &Address,
+    root: &Path,
+    secrets: &Secrets,
+) -> Result<Option<(String, String)>, Problem> {
     let configuration = postgres_configuration(engine, root, secrets)?;
     let config: serde_json::Value = serde_json::from_slice(&configuration)
         .map_err(|_| postgres_volume_problem("Compose config did not return valid JSON."))?;
@@ -312,7 +321,86 @@ pub fn leftover_database_volume(
         && empty_volume_options(&volume["Options"])
         && volume["Labels"]["com.docker.compose.project"].as_str() == Some(project)
         && volume["Labels"]["com.docker.compose.volume"].as_str() == Some(source))
-    .then(|| name.to_owned()))
+    .then(|| (project.to_owned(), name.to_owned())))
+}
+
+/// The containers, running or not, that still mount `volume`. With a project, only that Compose
+/// project's. Both engines answer the same two filters, and `-q` keeps the output to bare IDs.
+fn containers_mounting(
+    engine: &Address,
+    root: &Path,
+    volume: &str,
+    project: Option<&str>,
+) -> Result<std::collections::BTreeSet<String>, Problem> {
+    let mut command = engine.command();
+    command
+        .current_dir(root)
+        .args(["ps", "--all", "--quiet", "--filter"])
+        .arg(format!("volume={volume}"));
+    if let Some(project) = project {
+        command
+            .arg("--filter")
+            .arg(format!("label=com.docker.compose.project={project}"));
+    }
+    let listed = command.output().map_err(|error| {
+        Problem::with(
+            "ArkAgent could not check what still uses the leftover database. Nothing was removed.",
+            format!("Could not list containers: {error}"),
+        )
+    })?;
+    if !listed.status.success() {
+        return Err(Problem::with(
+            "ArkAgent could not check what still uses the leftover database. Nothing was removed.",
+            format!("Container listing exited with {}. Output omitted because it can contain credentials.", listed.status),
+        ));
+    }
+    Ok(String::from_utf8_lossy(&listed.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+/// Clear away the previous installation's own database container so its volume can be deleted.
+///
+/// A failed or abandoned start leaves the project's containers behind, created or even running,
+/// and the engine will not delete a volume while any container mounts it. That is what made this
+/// reset fail for good on a machine whose first attempts had stopped half way. Only a container
+/// of the same Compose project goes: one that anything else started, or that another project's
+/// label sits on, still blocks the reset, and nothing is deleted.
+fn remove_database_containers(
+    engine: &Address,
+    root: &Path,
+    project: &str,
+    volume: &str,
+) -> Result<(), Problem> {
+    let mounting = containers_mounting(engine, root, volume, None)?;
+    if mounting.is_empty() {
+        return Ok(());
+    }
+    if containers_mounting(engine, root, volume, Some(project))? != mounting {
+        return Err(Problem::plain("Something other than this ArkAgent installation still uses the leftover database, so it was not deleted. Nothing was removed. Stop whatever uses it, then try again."));
+    }
+    let removed = engine
+        .command()
+        .current_dir(root)
+        .args(["rm", "--force"])
+        .args(&mounting)
+        .output()
+        .map_err(|error| {
+            Problem::with(
+                "ArkAgent could not remove the previous installation's database service. Nothing else was removed.",
+                format!("Could not run container removal: {error}"),
+            )
+        })?;
+    if !removed.status.success() {
+        return Err(Problem::with(
+            "ArkAgent could not remove the previous installation's database service. Nothing else was removed.",
+            format!("Container removal exited with {}. Output omitted because it can contain credentials.", removed.status),
+        ));
+    }
+    Ok(())
 }
 
 pub fn reset_leftover_database(
@@ -321,11 +409,14 @@ pub fn reset_leftover_database(
     secrets: &Secrets,
     confirmed_volume: &str,
 ) -> Result<(), Problem> {
-    if leftover_database_volume(engine, root, secrets)?.as_deref() != Some(confirmed_volume) {
+    let Some((project, _)) = owned_database_volume(engine, root, secrets)?
+        .filter(|(_, volume)| volume == confirmed_volume)
+    else {
         return Err(Problem::plain("The leftover database no longer matches the volume you confirmed, or ArkAgent could not verify that it owns the volume. Nothing was removed. Try Start again."));
-    }
-    // Never force this operation: the engine must refuse any container attachment, including a
-    // stopped container or one created after inspection. Do not stop containers to make it pass.
+    };
+    remove_database_containers(engine, root, &project, confirmed_volume)?;
+    // The volume itself is never forced: the engine must still refuse if a container was created
+    // after the check above. Do not stop containers beyond this project's to make it pass.
     let removed = engine
         .command()
         .current_dir(root)
@@ -3297,6 +3388,8 @@ mod tests {
             "unrelated\nopenbot_postgres-data\n",
         )
         .unwrap();
+        // No container mounts the volume until a scenario puts one there.
+        std::fs::remove_file(root.join(".fixture-containers")).ok();
         std::fs::write(root.join(".fixture-inspect"), serde_json::json!([{
             "Name": "openbot_postgres-data", "Driver": "local", "Options": {},
             "Labels": {"com.docker.compose.project":"openbot", "com.docker.compose.volume":"postgres-data"}
@@ -3325,14 +3418,25 @@ mod tests {
             assert!(
                 reset_leftover_database(&address, &root, &Secrets::new(), "unrelated").is_err()
             );
-            assert!(!std::fs::read_to_string(&record)
-                .unwrap()
-                .contains("volume rm"));
+            let refused = std::fs::read_to_string(&record).unwrap();
+            assert!(!refused.contains("volume rm") && !refused.contains("rm --force"));
+            // What the first attempts on a real machine leave behind: this project's own database
+            // service, once started and once only created. The engine would refuse the volume
+            // while either exists, and the person has already agreed to delete the data.
+            std::fs::write(
+                root.join(".fixture-containers"),
+                "aaa\topenbot\nbbb\topenbot\n",
+            )
+            .unwrap();
             reset_leftover_database(&address, &root, &Secrets::new(), "openbot_postgres-data")
                 .unwrap();
             assert_eq!(
                 std::fs::read_to_string(root.join(".fixture-volumes")).unwrap(),
                 "unrelated\n"
+            );
+            assert_eq!(
+                std::fs::read_to_string(root.join(".fixture-containers")).unwrap(),
+                ""
             );
             let log = std::fs::read_to_string(&record).unwrap();
             let removals: Vec<_> = log
@@ -3341,7 +3445,16 @@ mod tests {
                 .collect();
             assert_eq!(removals.len(), 1);
             assert!(removals[0].ends_with("volume rm openbot_postgres-data"));
-            assert!(!log.contains("--force") && !log.contains("prune") && !log.contains("down"));
+            // The containers go first, by ID and only the ones the project owns; the volume
+            // itself is never forced.
+            let forced: Vec<_> = log
+                .lines()
+                .filter(|line| line.contains("--force"))
+                .collect();
+            assert_eq!(forced.len(), 1, "{log}");
+            assert!(forced[0].ends_with("rm --force aaa bbb"), "{log}");
+            assert!(log.find("rm --force").unwrap() < log.find("volume rm").unwrap());
+            assert!(!log.contains("prune") && !log.contains("down"));
             if address.engine == crate::engine::Engine::Podman {
                 assert!(log.lines().all(|line| line
                     .split_once('\t')
@@ -3378,6 +3491,10 @@ mod tests {
             "inventory-failure",
             "inspect-failure",
             "attached",
+            "other-project-container",
+            "mixed-containers",
+            "listing-failure",
+            "removal-failure",
         ] {
             let mut config = leftover_database_fixture(&root);
             std::fs::write(&record, "").unwrap();
@@ -3436,11 +3553,24 @@ mod tests {
                 "inventory-failure" => Some(".fixture-volume-failure"),
                 "inspect-failure" => Some(".fixture-inspect-failure"),
                 "attached" => Some(".fixture-attached"),
+                "listing-failure" => Some(".fixture-ps-failure"),
+                "removal-failure" => Some(".fixture-rm-failure"),
+                "other-project-container" | "mixed-containers" => None,
                 _ => unreachable!(),
             };
             std::fs::write(root.join(".fixture-config"), config.to_string()).unwrap();
             if let Some(marker) = marker {
                 std::fs::write(root.join(marker), "").unwrap();
+            }
+            // Containers that mount the volume: another project's, a mix of both, or this
+            // project's own with the engine then refusing to remove them.
+            if let Some(rows) = match scenario {
+                "other-project-container" => Some("aaa\tanother-project\n"),
+                "mixed-containers" => Some("aaa\topenbot\nbbb\tanother-project\n"),
+                "removal-failure" => Some("aaa\topenbot\n"),
+                _ => None,
+            } {
+                std::fs::write(root.join(".fixture-containers"), rows).unwrap();
             }
             let error =
                 reset_leftover_database(&address, &root, &Secrets::new(), "openbot_postgres-data")
@@ -3455,7 +3585,21 @@ mod tests {
                 scenario == "attached",
                 "{scenario}: {log}"
             );
-            assert!(!log.contains("--force"));
+            // Only this project's own containers are ever removed, and the volume never forced.
+            assert_eq!(
+                log.contains("rm --force"),
+                scenario == "removal-failure",
+                "{scenario}: {log}"
+            );
+            assert!(!log.contains("volume rm --force"));
+            if matches!(scenario, "other-project-container" | "mixed-containers") {
+                assert!(
+                    std::fs::read_to_string(root.join(".fixture-containers"))
+                        .unwrap()
+                        .contains("another-project"),
+                    "{scenario}: a container of another project was removed"
+                );
+            }
             assert!(std::fs::read_to_string(root.join(".fixture-volumes"))
                 .unwrap()
                 .contains("unrelated"));
@@ -4892,8 +5036,37 @@ fn main() {
             (".fixture-volumes", ".fixture-volume-failure")
         } else if actual == ["volume", "inspect", "openbot_postgres-data"] {
             (".fixture-inspect", ".fixture-inspect-failure")
+        } else if actual.first().map(String::as_str) == Some("ps") {
+            // The engine's own answer to "which containers mount this volume": one row per
+            // container in `.fixture-containers`, as `<id>\t<compose project>`.
+            if std::path::Path::new(".fixture-ps-failure").exists() {
+                eprintln!("synthetic-secret-must-not-appear-in-diagnostics");
+                std::process::exit(17);
+            }
+            assert_eq!(&actual[..4], ["ps", "--all", "--quiet", "--filter"], "{actual:?}");
+            assert_eq!(actual[4], "volume=openbot_postgres-data", "{actual:?}");
+            let project = actual[5..].windows(2).find_map(|pair| {
+                pair[0].eq("--filter").then(|| pair[1].strip_prefix("label=com.docker.compose.project=")).flatten()
+            });
+            let rows = std::fs::read_to_string(".fixture-containers").unwrap_or_default();
+            for row in rows.lines() {
+                let (id, owner) = row.split_once('\t').unwrap();
+                if project.map_or(true, |project| project == owner) { println!("{id}"); }
+            }
+            return;
+        } else if actual.first().map(String::as_str) == Some("rm") {
+            if std::path::Path::new(".fixture-rm-failure").exists() {
+                eprintln!("synthetic-secret-must-not-appear-in-diagnostics");
+                std::process::exit(17);
+            }
+            assert_eq!(actual[1], "--force", "{actual:?}");
+            let rows = std::fs::read_to_string(".fixture-containers").unwrap_or_default();
+            let remaining: String = rows.lines().filter(|row| !actual[2..].iter().any(|id| row.split_once('\t').unwrap().0 == id)).map(|row| format!("{row}\n")).collect();
+            std::fs::write(".fixture-containers", remaining).unwrap();
+            return;
         } else if actual == ["volume", "rm", "openbot_postgres-data"] {
-            if std::path::Path::new(".fixture-attached").exists() {
+            let in_use = std::fs::read_to_string(".fixture-containers").is_ok_and(|rows| !rows.trim().is_empty());
+            if in_use || std::path::Path::new(".fixture-attached").exists() {
                 eprintln!("synthetic-secret attached container");
                 std::process::exit(2);
             }

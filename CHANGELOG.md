@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Deleting a leftover database works
+
+A computer whose first attempts had stopped half way, then had its ArkAgent folder deleted, was offered
+**Delete saved data** and failed every time with `Volume removal exited with exit code: 2`, then offered
+the same choice again. The database service those attempts left behind (created, or still running) was
+holding the data, and the engine refuses to delete a volume while any container mounts it. Delete now
+stops and removes that installation's own database service first, then the data. It only touches
+containers of the same Compose project; if anything else mounts the volume, nothing is deleted and the
+message says so. The confirmation names the extra step.
+
 ## 0.1.2
 
 ### Ark Hub's image starts
