@@ -8,6 +8,17 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### The web app is the release's own, not built on the computer
+
+An installer with no company website address (`ARK_RELEASE_BASE_URL`) downloaded GitHub's automatic archive
+of the version's tag. That archive is the source tree without the pre-built web app, so the computer
+installed all of the app's build tools and built the page itself, which on a Windows PC took longer than the
+three minutes ArkAgent waits for the app to answer: `the app is not answering on port 3010`, with
+`Building app/dist` as the last line of `app.log`. It now downloads the release's own `source.tar.gz`, which
+carries the pre-built page, the same file the website serves. A computer that already has a copy without the
+pre-built page is brought up to date on its next start: the application files of the same version are
+downloaded again, and its settings, credentials, saved data and containers are left alone.
+
 ## 0.1.3
 
 ### Deleting a leftover database works
