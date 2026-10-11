@@ -81,7 +81,8 @@ describe("the source archive the website serves", () => {
     const files = [
       ".github/workflows/publish-release.yml",
       "app/scripts/build-cache.ts",
-      "desktop/src-tauri/src/stack.rs",
+      // The one definition on the desktop's side; the host start-up reads it from here.
+      "desktop/src-tauri/src/deployment.rs",
     ];
     for (const file of files) {
       const text = await readFile(new URL(file, root), "utf8");

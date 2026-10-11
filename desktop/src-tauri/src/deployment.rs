@@ -132,10 +132,14 @@ fn release_base_from(runtime: Option<&str>, built: Option<&str>) -> Option<Strin
 }
 
 /// The tarball a release is installed from: the company's own copy when it serves one, otherwise
-/// the one GitHub publishes for a tag.
+/// the release's own `source.tar.gz` on GitHub.
 ///
-/// A release asset rather than a branch, and https rather than git, so nothing needs a git client
-/// or credentials to get a deployment.
+/// THE RELEASE'S ASSET, NOT GITHUB'S ARCHIVE OF THE TAG. The archive GitHub makes for a tag is the git
+/// tree, and the web app's build output is not committed, so a deployment laid down from it has no
+/// `app/dist`. The host then installs all of the app's tooling and builds the page itself, which on a
+/// Windows PC took longer than the three minutes the app is given to start answering (found on the
+/// first real install of 0.1.2). The asset is the same tree with `app/dist` built by the release.
+/// https rather than git, so nothing needs a git client or credentials to get a deployment.
 pub fn tarball_url(version: &str) -> String {
     tarball_url_from(release_base().as_deref(), &release_repo(), version)
 }
@@ -143,7 +147,7 @@ pub fn tarball_url(version: &str) -> String {
 fn tarball_url_from(base: Option<&str>, repo: &str, version: &str) -> String {
     match base {
         Some(base) => format!("{base}/{version}/source.tar.gz"),
-        None => format!("https://github.com/{repo}/archive/refs/tags/{version}.tar.gz"),
+        None => format!("https://github.com/{repo}/releases/download/{version}/source.tar.gz"),
     }
 }
 
@@ -298,6 +302,25 @@ pub fn needs_fetch(root: &Path, wanted: &str) -> bool {
         Some(found) => found.version != wanted,
         None => true,
     }
+}
+
+/// Written into `app/dist` by the release pipeline: the web app in this deployment was built for
+/// exactly this tree, so the host serves it as it is and installs no tooling to build it.
+pub const PREBUILT_MARKER: &str = ".openbot-prebuilt";
+
+/// Whether the deployment on disk is missing the release's pre-built web app.
+///
+/// A copy laid down by an ArkAgent that downloaded GitHub's archive of the tag (see [`tarball_url`])
+/// has a stamp and an image manifest that both look right, so [`needs_fetch`] leaves it alone, and it
+/// then spends minutes building a page the release already carries. Fetching the same version again
+/// replaces the application files and touches nothing else: settings, credentials, saved data and the
+/// containers are not part of what a fetch writes.
+pub fn lacks_prebuilt_app(root: &Path) -> bool {
+    !root
+        .join("app")
+        .join("dist")
+        .join(PREBUILT_MARKER)
+        .is_file()
 }
 
 /// Everything the three host processes and Compose need from the tree.
@@ -762,7 +785,7 @@ mod tests {
         // With no company copy the addresses are GitHub's, unchanged.
         assert_eq!(
             tarball_url_from(None, "o/r", "v0.1.0"),
-            "https://github.com/o/r/archive/refs/tags/v0.1.0.tar.gz"
+            "https://github.com/o/r/releases/download/v0.1.0/source.tar.gz"
         );
         assert_eq!(
             images_url_from(None, "o/r", "v0.1.0"),
@@ -782,14 +805,57 @@ mod tests {
     }
 
     #[test]
-    fn the_tarball_is_a_tag_rather_than_a_branch() {
+    fn the_tarball_is_the_releases_own_asset_rather_than_the_tags_archive() {
         let url = tarball_url_from(None, DEFAULT_RELEASE_REPO, "v0.0.7");
-        assert!(url.contains("/refs/tags/v0.0.7"), "{url}");
+        assert!(url.contains("/releases/download/v0.0.7/"), "{url}");
+        assert!(url.ends_with("/source.tar.gz"), "{url}");
+        // The archive GitHub makes for a tag has no pre-built web app in it.
+        assert!(!url.contains("/archive/"), "{url}");
         assert!(!url.contains("/heads/"), "a branch is not a version: {url}");
         assert!(
             url.starts_with("https://"),
             "must not need a git client: {url}"
         );
+    }
+
+    #[test]
+    fn a_deployment_without_the_prebuilt_app_is_fetched_again_even_when_its_stamp_matches() {
+        let dir = std::env::temp_dir().join(format!("openbot-prebuilt-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("app").join("dist")).unwrap();
+        record(&dir, "v0.0.7").unwrap();
+        std::fs::write(images_path(&dir), "{}").unwrap();
+        // What the tag's own archive plus a local build leaves: a page, but not the release's.
+        std::fs::write(dir.join("app").join("dist").join("index.html"), "<html>").unwrap();
+
+        assert!(
+            !needs_fetch(&dir, "v0.0.7"),
+            "the stamp and the manifest alone look complete"
+        );
+        assert!(lacks_prebuilt_app(&dir));
+
+        std::fs::write(
+            dir.join("app").join("dist").join(PREBUILT_MARKER),
+            "v0.0.7\n",
+        )
+        .unwrap();
+        assert!(!lacks_prebuilt_app(&dir));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_releases_marker_survives_unpacking_into_a_deployment() {
+        // The release's archive is what carries `app/dist` and its marker; a dot-file under a
+        // wanted directory must land like any other file, or the page is built again.
+        let dir = scratch("prebuilt-unpack");
+        let archive = tarball(&[
+            ("ark-v0.1.2/app/dist/index.html", b"<html>"),
+            ("ark-v0.1.2/app/dist/.openbot-prebuilt", b"v0.1.2\n"),
+        ]);
+        unpack(&dir, &archive).expect("the release archive unpacks");
+        assert!(dir.join("app").join("dist").join("index.html").is_file());
+        assert!(!lacks_prebuilt_app(&dir));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

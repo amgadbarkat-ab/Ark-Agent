@@ -980,7 +980,7 @@ pub fn down(engine: &Address, root: &Path) -> Result<(), String> {
 
 /// Written into `app/dist` by the release pipeline (and read by `app/scripts/build-cache.ts`): the
 /// app in this deployment was built for exactly this tree, so it is served as it is.
-const PREBUILT_MARKER: &str = ".openbot-prebuilt";
+use crate::deployment::PREBUILT_MARKER;
 
 /// What `bun install` is asked for.
 ///

@@ -133,6 +133,13 @@ mod tests {
             version
         );
         assert!(!deployment::needs_fetch(&root, &version));
+        // The release's own page, not one for the computer to build: what the first real install of
+        // 0.1.2 lacked, and what makes the app answer in seconds instead of minutes.
+        assert!(
+            !deployment::lacks_prebuilt_app(&root),
+            "the downloaded deployment has no pre-built web app"
+        );
+        assert!(root.join("app").join("dist").join("index.html").is_file());
         println!("Downloaded and pinned {version}; tagged source, image manifest, and offline reuse verified.");
         std::fs::remove_dir_all(root).unwrap();
     }

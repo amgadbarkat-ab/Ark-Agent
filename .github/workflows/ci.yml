@@ -86,6 +86,12 @@ jobs:
         working-directory: ${{ matrix.package }}
       - run: bun run typecheck
         working-directory: ${{ matrix.package }}
+      # The supervisor's test that needs its own dependencies (the Docker client). It cannot run in
+      # the root `tests` job: that job does not install them, and installing them there would also
+      # start the Docker lifecycle test, which has never run in CI. A fake engine, so no daemon needed.
+      - run: bun test tests/pids-limit-fallback.test.ts
+        if: matrix.package == 'supervisor'
+        working-directory: ${{ matrix.package }}
 
   chart:
     name: chart (${{ matrix.target }})

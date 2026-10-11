@@ -8,6 +8,27 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A Bot's computer starts on a machine that cannot limit processes
+
+On a Windows PC whose container engine runs without the cgroup `pids` controller, every Bot's computer
+failed to start, and the Bot's screen said `The supervisor could not reach Docker (… crun: controller
+`pids` is not available …)`, about an engine that was answering. Each computer is created with a limit of
+512 processes, and such an engine refuses to start a container that asks for one. The supervisor now builds
+the computer again without the limit when the engine gives exactly that refusal, and remembers the answer, so
+an engine that can enforce the limit still gets it. A computer an earlier attempt left behind with the limit
+is replaced; the Bot's profile and workspace are untouched. Any other failure to start is reported as before.
+
+### The web app is the release's own, not built on the computer
+
+An installer with no company website address (`ARK_RELEASE_BASE_URL`) downloaded GitHub's automatic archive
+of the version's tag. That archive is the source tree without the pre-built web app, so the computer
+installed all of the app's build tools and built the page itself, which on a Windows PC took longer than the
+three minutes ArkAgent waits for the app to answer: `the app is not answering on port 3010`, with
+`Building app/dist` as the last line of `app.log`. It now downloads the release's own `source.tar.gz`, which
+carries the pre-built page, the same file the website serves. A computer that already has a copy without the
+pre-built page is brought up to date on its next start: the application files of the same version are
+downloaded again, and its settings, credentials, saved data and containers are left alone.
+
 ## 0.1.3
 
 ### Deleting a leftover database works

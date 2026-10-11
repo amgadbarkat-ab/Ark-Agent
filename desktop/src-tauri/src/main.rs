@@ -661,7 +661,9 @@ async fn deployment_ready<R: tauri::Runtime>(
     let handle = app.clone();
     let version = tauri::async_runtime::spawn_blocking(move || {
         let version = deployment_release::resolve_version(&target)?;
-        if deployment::needs_fetch(&target, &version) {
+        // The second condition replaces a copy laid down from GitHub's archive of the tag, which
+        // carries no pre-built web app: same version, so the stamp alone would keep it.
+        if deployment::needs_fetch(&target, &version) || deployment::lacks_prebuilt_app(&target) {
             report_running(
                 &handle,
                 "deployment",
@@ -7381,6 +7383,14 @@ fn main() {
         std::fs::write(
             root.join("app/package.json"),
             r#"{"scripts":{"serve":"vite preview"}}"#,
+        )
+        .unwrap();
+        // What a fetch of the release's own archive lays down: the page, already built.
+        std::fs::create_dir_all(root.join("app/dist")).unwrap();
+        std::fs::write(root.join("app/dist/index.html"), "<html>").unwrap();
+        std::fs::write(
+            root.join("app/dist").join(deployment::PREBUILT_MARKER),
+            format!("{DEPLOYMENT_VERSION}\n"),
         )
         .unwrap();
         let images = deployment::Images {
