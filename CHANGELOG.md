@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Installing the release's own app no longer stops at a missing development tool
+
+A computer that installs a release with its web app already built asks for only what the server and the
+worker import, which is right: the build tools are not needed. The check that follows the install still
+asked for every package every part of ArkAgent declares, so it stopped with `The installed package
+@biomejs/biome is missing from .` and the setup could not finish. The check now asks for what the install
+was asked to provide. The server and the app were also started from such an install and both answered.
+
 ## 0.1.4
 
 ### A Bot's computer starts on a machine that cannot limit processes
