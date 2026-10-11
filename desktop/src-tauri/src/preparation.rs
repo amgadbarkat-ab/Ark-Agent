@@ -163,15 +163,31 @@ pub fn invalidate(root: &Path) -> Result<(), Problem> {
 }
 
 /// Record resolved package manifests, not just the existence of a partial node_modules directory.
+///
+/// Only what the install was asked for. A deployment with the release's own pre-built app is
+/// installed for production, for the server and the worker alone (`stack::dependency_install_args`),
+/// so the development tools and the app's libraries are not there and are not expected; asking for
+/// them failed the first real install of one with "The installed package @biomejs/biome is missing".
 fn package_files(root: &Path) -> Result<Vec<PathBuf>, Problem> {
+    let production = stack::production_install(root);
+    let packages: &[&str] = if production {
+        &["", "server", "worker"]
+    } else {
+        &PACKAGES
+    };
+    let groups: &[&str] = if production {
+        &["dependencies"]
+    } else {
+        &["dependencies", "devDependencies"]
+    };
     let mut files = BTreeSet::new();
-    for package in PACKAGES {
+    for package in packages {
         let directory = root.join(package);
         let manifest: serde_json::Value = serde_json::from_slice(
             &std::fs::read(directory.join("package.json")).map_err(|e| required(e.to_string()))?,
         )
         .map_err(|e| required(e.to_string()))?;
-        for group in ["dependencies", "devDependencies"] {
+        for group in groups {
             for name in manifest
                 .get(group)
                 .and_then(serde_json::Value::as_object)
@@ -418,6 +434,87 @@ fn main() {
         fn drop(&mut self) {
             std::fs::remove_dir_all(&self.root).unwrap();
         }
+    }
+
+    /// What a release with its own pre-built app leaves installed: the libraries the server and the
+    /// worker import, and none of what builds the page. The first real install that took this path
+    /// failed with "The installed package @biomejs/biome is missing from ." because the record asked
+    /// for every package every workspace declares.
+    #[test]
+    fn a_release_with_its_app_already_built_is_recorded_without_the_tools_that_build_it() {
+        let root = std::fs::canonicalize({
+            let root = crate::test_support::temp_root("preparation-production");
+            std::fs::create_dir_all(&root).unwrap();
+            root
+        })
+        .unwrap();
+        for (package, manifest) in [
+            ("", r#"{"devDependencies":{"build-tool":"1"}}"#),
+            (
+                "server",
+                r#"{"dependencies":{"server-library":"1"},"devDependencies":{"server-dev-tool":"1"}}"#,
+            ),
+            (
+                "app",
+                r#"{"dependencies":{"page-library":"1"},"devDependencies":{"page-dev-tool":"1"}}"#,
+            ),
+            ("worker", r#"{"dependencies":{"worker-library":"1"}}"#),
+        ] {
+            std::fs::create_dir_all(root.join(package)).unwrap();
+            std::fs::write(root.join(package).join("package.json"), manifest).unwrap();
+        }
+        std::fs::write(root.join("bun.lock"), "synthetic-lock").unwrap();
+        // The install a production run leaves behind.
+        for name in ["server-library", "worker-library"] {
+            let directory = root.join("node_modules").join(name);
+            std::fs::create_dir_all(&directory).unwrap();
+            std::fs::write(directory.join("package.json"), "{}").unwrap();
+        }
+        let bun = Path::new("bun");
+
+        // No pre-built app: it is built here, so every declared package is expected, tools included.
+        let error = record_dependencies(&root, bun).unwrap_err();
+        assert!(
+            error
+                .detail
+                .as_deref()
+                .unwrap_or_default()
+                .contains("is missing"),
+            "{error:?}"
+        );
+
+        // With the release's marker the install asked for the server's and the worker's libraries.
+        std::fs::create_dir_all(root.join("app/dist")).unwrap();
+        std::fs::write(
+            root.join("app/dist").join(deployment::PREBUILT_MARKER),
+            "v-test\n",
+        )
+        .unwrap();
+        record_dependencies(&root, bun).unwrap();
+        let record: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(root.join(DEPENDENCIES)).unwrap()).unwrap();
+        let recorded: Vec<String> = record["package_files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|file| file.as_str().unwrap().replace('\\', "/"))
+            .collect();
+        assert_eq!(recorded.len(), 2, "{recorded:?}");
+        assert!(recorded.iter().any(|file| file.contains("server-library")));
+        assert!(recorded.iter().any(|file| file.contains("worker-library")));
+
+        // A missing library the server needs is still caught.
+        std::fs::remove_dir_all(root.join("node_modules/server-library")).unwrap();
+        let error = record_dependencies(&root, bun).unwrap_err();
+        assert!(
+            error
+                .detail
+                .as_deref()
+                .unwrap_or_default()
+                .contains("server-library"),
+            "{error:?}"
+        );
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

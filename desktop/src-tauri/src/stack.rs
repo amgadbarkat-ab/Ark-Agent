@@ -993,15 +993,24 @@ use crate::deployment::PREBUILT_MARKER;
 /// to build the app itself.
 fn dependency_install_args(root: &Path) -> Vec<&'static str> {
     let mut args = vec!["install", "--frozen-lockfile", "--ignore-scripts"];
-    if root
-        .join("app")
-        .join("dist")
-        .join(PREBUILT_MARKER)
-        .is_file()
-    {
+    if production_install(root) {
         args.extend(["--production", "--filter", "server", "--filter", "worker"]);
     }
     args
+}
+
+/// Whether this deployment is installed to run and not to be built: it carries the release's own
+/// pre-built app, so only what the server and the worker import is installed.
+///
+/// One answer for the install and for the check that follows it (`preparation::package_files`). The
+/// check once asked for every package every workspace declares, development tools and the app's
+/// libraries included, and failed with "The installed package @biomejs/biome is missing from ." on
+/// the first install that took this path, which is the first one that carried a release's own app.
+pub fn production_install(root: &Path) -> bool {
+    root.join("app")
+        .join("dist")
+        .join(PREBUILT_MARKER)
+        .is_file()
 }
 
 /// Install the deployment's dependencies.
