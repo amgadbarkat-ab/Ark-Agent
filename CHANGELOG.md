@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.5
+
 ### Installing the release's own app no longer stops at a missing development tool
 
 A computer that installs a release with its web app already built asks for only what the server and the
