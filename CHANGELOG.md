@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A deployment can offer a free starter model to people who have not added one
+
+Somebody who has added no model of their own used to get "open Settings, then Models" on their first
+message. A deployment that sets `ARK_STARTER_MODEL_URL` now answers for them with a small model it hosts
+itself (docs/ark/22-starter-model.md). It has no quota and no price. Requests wait their turn in order,
+and one that would wait longer than `ARK_STARTER_MODEL_MAX_WAIT_SECONDS` is turned away with a sentence.
+Anybody who has added a model of their own is never moved onto it. Nothing changes for a deployment that
+does not set the address. The Settings screen does not show it yet; `GET /api/models/starter` reports
+whether it answers and how busy it is.
+
 ## 0.1.5
 
 ### Installing the release's own app no longer stops at a missing development tool

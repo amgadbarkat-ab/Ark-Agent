@@ -1023,6 +1023,7 @@ export function createApp(
         store: routeOptions.store as NonNullable<typeof routeOptions.store>,
         encryptionKey,
         fetchImpl: routeOptions.fetchImpl,
+        ...(routeOptions.starter ? { starter: routeOptions.starter } : {}),
       }),
     );
   }

@@ -83,6 +83,17 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 ## Answered
 
+- **Several people on one account: no change.** Plans stay one user per account (D3). (2026-10-15)
+- **Shared marketplace bots stay view-only, not installable** (D7). (2026-10-15)
+- **Free trial: 30 days.** Still to settle: card or no card, which plan, the cloud add-on during the trial, what
+  happens on day 31. (2026-10-15)
+- **A free starter model, hosted by us on Oracle Cloud's free tier, no usage cap, no charge.** The model was
+  chosen by engineering (Gemma 4 E4B); see 22-starter-model.md. The owner creates the Oracle account. (2026-10-15)
+- **Azure region: Europe for now** (West Europe). Microsoft lists no Greece region today; revisit when it
+  does. (2026-10-15)
+- **SOC 2: dropped.** ISO 27001 is left as a low-priority item, undecided. (2026-10-15)
+- **The app's look follows openbot.run:** layout, spacing, component shapes and a dark default. BlackArk's own
+  colours and the ArkAgent character stay (D8); none of OpenBot's logo, images or code is copied. (2026-10-15)
 - **Identifiers: `blackark.arkagent`** for the Android package, the iOS bundle identifier and the desktop
   app. Permanent once published (20-accounts-and-keys.md). (2026-10-09)
 - **Customers download the app from the company's own website only**, not from GitHub (21-desktop-demo.md,

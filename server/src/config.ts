@@ -3,18 +3,17 @@
  * required for durable threads and memory. Configuration the product cannot function without belongs
  * at the boot boundary.
  */
-import { type CspMode, parseCspMode } from "./csp";
-import { parseRequestLogMode, type RequestLogMode } from "./observability";
+
 import { singleUserEnabled } from "./auth/dev-actor";
 import { normalizeDomain } from "./auth/email-domain";
 import { organizationAuthority } from "./auth/organization";
 import type { ActionPolicy } from "./computer/policy";
 import { parseActionPolicy } from "./computer/policy-store";
+import { type CspMode, parseCspMode } from "./csp";
 import {
-  transcriptionConfig,
   type TranscriptionConfig,
+  transcriptionConfig,
 } from "./dictation/config";
-import { voiceConfig, type VoiceConfig } from "./voice/config";
 import {
   isAndroidAppId,
   isAppUrlScheme,
@@ -22,6 +21,9 @@ import {
   type MobileLinksConfig,
   normalizeFingerprint,
 } from "./mobile/links";
+import type { StarterModelConfig } from "./models/starter";
+import { parseRequestLogMode, type RequestLogMode } from "./observability";
+import { type VoiceConfig, voiceConfig } from "./voice/config";
 
 export type RuntimeCapabilities = {
   mode: "intelligence";
@@ -324,6 +326,14 @@ export type DeploymentConfig = {
    */
   composioApiKey: string | undefined;
   /**
+   * The free starter model this deployment offers to people who have not added a model of their own.
+   *
+   * Absent is the ordinary state and changes nothing: a person with no connection gets what they got
+   * before. Present, it answers for them (docs/ark/22-starter-model.md). It is set by whoever runs the
+   * deployment, never by a person, which is why it is exempt from the guard on addresses people type.
+   */
+  starterModel?: StarterModelConfig;
+  /**
    * Where this deployment is reached from outside, with no trailing slash.
    *
    * Needed because an OAuth redirect URI has to match what an administrator registered with the
@@ -466,6 +476,59 @@ function handoffCaps(environment: Environment): HandoffCaps {
     // One level of delegation, which is what most systems allow before anybody asks for more.
     maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 1),
     maxPerRun: read("BOT_HANDOFF_MAX_PER_RUN", 3),
+  };
+}
+
+/**
+ * The starter model, from `ARK_STARTER_MODEL_*`, or nothing when no address is set.
+ *
+ * A token with no address, or the other settings with no address, is a mistake worth stopping on: the
+ * deployment would start and quietly not offer a model its operator thinks it offers.
+ */
+function starterModelConfig(
+  environment: Environment,
+): StarterModelConfig | undefined {
+  const url = optionalHttpUrl(environment, "ARK_STARTER_MODEL_URL");
+  if (!url) {
+    const strays = [
+      "ARK_STARTER_MODEL_TOKEN",
+      "ARK_STARTER_MODEL_NAME",
+      "ARK_STARTER_MODEL_CONCURRENCY",
+      "ARK_STARTER_MODEL_MAX_WAIT_SECONDS",
+    ].filter((name) => optional(environment, name) !== undefined);
+    if (strays.length > 0) {
+      throw new Error(
+        `${strays.join(", ")} set without ARK_STARTER_MODEL_URL: set the address, or remove them.`,
+      );
+    }
+    return undefined;
+  }
+  if (url.username || url.password) {
+    throw new Error(
+      "ARK_STARTER_MODEL_URL must not carry a username or password: use ARK_STARTER_MODEL_TOKEN.",
+    );
+  }
+  if (url.protocol === "http:" && isProduction(environment)) {
+    throw new Error(
+      "ARK_STARTER_MODEL_URL must be https in production: the token and every prompt go over it.",
+    );
+  }
+  const whole = (name: string, fallback: number, min: number, max: number) => {
+    const raw = optional(environment, name);
+    if (raw === undefined) return fallback;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < min || value > max) {
+      throw new Error(`${name} must be a whole number from ${min} to ${max}.`);
+    }
+    return value;
+  };
+  return {
+    baseUrl: url.toString().replace(/\/+$/, ""),
+    token: optional(environment, "ARK_STARTER_MODEL_TOKEN"),
+    model: optional(environment, "ARK_STARTER_MODEL_NAME") ?? "gemma-4-e4b",
+    // One answer at a time is right for the two-core machine the free tier gives; raise it for a bigger one.
+    concurrency: whole("ARK_STARTER_MODEL_CONCURRENCY", 1, 1, 16),
+    maxWaitMs: whole("ARK_STARTER_MODEL_MAX_WAIT_SECONDS", 120, 5, 900) * 1000,
   };
 }
 
@@ -1641,6 +1704,7 @@ export function loadConfig(
     ? organizationAuthority(organizationAuthValue)
     : undefined;
   const managedAgent = managedAgentConfig(environment);
+  const starterModel = starterModelConfig(environment);
   const workerSharedSecret = optional(environment, "WORKER_SHARED_SECRET");
   const appUrl = (
     optional(environment, "OPENBOT_APP_URL") ??
@@ -1670,6 +1734,7 @@ export function loadConfig(
     agentEndpointAllowedHosts: agentEndpointAllowedHosts(environment),
     deploymentId: optional(environment, "DEPLOYMENT_ID"),
     composioApiKey: optional(environment, "COMPOSIO_API_KEY"),
+    ...(starterModel ? { starterModel } : {}),
     publicUrl: (
       optional(environment, "OPENBOT_PUBLIC_URL") ?? auth?.baseUrl
     )?.replace(/\/+$/, ""),

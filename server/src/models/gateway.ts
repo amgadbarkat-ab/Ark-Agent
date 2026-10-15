@@ -2,6 +2,11 @@ import { Hono } from "hono";
 import { providerById } from "../../../shared/model-providers";
 import type { ModelConnectionStore } from "./connections";
 import { readModelGrant } from "./grant";
+import {
+  STARTER_CONNECTION_ID,
+  StarterBusyError,
+  type StarterModel,
+} from "./starter";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 type Dialect = "openai" | "anthropic";
@@ -71,8 +76,10 @@ export function modelGatewayRoutes(options: {
   encryptionKey: string;
   /** The guarded fetch: re-checks the address, and every redirect, at the moment of use. */
   fetchImpl: GuardedFetch;
+  /** The deployment's free starter model, when it has one. Answers grants that name it. */
+  starter?: StarterModel;
 }) {
-  const { store, encryptionKey, fetchImpl } = options;
+  const { store, encryptionKey, fetchImpl, starter } = options;
   const app = new Hono();
 
   async function forward(request: Request, dialect: Dialect, rest: string) {
@@ -89,33 +96,66 @@ export function modelGatewayRoutes(options: {
       );
     }
 
-    let opened: Awaited<ReturnType<ModelConnectionStore["open"]>>;
-    try {
-      opened = await store.open(grant.actorId, grant.connectionId);
-    } catch {
-      return problem(
-        502,
-        "Your model connection could not be opened. Open Settings, then Models, and enter its key again.",
-      );
-    }
-    if (!opened) {
-      return problem(
-        401,
-        "That model connection no longer exists. Choose another in Settings, then Models.",
-      );
-    }
-    const provider = providerById(opened.providerId);
-    const speaks: Dialect | undefined =
-      provider?.protocol === "anthropic"
-        ? "anthropic"
-        : provider?.protocol === "openai"
-          ? "openai"
-          : undefined;
-    if (!provider || provider.unavailable || speaks !== dialect) {
-      return problem(
-        400,
-        "That model connection does not speak this protocol.",
-      );
+    /*
+     * Where the call goes and how it is sent. A person's own connection goes to the address they
+     * chose, with the key they entered, through the guarded fetch. The starter model goes to the
+     * address the deployment's operator chose, with the operator's token, through the starter's own
+     * queue (which adds the token itself, so there is none here to forget).
+     */
+    let baseUrl: string;
+    let apiKey: string | null;
+    let providerName: string;
+    let send: GuardedFetch;
+    if (grant.connectionId === STARTER_CONNECTION_ID) {
+      if (!starter) {
+        return problem(
+          401,
+          "The starter model is not available. Add your own model in Settings, then Models.",
+        );
+      }
+      if (dialect !== "openai") {
+        return problem(
+          400,
+          "That model connection does not speak this protocol.",
+        );
+      }
+      baseUrl = starter.config.baseUrl;
+      apiKey = null;
+      providerName = "the starter model";
+      send = starter.fetch;
+    } else {
+      let opened: Awaited<ReturnType<ModelConnectionStore["open"]>>;
+      try {
+        opened = await store.open(grant.actorId, grant.connectionId);
+      } catch {
+        return problem(
+          502,
+          "Your model connection could not be opened. Open Settings, then Models, and enter its key again.",
+        );
+      }
+      if (!opened) {
+        return problem(
+          401,
+          "That model connection no longer exists. Choose another in Settings, then Models.",
+        );
+      }
+      const provider = providerById(opened.providerId);
+      const speaks: Dialect | undefined =
+        provider?.protocol === "anthropic"
+          ? "anthropic"
+          : provider?.protocol === "openai"
+            ? "openai"
+            : undefined;
+      if (!provider || provider.unavailable || speaks !== dialect) {
+        return problem(
+          400,
+          "That model connection does not speak this protocol.",
+        );
+      }
+      baseUrl = opened.baseUrl;
+      apiKey = opened.apiKey;
+      providerName = provider.name;
+      send = fetchImpl;
     }
 
     const length = Number(request.headers.get("content-length") ?? 0);
@@ -127,7 +167,7 @@ export function modelGatewayRoutes(options: {
       return problem(413, "That request is too large.");
     }
 
-    const base = opened.baseUrl.replace(/\/+$/, "");
+    const base = baseUrl.replace(/\/+$/, "");
     const search = new URL(request.url).search;
     const target =
       dialect === "anthropic"
@@ -145,14 +185,14 @@ export function modelGatewayRoutes(options: {
         "anthropic-version",
         request.headers.get("anthropic-version") ?? ANTHROPIC_VERSION,
       );
-      if (opened.apiKey) headers.set("x-api-key", opened.apiKey);
-    } else if (opened.apiKey) {
-      headers.set("authorization", `Bearer ${opened.apiKey}`);
+      if (apiKey) headers.set("x-api-key", apiKey);
+    } else if (apiKey) {
+      headers.set("authorization", `Bearer ${apiKey}`);
     }
 
     let upstream: Response;
     try {
-      upstream = await fetchImpl(target, {
+      upstream = await send(target, {
         method: request.method,
         headers,
         ...(body ? { body } : {}),
@@ -160,13 +200,20 @@ export function modelGatewayRoutes(options: {
       });
     } catch (error) {
       if (request.signal.aborted) return new Response(null, { status: 499 });
+      if (error instanceof StarterBusyError) {
+        const busy = problem(503, error.message);
+        busy.headers.set("retry-after", String(error.retryAfterSeconds));
+        return busy;
+      }
       const refused =
         error instanceof Error && error.name === "EndpointNotAllowedError";
       return problem(
         502,
         refused
           ? "This deployment will not contact that model address."
-          : `Could not reach ${provider.name}. Check the connection in Settings, then Models.`,
+          : starter && send === starter.fetch
+            ? "The starter model is not answering right now. Try again in a minute, or add your own model in Settings, then Models."
+            : `Could not reach ${providerName}. Check the connection in Settings, then Models.`,
       );
     }
 
