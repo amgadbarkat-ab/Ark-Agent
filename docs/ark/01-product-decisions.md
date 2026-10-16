@@ -85,10 +85,13 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 - **Several people on one account: no change.** Plans stay one user per account (D3). (2026-10-15)
 - **Shared marketplace bots stay view-only, not installable** (D7). (2026-10-15)
-- **Free trial: 30 days.** Still to settle: card or no card, which plan, the cloud add-on during the trial, what
-  happens on day 31. (2026-10-15)
-- **A free starter model, hosted by us on Oracle Cloud's free tier, no usage cap, no charge.** The model was
-  chosen by engineering (Gemma 4 E4B); see 22-starter-model.md. The owner creates the Oracle account. (2026-10-15)
+- **Free trial: 30 days.** The terms were settled on 2026-10-16 (below). (2026-10-15)
+- **A free starter model, no usage cap, no charge.** The model was chosen by engineering (Gemma 4 E4B); see
+  22-starter-model.md. **Oracle Cloud's free tier was dropped on 2026-10-16** (it is now 2 OCPU and 12 GB); the
+  direction is a managed local model on the customer's own computer, with a hosted starter left for later. (2026-10-15, amended 2026-10-16)
+- **Free trial: 30 days, no card, on the ArkAgent plan, the cloud add-on off, and on day 31 the account pauses
+  read-only (data kept 30 days) until a plan is chosen.** The owner accepted the defaults. (2026-10-16)
+- **v0.1.5 runs on the owner's Windows PC.** The owner will list the issues found. (2026-10-16)
 - **Azure region: Europe for now** (West Europe). Microsoft lists no Greece region today; revisit when it
   does. (2026-10-15)
 - **SOC 2: dropped.** ISO 27001 is left as a low-priority item, undecided. (2026-10-15)
