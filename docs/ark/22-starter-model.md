@@ -161,12 +161,12 @@ modest computer, so these are numbers to expect on a plain laptop, not a fast on
 
 | | Gemma 4 E4B (computers with 12 GB or more) | Gemma 4 E2B (computers with 8 GB) |
 | --- | --- | --- |
-| Speed of an answer | about 14.5 words ("tokens") a second | about 21 to 24 a second |
+| Speed of an answer | 8 to 14.5 words ("tokens") a second (two runs; the machine was slower in the second) | 21 to 24 a second |
 | Time to the first word | 0.7 to 0.8 s | 0.4 to 0.8 s |
 | Tool calls right (email, web search, calendar, file; 3 rounds of 8 cases) | **24 of 24** | 21 of 24 |
 | English | 15 of 15 | 15 of 15 |
 | Greek | **9 of 9** | 6 of 9: it never called the e-mail tool when asked in Greek (0 of 3) |
-| Reading a long first message | about 8 s for 1,000 words of instructions (E2B); then the server remembers it and the next message starts at once | not measured |
+| Reading a long first message (about 1,000 tokens of instructions, then a question) | **55 s** in the slower run; the next message then took under half a second | **8 s**; the next took 0.15 s |
 
 What that means:
 
@@ -178,10 +178,13 @@ What that means:
 - **Greek is good, not perfect.** The answers read naturally, and one sample had a single stray Russian word
   in a Greek heading. A person writing for customers should read what it writes.
 - **Asked for "a short reply" it offers three options.** A bot's instructions will have to say what they want.
-- **The first message after the model starts is the slow one** when a bot sends long instructions and tool
-  descriptions: reading them at roughly 120 words a second takes about 8 s per 1,000 words on this
-  hardware, so a 4,000-word bot prompt would take about half a minute once. Not measured with the real bot
-  prompt yet.
+- **The first message after the model starts is the slow one, and on E4B without a graphics card it is the
+  main risk.** A bot sends its instructions and tool descriptions with every request; the server reads them
+  once and remembers them, so every message after the first is fast, but the first took 8 s (E2B) and 55 s
+  (E4B, on the slower run) for only about 1,000 tokens. A real bot prompt may be several times that. Not
+  measured with the real bot prompt yet. Ways to cut it, to be decided once it is measured: shorter
+  instructions for the local model; reading the bot's instructions in the background as soon as the model starts,
+  before the first message; E2B by default on a computer with no graphics card; the Vulkan build where there is one.
 
 ### The code
 
