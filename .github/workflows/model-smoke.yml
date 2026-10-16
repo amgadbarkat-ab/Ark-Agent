@@ -113,8 +113,11 @@ jobs:
           set -euo pipefail
           export LD_LIBRARY_PATH="$LLAMA_DIR:${LD_LIBRARY_PATH:-}"
           extra=""
-          # Gemma 4 reasons before it answers unless told not to, which costs time and tidiness.
-          if "$LLAMA_SERVER" --help 2>&1 | grep -q -- "--reasoning-budget"; then extra="--reasoning-budget 0"; fi
+          # Gemma 4 reasons before it answers unless told not to, which costs time and tidiness. The
+          # first run used `--reasoning-budget 0` and the model still thought aloud, so this tries the
+          # switch itself (`--reasoning off`) and falls back to the budget only if it does not exist.
+          if "$LLAMA_SERVER" --help 2>&1 | grep -q -- "--reasoning \["; then extra="--reasoning off";
+          elif "$LLAMA_SERVER" --help 2>&1 | grep -q -- "--reasoning-budget"; then extra="--reasoning-budget 0"; fi
           echo "extra flags: $extra"
           nohup "$LLAMA_SERVER" -m "work/$FILE" --alias "$ID" --host 127.0.0.1 --port 8080 \
             --jinja --ctx-size 8192 --parallel 1 --api-key smoke-token $extra \
@@ -139,7 +142,7 @@ jobs:
           for prompt in english greek; do
             echo "=== $prompt ==="
             bun scripts/starter-model-benchmark.ts --url http://127.0.0.1:8080/v1 --token smoke-token \
-              --model "$ID" --users 1 --max-tokens 120 --prompt "$prompt" --timeout 600
+              --model "$ID" --users 1 --max-tokens 120 --prompt "$prompt" --timeout 600 | tee -a work/bench.txt
           done
 
       - name: Tool calls, English and Greek
@@ -150,18 +153,37 @@ jobs:
           bun scripts/starter-model-toolcheck.ts --url http://127.0.0.1:8080/v1 --token smoke-token \
             --model "$ID" --repeats 3 --timeout 600 | tee work/toolcheck.txt
 
-      - name: One real answer, to read
+      - name: One real answer, to read (three ways of asking)
         env:
           ID: ${{ matrix.model.id }}
         run: |
-          curl -fsS http://127.0.0.1:8080/v1/chat/completions \
-            -H "authorization: Bearer smoke-token" -H "content-type: application/json" \
-            -d "$(jq -n --arg m "$ID" '{model:$m,max_tokens:200,messages:[{role:"user",content:"Γράψε μια σύντομη, φιλική απάντηση σε έναν πελάτη που ρωτά πότε θα πληρωθεί το τιμολόγιό του."}]}')" \
-            | jq -r '.choices[0].message | (.reasoning_content // "") , .content'
+          ask() {
+            label="$1"; extra_json="$2"
+            echo "=== $label ==="
+            curl -fsS http://127.0.0.1:8080/v1/chat/completions \
+              -H "authorization: Bearer smoke-token" -H "content-type: application/json" \
+              -d "$(jq -n --arg m "$ID" --argjson extra "$extra_json" '{model:$m,max_tokens:300,messages:[{role:"user",content:"Γράψε μια σύντομη, φιλική απάντηση σε έναν πελάτη που ρωτά πότε θα πληρωθεί το τιμολόγιό του."}]} + $extra')" \
+              | jq -r '"thinking characters: \((.choices[0].message.reasoning_content // "") | length)\nanswer characters: \((.choices[0].message.content // "") | length)\nfinish: \(.choices[0].finish_reason)\nanswer: \(.choices[0].message.content // "")"'
+          }
+          ask "as the server was started" '{}'
+          ask "thinking switched off in the request" '{"chat_template_kwargs":{"enable_thinking":false}}'
+          ask "thinking switched on in the request" '{"chat_template_kwargs":{"enable_thinking":true}}'
 
       - name: Server log
         if: always()
         run: tail -80 work/server.log || true
+
+      - name: Summary
+        if: always()
+        env:
+          ID: ${{ matrix.model.id }}
+        run: |
+          echo "##### SUMMARY $ID #####"
+          nproc; free -m | sed -n 2p
+          grep -E "tokens/s|^[0-9] +[0-9.]+ s" work/bench.txt || true
+          cat work/toolcheck.txt || true
+          grep -E "eval time|prompt eval" work/server.log | tail -3 || true
+          echo "##### END SUMMARY #####"
 
       - name: Stop the model
         if: always()

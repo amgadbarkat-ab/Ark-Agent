@@ -381,7 +381,6 @@ mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
     use std::io::Write;
-    use std::net::TcpListener;
 
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -651,27 +650,7 @@ mod tests {
 
     // ---- installing, end to end against a local web server ------------------------------------
 
-    fn serve_once(body: Vec<u8>) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let counted = hits.clone();
-        std::thread::spawn(move || {
-            for stream in listener.incoming() {
-                let Ok(mut stream) = stream else { continue };
-                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let mut request = [0u8; 2048];
-                let _ = stream.read(&mut request);
-                let head = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                    body.len()
-                );
-                let _ = stream.write_all(head.as_bytes());
-                let _ = stream.write_all(&body);
-            }
-        });
-        (format!("http://{address}/llama.tar.gz"), hits)
-    }
+    use crate::test_support::serve_bytes as serve_once;
 
     fn asset_for_bytes(file: &str, bytes: &[u8]) -> Asset {
         Asset {

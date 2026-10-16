@@ -10,6 +10,33 @@ pub(crate) fn temp_root(label: &str) -> PathBuf {
     path
 }
 
+/// A web server on loopback that answers every request with `body` (200, whole file), for tests of code
+/// that downloads. Returns its address and how many requests it has served.
+pub(crate) fn serve_bytes(
+    body: Vec<u8>,
+) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = hits.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            counted.fetch_add(1, Ordering::SeqCst);
+            let mut request = [0u8; 2048];
+            let _ = stream.read(&mut request);
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.write_all(&body);
+        }
+    });
+    (format!("http://{address}/file"), hits)
+}
+
 #[test]
 fn temp_roots_with_the_same_label_do_not_collide() {
     assert_ne!(temp_root("same-label"), temp_root("same-label"));

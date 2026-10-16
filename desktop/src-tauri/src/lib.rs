@@ -11,6 +11,7 @@ pub mod install;
 pub mod llama_runtime;
 pub mod local_model;
 pub mod local_server;
+pub mod local_setup;
 pub mod preparation;
 pub mod problem;
 pub mod provider;
