@@ -18,6 +18,7 @@ type ProgressEvent = {
   detail: string;
   running?: boolean;
   downloadBytes?: number;
+  downloadTotal?: number;
 };
 type Deferred<T> = {
   promise: Promise<T>;
@@ -203,6 +204,37 @@ test("running updates show real download bytes without completing a stage early"
   expect(view.getByText("Downloading local software (2/4).")).toBeTruthy();
   await act(async () => preparation.resolve());
   expect(view.queryByText("In progress") === null).toBe(true);
+});
+
+test("a download of known size shows a bar and the amount, replacing the bare byte count", async () => {
+  const { view, preparation } = await beginPendingInstallation();
+  await emitProgress({
+    step: "model",
+    ok: true,
+    running: true,
+    detail: "Downloading the model. This happens once.",
+    downloadBytes: 1_300_000_000,
+    downloadTotal: 5_200_000_000,
+  });
+  const model = within(
+    view.getByRole("listitem", { name: "Model on this computer" }),
+  );
+  expect(model.getByText(/Downloading the model/)).toBeTruthy();
+  expect(model.getByText(/1\.3 GB of 5\.2 GB · 25%/)).toBeTruthy();
+  expect(
+    (model.getByLabelText("Download progress") as HTMLProgressElement).value,
+  ).toBe(25);
+  // The bar replaces "x downloaded", it does not repeat it.
+  expect(model.queryByText(/GB downloaded/)).toBeNull();
+  await emitProgress({
+    step: "model",
+    ok: true,
+    running: false,
+    detail: "The model is running on this computer.",
+  });
+  expect(model.queryByLabelText("Download progress")).toBeNull();
+  expect(model.getByText("Complete")).toBeTruthy();
+  await act(async () => preparation.resolve());
 });
 
 test("installation failure stops active indicators and retry begins fresh", async () => {

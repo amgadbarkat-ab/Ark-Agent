@@ -37,7 +37,7 @@ person's language), from the Gemma 4 family, which has an Apache 2.0 licence (de
 | --- | --- | --- |
 | A customer's computer, 12 GB of memory or more (option 1) | **Gemma 4 E4B**, quantisation-aware 4-bit (about 5 GB) | The best small model that fits an ordinary laptop. |
 | A customer's computer with 8 GB (option 1) | **Gemma 4 E2B** (about 3 GB) | Faster and weaker; the only one that fits. |
-| The company's own server (option 2) | **Gemma 4 26B A4B** (about 14.4 GB; a mixture-of-experts model that uses about 4 B of its 26 B parameters per word) | Much stronger answers and tool use than E4B, and as fast as a small model because only 4 B parameters work per word. Needs a 24 GB graphics card, see below. |
+| ArkAgent's server (option 2), run by an online service, not by the company | **Gemma 4 31B** (or 26B A4B), whichever the chosen service offers | Much stronger answers and tool use than E4B, with no machine for the company to buy or look after. See "Option 2: an online service". |
 
 Alternate if Gemma's tool calls prove unreliable: Qwen3.5 4B for the small tier. Too slow or too big for the places
 above: Qwen3.5 9B and gpt-oss-20b (about 14 GB). The comparison is in the competitor workbook of 2026-10-15.
@@ -96,7 +96,7 @@ Settings, then Models:
 1. **On this computer** (option 1). The app reads the computer's memory, picks E4B or E2B, shows the download size
    and what it will use, and fetches it. Free for ever, private, works offline, no queue. Slower on a modest laptop.
    A computer with less than 8 GB is told so in a sentence and offered 2 or 3.
-2. **On ArkAgent's server** (option 2). Nothing to download; answers come from the company's Gemma 4 26B A4B.
+2. **On ArkAgent's server** (option 2). Nothing to download; answers come from Gemma 4 31B run by an online service (Scaleway, see below), with a daily allowance.
    Needs an Ark account (the desktop asks for one) and, while the server is shared, a queue. **Shown but not
    selectable until the company server exists and the cloud is live**; the screen says "arrives with your ArkAgent
    account" instead of hiding it, so the choice is already visible.
@@ -105,44 +105,45 @@ Settings, then Models:
 The decision is stored with the rest of the person's model choice, not as a plan or a quota. Option 2 never puts a
 token on the customer's computer: it goes through Ark's cloud, signed in (below).
 
-## What the company has to run for option 2
+## Option 2: an online service, not a machine (decided 2026-10-16)
 
-Nothing is needed for option 1. For option 2 the company needs **one machine that stays on**:
+**The owner dropped the idea of the company buying or renting a machine for option 2** (the 24 GB graphics card
+plan) and asked for an online service to host "ArkAgent's server" instead. What was found on 2026-10-16:
 
-| | Minimum that works | Recommended |
-| --- | --- | --- |
-| Graphics card | One NVIDIA card with **24 GB** (RTX 3090 or 4090; L4 or A10 in a rack). The model file is 14.4 GB; with working memory sources put it at about 17 to 22 GB, so 24 GB is the least that works and has little room for more than two answers at once. | **32 GB** (RTX 5090) or a 48 GB workstation card, for room to answer three or four people at once. |
-| Or, instead of a card | An Apple Silicon Mac with **48 GB** unified memory (Mac mini M4 Pro, Mac Studio). Quiet and cheap to run; slower than the card for several people at once. | Mac Studio with 64 GB. |
-| Computer | 8 cores, **64 GB** RAM, 1 TB NVMe, Ubuntu LTS | The same. |
-| Network | Wired, 100 Mbps up, a fixed address or a tunnel, a UPS | A rented dedicated server in the EU instead of a machine in an office. |
-| Software | llama.cpp's `llama-server` and the 14.4 GB file above. Nothing else; Ark's cloud is the only thing that talks to it. | |
+| Service | Where | Gemma 4 | Notes |
+| --- | --- | --- | --- |
+| **[Scaleway Generative APIs](https://www.scaleway.com/en/docs/generative-apis/reference-content/model-catalog/)** | Paris (a French company; all models are served from a Paris data centre) | **Gemma 4 31B** with function calling and parallel tool calling listed | OpenAI-compatible, so the starter-model gateway already built talks to it unchanged. The first 1,000,000 tokens are free, then pay per token. One third-party listing gives about USD 0.25 in and 0.50 out per million tokens for the 26B variant; **the 31B price was not confirmed**. |
+| [Amazon Bedrock, Frankfurt](https://aws.amazon.com/about-aws/whats-new/2026/06/gemma-4-amazon-bedrock) | Frankfurt | 31B and 26B A4B, about USD 0.17 in and 0.48 out per million (a [price comparison](https://infrabase.ai/compare/inference-apis)) | A big, dependable provider, but not OpenAI-compatible out of the box (it needs an adapter) and it adds an American company as a sub-processor. The fallback. |
+| [EUrouter](https://www.eurouter.ai/models/gemma-4) | EU-routed | 31B at about USD 0.10 in and 0.35 out | A router in front of other providers, so the data path has more parties in it. Vendor's own claims only. |
+| DeepInfra | not stated | 31B at about USD 0.20 in and 0.40 out | Cheap, but hosting location is not stated. Not for customer data without finding out. |
+| Microsoft Foundry (Azure) | United States only for these models | via Fireworks | [Reported as serverless in six US regions and outside the EU Data Boundary](https://menastartupdigest.com/?p=47275). Rejected for customer data. |
+| Google Gemini API | Google | Gemma 4 has a free tier only, no paid tier | Not usable at scale. |
+| [Infercom](https://sambanova.ai/solutions/infercom) (Luxembourg, Germany data centre) | Germany | not found in its catalogue | Worth watching; no Gemma 4 or price found. |
 
-Speed, from other people's tests of this model on a 3090 or 4090 with llama.cpp at 4 bits: roughly 85 to 130
-tokens a second for one answer, which is faster than anybody reads. The sources disagree and none is ours, so it has to be
-measured with `scripts/starter-model-benchmark.ts` before launch. Gemma 4 turns a reasoning trace on by default, which
-costs time and tool-call tidiness; the server is started with it off (check the flag name in `llama-server --help`).
+**Recommendation: Scaleway Generative APIs.** It is the one that is European, serves Gemma 4 with tool calling, and speaks the
+API the code already speaks, so using it is a setting (`ARK_STARTER_MODEL_URL=https://api.scaleway.ai/v1`, the
+key as `ARK_STARTER_MODEL_TOKEN`, `ARK_STARTER_MODEL_NAME` the model's name there), not new code. Bedrock Frankfurt is the fallback.
 
-**How many people.** One card answers a few people at the same moment, and a person is only waiting while their bot is
-generating, which is a few seconds in most turns. On those numbers one machine plausibly serves a few hundred active
-trial users; a big launch week needs a second. This is an estimate, to be replaced by the benchmark.
+**Two things this changes, and the owner has to decide the second.**
 
-**Buy or rent.** Buying a 24 GB card and a PC is a one-off cost in the low thousands of euros (an estimate, not a quote).
-Renting: Hetzner's GPU line was being rebuilt in October 2026 (the GEX44 can no longer be ordered, its replacement
-GEX45 is listed at about EUR 214 a month net plus a setup fee, and its graphics memory was not confirmed) so look at
-the current list before ordering; only a card with at least 24 GB is any use for this model. A rented server is a new
-sub-processor, to go in the DPA and in 14-data-protection.md before it serves a customer. Azure has 24 GB cards
-(the NVadsA10 v5 size) in West Europe, but a 24-hour GPU there costs far more than the credits cover.
+1. **It is no longer free to the company.** The earlier decision (no quota, no cap, "no usage cost") assumed a machine
+   we owned. With an online service every token is billed. An estimate, not a measurement: a bot reads its long
+   instructions again on every call, so a busy day can be one to two million tokens for one person; at the prices
+   above that is roughly EUR 0.30 to 1.00 a day, so an uncapped 30-day trial could cost a few euros per heavy user,
+   and a script that loops could cost much more.
+2. **So option 2 needs a cap.** Proposed: a daily allowance per person (for example 200,000 tokens a day, which is
+   at most about EUR 3 over a 30-day trial), counted by the gateway, with a sentence when it is used up and a pointer to
+   option 1 or their own key. The queue already built stays, to protect the service's rate limit. **Owner to
+   confirm the number.** Option 1 (the person's own computer) stays free and uncapped.
 
-**The smaller alternative.** If the company wants to start smaller: a 16 GB card (RTX 4060 Ti or 5060 Ti) runs E4B,
-the same model as option 1, fast, for several people. Weaker answers; the machine is cheaper. It is the fallback if
-26B A4B cannot be afforded.
-
-**Nothing on a customer's computer holds the server's token.** With no cap, a token read out of an installed app would
-be free compute for anybody. The desktop reaches the company server only through Ark's cloud, after signing in.
+Before it serves a customer: sign Scaleway's data-processing agreement, add Scaleway SAS to the sub-processor list and to
+14-data-protection.md, say so in the privacy notice, and check in its terms that prompts are not used for training (not
+confirmed here). The desktop still never holds the service's key: it reaches the model through Ark's own cloud, signed
+in, which is why option 2 waits for the Azure deployment and the Ark account.
 
 ## If a hosted starter is built later
 
-Run llama.cpp's server on a machine we pay for or have credits on: `llama-server -m <file>.gguf --alias
+(Kept for a company that does run its own machine; not the plan.) Run llama.cpp's server on a machine we pay for or have credits on: `llama-server -m <file>.gguf --alias
 gemma-4-e4b --host 127.0.0.1 --port 8080 --jinja --ctx-size 8192 --parallel 1 --threads <cores> --api-key <token>`
 (flag names as of llama.cpp when this was written; check `--help`), behind a TLS reverse proxy open only to
 Ark's servers, since the model has no cap and a public endpoint would be free compute for anybody. Set the five

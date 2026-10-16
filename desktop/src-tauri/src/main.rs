@@ -190,6 +190,9 @@ struct Progress {
     running: bool,
     #[serde(rename = "downloadBytes", skip_serializing_if = "Option::is_none")]
     download_bytes: Option<u64>,
+    /// When the size of what is being fetched is known, so the panel can draw a bar and a time left.
+    #[serde(rename = "downloadTotal", skip_serializing_if = "Option::is_none")]
+    download_total: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -293,6 +296,7 @@ fn report<R: tauri::Runtime>(
             detail: detail.into(),
             running: false,
             download_bytes: None,
+            download_total: None,
         },
     );
 }
@@ -311,6 +315,28 @@ fn report_running<R: tauri::Runtime>(
             detail: detail.into(),
             running: true,
             download_bytes,
+            download_total: None,
+        },
+    );
+}
+
+/// A running step whose download size is known: the panel draws a bar and the time left.
+fn report_download<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    step: &str,
+    detail: impl Into<String>,
+    downloaded: u64,
+    total: u64,
+) {
+    let _ = app.emit(
+        "setup:progress",
+        Progress {
+            step: step.into(),
+            ok: true,
+            detail: detail.into(),
+            running: true,
+            download_bytes: Some(downloaded),
+            download_total: Some(total),
         },
     );
 }
@@ -934,7 +960,7 @@ async fn start_local_model<R: tauri::Runtime>(
     cancel.store(false, std::sync::atomic::Ordering::SeqCst);
     // One model at a time: a restart replaces the previous run's, rather than loading a second.
     stop_local_model(&shell, root);
-    report_running(app, "model", "getting the model ready", None);
+    report_running(app, "model", "Getting the model ready.", None);
     let logs = root.join(".logs");
     let work_root = root.to_path_buf();
     let mut sink = local_model_progress_sink(app);
@@ -946,24 +972,36 @@ async fn start_local_model<R: tauri::Runtime>(
             &machine,
             &cancel,
             &mut |stage, progress| {
-                // The download size is the one number the progress row can use.
                 if progress.downloaded < progress.total {
-                    report_running(
+                    report_download(
                         &announce,
                         "model",
-                        "downloading the model",
-                        Some(progress.downloaded),
+                        match stage {
+                            openbot_desktop_lib::local_setup::Stage::Engine => {
+                                "Getting the program that runs the model."
+                            }
+                            openbot_desktop_lib::local_setup::Stage::Model => {
+                                "Downloading the model. This happens once."
+                            }
+                        },
+                        progress.downloaded,
+                        progress.total,
                     );
                 }
                 sink(stage, progress);
             },
         )?;
-        report_running(&announce, "model", "starting the model", None);
+        report_running(
+            &announce,
+            "model",
+            "Starting the model. Reading it from disk can take up to a minute.",
+            None,
+        );
         openbot_desktop_lib::local_setup::start(&work_root, &logs, &prepared, &cancel)
     })
     .await
     .map_err(|error| Problem::with("ArkAgent could not start the model.", error.to_string()))??;
-    report(app, "model", true, "the model is running");
+    report(app, "model", true, "The model is running on this computer.");
     let chosen = ChosenModel {
         provider: "local".into(),
         login: "managed".into(),

@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### The setup progress panel shows how far a download has got
+
+A step that downloads something of known size, such as the model, now shows a bar, "1.3 GB of 5.2 GB · 25%"
+and, once a speed has been measured for a few seconds, how long is left. Steps whose size is not known
+still show the amount downloaded so far.
+
 ### The desktop can run a free model on the computer itself
 
 The model screen now starts with "On this computer": ArkAgent reads how much memory the computer has,

@@ -338,6 +338,18 @@ fieldset.picker {
   accent-color: var(--ink);
 }
 
+/* Under a step's sentence: the bar, then what it means in words. */
+.download-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+.download-words {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
 .tile-summary {
   color: var(--ink-faint);
   font-size: 0.75rem;
