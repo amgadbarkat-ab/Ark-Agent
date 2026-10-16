@@ -47,23 +47,25 @@ The pipeline is the inherited one and it is careful on purpose: nothing is publi
    desktop installers and attaches them to it.
 4. **Put the downloads on the website.** See the next section.
 
-Cost: the desktop build is the expensive part on a private repository (the Mac runner counts ten times). A
-full run is on the order of a few hundred billed minutes; a free personal account has 2,000 a month. Making
-the repository public would make it free.
+Cost: **the repository is public (checked 2026-10-16, MIT licence), so GitHub's standard runners, Mac and Windows
+included, are free for it.** Earlier notes here assumed it was private and billed by the minute; that was wrong. A
+full release run is long (tests, images for two architectures, three installers; about an hour) but it costs no
+minutes. What can still count against a free account is storage: artifacts and cache from workflow runs, and any
+*private* container package (the allowance is 500 MB, and one of the six images is about 500 MB compressed).
+Public packages do not count, which is one more reason to make the six packages public after the first release.
 
-**The allowance is tight (owner, 2026-10-16), so what runs by itself was cut.** The Desktop workflow no longer
-runs on every push to a working branch (it did, and with a pull request open it ran a second time for the pull
-request; the Mac and Windows runners are the expensive ones). It runs on every pull request and on `main`. To
-check a branch before a pull request exists, use Actions, Desktop, "Run workflow", choosing the branch. The
-model smoke test and the llama.cpp pin script are run by hand only. Each release is still a few hundred
-minutes, so cut one only when there is something to review. GitHub's own figure is under Settings, Billing and
-plans, Usage.
+**What runs by itself (changed 2026-10-16, when the owner said the allowance was tight, before it was known that
+the repository is public).** The Desktop workflow no longer runs on every push to a working branch; it runs on every
+pull request and on `main`. To check a branch before a pull request exists, use Actions, Desktop, "Run workflow",
+choosing the branch. The model smoke test and the llama.cpp pin script are run by hand only. If the allowance
+that is tight turns out not to be GitHub's, put `"claude/**"` back in the `push` branches of `desktop.yml`.
+GitHub's own figures are under Settings, Billing and plans, Usage.
 
 ## Where the downloads live: the company's website
 
 **Decided by the owner (2026-10-09): customers download the app from the company's own website and nowhere
-else.** The repository and its container packages are private, so a customer's computer could not use GitHub
-anyway. There are two kinds of download, and both come from the website:
+else.** The repository is public but its container packages are private, and a customer should not be sent to GitHub for
+an installer anyway. There are two kinds of download, and both come from the website:
 
 1. **The installer** a person clicks (`.exe`, `.dmg`, `.AppImage`). The owner chose the way customers get it:
    a **"Download the ArkAgent app" button on the two product pages**,
