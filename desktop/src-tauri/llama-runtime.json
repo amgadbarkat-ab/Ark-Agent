@@ -1,0 +1,54 @@
+{
+  "tag": "b11696",
+  "source": "https://github.com/ggml-org/llama.cpp/releases/tag/b11696",
+  "assets": [
+    {
+      "os": "windows",
+      "arch": "x86_64",
+      "backend": "cpu",
+      "file": "llama-b11696-bin-win-cpu-x64.zip",
+      "size": 19575690,
+      "sha256": "1e7c47dff58467540d53e6cf302d83951bcb165afb252c2952ed3872190fc60d"
+    },
+    {
+      "os": "windows",
+      "arch": "aarch64",
+      "backend": "cpu",
+      "file": "llama-b11696-bin-win-cpu-arm64.zip",
+      "size": 12469399,
+      "sha256": "6a5eed00283fdf2c343b4659018408c9e84f2932cddb133c92a0966146911ca8"
+    },
+    {
+      "os": "macos",
+      "arch": "aarch64",
+      "backend": "metal",
+      "file": "llama-b11696-bin-macos-arm64.tar.gz",
+      "size": 12222784,
+      "sha256": "6aac007fbe153efefe06250d2cf05d0487583aa0706379082ebef2b05579f649"
+    },
+    {
+      "os": "macos",
+      "arch": "x86_64",
+      "backend": "cpu",
+      "file": "llama-b11696-bin-macos-x64.tar.gz",
+      "size": 11704689,
+      "sha256": "366662e7a501cddcf8c0b743ce081d150edd15869cb7e5b0877fbeb1cbfcc171"
+    },
+    {
+      "os": "linux",
+      "arch": "x86_64",
+      "backend": "cpu",
+      "file": "llama-b11696-bin-ubuntu-x64.tar.gz",
+      "size": 17883307,
+      "sha256": "6a04629ca5265eb4c5c7d6edec8d6fa429e7e7da2de1cd5d5e357a492fc8f802"
+    },
+    {
+      "os": "linux",
+      "arch": "aarch64",
+      "backend": "cpu",
+      "file": "llama-b11696-bin-ubuntu-arm64.tar.gz",
+      "size": 13935439,
+      "sha256": "2a415c6641e1ba4ba73a6db91479bb88382419e913973ceddac2f63865191202"
+    }
+  ]
+}

@@ -100,6 +100,11 @@ Still to do in this phase:
       party's integration (`XAI_CLIENT` in `provider_oauth.rs`). Remove it, or get xAI's written
       permission, or register Ark's own client. Until then treat xAI as API-key only.
 - [ ] Local models: hardware detection, suggested model, managed download (Ollama / llama.cpp).
+- [~] **Free starter model** (decided 2026-10-15, 22-starter-model.md): Gemma 4 E4B on Oracle's free tier, so a
+      first message needs no key. Server side built and tested (queue, gateway, fallback, status route,
+      benchmark script). Not done: the Oracle server itself (needs the owner's Oracle account), a speed
+      test, the Settings > Models row and the "waiting" message in chat, the desktop (needs an Ark
+      sign-in), and the DPA row for Oracle.
 - [x] Audit events for connection changes (9.1).
 - [ ] Usage metering in the gateway.
 

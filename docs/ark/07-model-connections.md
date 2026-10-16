@@ -50,6 +50,15 @@ By default every coworker uses the person's default connection. Once a person ha
 - API: `GET /api/models/bots`, `PUT /api/models/bots/:botId` with `{ "connectionId": "<id>" | null }`.
   The coworker must be one the person can see, and the connection one of their own.
 
+## The starter model
+
+A deployment can offer one free model to anybody who has not added one of their own
+(`ARK_STARTER_MODEL_URL`; see 22-starter-model.md). It is not a connection: nobody adds or removes it, it
+has no row in `model_connections`, and the gateway knows it by the reserved id `ark-starter` in a grant.
+Somebody with a connection of their own never gets it in its place. It queues requests in order and
+turns one away with a sentence after the longest wait; it has no quota and no price.
+`GET /api/models/starter` reports whether it answers and how busy it is.
+
 ## Rules the code keeps
 
 1. **A key is never sent to a browser.** The API returns `hasKey: true/false` and nothing else.

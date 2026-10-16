@@ -8,6 +8,32 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### The setup progress panel shows how far a download has got
+
+A step that downloads something of known size, such as the model, now shows a bar, "1.3 GB of 5.2 GB · 25%"
+and, once a speed has been measured for a few seconds, how long is left. Steps whose size is not known
+still show the amount downloaded so far.
+
+### The desktop can run a free model on the computer itself
+
+The model screen now starts with "On this computer": ArkAgent reads how much memory the computer has,
+picks Gemma 4 E4B (12 GB or more) or E2B (8 GB), downloads it once from Google's own repository, checks it
+against a recorded SHA-256, and runs it with llama.cpp on the loopback address with a key made for that run.
+Nothing is sent anywhere and no account or key is needed. "ArkAgent's server" is listed next to it, marked
+"Arrives with your ArkAgent account", and cannot be chosen yet. Your own key or server works as before.
+Stop and Quit stop the model; a model left running by a crash is stopped at the next start. Not yet tried on
+a Windows or Mac computer (docs/ark/22-starter-model.md).
+
+### A deployment can offer a free starter model to people who have not added one
+
+Somebody who has added no model of their own used to get "open Settings, then Models" on their first
+message. A deployment that sets `ARK_STARTER_MODEL_URL` now answers for them with a small model it hosts
+itself (docs/ark/22-starter-model.md). It has no quota and no price. Requests wait their turn in order,
+and one that would wait longer than `ARK_STARTER_MODEL_MAX_WAIT_SECONDS` is turned away with a sentence.
+Anybody who has added a model of their own is never moved onto it. Nothing changes for a deployment that
+does not set the address. The Settings screen does not show it yet; `GET /api/models/starter` reports
+whether it answers and how busy it is.
+
 ## 0.1.5
 
 ### Installing the release's own app no longer stops at a missing development tool

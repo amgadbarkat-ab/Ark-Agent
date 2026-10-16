@@ -32,7 +32,7 @@ One internal interface speaking the OpenAI-compatible chat/tool-calling API, wit
 | T1 Free hosted, user's own key | OpenRouter `:free` models, Groq, Cerebras | **Yes** | Limits are per account or organisation, so one shared Ark key cannot serve many users. Each user creates their own free key. Ark never pays. (Unverified: exact current limits and commercial terms for each; read each provider's agreement before listing.) |
 | T2 Paid, user's own key | Anthropic, OpenAI, Google (paid), xAI, Azure, Bedrock | No | Clean everywhere. Billed to the user by the provider. |
 | T3 Plan sign-in | OpenAI program; Claude via unmodified Claude Code | No | Only as described in Part 1. |
-| T4 Ark-hosted open models | Ark runs open-weight models on its own GPUs | No | Optional paid add-on, priced at cost plus (like the cloud-runtime add-on). The practical option for phones and weak PCs. |
+| T4 Ark-hosted open models | Ark runs open-weight models on its own GPUs | No | Optional paid add-on, priced at cost plus (like the cloud-runtime add-on). The practical option for phones and weak PCs. **First step, decided 2026-10-15:** a free starter model on Oracle Cloud's free tier, no usage cap, no charge, for people with no model of their own (22-starter-model.md). It is not this paid add-on. |
 
 Decisions:
 - **Local first, then free keys.** Defaults are T0 and T1, as requested.

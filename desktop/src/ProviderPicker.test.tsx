@@ -894,3 +894,116 @@ for (const provider of cloudProviders) {
     });
   });
 }
+
+const freeProviders: Provider[] = [
+  {
+    id: "local",
+    name: "On this computer",
+    summary: "Free and private.",
+    logins: ["managed"],
+    mark: null,
+    caution: null,
+    unavailable: null,
+  },
+  {
+    id: "ark-server",
+    name: "ArkAgent's server",
+    summary: "Nothing to download.",
+    logins: [],
+    mark: null,
+    caution: null,
+    unavailable: "Arrives with your ArkAgent account.",
+  },
+  ...providers,
+];
+
+const readyPlan = {
+  ramGib: 15.6,
+  cores: 8,
+  recommendation: {
+    kind: "model",
+    model: {
+      id: "gemma-4-e4b",
+      label: "Gemma 4 E4B",
+      sizeBytes: 5_154_941_280,
+    },
+  },
+  toDownloadBytes: 0,
+  ready: true,
+  engine: "b11696 (cpu)",
+};
+
+test("ArkAgent's server is shown with its reason and cannot be chosen", async () => {
+  invokeHandler = async (command) => {
+    if (command === "providers") return freeProviders;
+    if (command === "local_model_plan") return readyPlan;
+    throw new Error(`unexpected command ${command}`);
+  };
+  const view = await renderPicker();
+  const server = (await view.findByRole("radio", {
+    name: /ArkAgent's server/,
+  })) as HTMLInputElement;
+  expect(server.disabled).toBe(true);
+  expect(view.getByText("Arrives with your ArkAgent account.")).toBeTruthy();
+  const local = view.getByRole("radio", {
+    name: /On this computer/,
+  }) as HTMLInputElement;
+  expect(local.disabled).toBe(false);
+});
+
+test("On this computer cannot continue until the model is ready, and then continues with no key or address", async () => {
+  const choices: unknown[] = [];
+  let plan = { ...readyPlan, ready: false, toDownloadBytes: 5_172_000_000 };
+  invokeHandler = async (command) => {
+    if (command === "providers") return freeProviders;
+    if (command === "local_model_plan") return plan;
+    if (command === "local_model_prepare") {
+      plan = { ...plan, ready: true };
+      return undefined;
+    }
+    throw new Error(`unexpected command ${command}`);
+  };
+  const view = await renderPicker((choice) => choices.push(choice));
+  await userEvent.click(
+    await view.findByRole("radio", { name: /On this computer/ }),
+  );
+  const next = await view.findByRole("button", { name: "Continue" });
+  expect((next as HTMLButtonElement).disabled).toBe(true);
+
+  await userEvent.click(
+    await view.findByRole("button", { name: "Download 5.2 GB" }),
+  );
+  await view.findByText(/Ready\. Nothing more to download/);
+  expect((next as HTMLButtonElement).disabled).toBe(false);
+  await userEvent.click(next);
+  expect(choices).toEqual([{ provider: "local", login: "managed" }]);
+});
+
+test("a model already ready on this computer lets Continue light up straight away", async () => {
+  const choices: unknown[] = [];
+  invokeHandler = async (command) => {
+    if (command === "providers") return freeProviders;
+    if (command === "local_model_plan") return readyPlan;
+    throw new Error(`unexpected command ${command}`);
+  };
+  const view = await renderPicker((choice) => choices.push(choice));
+  await userEvent.click(
+    await view.findByRole("radio", { name: /On this computer/ }),
+  );
+  await view.findByText(/Ready\. Nothing more to download/);
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  expect(choices).toEqual([{ provider: "local", login: "managed" }]);
+});
+
+test("the choice is remembered, and comes back selected", async () => {
+  invokeHandler = async (command) => {
+    if (command === "providers") return freeProviders;
+    if (command === "local_model_plan") return readyPlan;
+    throw new Error(`unexpected command ${command}`);
+  };
+  const view = await renderPickerWithHeld({ saved: { model: "local-model" } });
+  const local = (await view.findByRole("radio", {
+    name: /On this computer/,
+  })) as HTMLInputElement;
+  expect(local.checked).toBe(true);
+});

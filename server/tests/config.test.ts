@@ -1160,3 +1160,100 @@ test("a Composio key is read when set and absent when not", () => {
       .composioApiKey,
   ).toBe("ak_example");
 });
+
+/**
+ * The free starter model.
+ *
+ * Unset is the ordinary state and means a deployment behaves as it always did. Set, it has to be set
+ * completely: a token or a limit without an address would start a deployment that quietly offers no
+ * model its operator believes it offers, so that is refused at start rather than discovered by the
+ * first person who has no key.
+ */
+describe("the starter model", () => {
+  const starterEnvironment = {
+    ...baseEnvironment,
+    ARK_STARTER_MODEL_URL: "https://starter.example.eu/v1/",
+  };
+
+  test("is absent unless an address is set", () => {
+    expect(loadConfig(baseEnvironment).starterModel).toBeUndefined();
+  });
+
+  test("is read with the defaults for a two-core machine", () => {
+    expect(loadConfig(starterEnvironment).starterModel).toEqual({
+      baseUrl: "https://starter.example.eu/v1",
+      token: undefined,
+      model: "gemma-4-e4b",
+      concurrency: 1,
+      maxWaitMs: 120_000,
+    });
+  });
+
+  test("takes the token, the model and the limits when given", () => {
+    expect(
+      loadConfig({
+        ...starterEnvironment,
+        ARK_STARTER_MODEL_TOKEN: "  secret  ",
+        ARK_STARTER_MODEL_NAME: "gemma-4-e2b",
+        ARK_STARTER_MODEL_CONCURRENCY: "2",
+        ARK_STARTER_MODEL_MAX_WAIT_SECONDS: "60",
+      }).starterModel,
+    ).toEqual({
+      baseUrl: "https://starter.example.eu/v1",
+      token: "secret",
+      model: "gemma-4-e2b",
+      concurrency: 2,
+      maxWaitMs: 60_000,
+    });
+  });
+
+  test("refuses a token or limit with no address", () => {
+    expect(() =>
+      loadConfig({ ...baseEnvironment, ARK_STARTER_MODEL_TOKEN: "t" }),
+    ).toThrow("without ARK_STARTER_MODEL_URL");
+    expect(() =>
+      loadConfig({ ...baseEnvironment, ARK_STARTER_MODEL_CONCURRENCY: "2" }),
+    ).toThrow("without ARK_STARTER_MODEL_URL");
+  });
+
+  test("refuses an address that is not a web address, or that carries a password", () => {
+    expect(() =>
+      loadConfig({ ...baseEnvironment, ARK_STARTER_MODEL_URL: "starter" }),
+    ).toThrow("ARK_STARTER_MODEL_URL");
+    expect(() =>
+      loadConfig({
+        ...baseEnvironment,
+        ARK_STARTER_MODEL_URL: "https://user:pass@starter.example.eu/v1",
+      }),
+    ).toThrow("must not carry a username or password");
+  });
+
+  test("refuses plain http in production, and allows it for local development", () => {
+    expect(() =>
+      loadConfig({
+        ...productionEnvironment,
+        ARK_STARTER_MODEL_URL: "http://starter.example.eu/v1",
+      }),
+    ).toThrow("must be https in production");
+    expect(
+      loadConfig({
+        ...baseEnvironment,
+        ARK_STARTER_MODEL_URL: "http://localhost:8080/v1",
+      }).starterModel?.baseUrl,
+    ).toBe("http://localhost:8080/v1");
+  });
+
+  test("refuses limits that are not whole numbers in range", () => {
+    for (const [name, value] of [
+      ["ARK_STARTER_MODEL_CONCURRENCY", "0"],
+      ["ARK_STARTER_MODEL_CONCURRENCY", "1.5"],
+      ["ARK_STARTER_MODEL_CONCURRENCY", "99"],
+      ["ARK_STARTER_MODEL_MAX_WAIT_SECONDS", "1"],
+      ["ARK_STARTER_MODEL_MAX_WAIT_SECONDS", "abc"],
+    ] as const) {
+      expect(() =>
+        loadConfig({ ...starterEnvironment, [name]: value }),
+      ).toThrow(name);
+    }
+  });
+});

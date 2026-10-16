@@ -2,10 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "./ExternalLink";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
+import { LocalModelPanel } from "./LocalModelPanel";
 import { Mark } from "./Mark";
 import { asProblem, InlineFailure, type Problem } from "./Problem";
 
-export type Login = "api-key" | "endpoint" | "oauth";
+export type Login = "api-key" | "endpoint" | "oauth" | "managed";
 
 export type Provider = {
   id: string;
@@ -14,6 +15,8 @@ export type Provider = {
   logins: Login[];
   mark: string | null;
   caution: { says: string; reads_more_at: string } | null;
+  /** Shown but not choosable yet, and the sentence saying why. */
+  unavailable?: string | null;
 };
 
 /** What the flow carries forward once this screen is done. */
@@ -33,6 +36,7 @@ export type SavedConfiguration = {
     | "open-ai-api-key"
     | "anthropic-api-key"
     | "compatible-endpoint"
+    | "local-model"
     | "google-oauth"
     | "xai-oauth"
     | null;
@@ -104,6 +108,8 @@ export function recordedModel(held: HeldConfiguration): ModelChoice | null {
         saved: true,
         model: held.BOT_MODEL,
       };
+    case "local-model":
+      return { provider: "local", login: "managed" };
     case "compatible-endpoint":
       return {
         provider: "openai-compatible",
@@ -184,6 +190,8 @@ export function ProviderPicker({
    */
   const [signInUrl, setSignInUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The model on this computer has been downloaded and checked, so Start has nothing long to do.
+  const [localReady, setLocalReady] = useState(false);
   // A problem, not a string: a sign-in failure carries the underlying output, and
   // stringifying it printed "[object Object]" where the diagnosis should have been.
   const [failure, setFailure] = useState<Problem | null>(null);
@@ -308,6 +316,7 @@ export function ProviderPicker({
   // What "done" means differs by the way in, and each is checked before Continue lights up rather
   // than after a run fails with something unreadable.
   const ready =
+    (login === "managed" && localReady) ||
     (login === "oauth" &&
       oauthSignedIn === row?.id &&
       model.trim().length > 0) ||
@@ -356,7 +365,8 @@ export function ProviderPicker({
       {!returning && <p className="steps-of">Step 3 of 3</p>}
       <h1>{returning ? "Refresh your AI connection" : "Connect your AI"}</h1>
       <p className="lede">
-        Connect your provider with an API key, or a model on your own computer.
+        Choose how ArkAgent gets its AI: a free model on this computer, or your
+        own key or server.
       </p>
 
       <fieldset className="picker providers">
@@ -364,7 +374,7 @@ export function ProviderPicker({
         {rows.map((r) => (
           <label
             key={r.id}
-            className={`tile wide${open === r.id ? " chosen" : ""}`}
+            className={`tile wide${open === r.id ? " chosen" : ""}${r.unavailable ? " unavailable" : ""}`}
           >
             <input
               type="radio"
@@ -372,6 +382,7 @@ export function ProviderPicker({
               className="tile-input"
               value={r.id}
               checked={open === r.id}
+              disabled={Boolean(r.unavailable)}
               onChange={() => {
                 if (oauthAttempt.current) void cancelOAuth();
                 signInRunRef.current += 1;
@@ -414,6 +425,9 @@ export function ProviderPicker({
             <Mark id={r.mark} name={r.name} />
             <span className="tile-name">{r.name}</span>
             <span className="tile-summary">{r.summary}</span>
+            {r.unavailable && (
+              <span className="tile-note">{r.unavailable}</span>
+            )}
           </label>
         ))}
       </fieldset>
@@ -439,6 +453,10 @@ export function ProviderPicker({
                 </button>
               ))}
             </div>
+          )}
+
+          {login === "managed" && (
+            <LocalModelPanel root={root} onReady={setLocalReady} />
           )}
 
           {login === "oauth" && (

@@ -60,6 +60,11 @@ struct Shell {
     leftover_database: Mutex<Option<LeftoverDatabase>>,
     selected_root: Mutex<Option<PathBuf>>,
     root: Mutex<Option<PathBuf>>,
+    /// The model ArkAgent runs on this computer, when "On this computer" was chosen. Started before
+    /// the containers (they are told its address and key) and stopped by Stop and Quit.
+    local_model: Mutex<Option<openbot_desktop_lib::local_server::Running>>,
+    /// Set by the Cancel button while the model is being downloaded or loaded.
+    local_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Containers may outlive a failed Start before any host root is published.
     containers: Mutex<Option<ContainerDeployment>>,
     /// A verified down allows a following Stop/Quit to be an idempotent no-op.
@@ -185,6 +190,9 @@ struct Progress {
     running: bool,
     #[serde(rename = "downloadBytes", skip_serializing_if = "Option::is_none")]
     download_bytes: Option<u64>,
+    /// When the size of what is being fetched is known, so the panel can draw a bar and a time left.
+    #[serde(rename = "downloadTotal", skip_serializing_if = "Option::is_none")]
+    download_total: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -288,6 +296,7 @@ fn report<R: tauri::Runtime>(
             detail: detail.into(),
             running: false,
             download_bytes: None,
+            download_total: None,
         },
     );
 }
@@ -306,6 +315,28 @@ fn report_running<R: tauri::Runtime>(
             detail: detail.into(),
             running: true,
             download_bytes,
+            download_total: None,
+        },
+    );
+}
+
+/// A running step whose download size is known: the panel draws a bar and the time left.
+fn report_download<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    step: &str,
+    detail: impl Into<String>,
+    downloaded: u64,
+    total: u64,
+) {
+    let _ = app.emit(
+        "setup:progress",
+        Progress {
+            step: step.into(),
+            ok: true,
+            detail: detail.into(),
+            running: true,
+            download_bytes: Some(downloaded),
+            download_total: Some(total),
         },
     );
 }
@@ -801,12 +832,187 @@ impl ChosenModel {
                     model,
                 })
             }
+            // "On this computer". The window sends only the choice; the address and key are the running
+            // model's own and are filled in by `start_local_model` just before this is read. A choice
+            // that arrives without them has not been through that and is refused, rather than
+            // pointed at whatever address the window might have supplied.
+            ("local", "managed") => {
+                let (Some(base_url), Some(api_key), Some(model)) = (
+                    self.base_url.filter(|value| !value.is_empty()),
+                    self.api_key.filter(|value| !value.is_empty()),
+                    self.model.filter(|value| !value.is_empty()),
+                ) else {
+                    return Err("The model on this computer is not running.".into());
+                };
+                Ok(openbot_env::ModelCredential::Local {
+                    base_url,
+                    container_base_url: self.container_base_url.filter(|value| !value.is_empty()),
+                    api_key,
+                    model,
+                })
+            }
             (provider, login) => Err(format!(
                 "{provider} cannot be connected by {login}, which is not a way in that screen offers."
             )
             .into()),
         }
     }
+}
+
+impl ChosenModel {
+    /// "On this computer": ArkAgent runs the model itself.
+    fn is_local(&self) -> bool {
+        self.provider == "local" && self.login == "managed"
+    }
+}
+
+/// Stop the model this app is running, if it is. Safe to call when there is none.
+fn stop_local_model(shell: &Shell, root: &Path) {
+    if let Some(mut running) = shell.local_model.lock().unwrap().take() {
+        running.stop(root);
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalModelProgress {
+    /// `engine` or `model`.
+    stage: openbot_desktop_lib::local_setup::Stage,
+    downloaded: u64,
+    total: u64,
+}
+
+/// Progress of the download, to the window, at most a few times a second: the model is gigabytes and
+/// the stream calls back for every chunk.
+fn local_model_progress_sink<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> impl FnMut(openbot_desktop_lib::local_setup::Stage, openbot_desktop_lib::local_model::Progress)
+{
+    let app = app.clone();
+    let mut last = std::time::Instant::now() - std::time::Duration::from_secs(1);
+    move |stage, progress| {
+        let finished = progress.downloaded >= progress.total;
+        if !finished && last.elapsed() < std::time::Duration::from_millis(250) {
+            return;
+        }
+        last = std::time::Instant::now();
+        let _ = app.emit(
+            "local-model:progress",
+            LocalModelProgress {
+                stage,
+                downloaded: progress.downloaded,
+                total: progress.total,
+            },
+        );
+    }
+}
+
+/// What the "On this computer" row shows before anything is downloaded.
+#[tauri::command]
+async fn local_model_plan(
+    root: String,
+) -> Result<openbot_desktop_lib::local_setup::Plan, openbot_desktop_lib::problem::Problem> {
+    let root = stack::root_from(&root);
+    tauri::async_runtime::spawn_blocking(move || openbot_desktop_lib::local_setup::plan(&root))
+        .await
+        .map_err(|error| {
+            Problem::with(
+                "ArkAgent could not look at this computer.",
+                error.to_string(),
+            )
+        })?
+}
+
+/// Download what the model needs, with progress, so the person watches it on the model screen and
+/// not as a long pause after pressing Start. Start does this too, instantly, when it is already here.
+#[tauri::command]
+async fn local_model_prepare<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    root: String,
+) -> Result<(), openbot_desktop_lib::problem::Problem> {
+    let root = stack::root_from(&root);
+    let cancel = app.state::<Shell>().local_cancel.clone();
+    cancel.store(false, std::sync::atomic::Ordering::SeqCst);
+    let mut sink = local_model_progress_sink(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        let machine = openbot_desktop_lib::local_model::detect()?;
+        openbot_desktop_lib::local_setup::prepare(&root, &machine, &cancel, &mut sink).map(|_| ())
+    })
+    .await
+    .map_err(|error| Problem::with("ArkAgent could not get the model ready.", error.to_string()))?
+}
+
+#[tauri::command]
+fn local_model_cancel<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    app.state::<Shell>()
+        .local_cancel
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Get the model on this computer ready and running, and describe it as a model choice the rest of Start
+/// can use like any other.
+async fn start_local_model<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    root: &Path,
+) -> Result<ChosenModel, Problem> {
+    let shell = app.state::<Shell>();
+    let cancel = shell.local_cancel.clone();
+    cancel.store(false, std::sync::atomic::Ordering::SeqCst);
+    // One model at a time: a restart replaces the previous run's, rather than loading a second.
+    stop_local_model(&shell, root);
+    report_running(app, "model", "Getting the model ready.", None);
+    let logs = root.join(".logs");
+    let work_root = root.to_path_buf();
+    let mut sink = local_model_progress_sink(app);
+    let announce = app.clone();
+    let running = tauri::async_runtime::spawn_blocking(move || {
+        let machine = openbot_desktop_lib::local_model::detect()?;
+        let prepared = openbot_desktop_lib::local_setup::prepare(
+            &work_root,
+            &machine,
+            &cancel,
+            &mut |stage, progress| {
+                if progress.downloaded < progress.total {
+                    report_download(
+                        &announce,
+                        "model",
+                        match stage {
+                            openbot_desktop_lib::local_setup::Stage::Engine => {
+                                "Getting the program that runs the model."
+                            }
+                            openbot_desktop_lib::local_setup::Stage::Model => {
+                                "Downloading the model. This happens once."
+                            }
+                        },
+                        progress.downloaded,
+                        progress.total,
+                    );
+                }
+                sink(stage, progress);
+            },
+        )?;
+        report_running(
+            &announce,
+            "model",
+            "Starting the model. Reading it from disk can take up to a minute.",
+            None,
+        );
+        openbot_desktop_lib::local_setup::start(&work_root, &logs, &prepared, &cancel)
+    })
+    .await
+    .map_err(|error| Problem::with("ArkAgent could not start the model.", error.to_string()))??;
+    report(app, "model", true, "The model is running on this computer.");
+    let chosen = ChosenModel {
+        provider: "local".into(),
+        login: "managed".into(),
+        api_key: Some(running.api_key.clone()),
+        base_url: Some(running.base_url()),
+        container_base_url: Some(running.container_base_url()),
+        model: Some(running.alias.clone()),
+        saved: None,
+    };
+    *shell.local_model.lock().unwrap() = Some(running);
+    Ok(chosen)
 }
 
 fn start_stack_credential(
@@ -1018,7 +1224,13 @@ async fn start_stack<R: tauri::Runtime>(
     // converts to the plain half, so a path without its own sentence reads as it always did.
 ) -> Result<(), openbot_desktop_lib::problem::Problem> {
     let root = stack::root_from(&root);
-    start_stack_inner(app, root, model, harness).await
+    let local = model.is_local();
+    let result = start_stack_inner(app.clone(), root.clone(), model, harness).await;
+    // A model that was started for a Start that then failed is several gigabytes held for nothing.
+    if local && result.is_err() {
+        stop_local_model(&app.state::<Shell>(), &root);
+    }
+    result
 }
 
 #[allow(
@@ -1063,6 +1275,11 @@ async fn start_stack_inner<R: tauri::Runtime>(
     // list to keep in step. See `harness::picked` for what each refusal is for.
     // Named rather than inlined: the Bot choice below reads it, the store file is written from it,
     // and reading the model screen twice could not be relied on to give the same answer.
+    let model = if model.is_local() {
+        start_local_model(&app, &root).await?
+    } else {
+        model
+    };
     let credential = start_stack_credential(&root, model)?;
 
     // The Bot step and the model step are independent: every harness takes its model through a key
@@ -1422,6 +1639,7 @@ where
     if let Err(problem) = cleanup_host_state(shell, &root, cleanup) {
         failures.push(problem_detail(problem));
     }
+    stop_local_model(shell, &root);
 
     if let Err(problem) = down_containers_with(shell, &root, down) {
         failures.push(format!("Compose down failed: {problem}"));
@@ -1988,6 +2206,7 @@ where
     if let Err(problem) = cleanup_host_state(shell, &root, cleanup) {
         failures.push(problem_detail(problem));
     }
+    stop_local_model(shell, &root);
     if let Err(problem) = down_containers_with(shell, &root, down) {
         failures.push(format!("Compose down failed: {problem}"));
     }
@@ -3054,6 +3273,9 @@ fn main() {
             begin_model_oauth,
             finish_model_oauth,
             cancel_model_oauth,
+            local_model_plan,
+            local_model_prepare,
+            local_model_cancel,
             ask_the_bot,
         ])
         // A packaged application is not a browser tab. Left alone, WebView2 answers a right-click

@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Ask } from "./Ask";
 import { DatabaseReset } from "./DatabaseReset";
+import { DownloadBar, formatBytes } from "./DownloadProgress";
 import {
   DEFAULT_HARNESS,
   type HarnessChoice,
@@ -48,6 +49,8 @@ type Progress = {
   detail: string;
   running?: boolean;
   downloadBytes?: number;
+  /** When the size of the download is known, so the panel can show a bar and a time left. */
+  downloadTotal?: number;
 };
 
 type AlreadyConfigured = {
@@ -808,6 +811,19 @@ function SetupProgress({ steps }: { steps: Progress[] }) {
 function SetupProgressRow({ step }: { step: Progress }) {
   const [elapsed, setElapsed] = useState(0);
   const running = step.running ?? false;
+  // The first byte count this download reported, to measure a speed from. Cleared when the step stops.
+  const [measured, setMeasured] = useState<{
+    at: number;
+    bytes: number;
+  } | null>(null);
+  const bytesNow = step.downloadBytes;
+  useEffect(() => {
+    if (!running) {
+      setMeasured(null);
+    } else if (bytesNow != null) {
+      setMeasured((first) => first ?? { at: Date.now(), bytes: bytesNow });
+    }
+  }, [running, bytesNow]);
   useEffect(() => {
     if (!running) return;
     const started = Date.now();
@@ -842,17 +858,18 @@ function SetupProgressRow({ step }: { step: Progress }) {
       <span className="detail">
         {step.detail}
         {step.downloadBytes != null &&
-          ` ${formatDownloadBytes(step.downloadBytes)} downloaded.`}
+          step.downloadTotal == null &&
+          ` ${formatBytes(step.downloadBytes)} downloaded.`}
+        {running && step.downloadBytes != null && step.downloadTotal ? (
+          <DownloadBar
+            downloaded={step.downloadBytes}
+            total={step.downloadTotal}
+            measured={measured}
+          />
+        ) : null}
       </span>
     </li>
   );
-}
-
-function formatDownloadBytes(bytes: number): string {
-  if (bytes < 1000) return `${bytes} B`;
-  const units = ["kB", "MB", "GB", "TB"];
-  const power = Math.min(Math.floor(Math.log10(bytes) / 3), units.length);
-  return `${(bytes / 1000 ** power).toFixed(1)} ${units[power - 1]}`;
 }
 
 function titleFor(blocker: Blocker): string {
@@ -899,6 +916,8 @@ function label(step: string): string {
       return "Containers";
     case "migrate":
       return "Database";
+    case "model":
+      return "Model on this computer";
     default:
       return step;
   }

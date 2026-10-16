@@ -152,6 +152,7 @@ import {
 } from "./tenant-package";
 import { createUserInstructionsStore } from "./user-instructions";
 import { createModelConnectionStore } from "./models/connections";
+import { createStarterModel } from "./models/starter";
 import {
   createModelForActor,
   createModelHeaderForActor,
@@ -297,11 +298,21 @@ const modelConnectionStore = createModelConnectionStore(
   database,
   config.keyEncryptionKey,
 );
+// The free starter model, when the operator has set one up. One queue for the whole process, shared by
+// the server's own agents, the bot's gateway and the status route, so a single small machine is never
+// asked for more than it can answer.
+const starterModel = config.starterModel
+  ? createStarterModel(config.starterModel)
+  : undefined;
 const loadAgentsForActor = createRuntimeAgentLoader(
   database,
   agentVault,
   config.managedAgent,
-  createModelHeaderForActor(modelConnectionStore, config.keyEncryptionKey),
+  createModelHeaderForActor(
+    modelConnectionStore,
+    config.keyEncryptionKey,
+    starterModel,
+  ),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -1034,7 +1045,11 @@ const routineRunner = createRoutineRunner({
  * invisible: it runs, and quietly holds different tools or a different role from the one the person
  * is talking to.
  */
-const modelForActor = createModelForActor(modelConnectionStore, agentFetch);
+const modelForActor = createModelForActor(
+  modelConnectionStore,
+  agentFetch,
+  starterModel,
+);
 
 const runSlots = createRunSlots(database);
 // Which payment provider takes the money. "manual" until one is chosen: staff set plans by hand.
@@ -1487,6 +1502,7 @@ const app = createApp(
     store: modelConnectionStore,
     encryptionKey: config.keyEncryptionKey,
     fetchImpl: agentFetch,
+    ...(starterModel ? { starter: starterModel } : {}),
     // The roster the person talks to is the roster they may choose a model for.
     botVisible: async (actor, botId) =>
       (

@@ -1,6 +1,5 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
-import { createLimiter } from "../rate-limit";
 import {
   checkConnectionInput,
   LOCAL_MODELS,
@@ -9,11 +8,13 @@ import {
 } from "../../../shared/model-providers";
 import { checkAgentEndpoint } from "../agents/endpoint";
 import type { AppVariables } from "../auth/guards";
+import { createLimiter } from "../rate-limit";
 import {
   type ModelConnectionStore,
   TooManyConnectionsError,
 } from "./connections";
 import { probeConnection } from "./probe";
+import type { StarterModel } from "./starter";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -93,6 +94,8 @@ export function modelConnectionRoutes(options: {
    * person's work is not undone because a log was unavailable. Absent records nothing.
    */
   audit?: (event: ModelAuditEvent) => Promise<void>;
+  /** The deployment's free starter model, when it has one. Only described here; it is used elsewhere. */
+  starter?: StarterModel;
 }) {
   const {
     requireUser,
@@ -101,6 +104,7 @@ export function modelConnectionRoutes(options: {
     allowPrivateHosts,
     allowedHosts,
     botVisible,
+    starter,
   } = options;
   const record = async (event: ModelAuditEvent) => {
     try {
@@ -149,6 +153,22 @@ export function modelConnectionRoutes(options: {
       localModels: LOCAL_MODELS,
     }),
   );
+
+  /**
+   * Whether this deployment offers the free starter model, and how busy it is, so the Models screen
+   * can say "free, slow, two ahead of you" instead of leaving a person watching a spinner.
+   * Says nothing about the address or the token: those are the operator's.
+   */
+  app.get("/starter", async (context) => {
+    if (!starter) return context.json({ configured: false });
+    const state = await starter.health();
+    return context.json({
+      configured: true,
+      state,
+      ...starter.status(),
+      maxWaitSeconds: Math.round(starter.config.maxWaitMs / 1000),
+    });
+  });
 
   app.get("/connections", async (context) => {
     if (!store) return unavailable(context);
