@@ -14,14 +14,10 @@
 
 name: Model smoke test
 
+# By hand only: each run downloads a model and uses about ten billed minutes, and the repository's
+# free allowance is tight (2026-10-16), so nothing starts it on a push.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/model-smoke.yml
-      - scripts/starter-model-toolcheck.ts
-      - scripts/starter-model-benchmark.ts
-      - desktop/src-tauri/local-server-flags.json
 
 permissions:
   contents: read

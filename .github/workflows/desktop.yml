@@ -6,11 +6,14 @@ name: Desktop
 on:
   pull_request:
     paths: ["desktop/**", "package.json", ".github/workflows/desktop.yml"]
-  # The working branches too: a pull request is not always open, and this is the one check that
-  # cannot be run on the machine writing the change.
+  # Not the working branches (changed 2026-10-16, when the free allowance ran tight). They used to
+  # run this on every push, and the macOS runner is billed ten times: with a pull request open each
+  # commit also ran it a second time, for the pull request. It still runs on every pull request and
+  # on main. For a run before a pull request exists, use "Run workflow" (below) on the branch.
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
     paths: ["desktop/**", "package.json", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
   workflow_call:
     inputs:
       # `internal` names the build after the commit, for a branch; `release` is the plain version,

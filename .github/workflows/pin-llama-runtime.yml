@@ -16,10 +16,6 @@ on:
         description: "llama.cpp build, like b9628, or latest"
         required: false
         default: latest
-  push:
-    paths:
-      - scripts/pin-llama-runtime.ts
-      - .github/workflows/pin-llama-runtime.yml
 
 permissions:
   contents: read
