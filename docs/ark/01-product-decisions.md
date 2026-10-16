@@ -117,7 +117,10 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 - **Domain and brand:** the company domain `blackark.uk`; the identity is the company's own v3 (Ember),
   taken from its OneDrive (D8). (2026-10-09)
 - **Payments and tax: Paddle**, a merchant of record that collects and files VAT and sends invoices.
-  Adapter written; sandbox run still to do (12-paddle.md). (2026-10-08)
+  Adapter written; sandbox run still to do (12-paddle.md). (2026-10-08) **The Paddle account was created by
+  the owner on 2026-10-16** (sign-in `general@blackark.uk`; no keys have been shared and none belong in the
+  repository). Next in Paddle: the sandbox, then Paddle's checks of the business and of the website before the
+  live account takes payments (12-paddle.md).
 - **Hosting: Microsoft Azure with Microsoft Entra ID** for sign-in, confirmed by the owner. (2026-10-08)
 - **OpenAI approval:** the application was submitted by the owner (08-openai-application.md); waiting
   for OpenAI's answer. (2026-10-08)

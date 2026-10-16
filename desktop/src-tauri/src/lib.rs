@@ -10,6 +10,7 @@ pub mod host_access;
 pub mod install;
 pub mod llama_runtime;
 pub mod local_model;
+pub mod local_server;
 pub mod preparation;
 pub mod problem;
 pub mod provider;
