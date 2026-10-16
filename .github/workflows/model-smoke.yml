@@ -21,6 +21,7 @@ on:
       - .github/workflows/model-smoke.yml
       - scripts/starter-model-toolcheck.ts
       - scripts/starter-model-benchmark.ts
+      - desktop/src-tauri/local-server-flags.json
 
 permissions:
   contents: read
@@ -112,15 +113,11 @@ jobs:
         run: |
           set -euo pipefail
           export LD_LIBRARY_PATH="$LLAMA_DIR:${LD_LIBRARY_PATH:-}"
-          extra=""
-          # Gemma 4 reasons before it answers unless told not to, which costs time and tidiness. The
-          # first run used `--reasoning-budget 0` and the model still thought aloud, so this tries the
-          # switch itself (`--reasoning off`) and falls back to the budget only if it does not exist.
-          if "$LLAMA_SERVER" --help 2>&1 | grep -q -- "--reasoning \["; then extra="--reasoning off";
-          elif "$LLAMA_SERVER" --help 2>&1 | grep -q -- "--reasoning-budget"; then extra="--reasoning-budget 0"; fi
-          echo "extra flags: $extra"
+          # The same flags a customer's computer is started with: one file, read by the app and here.
+          mapfile -t flags < <(jq -r '.flags[]' desktop/src-tauri/local-server-flags.json)
+          echo "flags: ${flags[*]}"
           nohup "$LLAMA_SERVER" -m "work/$FILE" --alias "$ID" --host 127.0.0.1 --port 8080 \
-            --jinja --ctx-size 8192 --parallel 1 --api-key smoke-token $extra \
+            --ctx-size 16384 --api-key smoke-token "${flags[@]}" \
             > work/server.log 2>&1 &
           echo $! > work/server.pid
           for i in $(seq 1 180); do
@@ -169,6 +166,24 @@ jobs:
           ask "thinking switched off in the request" '{"chat_template_kwargs":{"enable_thinking":false}}'
           ask "thinking switched on in the request" '{"chat_template_kwargs":{"enable_thinking":true}}'
 
+      - name: A long first message (a bot's instructions and tools are long)
+        env:
+          ID: ${{ matrix.model.id }}
+        run: |
+          # About 4,000 tokens of instructions, then a question. The first call has to read all of it;
+          # the second starts with the same text and should reuse what the server remembered.
+          para="You are a careful assistant at a small company. You answer in the language of the person who writes. You never invent facts about invoices, deliveries or people. When you are unsure you say so and ask one short question. You use tools only when the task needs them, and you check the result before you tell anyone it worked."
+          system="$(for i in $(seq 1 14); do echo "Rule $i. $para"; done)"
+          for round in first second; do
+            start=$(date +%s.%N)
+            curl -fsS http://127.0.0.1:8080/v1/chat/completions \
+              -H "authorization: Bearer smoke-token" -H "content-type: application/json" \
+              -d "$(jq -n --arg m "$ID" --arg s "$system" '{model:$m,max_tokens:12,messages:[{role:"system",content:$s},{role:"user",content:"Say hello."}]}')" \
+              | jq -r '"prompt tokens: \(.usage.prompt_tokens), answer: \(.choices[0].message.content)"'
+            end=$(date +%s.%N)
+            echo "$round message: $(echo "$end - $start" | bc) s" | tee -a work/bench.txt
+          done
+
       - name: Server log
         if: always()
         run: tail -80 work/server.log || true
@@ -180,7 +195,7 @@ jobs:
         run: |
           echo "##### SUMMARY $ID #####"
           nproc; free -m | sed -n 2p
-          grep -E "tokens/s|^[0-9] +[0-9.]+ s" work/bench.txt || true
+          grep -E "tokens/s|^[0-9] +[0-9.]+ s|message:" work/bench.txt || true
           cat work/toolcheck.txt || true
           grep -E "eval time|prompt eval" work/server.log | tail -3 || true
           echo "##### END SUMMARY #####"

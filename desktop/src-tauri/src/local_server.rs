@@ -39,7 +39,23 @@ pub struct Settings {
     pub threads: Option<usize>,
 }
 
-pub const DEFAULT_CONTEXT: u32 = 8192;
+/// Words of conversation held in memory. A bot's instructions and tool descriptions alone can run to
+/// thousands, so 8192 would have been tight; Gemma 4 keeps most of its memory use small at this size.
+pub const DEFAULT_CONTEXT: u32 = 16384;
+
+/// The rest of the command line, shared with the CI run that tests the real model.
+const FLAGS: &str = include_str!("../local-server-flags.json");
+
+#[derive(serde::Deserialize)]
+struct Flags {
+    flags: Vec<String>,
+}
+
+fn fixed_flags() -> Vec<String> {
+    serde_json::from_str::<Flags>(FLAGS)
+        .expect("local-server-flags.json is valid")
+        .flags
+}
 
 /// A running model.
 pub struct Running {
@@ -86,9 +102,12 @@ pub fn mint_key() -> String {
 
 /// The command line. A function of its inputs so a test can read it.
 ///
-/// `--jinja` makes the model's own chat template format tool calls; without it, tools are ignored.
-/// `--parallel 1` because the app is one person's and a second slot would halve each answer's share
-/// of the processor. `--reasoning-budget 0` because Gemma 4 otherwise thinks aloud before every answer.
+/// The flags that do not vary live in `local-server-flags.json`. `--jinja` makes the model's own chat
+/// template format tool calls; without it, tools are ignored. `--parallel 1` because the app is one
+/// person's and a second slot would halve each answer's share of the processor. `--reasoning off`
+/// because Gemma 4 otherwise thinks aloud before every answer: measured on 2026-10-16, an answer with
+/// thinking on spent all of its first 300 words thinking and had none left to answer with
+/// (`--reasoning-budget 0` did not stop it).
 pub fn arguments(settings: &Settings, port: u16, api_key: &str) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec![
         "-m".into(),
@@ -101,15 +120,10 @@ pub fn arguments(settings: &Settings, port: u16, api_key: &str) -> Vec<OsString>
         port.to_string().into(),
         "--api-key".into(),
         api_key.into(),
-        "--jinja".into(),
         "--ctx-size".into(),
         settings.context.to_string().into(),
-        "--parallel".into(),
-        "1".into(),
-        "--reasoning-budget".into(),
-        "0".into(),
-        "--no-webui".into(),
     ];
+    args.extend(fixed_flags().into_iter().map(OsString::from));
     if let Some(threads) = settings.threads {
         args.push("--threads".into());
         args.push(threads.to_string().into());
@@ -395,9 +409,11 @@ mod tests {
         assert_eq!(after(&args, "--port").as_deref(), Some("51234"));
         assert_eq!(after(&args, "--api-key").as_deref(), Some("KEY"));
         assert_eq!(after(&args, "--alias").as_deref(), Some("gemma-4-e4b"));
-        assert_eq!(after(&args, "--ctx-size").as_deref(), Some("8192"));
+        assert_eq!(after(&args, "--ctx-size").as_deref(), Some("16384"));
         assert_eq!(after(&args, "--parallel").as_deref(), Some("1"));
-        assert_eq!(after(&args, "--reasoning-budget").as_deref(), Some("0"));
+        // The switch that works; the budget flag was measured not to stop Gemma 4 thinking.
+        assert_eq!(after(&args, "--reasoning").as_deref(), Some("off"));
+        assert!(!args.contains(&"--reasoning-budget".to_string()));
         assert_eq!(
             after(&args, "-m").as_deref(),
             Some("/models/gemma-4-E4B_q4_0-it.gguf")

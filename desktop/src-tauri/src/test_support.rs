@@ -12,7 +12,10 @@ pub(crate) fn temp_root(label: &str) -> PathBuf {
 
 /// A web server on loopback that answers every request with `body` (200, whole file), for tests of code
 /// that downloads. Returns its address and how many requests it has served.
-#[allow(dead_code, reason = "main.rs compiles this file too and does not use it")]
+#[allow(
+    dead_code,
+    reason = "main.rs compiles this file too and does not use it"
+)]
 pub(crate) fn serve_bytes(
     body: Vec<u8>,
 ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {

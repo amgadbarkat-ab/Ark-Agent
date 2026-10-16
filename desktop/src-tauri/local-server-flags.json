@@ -1,0 +1,4 @@
+{
+  "note": "Flags the desktop passes to llama-server, besides the model, name, address, port, key and context size. Read by local_server.rs and by .github/workflows/model-smoke.yml, so the model that is tested is started the way a customer's is.",
+  "flags": ["--jinja", "--parallel", "1", "--reasoning", "off", "--no-webui"]
+}
