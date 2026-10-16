@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.6
+
 ### The setup progress panel shows how far a download has got
 
 A step that downloads something of known size, such as the model, now shows a bar, "1.3 GB of 5.2 GB · 25%"
