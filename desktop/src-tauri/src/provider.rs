@@ -24,6 +24,8 @@ pub enum Login {
     Endpoint,
     /// Browser authorization for the provider's model API, with renewable credentials.
     Oauth,
+    /// Nothing to type: ArkAgent fetches and runs the model itself (`local_setup`).
+    Managed,
 }
 
 /// One row on the model screen.
@@ -42,6 +44,9 @@ pub struct Provider {
     pub mark: Option<String>,
     /// One sentence the screen must show when this provider is chosen, and the page it links to.
     pub caution: Option<Caution>,
+    /// Shown, but cannot be chosen yet, and why. A row that is not there cannot be waited for.
+    #[serde(default)]
+    pub unavailable: Option<String>,
 }
 
 /// Something true about a provider that a person finds out too late otherwise.
@@ -53,6 +58,36 @@ pub struct Caution {
 
 pub fn catalogue() -> Vec<Provider> {
     vec![
+        /*
+         * The two ways to start with no key and no account elsewhere, ahead of the providers a person
+         * brings their own key to. Decided with the owner on 2026-10-16: at setup the person chooses to
+         * run the model on their own computer, on ArkAgent's server, or with their own key.
+         */
+        Provider {
+            id: "local".into(),
+            name: "On this computer".into(),
+            summary:
+                "Free and private. ArkAgent downloads a model once and runs it here; it works \
+                      without internet and needs no account or key."
+                    .into(),
+            logins: vec![Login::Managed],
+            mark: None,
+            caution: None,
+            unavailable: None,
+        },
+        Provider {
+            id: "ark-server".into(),
+            name: "ArkAgent's server".into(),
+            summary:
+                "Nothing to download. Answers come from a larger model that ArkAgent runs for you."
+                    .into(),
+            logins: vec![],
+            mark: None,
+            caution: None,
+            // Needs the ArkAgent cloud and a signed-in account (docs/ark/22-starter-model.md), neither of
+            // which exists yet. Shown now so the choice is already there to be waited for.
+            unavailable: Some("Arrives with your ArkAgent account.".into()),
+        },
         Provider {
             id: "openai".into(),
             name: "OpenAI".into(),
@@ -65,6 +100,7 @@ pub fn catalogue() -> Vec<Provider> {
             logins: vec![Login::ApiKey],
             mark: Some("openai".into()),
             caution: None,
+            unavailable: None,
         },
         Provider {
             id: "anthropic".into(),
@@ -83,6 +119,7 @@ pub fn catalogue() -> Vec<Provider> {
                     .into(),
                 reads_more_at: "https://code.claude.com/docs/en/legal-and-compliance".into(),
             }),
+            unavailable: None,
         },
         Provider {
             id: "google".into(),
@@ -91,6 +128,7 @@ pub fn catalogue() -> Vec<Provider> {
             logins: vec![Login::Endpoint, Login::Oauth],
             mark: None,
             caution: None,
+            unavailable: None,
         },
         Provider {
             id: "xai".into(),
@@ -99,6 +137,7 @@ pub fn catalogue() -> Vec<Provider> {
             logins: vec![Login::Endpoint, Login::Oauth],
             mark: None,
             caution: None,
+            unavailable: None,
         },
         Provider {
             id: "openai-compatible".into(),
@@ -109,6 +148,7 @@ pub fn catalogue() -> Vec<Provider> {
             // vendor's logo here would be a lie about what the row does.
             mark: None,
             caution: None,
+            unavailable: None,
         },
     ]
 }
@@ -121,7 +161,7 @@ mod tests {
     /// way in; this keeps a future one from arriving without somebody deciding it should.
     #[test]
     fn no_provider_offers_a_chat_plan_sign_in() {
-        let allowed = [Login::ApiKey, Login::Endpoint, Login::Oauth];
+        let allowed = [Login::ApiKey, Login::Endpoint, Login::Oauth, Login::Managed];
         for provider in catalogue() {
             for login in &provider.logins {
                 assert!(allowed.contains(login), "{} offers {login:?}", provider.id);
@@ -144,13 +184,40 @@ mod tests {
 
     /// Named providers stay ahead of the custom endpoint escape hatch.
     #[test]
-    fn four_named_providers_and_one_custom_endpoint() {
+    fn the_free_ways_first_then_four_named_providers_and_one_custom_endpoint() {
         let rows = catalogue();
         let ids: Vec<&str> = rows.iter().map(|provider| provider.id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["openai", "anthropic", "google", "xai", "openai-compatible"]
+            vec![
+                "local",
+                "ark-server",
+                "openai",
+                "anthropic",
+                "google",
+                "xai",
+                "openai-compatible"
+            ]
         );
+    }
+
+    /// The choice at setup: this computer, ArkAgent's server (not yet), or the person's own key.
+    #[test]
+    fn this_computer_can_be_chosen_and_arkagents_server_is_shown_but_not_yet_available() {
+        let rows = catalogue();
+        let local = rows.iter().find(|p| p.id == "local").unwrap();
+        assert_eq!(local.logins, vec![Login::Managed]);
+        assert_eq!(local.unavailable, None);
+        let server = rows.iter().find(|p| p.id == "ark-server").unwrap();
+        assert!(server.logins.is_empty());
+        assert!(server
+            .unavailable
+            .as_deref()
+            .is_some_and(|said| said.contains("ArkAgent account")));
+        // Nothing else is held back.
+        for other in rows.iter().filter(|p| p.id != "ark-server") {
+            assert_eq!(other.unavailable, None, "{}", other.id);
+        }
     }
 
     /// Every row is readable without recognising a logo.

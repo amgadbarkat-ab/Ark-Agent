@@ -111,7 +111,11 @@ pub const MODELS: [&LocalModel; 2] = [&E4B, &E2B];
 
 /// What the setup screen is told about this computer.
 #[derive(Debug, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase", tag = "kind")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "kind"
+)]
 pub enum Recommendation {
     /// This model fits.
     Model { model: &'static LocalModel },
@@ -485,6 +489,27 @@ mod tests {
             }
             other => panic!("expected TooSmall, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn the_recommendation_reaches_the_window_in_camel_case() {
+        let value = serde_json::to_value(recommend(&Machine {
+            ram_bytes: 16 * GIB,
+            cores: 8,
+        }))
+        .unwrap();
+        assert_eq!(value["kind"], "model");
+        assert_eq!(value["model"]["id"], "gemma-4-e4b");
+        assert_eq!(value["model"]["sizeBytes"], 5_154_941_280u64);
+        let small = serde_json::to_value(recommend(&Machine {
+            ram_bytes: 4 * GIB,
+            cores: 2,
+        }))
+        .unwrap();
+        assert_eq!(small["kind"], "tooSmall");
+        assert!(small["said"].as_str().unwrap().contains("8 GB"));
+        assert!(small["ramGib"].as_f64().unwrap() > 3.0);
+        assert!(small["needsGib"].as_f64().unwrap() > 6.0);
     }
 
     #[test]

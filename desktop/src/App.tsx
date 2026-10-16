@@ -899,6 +899,8 @@ function label(step: string): string {
       return "Containers";
     case "migrate":
       return "Database";
+    case "model":
+      return "Model on this computer";
     default:
       return step;
   }
