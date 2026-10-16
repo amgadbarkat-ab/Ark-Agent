@@ -181,7 +181,7 @@ describe("one computer only", () => {
 });
 
 describe("reading the release", () => {
-  test("asks for the latest, or for one tag, and refuses a tag that is not a build", async () => {
+  test("asks for the latest, or for one tag, and refuses a tag that could be a path", async () => {
     const seen: string[] = [];
     const answer = (tag: string) => async (url: string) => {
       seen.push(url);
@@ -193,8 +193,12 @@ describe("reading the release", () => {
     await fetchRelease("b9628", { fetchImpl: answer("b9628") });
     expect(seen[0]).toEndWith("/releases/latest");
     expect(seen[1]).toEndWith("/releases/tags/b9628");
+    // Either tagging scheme is a tag; a path or a quote is not.
+    expect(
+      (await fetchRelease("latest", { fetchImpl: answer("v0.7.0") })).tag_name,
+    ).toBe("v0.7.0");
     await expect(
-      fetchRelease("latest", { fetchImpl: answer("v1.2") }),
+      fetchRelease("latest", { fetchImpl: answer("../etc") }),
     ).rejects.toThrow(/Unexpected release tag/);
   });
 

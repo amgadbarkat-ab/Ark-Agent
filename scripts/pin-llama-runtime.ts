@@ -43,37 +43,37 @@ export const TARGETS: Target[] = [
     os: "windows",
     arch: "x86_64",
     backend: "cpu",
-    pattern: /^llama-b\d+-bin-win-cpu-x64\.(zip|tar\.gz)$/,
+    pattern: /^llama-[A-Za-z0-9.]+-bin-win-cpu-x64\.(zip|tar\.gz)$/,
   },
   {
     os: "windows",
     arch: "aarch64",
     backend: "cpu",
-    pattern: /^llama-b\d+-bin-win-cpu-arm64\.(zip|tar\.gz)$/,
+    pattern: /^llama-[A-Za-z0-9.]+-bin-win-cpu-arm64\.(zip|tar\.gz)$/,
   },
   {
     os: "macos",
     arch: "aarch64",
     backend: "metal",
-    pattern: /^llama-b\d+-bin-macos-arm64\.(zip|tar\.gz)$/,
+    pattern: /^llama-[A-Za-z0-9.]+-bin-macos-arm64\.(zip|tar\.gz)$/,
   },
   {
     os: "macos",
     arch: "x86_64",
     backend: "cpu",
-    pattern: /^llama-b\d+-bin-macos-x64\.(zip|tar\.gz)$/,
+    pattern: /^llama-[A-Za-z0-9.]+-bin-macos-x64\.(zip|tar\.gz)$/,
   },
   {
     os: "linux",
     arch: "x86_64",
     backend: "cpu",
-    pattern: /^llama-b\d+-bin-ubuntu-x64\.(zip|tar\.gz)$/,
+    pattern: /^llama-[A-Za-z0-9.]+-bin-ubuntu-x64\.(zip|tar\.gz)$/,
   },
   {
     os: "linux",
     arch: "aarch64",
     backend: "cpu",
-    pattern: /^llama-b\d+-bin-ubuntu-arm64\.(zip|tar\.gz)$/,
+    pattern: /^llama-[A-Za-z0-9.]+-bin-ubuntu-arm64\.(zip|tar\.gz)$/,
   },
 ];
 
@@ -104,9 +104,13 @@ export type Manifest = {
   assets: PinnedAsset[];
 };
 
-/** The release's tag, in the shape llama.cpp uses: `b` and a build number. */
+/**
+ * A release tag we are willing to put in a URL and a file name. llama.cpp tagged builds `b<number>` for
+ * years and by October 2026 was tagging `v<major>.<minor>.<patch>`; either is accepted, anything with a
+ * slash, space or quote is not.
+ */
 export function isBuildTag(tag: string): boolean {
-  return /^b\d+$/.test(tag);
+  return /^[A-Za-z0-9][A-Za-z0-9._]{0,40}$/.test(tag);
 }
 
 /**
@@ -181,7 +185,7 @@ export async function fetchRelease(
   const release = (await response.json()) as Release;
   if (!isBuildTag(release.tag_name)) {
     throw new Error(
-      `Unexpected release tag "${release.tag_name}"; expected b<number>`,
+      `Unexpected release tag "${release.tag_name}"; expected letters, digits, dots and underscores`,
     );
   }
   return release;
@@ -290,6 +294,11 @@ async function main(argv: string[]): Promise<void> {
   const only = values.get("only");
   const token = process.env.GITHUB_TOKEN || undefined;
   const release = await fetchRelease(tag, { token });
+  // Always say what was on offer: a rename upstream is then visible in the log of a run that worked,
+  // not only of one that failed.
+  console.error(
+    `Release ${release.tag_name}: ${release.assets.map((asset) => asset.name).join(", ")}`,
+  );
   const manifest = await pin(release, {
     token,
     download: !flags.has("no-download"),
