@@ -92,6 +92,9 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 - **Azure region: Europe for now** (West Europe). Microsoft lists no Greece region today; revisit when it
   does. (2026-10-15)
 - **SOC 2: dropped.** ISO 27001 is left as a low-priority item, undecided. (2026-10-15)
+- **The desktop app asks for an Ark account at first run.** The account carries the 30-day trial and the free starter
+  model, and keeps the model server's token off customers' computers. It needs the cloud account service to be
+  live, so it follows the first Azure deployment. (2026-10-16)
 - **The app's look follows openbot.run:** layout, spacing, component shapes and a dark default. BlackArk's own
   colours and the ArkAgent character stay (D8); none of OpenBot's logo, images or code is copied. (2026-10-15)
 - **Identifiers: `blackark.arkagent`** for the Android package, the iOS bundle identifier and the desktop
