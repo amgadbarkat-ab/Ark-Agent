@@ -169,15 +169,56 @@ function headers(token: string | undefined): Record<string, string> {
   return base;
 }
 
+/**
+ * The newest release that has a build for every computer asked for.
+ *
+ * "Latest release" is not the answer: llama.cpp's own latest-release marker pointed at `v0.7.0`, a
+ * release holding a single `nightly-tag.txt`, while the builds sit under their own tags. So walk the
+ * recent releases, newest first, and take the first with all the files.
+ */
+export function pickLatest(
+  releases: Release[],
+  targets: Target[] = TARGETS,
+): Release {
+  for (const release of releases) {
+    if (!isBuildTag(release.tag_name)) continue;
+    try {
+      selectAssets(release, targets);
+      return release;
+    } catch {
+      // Not this one: a marker release, or a build still being uploaded.
+    }
+  }
+  throw new Error(
+    `None of the ${releases.length} newest releases has a build for ${targets.map((t) => `${t.os}/${t.arch}`).join(", ")}. ` +
+      `Seen: ${releases.map((r) => `${r.tag_name} (${r.assets.length} files)`).join(", ")}`,
+  );
+}
+
 export async function fetchRelease(
   tag: string,
-  options: { token?: string; fetchImpl?: Fetcher } = {},
+  options: {
+    token?: string;
+    fetchImpl?: Fetcher;
+    targets?: Target[];
+  } = {},
 ): Promise<Release> {
   const send = options.fetchImpl ?? fetch;
-  const url =
-    tag === "latest"
-      ? `https://api.github.com/repos/${REPOSITORY}/releases/latest`
-      : `https://api.github.com/repos/${REPOSITORY}/releases/tags/${encodeURIComponent(tag)}`;
+  if (tag === "latest") {
+    const url = `https://api.github.com/repos/${REPOSITORY}/releases?per_page=30`;
+    const response = await send(url, { headers: headers(options.token) });
+    if (!response.ok) {
+      throw new Error(`GitHub answered ${response.status} for ${url}`);
+    }
+    const releases = (await response.json()) as (Release & {
+      draft?: boolean;
+    })[];
+    return pickLatest(
+      releases.filter((release) => !release.draft),
+      options.targets,
+    );
+  }
+  const url = `https://api.github.com/repos/${REPOSITORY}/releases/tags/${encodeURIComponent(tag)}`;
   const response = await send(url, { headers: headers(options.token) });
   if (!response.ok) {
     throw new Error(`GitHub answered ${response.status} for ${url}`);
@@ -293,7 +334,8 @@ async function main(argv: string[]): Promise<void> {
   const out = values.get("out");
   const only = values.get("only");
   const token = process.env.GITHUB_TOKEN || undefined;
-  const release = await fetchRelease(tag, { token });
+  const targets = only ? onlyTargets(only) : undefined;
+  const release = await fetchRelease(tag, { token, targets });
   // Always say what was on offer: a rename upstream is then visible in the log of a run that worked,
   // not only of one that failed.
   console.error(
@@ -303,7 +345,7 @@ async function main(argv: string[]): Promise<void> {
     token,
     download: !flags.has("no-download"),
     log: (line) => console.error(line),
-    targets: only ? onlyTargets(only) : undefined,
+    targets,
   });
   const text = render(manifest);
   if (out) writeFileSync(out, text);

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   fetchRelease,
   onlyTargets,
+  pickLatest,
   type Release,
   pin,
   reportedDigest,
@@ -181,25 +182,51 @@ describe("one computer only", () => {
 });
 
 describe("reading the release", () => {
-  test("asks for the latest, or for one tag, and refuses a tag that could be a path", async () => {
+  test("a named tag is fetched by name, and a tag that could be a path is refused", async () => {
     const seen: string[] = [];
     const answer = (tag: string) => async (url: string) => {
       seen.push(url);
       return Response.json({ tag_name: tag, assets: [] });
     };
-    expect(
-      (await fetchRelease("latest", { fetchImpl: answer("b1") })).tag_name,
-    ).toBe("b1");
     await fetchRelease("b9628", { fetchImpl: answer("b9628") });
-    expect(seen[0]).toEndWith("/releases/latest");
-    expect(seen[1]).toEndWith("/releases/tags/b9628");
-    // Either tagging scheme is a tag; a path or a quote is not.
-    expect(
-      (await fetchRelease("latest", { fetchImpl: answer("v0.7.0") })).tag_name,
-    ).toBe("v0.7.0");
+    expect(seen[0]).toEndWith("/releases/tags/b9628");
     await expect(
-      fetchRelease("latest", { fetchImpl: answer("../etc") }),
+      fetchRelease("b9628", { fetchImpl: answer("../etc") }),
     ).rejects.toThrow(/Unexpected release tag/);
+  });
+
+  test("latest is the newest release that has the builds, not the one GitHub calls latest", async () => {
+    // llama.cpp's real "latest" release was a marker holding one text file.
+    const marker: Release = {
+      tag_name: "v0.7.0",
+      assets: [{ name: "nightly-tag.txt", size: 8 }],
+    };
+    const incomplete = release(NAMES.slice(0, 2));
+    incomplete.tag_name = "b9630";
+    const builds = release();
+    const seen: string[] = [];
+    const fetchImpl = async (url: string) => {
+      seen.push(url);
+      return Response.json([marker, incomplete, builds]);
+    };
+    const chosen = await fetchRelease("latest", { fetchImpl });
+    expect(chosen.tag_name).toBe("b9628");
+    expect(seen[0]).toContain("/releases?per_page=");
+  });
+
+  test("latest for one computer accepts a release that lacks the others", () => {
+    const partial = release(["llama-b9700-bin-ubuntu-x64.tar.gz"]);
+    partial.tag_name = "b9700";
+    expect(() => pickLatest([partial])).toThrow(/None of the 1 newest/);
+    expect(pickLatest([partial], onlyTargets("linux/x86_64")).tag_name).toBe(
+      "b9700",
+    );
+  });
+
+  test("when nothing has the builds the error says what was seen", () => {
+    expect(() => pickLatest([{ tag_name: "v0.7.0", assets: [] }])).toThrow(
+      /Seen: v0\.7\.0 \(0 files\)/,
+    );
   });
 
   test("an error status is an error", async () => {
