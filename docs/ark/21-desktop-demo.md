@@ -13,8 +13,10 @@ have a minute.
    ask to turn on a Windows feature and restart once; the app says so in plain words and carries on after.
 3. It **downloads the release** (the application, its database, Ark Hub and the Bots' images) and starts it.
    The first run is the slow one: the images are large (the one the coworkers' computers run is about 500 MB compressed on its own), so allow a long first download.
-4. **Choose the AI** the coworkers use (a key the customer owns, or a sign-in with a provider that allows it).
-   Choosing starts everything, and a one-line question proves it answers.
+4. **Choose the AI** the coworkers use: **a free model on this computer** (added 2026-10-16: ArkAgent reads the
+   computer's memory, downloads Gemma 4 once, 3 to 5 GB, and runs it; no key, no account), **ArkAgent's server**
+   (listed, not available until the ArkAgent account exists), or a key the customer owns, or a sign-in with a
+   provider that allows it. Choosing starts everything, and a one-line question proves it answers.
 5. The window becomes ArkAgent itself: the same app the web service serves, running on this computer. Nothing
    asks the customer to sign in to anything, and nothing leaves the computer except what the coworkers do
    with the tools and the AI the customer connected.
@@ -155,6 +157,28 @@ Not checked, and the first real run will say:
 - The installers are unsigned, and the release pipeline has never run (no workflow has ever run on `main`).
 - The identifier is now `blackark.arkagent` (the owner's choice), so the app's data folder and keychain entries are
   named for ArkAgent; no earlier installation of this app exists, so nothing is migrated.
+
+## Trying "On this computer" on a Windows computer (added 2026-10-16)
+
+Only a real Windows computer can say whether this works, and the first run is the one to do. It needs an
+installer built from this branch (the change is not in 0.1.5). With that installed:
+
+1. Open ArkAgent and go through the screens to the model step. The first row should be **On this computer**,
+   with **ArkAgent's server** under it, greyed, saying "Arrives with your ArkAgent account."
+2. Choose **On this computer**. It should say how much memory the computer has and name the model (Gemma 4
+   E4B for 12 GB or more, E2B for 8 GB), and offer **Download** with a size.
+3. Press Download. A bar and "Downloading the model: x GB of y GB" should move; **Cancel download** should stop
+   it, and pressing Download again should carry on from where it stopped, not start over.
+4. When it says "Ready", press Continue. ArkAgent starts. Allow up to a minute on the "Model on this
+   computer" row (the model is read from disk into memory).
+5. Ask a Bot something ordinary, then something in Greek, then something that needs a tool (for example "find
+   the weather in Athens tomorrow" or "write me an email to ..."). Time the first message, and the second.
+6. Quit ArkAgent, then look in Task Manager: no `llama-server.exe` should be left running.
+
+What to write down, whatever happens: the exact words on any red message (there is a "Technical details" line
+under it; copy that too), how long the first and the second message took, the computer's memory and whether it
+has a separate graphics card, and whether Windows asked about anything (a firewall prompt, a missing
+"Visual C++" runtime). The model's own log is `.logs\local-model.log` in ArkAgent's folder.
 
 ## What is still open
 
