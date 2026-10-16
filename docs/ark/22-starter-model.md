@@ -35,9 +35,25 @@ with less memory and as the fallback. Alternate if Gemma's tool calls prove unre
 Too slow or too big for a small machine: Qwen3.5 9B and gpt-oss-20b (about 14 GB). The comparison is in the
 competitor workbook of 2026-10-15.
 
-**Check before downloading:** the model card says Apache 2.0 (decision D6 requires a permissive licence;
-Google's developer page says Apache 2.0 for Gemma 4) and that function calling is supported. The model card
-has not been read yet. Weights only from Google's or the model owner's own Hugging Face page.
+The licence (Apache 2.0, which decision D6 requires) and the tool-use claim were read from Google's model card on
+2026-10-16. Weights only from Google's own Hugging Face repositories, checked against the SHA-256 below.
+
+### The pinned files (read 2026-10-16)
+
+Google's own repositories, Apache 2.0 on the model card and in Hugging Face's metadata, both with Google's
+quantisation-aware 4-bit build, which keeps more quality at 4 bits than a plain quantisation. The model card says the
+small models have a 128K context and "native support for structured tool use", and that Gemma 4 is pre-trained on 140+
+languages with out-of-the-box support for 35+; **Greek is not named, so Greek quality has to be tested**, not assumed.
+
+| Model | Repository | File | Size in bytes | SHA-256 |
+| --- | --- | --- | --- | --- |
+| Gemma 4 E4B | `google/gemma-4-E4B-it-qat-q4_0-gguf` | `gemma-4-E4B_q4_0-it.gguf` | 5,154,941,280 | `676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee` |
+| Gemma 4 E2B | `google/gemma-4-E2B-it-qat-q4_0-gguf` | `gemma-4-E2B_q4_0-it.gguf` | 3,349,516,256 | `fa401b55b07ee70a54c6dae3903c783a6e65064312529ea57175cb5f8dec6634` |
+
+Each repository also holds an `mmproj` file for images; text work does not need it, so it is not downloaded. The
+memory the files need is the file size plus working memory and the operating system: E2B suits a computer with 8 GB,
+E4B one with 12 GB or more. Still to check by running them: that tool calls through llama.cpp are reliable with our bot
+prompt, Greek answers, and speed on a typical laptop.
 
 ## Where it runs, now
 
