@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   fetchRelease,
+  onlyTargets,
   type Release,
   pin,
   reportedDigest,
@@ -161,6 +162,21 @@ describe("pinning", () => {
     await expect(
       pin(release(NAMES, false), { download: false }),
     ).rejects.toThrow(/reports no digest/);
+  });
+});
+
+describe("one computer only", () => {
+  test("pins just the asked-for kinds, and refuses a kind that does not exist", async () => {
+    const { fetchImpl, asked } = downloads();
+    const manifest = await pin(release(), {
+      fetchImpl,
+      targets: onlyTargets("linux/x86_64"),
+    });
+    expect(manifest.assets.map((a) => a.file)).toEqual([
+      "llama-b9628-bin-ubuntu-x64.tar.gz",
+    ]);
+    expect(asked.length).toBe(1);
+    expect(() => onlyTargets("plan9/riscv")).toThrow(/--only takes/);
   });
 });
 

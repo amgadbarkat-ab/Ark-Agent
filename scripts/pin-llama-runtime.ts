@@ -199,13 +199,14 @@ export async function pin(
     fetchImpl?: Fetcher;
     download?: boolean;
     log?: (line: string) => void;
+    targets?: Target[];
   } = {},
 ): Promise<Manifest> {
   const send = options.fetchImpl ?? fetch;
   const log = options.log ?? (() => {});
   const download = options.download ?? true;
   const assets: PinnedAsset[] = [];
-  for (const { target, asset } of selectAssets(release)) {
+  for (const { target, asset } of selectAssets(release, options.targets)) {
     const reported = reportedDigest(asset);
     let sha256: string;
     let size = asset.size;
@@ -253,6 +254,20 @@ export async function pin(
   };
 }
 
+/** `--only linux/x86_64`: one kind of computer, for a run that needs one file and not six. */
+export function onlyTargets(spec: string): Target[] {
+  const wanted = spec.split(",").map((part) => part.trim());
+  const chosen = TARGETS.filter((target) =>
+    wanted.includes(`${target.os}/${target.arch}`),
+  );
+  if (chosen.length !== wanted.length) {
+    throw new Error(
+      `--only takes os/arch pairs from: ${TARGETS.map((t) => `${t.os}/${t.arch}`).join(", ")}`,
+    );
+  }
+  return chosen;
+}
+
 export function render(manifest: Manifest): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
@@ -272,12 +287,14 @@ async function main(argv: string[]): Promise<void> {
   }
   const tag = values.get("tag") ?? "latest";
   const out = values.get("out");
+  const only = values.get("only");
   const token = process.env.GITHUB_TOKEN || undefined;
   const release = await fetchRelease(tag, { token });
   const manifest = await pin(release, {
     token,
     download: !flags.has("no-download"),
     log: (line) => console.error(line),
+    targets: only ? onlyTargets(only) : undefined,
   });
   const text = render(manifest);
   if (out) writeFileSync(out, text);

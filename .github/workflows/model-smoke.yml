@@ -1,0 +1,169 @@
+# Runs the starter model for real, on a hosted runner, and reports what it does with the things a bot asks
+# of it (docs/ark/22-starter-model.md): how fast it answers, whether it answers in Greek, and how often it
+# calls a tool correctly.
+#
+# Nothing in the sandbox that builds this product can reach llama.cpp's release page or run a model, so
+# this is where "Gemma 4 works for our bots" is measured and not assumed. It downloads the pinned files,
+# checks their SHA-256 before running them, starts `llama-server` on the loopback address with a token,
+# and uses the same two scripts the owner can run on their own machine:
+# scripts/starter-model-benchmark.ts and scripts/starter-model-toolcheck.ts.
+#
+# A hosted runner has two cores and 7 GB of memory (4 and 16 for a public repository), which is a
+# slower computer than most people's. Numbers from here are therefore a floor, not a typical figure.
+# It reports and does not gate: the point is to learn, and a model that does badly is the answer.
+
+name: Model smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/model-smoke.yml
+      - scripts/starter-model-toolcheck.ts
+      - scripts/starter-model-benchmark.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: model-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: ${{ matrix.model.id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - id: gemma-4-e2b
+            repo: google/gemma-4-E2B-it-qat-q4_0-gguf
+            file: gemma-4-E2B_q4_0-it.gguf
+            bytes: 3349516256
+            sha256: fa401b55b07ee70a54c6dae3903c783a6e65064312529ea57175cb5f8dec6634
+          - id: gemma-4-e4b
+            repo: google/gemma-4-E4B-it-qat-q4_0-gguf
+            file: gemma-4-E4B_q4_0-it.gguf
+            bytes: 5154941280
+            sha256: 676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: This computer
+        run: |
+          nproc
+          free -m
+          lscpu | grep -E "Model name|Flags" | cut -c1-200
+          df -h /home/runner/work | tail -1
+
+      - name: Pin and fetch the llama.cpp build (Linux, CPU)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/llama
+          bun scripts/pin-llama-runtime.ts --tag latest --only linux/x86_64 --out work/llama-runtime.json
+          file="$(jq -r '.assets[0].file' work/llama-runtime.json)"
+          tag="$(jq -r '.tag' work/llama-runtime.json)"
+          sha="$(jq -r '.assets[0].sha256' work/llama-runtime.json)"
+          echo "Using llama.cpp $tag, $file"
+          curl -fsSL --retry 3 -o "work/$file" "https://github.com/ggml-org/llama.cpp/releases/download/$tag/$file"
+          echo "$sha  work/$file" | sha256sum -c -
+          case "$file" in
+            *.zip) unzip -q "work/$file" -d work/llama ;;
+            *.tar.gz) tar -xzf "work/$file" -C work/llama ;;
+            *) echo "unknown archive $file"; exit 1 ;;
+          esac
+          server="$(find work/llama -name llama-server -type f | head -1)"
+          test -n "$server"
+          chmod +x "$server"
+          echo "LLAMA_SERVER=$PWD/$server" >> "$GITHUB_ENV"
+          echo "LLAMA_DIR=$PWD/$(dirname "$server")" >> "$GITHUB_ENV"
+
+      - name: Fetch the model and check it
+        env:
+          REPO: ${{ matrix.model.repo }}
+          FILE: ${{ matrix.model.file }}
+          BYTES: ${{ matrix.model.bytes }}
+          SHA256: ${{ matrix.model.sha256 }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 5 -C - -o "work/$FILE" "https://huggingface.co/$REPO/resolve/main/$FILE"
+          test "$(stat -c %s "work/$FILE")" = "$BYTES"
+          echo "$SHA256  work/$FILE" | sha256sum -c -
+
+      - name: What this llama-server understands
+        run: |
+          export LD_LIBRARY_PATH="$LLAMA_DIR:${LD_LIBRARY_PATH:-}"
+          "$LLAMA_SERVER" --version 2>&1 | head -5 || true
+          "$LLAMA_SERVER" --help 2>&1 | grep -iE "reasoning|jinja|chat-template-kwargs|api-key|parallel|ctx-size|flash-attn|--host" | cut -c1-220 || true
+
+      - name: Start the model
+        env:
+          ID: ${{ matrix.model.id }}
+          FILE: ${{ matrix.model.file }}
+        run: |
+          set -euo pipefail
+          export LD_LIBRARY_PATH="$LLAMA_DIR:${LD_LIBRARY_PATH:-}"
+          extra=""
+          # Gemma 4 reasons before it answers unless told not to, which costs time and tidiness.
+          if "$LLAMA_SERVER" --help 2>&1 | grep -q -- "--reasoning-budget"; then extra="--reasoning-budget 0"; fi
+          echo "extra flags: $extra"
+          nohup "$LLAMA_SERVER" -m "work/$FILE" --alias "$ID" --host 127.0.0.1 --port 8080 \
+            --jinja --ctx-size 8192 --parallel 1 --api-key smoke-token $extra \
+            > work/server.log 2>&1 &
+          echo $! > work/server.pid
+          for i in $(seq 1 180); do
+            if curl -fsS -H "authorization: Bearer smoke-token" http://127.0.0.1:8080/health > /dev/null 2>&1; then
+              echo "ready after about $((i * 2)) s"; exit 0
+            fi
+            if ! kill -0 "$(cat work/server.pid)" 2>/dev/null; then
+              echo "the server exited"; tail -50 work/server.log; exit 1
+            fi
+            sleep 2
+          done
+          echo "the server did not become ready"; tail -50 work/server.log; exit 1
+
+      - name: Speed, English then Greek, one person
+        env:
+          ID: ${{ matrix.model.id }}
+        run: |
+          set -euo pipefail
+          for prompt in english greek; do
+            echo "=== $prompt ==="
+            bun scripts/starter-model-benchmark.ts --url http://127.0.0.1:8080/v1 --token smoke-token \
+              --model "$ID" --users 1 --max-tokens 120 --prompt "$prompt" --timeout 600
+          done
+
+      - name: Tool calls, English and Greek
+        env:
+          ID: ${{ matrix.model.id }}
+        run: |
+          set -euo pipefail
+          bun scripts/starter-model-toolcheck.ts --url http://127.0.0.1:8080/v1 --token smoke-token \
+            --model "$ID" --repeats 3 --timeout 600 | tee work/toolcheck.txt
+
+      - name: One real answer, to read
+        env:
+          ID: ${{ matrix.model.id }}
+        run: |
+          curl -fsS http://127.0.0.1:8080/v1/chat/completions \
+            -H "authorization: Bearer smoke-token" -H "content-type: application/json" \
+            -d "$(jq -n --arg m "$ID" '{model:$m,max_tokens:200,messages:[{role:"user",content:"Γράψε μια σύντομη, φιλική απάντηση σε έναν πελάτη που ρωτά πότε θα πληρωθεί το τιμολόγιό του."}]}')" \
+            | jq -r '.choices[0].message | (.reasoning_content // "") , .content'
+
+      - name: Server log
+        if: always()
+        run: tail -80 work/server.log || true
+
+      - name: Stop the model
+        if: always()
+        run: |
+          if [ -f work/server.pid ]; then kill "$(cat work/server.pid)" 2>/dev/null || true; fi
