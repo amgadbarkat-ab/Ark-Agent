@@ -152,6 +152,39 @@ DPA and in 14-data-protection.md, and say so in the privacy notice.
 
 ## What has been verified
 
+### The model, run for real (2026-10-16)
+
+By `.github/workflows/model-smoke.yml` on a hosted GitHub runner: 4 cores (AMD EPYC), 16 GB of memory, no
+graphics card, llama.cpp b11696, the pinned files checked by SHA-256 before use, started with the same
+flags the desktop uses (`desktop/src-tauri/local-server-flags.json`), thinking switched off. That is a
+modest computer, so these are numbers to expect on a plain laptop, not a fast one.
+
+| | Gemma 4 E4B (computers with 12 GB or more) | Gemma 4 E2B (computers with 8 GB) |
+| --- | --- | --- |
+| Speed of an answer | about 14.5 words ("tokens") a second | about 21 to 24 a second |
+| Time to the first word | 0.7 to 0.8 s | 0.4 to 0.8 s |
+| Tool calls right (email, web search, calendar, file; 3 rounds of 8 cases) | **24 of 24** | 21 of 24 |
+| English | 15 of 15 | 15 of 15 |
+| Greek | **9 of 9** | 6 of 9: it never called the e-mail tool when asked in Greek (0 of 3) |
+| Reading a long first message | about 8 s for 1,000 words of instructions (E2B); then the server remembers it and the next message starts at once | not measured |
+
+What that means:
+
+- **E4B is the model to ship as the default** and it did everything asked of it. E2B is the fallback for a
+  computer with 8 GB, and the screen should say it is weaker (it is, in Greek e-mail).
+- **Thinking has to be switched off with `--reasoning off`.** With `--reasoning-budget 0` the model still
+  thought aloud, and an answer spent its whole first 300 words thinking and had none left to answer with.
+  With the right switch it answers directly.
+- **Greek is good, not perfect.** The answers read naturally, and one sample had a single stray Russian word
+  in a Greek heading. A person writing for customers should read what it writes.
+- **Asked for "a short reply" it offers three options.** A bot's instructions will have to say what they want.
+- **The first message after the model starts is the slow one** when a bot sends long instructions and tool
+  descriptions: reading them at roughly 120 words a second takes about 8 s per 1,000 words on this
+  hardware, so a 4,000-word bot prompt would take about half a minute once. Not measured with the real bot
+  prompt yet.
+
+### The code
+
 - The queue: one at a time, in order, held through the whole stream, given back on cancel, error, a
   failed connection and a body-less answer; a person who walks away leaves the line; a request that waits
   too long gets a sentence and `Retry-After`; two answers at once when the operator allows it. Mutating
@@ -160,22 +193,30 @@ DPA and in 14-data-protection.md, and say so in the privacy notice.
   own connection still goes to their own address; a model run on the starter really reaches the server;
   a down server and a busy server each produce their own sentence, and the sentence does not name the address.
 - Settings: absent, defaults, every limit, a stray token, a password in the address, plain http in production.
+- Desktop, on Linux, against stand-ins: memory detection; the recommendation; the resumable download (dropped
+  connection, server that ignores the range, over-long part file, wrong size, wrong digest, cancel, offline);
+  the pinned llama.cpp (six computers, digests, unpacking that cannot write outside its folder); the server
+  (loopback only, key required, stops cleanly, stopped after a crash, a stranger with the same process id left
+  alone); the setup screen (download, progress, cancel, retry, ready, too small, "ArkAgent's server" disabled).
 
 ## What has not been done
 
-- **No model server exists**, and nothing here has run against Gemma 4 E4B. Speeds are estimates. Tool calling on
-  this model through llama.cpp is unproven.
-- **The desktop's managed local model** is in progress. Done and tested: memory detection, the pinned file list, the
-  resumable download checked against size and SHA-256 (`desktop/src-tauri/src/local_model.rs`). Not done: the
-  llama.cpp runtime itself (pinned by a CI job, see below), running it on the loopback address, registering it as the
-  person's connection, and the setup screen with the three choices. It is the "local models with detection" item in
-  05-build-plan.md, moved up to launch scope.
-- **Nothing has run against a real model.** The sandbox cannot reach llama.cpp's release page, so the engine could not
-  be fetched here; the runner is tested against a stand-in server and the real run happens on the owner's Windows
-  computer.
-- **The screen.** Settings > Models does not yet show the starter model or its queue (the endpoint is there).
-- **The desktop and a hosted starter.** A desktop must not be given a hosted model's token: with no cap, anyone who
-  read it from an installed app would have free compute. A desktop reaches a hosted model only through Ark's own cloud,
-  signed in (decided 2026-10-16: the desktop asks for an Ark account), after the first Azure deployment.
+- **Not run on Windows or macOS.** Everything above ran on Linux. The first real run is on the owner's
+  Windows computer: install, choose "On this computer", download, start, send a message. Things only that
+  run will show: the Visual C++ runtime (the sentence is written; whether it is needed is not known), the
+  engine reaching the model from inside a container as `host.docker.internal`, the speed on a real laptop.
+- **The real bot prompt and tools.** The tool tests are a fair stand-in (four tools, English and Greek) and
+  not the bot's own. The first message with the real prompt has to be timed.
+- **A model that dies while the app runs** (out of memory) is not noticed yet. The bots' next message fails
+  with a connection error.
+- **A graphics-card build for Windows** (Vulkan) would make it several times faster on a computer with a
+  card. Left out until it has been tried on real hardware.
+- **Settings > Models after setup** does not show the local model, its size, or a way to delete it.
+- **The company-hosted model (option 2)** does not exist: no server, and the desktop cannot sign in to an
+  ArkAgent account until the cloud is live. The server-side queue and gateway are built and work against any
+  OpenAI-compatible address.
+- **A desktop must not be given a hosted model's token:** with no cap, anyone who read it from an installed
+  app would have free compute. A desktop reaches a hosted model only through Ark's own cloud, signed in
+  (decided 2026-10-16: the desktop asks for an Ark account), after the first Azure deployment.
 - **Per-bot choice of the starter model** (`bot_model_choices` holds connection rows only).
 - **Usage metering** of it, which is deliberately absent.

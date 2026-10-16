@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### The desktop can run a free model on the computer itself
+
+The model screen now starts with "On this computer": ArkAgent reads how much memory the computer has,
+picks Gemma 4 E4B (12 GB or more) or E2B (8 GB), downloads it once from Google's own repository, checks it
+against a recorded SHA-256, and runs it with llama.cpp on the loopback address with a key made for that run.
+Nothing is sent anywhere and no account or key is needed. "ArkAgent's server" is listed next to it, marked
+"Arrives with your ArkAgent account", and cannot be chosen yet. Your own key or server works as before.
+Stop and Quit stop the model; a model left running by a crash is stopped at the next start. Not yet tried on
+a Windows or Mac computer (docs/ark/22-starter-model.md).
+
 ### A deployment can offer a free starter model to people who have not added one
 
 Somebody who has added no model of their own used to get "open Settings, then Models" on their first
