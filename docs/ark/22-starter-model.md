@@ -30,10 +30,17 @@ also makes the 30-day free trial cost us nothing.
 
 ## The model
 
-**Gemma 4 E4B**, Q4_K_M (about 5 GB), with **Gemma 4 E2B** (about 3 GB, faster and weaker) for computers
-with less memory and as the fallback. Alternate if Gemma's tool calls prove unreliable: Qwen3.5 4B.
-Too slow or too big for a small machine: Qwen3.5 9B and gpt-oss-20b (about 14 GB). The comparison is in the
-competitor workbook of 2026-10-15.
+Chosen by engineering on 2026-10-16 for what the bots do (follow instructions, call tools, write and summarise in the
+person's language), from the Gemma 4 family, which has an Apache 2.0 licence (decision D6) and native tool use:
+
+| Where it runs | Model | Why |
+| --- | --- | --- |
+| A customer's computer, 12 GB of memory or more (option 1) | **Gemma 4 E4B**, quantisation-aware 4-bit (about 5 GB) | The best small model that fits an ordinary laptop. |
+| A customer's computer with 8 GB (option 1) | **Gemma 4 E2B** (about 3 GB) | Faster and weaker; the only one that fits. |
+| The company's own server (option 2) | **Gemma 4 26B A4B** (about 14.4 GB; a mixture-of-experts model that uses about 4 B of its 26 B parameters per word) | Much stronger answers and tool use than E4B, and as fast as a small model because only 4 B parameters work per word. Needs a 24 GB graphics card, see below. |
+
+Alternate if Gemma's tool calls prove unreliable: Qwen3.5 4B for the small tier. Too slow or too big for the places
+above: Qwen3.5 9B and gpt-oss-20b (about 14 GB). The comparison is in the competitor workbook of 2026-10-15.
 
 The licence (Apache 2.0, which decision D6 requires) and the tool-use claim were read from Google's model card on
 2026-10-16. Weights only from Google's own Hugging Face repositories, checked against the SHA-256 below.
@@ -49,6 +56,7 @@ languages with out-of-the-box support for 35+; **Greek is not named, so Greek qu
 | --- | --- | --- | --- | --- |
 | Gemma 4 E4B | `google/gemma-4-E4B-it-qat-q4_0-gguf` | `gemma-4-E4B_q4_0-it.gguf` | 5,154,941,280 | `676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee` |
 | Gemma 4 E2B | `google/gemma-4-E2B-it-qat-q4_0-gguf` | `gemma-4-E2B_q4_0-it.gguf` | 3,349,516,256 | `fa401b55b07ee70a54c6dae3903c783a6e65064312529ea57175cb5f8dec6634` |
+| Gemma 4 26B A4B (company server only) | `google/gemma-4-26B-A4B-it-qat-q4_0-gguf` | `gemma-4-26B_q4_0-it.gguf` | 14,439,363,584 | `3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d` |
 
 Each repository also holds an `mmproj` file for images; text work does not need it, so it is not downloaded. The
 memory the files need is the file size plus working memory and the operating system: E2B suits a computer with 8 GB,
@@ -80,6 +88,58 @@ There is no free hosted model that has no ceiling and no catch. What was found o
    add-on. A hosted starter can be added later from Azure credits if the owner applies to Founders Hub; the
    queue, gateway and status route built for it work unchanged against any OpenAI-compatible address.
 
+## The choice at setup (decided 2026-10-16)
+
+At first run the desktop asks how the person wants their first model, once, and they can change it later in
+Settings, then Models:
+
+1. **On this computer** (option 1). The app reads the computer's memory, picks E4B or E2B, shows the download size
+   and what it will use, and fetches it. Free for ever, private, works offline, no queue. Slower on a modest laptop.
+   A computer with less than 8 GB is told so in a sentence and offered 2 or 3.
+2. **On ArkAgent's server** (option 2). Nothing to download; answers come from the company's Gemma 4 26B A4B.
+   Needs an Ark account (the desktop asks for one) and, while the server is shared, a queue. **Shown but not
+   selectable until the company server exists and the cloud is live**; the screen says "arrives with your ArkAgent
+   account" instead of hiding it, so the choice is already visible.
+3. **My own key or server** (OpenAI, Anthropic, Google, xAI, any compatible address). Exactly as today.
+
+The decision is stored with the rest of the person's model choice, not as a plan or a quota. Option 2 never puts a
+token on the customer's computer: it goes through Ark's cloud, signed in (below).
+
+## What the company has to run for option 2
+
+Nothing is needed for option 1. For option 2 the company needs **one machine that stays on**:
+
+| | Minimum that works | Recommended |
+| --- | --- | --- |
+| Graphics card | One NVIDIA card with **24 GB** (RTX 3090 or 4090; L4 or A10 in a rack). The model file is 14.4 GB; with working memory sources put it at about 17 to 22 GB, so 24 GB is the least that works and has little room for more than two answers at once. | **32 GB** (RTX 5090) or a 48 GB workstation card, for room to answer three or four people at once. |
+| Or, instead of a card | An Apple Silicon Mac with **48 GB** unified memory (Mac mini M4 Pro, Mac Studio). Quiet and cheap to run; slower than the card for several people at once. | Mac Studio with 64 GB. |
+| Computer | 8 cores, **64 GB** RAM, 1 TB NVMe, Ubuntu LTS | The same. |
+| Network | Wired, 100 Mbps up, a fixed address or a tunnel, a UPS | A rented dedicated server in the EU instead of a machine in an office. |
+| Software | llama.cpp's `llama-server` and the 14.4 GB file above. Nothing else; Ark's cloud is the only thing that talks to it. | |
+
+Speed, from other people's tests of this model on a 3090 or 4090 with llama.cpp at 4 bits: roughly 85 to 130
+tokens a second for one answer, which is faster than anybody reads. The sources disagree and none is ours, so it has to be
+measured with `scripts/starter-model-benchmark.ts` before launch. Gemma 4 turns a reasoning trace on by default, which
+costs time and tool-call tidiness; the server is started with it off (check the flag name in `llama-server --help`).
+
+**How many people.** One card answers a few people at the same moment, and a person is only waiting while their bot is
+generating, which is a few seconds in most turns. On those numbers one machine plausibly serves a few hundred active
+trial users; a big launch week needs a second. This is an estimate, to be replaced by the benchmark.
+
+**Buy or rent.** Buying a 24 GB card and a PC is a one-off cost in the low thousands of euros (an estimate, not a quote).
+Renting: Hetzner's GPU line was being rebuilt in October 2026 (the GEX44 can no longer be ordered, its replacement
+GEX45 is listed at about EUR 214 a month net plus a setup fee, and its graphics memory was not confirmed) so look at
+the current list before ordering; only a card with at least 24 GB is any use for this model. A rented server is a new
+sub-processor, to go in the DPA and in 14-data-protection.md before it serves a customer. Azure has 24 GB cards
+(the NVadsA10 v5 size) in West Europe, but a 24-hour GPU there costs far more than the credits cover.
+
+**The smaller alternative.** If the company wants to start smaller: a 16 GB card (RTX 4060 Ti or 5060 Ti) runs E4B,
+the same model as option 1, fast, for several people. Weaker answers; the machine is cheaper. It is the fallback if
+26B A4B cannot be afforded.
+
+**Nothing on a customer's computer holds the server's token.** With no cap, a token read out of an installed app would
+be free compute for anybody. The desktop reaches the company server only through Ark's cloud, after signing in.
+
 ## If a hosted starter is built later
 
 Run llama.cpp's server on a machine we pay for or have credits on: `llama-server -m <file>.gguf --alias
@@ -105,9 +165,14 @@ DPA and in 14-data-protection.md, and say so in the privacy notice.
 
 - **No model server exists**, and nothing here has run against Gemma 4 E4B. Speeds are estimates. Tool calling on
   this model through llama.cpp is unproven.
-- **The desktop's managed local model** (memory detection, pinned download with checksum, running and registering
-  it) is the next piece for the starter model and is not started. It is the "local models with detection" item in
+- **The desktop's managed local model** is in progress. Done and tested: memory detection, the pinned file list, the
+  resumable download checked against size and SHA-256 (`desktop/src-tauri/src/local_model.rs`). Not done: the
+  llama.cpp runtime itself (pinned by a CI job, see below), running it on the loopback address, registering it as the
+  person's connection, and the setup screen with the three choices. It is the "local models with detection" item in
   05-build-plan.md, moved up to launch scope.
+- **Nothing has run against a real model.** The sandbox cannot reach llama.cpp's release page, so the engine could not
+  be fetched here; the runner is tested against a stand-in server and the real run happens on the owner's Windows
+  computer.
 - **The screen.** Settings > Models does not yet show the starter model or its queue (the endpoint is there).
 - **The desktop and a hosted starter.** A desktop must not be given a hosted model's token: with no cap, anyone who
   read it from an installed app would have free compute. A desktop reaches a hosted model only through Ark's own cloud,
