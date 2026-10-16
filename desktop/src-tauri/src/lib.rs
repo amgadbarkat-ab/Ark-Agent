@@ -8,6 +8,7 @@ pub mod env;
 pub mod harness;
 pub mod host_access;
 pub mod install;
+pub mod local_model;
 pub mod preparation;
 pub mod problem;
 pub mod provider;
