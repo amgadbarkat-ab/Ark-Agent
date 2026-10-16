@@ -51,6 +51,14 @@ Cost: the desktop build is the expensive part on a private repository (the Mac r
 full run is on the order of a few hundred billed minutes; a free personal account has 2,000 a month. Making
 the repository public would make it free.
 
+**The allowance is tight (owner, 2026-10-16), so what runs by itself was cut.** The Desktop workflow no longer
+runs on every push to a working branch (it did, and with a pull request open it ran a second time for the pull
+request; the Mac and Windows runners are the expensive ones). It runs on every pull request and on `main`. To
+check a branch before a pull request exists, use Actions, Desktop, "Run workflow", choosing the branch. The
+model smoke test and the llama.cpp pin script are run by hand only. Each release is still a few hundred
+minutes, so cut one only when there is something to review. GitHub's own figure is under Settings, Billing and
+plans, Usage.
+
 ## Where the downloads live: the company's website
 
 **Decided by the owner (2026-10-09): customers download the app from the company's own website and nowhere
