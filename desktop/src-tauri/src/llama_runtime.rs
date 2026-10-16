@@ -508,6 +508,11 @@ mod tests {
         encoder.finish().unwrap()
     }
 
+    /// Where a test archive keeps the program: under whatever name this platform looks for.
+    fn packed_server() -> String {
+        format!("bin/{}", server_name())
+    }
+
     fn zip_of(files: &[(&str, &[u8])]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         for (path, body) in files {
@@ -526,7 +531,11 @@ mod tests {
         fs::write(
             &archive,
             tar_gz(&[
-                ("build/bin/llama-server", b"#!/bin/sh\nexit 0\n", 0o755),
+                (
+                    &format!("build/bin/{}", server_name()),
+                    b"#!/bin/sh\nexit 0\n",
+                    0o755,
+                ),
                 ("build/bin/libggml.so", b"lib", 0o644),
             ]),
         )
@@ -536,8 +545,8 @@ mod tests {
         extract(&archive, &into).unwrap();
         let server = find_server(&into).unwrap();
         assert!(
-            server.ends_with("build/bin/llama-server")
-                || server.ends_with("build\\bin\\llama-server")
+            server.ends_with(format!("build/bin/{}", server_name()))
+                || server.ends_with(format!("build\\bin\\{}", server_name()))
         );
         assert_eq!(fs::read(into.join("build/bin/libggml.so")).unwrap(), b"lib");
         #[cfg(unix)]
@@ -665,7 +674,7 @@ mod tests {
 
     #[test]
     fn installs_by_digest_unpacks_checks_and_does_not_fetch_twice() {
-        let archive = tar_gz(&[("bin/llama-server", b"#!/bin/sh\nexit 0\n", 0o755)]);
+        let archive = tar_gz(&[(&packed_server(), b"#!/bin/sh\nexit 0\n", 0o755)]);
         let (url, hits) = serve_once(archive.clone());
         let asset = asset_for_bytes("llama-bX-bin-ubuntu-x64.tar.gz", &archive);
         let cache = scratch("install");
@@ -692,7 +701,7 @@ mod tests {
 
     #[test]
     fn a_download_with_the_wrong_digest_is_refused_and_nothing_is_unpacked() {
-        let archive = tar_gz(&[("bin/llama-server", b"x", 0o755)]);
+        let archive = tar_gz(&[(&packed_server(), b"x", 0o755)]);
         let (url, _hits) = serve_once(archive.clone());
         let mut asset = asset_for_bytes("llama-bX-bin-ubuntu-x64.tar.gz", &archive);
         asset.sha256 = "0".repeat(64);
@@ -740,7 +749,7 @@ mod tests {
 
     #[test]
     fn a_program_that_will_not_start_is_refused_and_not_kept() {
-        let archive = tar_gz(&[("bin/llama-server", b"x", 0o755)]);
+        let archive = tar_gz(&[(&packed_server(), b"x", 0o755)]);
         let (url, _hits) = serve_once(archive.clone());
         let asset = asset_for_bytes("llama-bX-bin-ubuntu-x64.tar.gz", &archive);
         let cache = scratch("wont-start");
