@@ -427,7 +427,9 @@ pub fn compose(
          */
         if !matches!(
             model.credential,
-            ModelCredential::Compatible { .. } | ModelCredential::ProviderOAuth { .. }
+            ModelCredential::Compatible { .. }
+                | ModelCredential::Local { .. }
+                | ModelCredential::ProviderOAuth { .. }
         ) {
             for key in ["BOT_MODEL", "AGENT_BOT_MODEL"] {
                 env.remove(key);
@@ -477,6 +479,12 @@ pub fn compose(
             env.insert("AGENT_BOT_MODEL".into(), model.clone());
         }
         ModelCredential::Compatible {
+            base_url,
+            container_base_url,
+            api_key,
+            model: name,
+        }
+        | ModelCredential::Local {
             base_url,
             container_base_url,
             api_key,
@@ -830,6 +838,16 @@ pub enum ModelCredential {
     },
     /// Anything that speaks the OpenAI wire format, at an address the person gave.
     Compatible {
+        base_url: String,
+        container_base_url: Option<String>,
+        api_key: String,
+        model: String,
+    },
+    /// The model ArkAgent runs on this computer (`local_setup`). Written exactly as a compatible endpoint
+    /// is, because to the bots it is one; kept apart so that nothing about it is remembered as an
+    /// endpoint the person typed. Its address and key are new on every start and are never offered
+    /// back to the person.
+    Local {
         base_url: String,
         container_base_url: Option<String>,
         api_key: String,
@@ -2373,6 +2391,55 @@ mod model_tests {
             Some(&"https://models.example/v1".to_string())
         );
         assert_eq!(env.get("OPENAI_CONTAINER_BASE_URL"), Some(&String::new()));
+    }
+
+    #[test]
+    fn the_model_on_this_computer_is_written_exactly_as_a_compatible_endpoint_is() {
+        let fields = (
+            "http://127.0.0.1:51234/v1",
+            "http://host.docker.internal:51234/v1",
+            "per-run-key",
+            "gemma-4-e4b",
+        );
+        let compose_for = |credential: ModelCredential| {
+            compose(
+                &Model { credential },
+                &engine(),
+                &Ports::default(),
+                &pinned(),
+                None,
+                &BTreeMap::new(),
+            )
+        };
+        let local = compose_for(ModelCredential::Local {
+            base_url: fields.0.into(),
+            container_base_url: Some(fields.1.into()),
+            api_key: fields.2.into(),
+            model: fields.3.into(),
+        });
+        let compatible = compose_for(ModelCredential::Compatible {
+            base_url: fields.0.into(),
+            container_base_url: Some(fields.1.into()),
+            api_key: fields.2.into(),
+            model: fields.3.into(),
+        });
+        // Everything else in the file is freshly minted secrets, which differ between any two calls.
+        for key in [
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENAI_CONTAINER_BASE_URL",
+            "ANTHROPIC_API_KEY",
+            "BOT_PROVIDER",
+            "BOT_MODEL",
+            "AGENT_BOT_MODEL",
+        ] {
+            assert_eq!(local.get(key), compatible.get(key), "{key}");
+        }
+        assert_eq!(local["OPENAI_BASE_URL"], fields.0);
+        assert_eq!(local["OPENAI_CONTAINER_BASE_URL"], fields.1);
+        assert_eq!(local["OPENAI_API_KEY"], fields.2);
+        assert_eq!(local["BOT_MODEL"], fields.3);
+        assert_eq!(local["AGENT_BOT_MODEL"], fields.3);
     }
 
     /// Nothing chosen writes no model keys at all, rather than empty ones.

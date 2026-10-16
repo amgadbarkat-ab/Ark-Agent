@@ -51,6 +51,7 @@ impl BundledBots {
         match credential {
             ModelCredential::OpenAi { .. }
             | ModelCredential::Compatible { .. }
+            | ModelCredential::Local { .. }
             | ModelCredential::ProviderOAuth { .. } => Self::openai_compatible(),
             ModelCredential::Anthropic { .. } => Self::anthropic(),
             ModelCredential::None => Self::none(),

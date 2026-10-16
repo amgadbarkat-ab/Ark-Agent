@@ -37,6 +37,8 @@ pub enum ModelIntent {
     /// Retired: see `Category::ClaudePlan`.
     ChatGptPlan,
     CompatibleEndpoint,
+    /// The model ArkAgent runs on this computer. Carries no key or address: both are new each start.
+    LocalModel,
     GoogleOauth,
     XaiOauth,
 }
@@ -122,7 +124,11 @@ impl SavedIntent {
         }
         self.categories.remove(&Category::GoogleOauth);
         self.categories.remove(&Category::XaiOauth);
-        if matches!(credential, ModelCredential::ProviderOAuth { .. }) {
+        // The local model's per-run key sits in the same slot as a first-party key, and is not one.
+        if matches!(
+            credential,
+            ModelCredential::ProviderOAuth { .. } | ModelCredential::Local { .. }
+        ) {
             self.categories.remove(&Category::OpenAiApiKey);
         }
         if matches!(credential, ModelCredential::None) {
@@ -134,6 +140,7 @@ impl SavedIntent {
             ModelCredential::OpenAi { .. } => ModelIntent::OpenAiApiKey,
             ModelCredential::Anthropic { .. } => ModelIntent::AnthropicApiKey,
             ModelCredential::Compatible { .. } => ModelIntent::CompatibleEndpoint,
+            ModelCredential::Local { .. } => ModelIntent::LocalModel,
             ModelCredential::ProviderOAuth { provider, .. } => {
                 if provider == "google" {
                     self.categories.insert(Category::GoogleOauth);
@@ -664,6 +671,47 @@ mod tests {
                 .is_none());
             std::fs::remove_dir_all(root).unwrap();
         }
+    }
+
+    #[test]
+    fn the_local_model_is_remembered_as_a_choice_and_never_as_a_key_or_an_endpoint() {
+        let (root, mut secrets, _) = fixture("local-model-intent");
+        // A previous typed endpoint with a key, which choosing the local model must retire.
+        let endpoint = ModelCredential::Compatible {
+            base_url: "https://model.example/v1".into(),
+            container_base_url: None,
+            api_key: "synthetic-endpoint-key".into(),
+            model: "model".into(),
+        };
+        persist_configuration(&root, &BTreeMap::new(), &secrets, &secrets, &endpoint).unwrap();
+        assert!(SavedIntent::read(&root).has_compatible_key_for("https://model.example/v1"));
+
+        // The per-run key travels in the slot a first-party OpenAI key uses.
+        secrets.insert("OPENAI_API_KEY".into(), "per-run-key".into());
+        let local = ModelCredential::Local {
+            base_url: "http://127.0.0.1:51234/v1".into(),
+            container_base_url: Some("http://host.docker.internal:51234/v1".into()),
+            api_key: "per-run-key".into(),
+            model: "gemma-4-e4b".into(),
+        };
+        persist_configuration(&root, &BTreeMap::new(), &secrets, &secrets, &local).unwrap();
+        let recorded = SavedIntent::read(&root);
+        assert_eq!(recorded.model, Some(ModelIntent::LocalModel));
+        assert!(!recorded.categories.contains(&Category::OpenAiApiKey));
+        assert!(!recorded
+            .categories
+            .contains(&Category::CompatibleEndpointApiKey));
+        assert_eq!(recorded.compatible_endpoint, None);
+        assert!(!recorded.has_compatible_key_for("http://127.0.0.1:51234/v1"));
+        // The typed endpoint's saved key is gone, and what is written down names no address or key.
+        assert!(crate::vault::recall(&root, COMPATIBLE_CREDENTIAL)
+            .unwrap()
+            .is_none());
+        let on_disk = std::fs::read_to_string(root.join(FILE)).unwrap();
+        assert!(on_disk.contains("local-model"), "{on_disk}");
+        assert!(!on_disk.contains("51234"), "{on_disk}");
+        assert!(!on_disk.contains("per-run-key"), "{on_disk}");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
