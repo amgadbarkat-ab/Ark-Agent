@@ -57,12 +57,15 @@ const TIER_GROUPS: { tier: ModelProviderTier; label: string }[] = [
 export function ModelDialog({
   catalogue,
   connection,
+  initialProviderId,
   onOpenChange,
   open,
 }: {
   catalogue: ModelCatalogue;
   /** The connection being changed. Absent means a new one is being added. */
   connection?: ModelConnection;
+  /** For a new one: the provider to start on, when it was chosen from the list of what is available. */
+  initialProviderId?: string;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
@@ -73,7 +76,8 @@ export function ModelDialog({
         <ModelForm
           catalogue={catalogue}
           connection={connection}
-          key={connection?.id ?? "new"}
+          initialProviderId={initialProviderId}
+          key={connection?.id ?? `new-${initialProviderId ?? ""}`}
           onDone={() => onOpenChange(false)}
         />
       </DialogContent>
@@ -88,15 +92,18 @@ function usable(providers: ModelProvider[]) {
 function ModelForm({
   catalogue,
   connection,
+  initialProviderId,
   onDone,
 }: {
   catalogue: ModelCatalogue;
   connection?: ModelConnection;
+  initialProviderId?: string;
   onDone: () => void;
 }) {
   const editing = connection !== undefined;
   const choices = usable(catalogue.providers);
-  const first = choices[0];
+  const first =
+    choices.find((provider) => provider.id === initialProviderId) ?? choices[0];
 
   const create = useMutation(createModelConnectionMutationOptions(queryClient));
   const update = useMutation(updateModelConnectionMutationOptions(queryClient));

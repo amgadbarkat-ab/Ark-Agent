@@ -414,6 +414,13 @@
       "when": 1791533170250,
       "tag": "0058_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792316244703,
+      "tag": "0059_agent_avatar_image",
+      "breakpoints": true
     }
   ]
 }

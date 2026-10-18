@@ -406,6 +406,25 @@ describe("agent profile store integration", () => {
     expect(preference?.hiddenAt).toBeNull();
   });
 
+  test("an owner can set and clear the coworker's picture and nobody else can", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const source = await createProfileFixture({ owner, visibility: "public" });
+    const png = "data:image/png;base64,iVBORw0KGgo=";
+
+    expect(
+      (await store.setAvatarImage(owner, source.agentId, png)).avatarImage,
+    ).toBe(png);
+    // It travels with the profile, so everyone who can see the coworker sees the picture.
+    expect((await store.get(other, source.agentId))?.avatarImage).toBe(png);
+    await expect(
+      store.setAvatarImage(other, source.agentId, null),
+    ).rejects.toBeInstanceOf(AgentNotManageableError);
+    expect(
+      (await store.setAvatarImage(owner, source.agentId, null)).avatarImage,
+    ).toBeNull();
+  });
+
   test("takes the endpoint and ignores every field a caller must not set", async () => {
     const owner = await createUser();
     const deploymentPackage = await createPackage();

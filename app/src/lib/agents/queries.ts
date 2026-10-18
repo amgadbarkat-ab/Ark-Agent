@@ -18,6 +18,8 @@ export type AgentProfile = {
   title: string;
   roleDescription: string;
   avatarSeed: string;
+  /** The picture its owner chose, as a small `data:` image. Null is the default icon. */
+  avatarImage: string | null;
   visibility: AgentVisibility;
   runLocation: RunLocation;
   /** Where this coworker runs. Null for the Bot in the box. */

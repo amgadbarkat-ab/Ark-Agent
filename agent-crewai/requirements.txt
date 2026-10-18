@@ -1,2 +1,6 @@
 ag-ui-crewai
+# litellm 1.106 imports types that only exist in mcp 2.2 and later, and crewai installs an older mcp, so every
+# model call through litellm fails with "cannot import name 'CacheableResult' from 'mcp.types'". Hold it on the
+# last line that does not need them until crewai moves to mcp 2.
+litellm<1.106
 uvicorn[standard]

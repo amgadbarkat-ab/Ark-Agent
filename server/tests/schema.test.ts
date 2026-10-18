@@ -259,6 +259,13 @@ describe("OpenBot database schema", () => {
         hasDefault: false,
         primary: false,
       },
+      // The owner's own picture. Null is the default icon.
+      {
+        name: "avatar_image",
+        notNull: false,
+        hasDefault: false,
+        primary: false,
+      },
       {
         name: "visibility",
         notNull: true,

@@ -8,6 +8,34 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### ArkAgent opens dark, and can be switched to light
+
+Dark is now the default for everyone who has not chosen otherwise; Settings, Preferences, "Dark theme" turns it
+off. The colours were moved towards Grok and openbot.run (warm near-black and off-white, rounder shapes), with a
+little of BlackArk's Ember: selected text, focus rings, the send button and switches. This is the first pass on
+colour and shape; the layout of individual screens has not been redrawn yet.
+
+### The ArkAgent character is the icon
+
+The application icon (Windows, macOS, Android, iOS and the installable web app), the logo at the top left of the
+app and every coworker's default picture are now the character's face, cut from the portrait the owner supplied.
+
+### A coworker can have its own icon
+
+A coworker's General settings have an Icon row: choose a PNG, JPEG or WebP picture, or go back to the default.
+The picture is cropped to a square and shrunk to 128 pixels before it is stored. Only the coworker's owner (or an
+administrator) can change it. The database gains one column, added automatically at the next start.
+
+### The Your agents page scrolls
+
+With more than a handful of agents the rest could not be reached or switched on. The page now scrolls.
+
+### Settings, Models lists what can be added
+
+The page was only an Add button until a model was connected. It now lists every model provider on offer, with a
+button to add each one. A connection test to Ollama, LM Studio or llama.cpp that fails now says that it is a
+program installed and started on the computer, not part of ArkAgent, and which address was tried.
+
 ## 0.1.6
 
 ### The setup progress panel shows how far a download has got

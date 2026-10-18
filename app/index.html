@@ -8,19 +8,20 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#1a1918" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="ArkAgent" />
     <!-- Sets the theme before the first paint. Must stay inline and classic: `defer` or `type="module"` runs too late. -->
     <script>
-      // localStorage throws in some privacy modes; a theme is not worth taking the app down for.
+      // Dark unless the person chose light in Settings. localStorage throws in some privacy modes; a
+      // theme is not worth taking the app down for, so dark stands.
+      let dark = true;
       try {
-        const dark = window.localStorage.getItem("openbot-theme") === "dark";
-        document.documentElement.classList.toggle("dark", dark);
-        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        dark = window.localStorage.getItem("openbot-theme") !== "light";
       } catch {}
+      document.documentElement.classList.toggle("dark", dark);
+      document.documentElement.style.colorScheme = dark ? "dark" : "light";
     </script>
   </head>
   <body>

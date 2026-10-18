@@ -10,6 +10,7 @@ function agent(id: string, name = id): AgentProfile {
   return {
     runLocation: "cloud",
     avatarSeed: id,
+    avatarImage: null,
     builtIn: id === "general-assistant",
     canManage: true,
     endpoint: id === PICKED_HARNESS_AGENT_ID ? "http://127.0.0.1:4201" : null,

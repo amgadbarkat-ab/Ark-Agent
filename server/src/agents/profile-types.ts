@@ -20,6 +20,8 @@ export type AgentProfile = {
   title: string;
   roleDescription: string;
   avatarSeed: string;
+  /** The picture its owner chose, as a small `data:` image, or null for the default. */
+  avatarImage: string | null;
   visibility: AgentVisibility;
   runLocation: RunLocation;
   ownerUserId: string | null;

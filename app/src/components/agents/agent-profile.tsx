@@ -71,7 +71,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
       <header className="flex flex-col items-center gap-3 text-center">
         <AbstractAvatar
           name={profile.name}
-          seed={profile.avatarSeed}
+          image={profile.avatarImage}
           size={80}
         />
         <div className="flex w-full flex-col items-center gap-0.5">

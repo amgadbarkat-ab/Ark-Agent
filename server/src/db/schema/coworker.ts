@@ -39,6 +39,11 @@ export const agentProfiles = pgTable(
     title: text("title").notNull(),
     roleDescription: text("role_description").notNull(),
     avatarSeed: text("avatar_seed").notNull(),
+    /**
+     * A picture the owner chose for this coworker, as a small `data:` image (see `avatar-image.ts`).
+     * Null means the default, which the app draws itself.
+     */
+    avatarImage: text("avatar_image"),
     visibility: agentVisibility("visibility").notNull(),
     /**
      * Whose account this coworker belongs to. Null for the platform's own (the ones a deployment

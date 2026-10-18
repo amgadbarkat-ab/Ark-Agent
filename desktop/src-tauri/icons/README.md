@@ -1,10 +1,10 @@
 # Desktop icons
 
-These are Ark's icons, made from the company's app tile (an ember square with three ascending bars; see
+These are ArkAgent's icons, made from the character's portrait (`brand/arkagent/icon-source.webp`; see
 [`brand/README.md`](../../../brand/README.md)). Nothing here is drawn by hand.
 
-`icon.png` is the 1024×1024 master: the tile with a margin of one sixteenth of the width on every side
-and transparent corners. It is written by `brand/render-icons.mjs`. Every other file in this folder is
+`icon.png` is the 1024×1024 master: the character's head in a rounded square with a margin of 6% of the width on
+every side and transparent corners. It is written by `brand/render-icons.mjs`. Every other file in this folder is
 made from it by Tauri's own icon command, which knows each platform's formats and sizes:
 
 ```sh

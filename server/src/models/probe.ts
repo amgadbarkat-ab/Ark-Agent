@@ -153,7 +153,10 @@ export async function probeConnection(input: {
     }
     return {
       ok: false,
-      reason: `Could not reach ${provider.name}. Check the address, and that the server is running.`,
+      reason:
+        provider.tier === "local"
+          ? `Could not reach ${provider.name} at ${input.baseUrl}. ${provider.name} is a program you install and start yourself on this computer, and nothing answered there. Start it, or check the address.`
+          : `Could not reach ${provider.name}. Check the address, and that the server is running.`,
     };
   } finally {
     clearTimeout(timer);

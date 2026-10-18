@@ -140,7 +140,7 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
               <ItemMedia>
                 <AbstractAvatar
                   name={candidate.name}
-                  seed={candidate.avatarSeed}
+                  image={candidate.avatarImage}
                   size={28}
                 />
               </ItemMedia>

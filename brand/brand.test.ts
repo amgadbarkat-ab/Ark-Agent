@@ -90,24 +90,18 @@ describe("the brand pack", () => {
 });
 
 describe("the icons", () => {
-  test("the web app's 192 and home-screen icons are the company's own files", () => {
-    expect(
-      read("app", "public", "icons", "icon-192.png").equals(
-        read("brand", "official", "favicon-192.png"),
-      ),
-    ).toBe(true);
-    expect(
-      read("app", "public", "icons", "apple-touch-icon.png").equals(
-        read("brand", "official", "apple-touch-icon.png"),
-      ),
-    ).toBe(true);
-  });
-
   test("the web app has every size its manifest promises", () => {
     expect(png("app", "public", "icons", "icon-512.png")).toMatchObject({
       width: 512,
       height: 512,
     });
+    expect(png("app", "public", "icons", "icon-192.png")).toMatchObject({
+      width: 192,
+      height: 192,
+    });
+    expect(png("app", "public", "icons", "apple-touch-icon.png")).toMatchObject(
+      { width: 180, height: 180 },
+    );
     expect(
       png("app", "public", "icons", "icon-maskable-512.png"),
     ).toMatchObject({ width: 512, height: 512 });
@@ -118,13 +112,21 @@ describe("the icons", () => {
     }
   });
 
+  test("the app draws the character's icon, which is the one the owner supplied", () => {
+    const icon = read("app", "public", "brand", "arkagent-icon.jpg");
+    expect(icon[0] === 0xff && icon[1] === 0xd8).toBe(true);
+    const source = read("brand", "arkagent", "icon-source.webp");
+    expect(source.subarray(0, 4).toString("latin1")).toBe("RIFF");
+    expect(source.subarray(8, 12).toString("latin1")).toBe("WEBP");
+  });
+
   test("the maskable icon is full-bleed, so a launcher's mask never shows a corner", () => {
     // Colour type 2 is RGB with no alpha channel: every pixel is painted.
     expect(
       png("app", "public", "icons", "icon-maskable-512.png").colourType,
     ).toBe(2);
-    expect(text("app", "public", "icons", "icon-maskable.svg")).not.toMatch(
-      /rx="28"/,
+    expect(text("app", "public", "icons", "icon-maskable.svg")).not.toContain(
+      "clipPath",
     );
   });
 
@@ -134,57 +136,21 @@ describe("the icons", () => {
     ).toBeNull();
   });
 
-  test("the Android adaptive icon is the company's ember with the bars on it", () => {
+  test("the Android adaptive icon is the character on the picture's own dark", () => {
     const res = ["mobile", "android", "app", "src", "main", "res"];
     const background = text(...res, "values", "ic_launcher_background.xml");
-    expect(background).toContain(EMBER);
-    const foreground = text(...res, "drawable", "ic_launcher_foreground.xml");
-    expect(foreground).toContain(`android:fillColor="${INK}"`);
-    // Three bars.
-    expect(foreground.match(/<path/g)?.length).toBe(3);
+    expect(background).toMatch(/>#[0-9a-f]{6}</);
+    expect(
+      png(...res, "drawable-xxxhdpi", "ic_launcher_foreground.png"),
+    ).toMatchObject({ width: 432, height: 432 });
     const adaptive = text(...res, "mipmap-anydpi-v26", "ic_launcher.xml");
     expect(adaptive).toContain("@color/ic_launcher_background");
     expect(adaptive).toContain("@drawable/ic_launcher_foreground");
-    // Android 13 themed icons.
-    expect(adaptive).toContain("<monochrome");
-  });
-
-  test("the Android bars stay inside the circle every launcher mask shows", () => {
-    const foreground = text(
-      "mobile",
-      "android",
-      "app",
-      "src",
-      "main",
-      "res",
-      "drawable",
-      "ic_launcher_foreground.xml",
-    );
-    // The canvas is 108 and the part always shown is a circle of 66 about its middle (radius 33).
-    const corners: Array<[number, number]> = [];
-    for (const path of foreground.matchAll(/pathData="([^"]+)"/g)) {
-      // The paths are made of M, H, V and A with absolute coordinates; follow the pen.
-      let x = 0;
-      let y = 0;
-      for (const [, command, args] of path[1].matchAll(
-        /([MHVAZ])([^MHVAZ]*)/g,
-      )) {
-        const n = args
-          .trim()
-          .split(/[\s,]+/)
-          .filter(Boolean)
-          .map(Number);
-        if (command === "M") [x, y] = n as [number, number];
-        if (command === "H") x = n[0];
-        if (command === "V") y = n[0];
-        if (command === "A") [x, y] = [n[5], n[6]];
-        corners.push([x, y]);
-      }
-    }
-    expect(corners.length).toBeGreaterThan(0);
-    for (const [x, y] of corners) {
-      expect(Math.hypot(x - 54, y - 54)).toBeLessThanOrEqual(33);
-    }
+    // A picture has no silhouette for Android 13 to tint, so there is no themed layer.
+    expect(adaptive).not.toContain("<monochrome");
+    expect(
+      existsSync(join(root, ...res, "drawable", "ic_launcher_foreground.xml")),
+    ).toBe(false);
   });
 
   test("the characters' crops are the same pictures wherever they are used", () => {
