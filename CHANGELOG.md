@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.9
+
 ### Requests: a digital employee asks before it changes a colleague's work
 
 A new Requests screen (and a count in the sidebar) holds changes one digital employee wants made to another's routines,
