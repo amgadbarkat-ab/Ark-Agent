@@ -152,3 +152,10 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 - **The model is shown the recent conversation, not all of it (2026-10-18, from the owner's cost question).** Last 12 turns,
   old tool results shortened, oldest turns dropped over a budget, with a note to the model when anything was left out. Limits
   are settings. Tradeoff accepted: a long conversation forgets its start.
+- **The lead looks after the team; the owner decides what changes (2026-10-18, from the owner's list).** The lead may read
+  and switch off a colleague's routine and ask a colleague for work. Anything that changes or deletes a colleague's routine,
+  memory or instructions is a request the owner approves; nothing is applied before. Requests lapse after seven days.
+- **One team channel per person (2026-10-18).** The person talks to the lead; the lead brings colleagues in. Colleagues may
+  ask each other in that room, within the hand-off depth cap.
+- **Memories are short, counted, readable and deletable (2026-10-18).** 500 characters, 100 per employee, 30 in a run. No
+  secrets, and the audit trail never holds the text.

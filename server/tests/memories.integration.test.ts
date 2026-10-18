@@ -191,6 +191,37 @@ describe("what a digital employee keeps in mind", () => {
     ).rejects.toThrow("Forget one first");
   });
 
+  test("two adds at the same moment cannot take it past a hundred", async () => {
+    const owner = await person();
+    const ana = await employee(owner, "Ana");
+    for (let index = 0; index < MAX_MEMORIES_PER_AGENT - 1; index += 1) {
+      await store.add({
+        ownerUserId: owner.id,
+        agentId: ana.id,
+        content: `Fact ${index}`,
+        source: "agent",
+      });
+    }
+    const both = await Promise.allSettled([
+      store.add({
+        ownerUserId: owner.id,
+        agentId: ana.id,
+        content: "A",
+        source: "agent",
+      }),
+      store.add({
+        ownerUserId: owner.id,
+        agentId: ana.id,
+        content: "B",
+        source: "agent",
+      }),
+    ]);
+    expect(both.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+    expect(await store.list(owner.id, ana.id)).toHaveLength(
+      MAX_MEMORIES_PER_AGENT,
+    );
+  });
+
   test("correcting and deleting work, and the trail records who and which, never the text", async () => {
     const owner = await person();
     const ana = await employee(owner, "Ana");

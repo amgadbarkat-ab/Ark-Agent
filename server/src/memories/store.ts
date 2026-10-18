@@ -193,26 +193,33 @@ export function createMemoryStore(
           "Only a digital employee's owner can give it memories.",
         );
       }
-      const [{ held } = { held: 0 }] = await database
-        .select({ held: sql<number>`count(*)::int` })
-        .from(agentMemories)
-        .where(eq(agentMemories.agentId, agentId));
-      if (held >= MAX_MEMORIES_PER_AGENT) {
-        throw new MemoryRefusedError(
-          `${MAX_MEMORIES_PER_AGENT} memories is the most one digital employee keeps. Forget one first.`,
+      // The count and the insert are one step: without the lock, two replicas adding at once would each
+      // see ninety-nine and both write, and the cap would be a suggestion.
+      const row = await database.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`memories:${agentId}`}))`,
         );
-      }
-      const id = `mem_${crypto.randomUUID()}`;
-      const [row] = await database
-        .insert(agentMemories)
-        .values({
-          id,
-          agentId,
-          ownerUserId,
-          content: content.trim(),
-          source,
-        })
-        .returning(select);
+        const [{ held } = { held: 0 }] = await transaction
+          .select({ held: sql<number>`count(*)::int` })
+          .from(agentMemories)
+          .where(eq(agentMemories.agentId, agentId));
+        if (held >= MAX_MEMORIES_PER_AGENT) {
+          throw new MemoryRefusedError(
+            `${MAX_MEMORIES_PER_AGENT} memories is the most one digital employee keeps. Forget one first.`,
+          );
+        }
+        const [inserted] = await transaction
+          .insert(agentMemories)
+          .values({
+            id: `mem_${crypto.randomUUID()}`,
+            agentId,
+            ownerUserId,
+            content: content.trim(),
+            source,
+          })
+          .returning(select);
+        return inserted;
+      });
       if (!row) throw new MemoryNotFoundError();
       const memory = asMemory(row);
       await audit("memory.added", ownerUserId, memory);

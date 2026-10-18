@@ -116,6 +116,11 @@ beforeAll(() => {
   globalThis.IntersectionObserver = ScrollObserver;
   globalThis.fetch = Object.assign(
     async (input: RequestInfo | URL) => {
+      // The sidebar also counts waiting requests. That is not what this test is about, and it is
+      // answered quietly rather than recorded.
+      if (String(input).startsWith("/api/approvals")) {
+        return Response.json({ pending: 0 });
+      }
       requests.push(String(input));
       return respond();
     },

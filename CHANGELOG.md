@@ -8,6 +8,31 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Requests: a digital employee asks before it changes a colleague's work
+
+A new Requests screen (and a count in the sidebar) holds changes one digital employee wants made to another's routines,
+instructions or memories. Nothing is applied until you approve it, a request nobody answers lapses after seven days, and each
+ask and decision is in the audit trail. New tables: `approvals` (migration 0062).
+
+### The lead of your team looks after it
+
+The lead can list its colleagues, read what each does and how it went, switch a colleague's routine off or on, ask a colleague
+for work, and ask you, through Requests, to change or delete a routine or memory or to rewrite a colleague's instructions. Other
+digital employees on a team can see who is on it and ask a colleague. Digital employees of one person can ask each other, without
+an administrator's grant, in the team channel; the default chain depth (`BOT_HANDOFF_MAX_DEPTH`, 1) still means a colleague the
+lead asks cannot ask a third.
+
+### A team channel
+
+The Agents page has a Team channel button once you have two digital employees. It is one channel with all of them, led by the
+lead, kept in step as you add and delete employees.
+
+### Memories
+
+Each digital employee keeps up to 100 short memories that it reads at the start of every conversation. It adds one when you ask
+it to remember something and drops its own when told; you read, add, correct and delete them on its Memories page. Passwords, keys
+and card numbers are refused. New table: `agent_memories` (migration 0063).
+
 ### A team: a primary digital employee, and every employee knows its colleagues
 
 The first digital employee a person makes now leads their team; they can choose another on its General page ("Make

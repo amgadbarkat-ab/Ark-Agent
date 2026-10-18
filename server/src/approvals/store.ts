@@ -194,31 +194,38 @@ export function createApprovalStore(
         throw new ApprovalRefusedError("A request has to say what it changes.");
       }
       await lapse(input.ownerUserId);
-      const [{ waiting } = { waiting: 0 }] = await database
-        .select({ waiting: sql<number>`count(*)::int` })
-        .from(approvals)
-        .where(
-          and(
-            eq(approvals.requestedByAgentId, input.requestedByAgentId),
-            eq(approvals.status, "pending"),
-          ),
-        );
-      if (waiting >= MAX_PENDING_PER_AGENT) {
-        throw new ApprovalRefusedError(
-          `You already have ${waiting} requests waiting for a decision. Wait for those before asking for more.`,
-        );
-      }
       const id = `apr_${crypto.randomUUID()}`;
-      await database.insert(approvals).values({
-        id,
-        ownerUserId: input.ownerUserId,
-        requestedByAgentId: input.requestedByAgentId,
-        kind: input.kind,
-        targetAgentId: input.targetAgentId ?? null,
-        targetId: input.targetId ?? null,
-        summary,
-        payload: input.payload ?? {},
-        expiresAt: new Date(now().getTime() + APPROVAL_TTL_MS),
+      // The count and the insert are one step, so a model asking ten times at once cannot take the
+      // cap with it.
+      await database.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`approvals:${input.requestedByAgentId}`}))`,
+        );
+        const [{ waiting } = { waiting: 0 }] = await transaction
+          .select({ waiting: sql<number>`count(*)::int` })
+          .from(approvals)
+          .where(
+            and(
+              eq(approvals.requestedByAgentId, input.requestedByAgentId),
+              eq(approvals.status, "pending"),
+            ),
+          );
+        if (waiting >= MAX_PENDING_PER_AGENT) {
+          throw new ApprovalRefusedError(
+            `You already have ${waiting} requests waiting for a decision. Wait for those before asking for more.`,
+          );
+        }
+        await transaction.insert(approvals).values({
+          id,
+          ownerUserId: input.ownerUserId,
+          requestedByAgentId: input.requestedByAgentId,
+          kind: input.kind,
+          targetAgentId: input.targetAgentId ?? null,
+          targetId: input.targetId ?? null,
+          summary,
+          payload: input.payload ?? {},
+          expiresAt: new Date(now().getTime() + APPROVAL_TTL_MS),
+        });
       });
       const [row] = await readOne(id);
       if (!row) throw new ApprovalNotFoundError();

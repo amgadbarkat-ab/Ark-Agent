@@ -208,6 +208,21 @@ describe("approvals", () => {
     );
   });
 
+  test("a burst of requests at the same moment cannot take it past the cap", async () => {
+    const owner = await person();
+    const lead = await employee(owner, "Ana");
+    const { store } = harness();
+    const burst = await Promise.allSettled(
+      Array.from({ length: MAX_PENDING_PER_AGENT + 5 }, () =>
+        ask(store, owner, lead),
+      ),
+    );
+    expect(burst.filter((o) => o.status === "fulfilled")).toHaveLength(
+      MAX_PENDING_PER_AGENT,
+    );
+    expect(await store.pendingCount(owner.id)).toBe(MAX_PENDING_PER_AGENT);
+  });
+
   test("a kind nobody applies is refused up front", async () => {
     const owner = await person();
     const lead = await employee(owner, "Ana");
