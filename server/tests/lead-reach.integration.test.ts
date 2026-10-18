@@ -3,9 +3,16 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
-import { createLeadReach } from "../src/agents/lead-reach";
+import { createTeamReach } from "../src/agents/lead-reach";
+import { createChannelStore } from "../src/channels/routes";
+import { createThreadIdentity } from "../src/channels/thread-identity";
 import { createDatabase } from "../src/db/client";
-import { agents, users } from "../src/db/schema";
+import {
+  agents,
+  channels,
+  intelligenceChannelMappings,
+  users,
+} from "../src/db/schema";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const database = createDatabase(testDatabaseUrl(), TEST_POOL);
@@ -21,6 +28,18 @@ const userIds: string[] = [];
 const agentIds: string[] = [];
 
 afterEach(async () => {
+  for (const userId of userIds) {
+    const made = await database
+      .select({ id: intelligenceChannelMappings.channelId })
+      .from(intelligenceChannelMappings)
+      .where(eq(intelligenceChannelMappings.userId, userId));
+    for (const row of made) {
+      await database
+        .delete(intelligenceChannelMappings)
+        .where(eq(intelligenceChannelMappings.channelId, row.id));
+      await database.delete(channels).where(eq(channels.id, row.id));
+    }
+  }
   for (const id of agentIds.splice(0)) {
     await database.delete(agents).where(eq(agents.id, id));
   }
@@ -53,7 +72,12 @@ async function employee(owner: { id: string; role: "user" }, name: string) {
   return made;
 }
 
-const leadMayAddress = createLeadReach(database);
+const leadMayAddress = createTeamReach(database);
+const channelStore = createChannelStore(
+  database,
+  profiles,
+  createThreadIdentity("test-deployment"),
+);
 
 describe("who the lead may ask without a grant", () => {
   test("the lead may ask the other employees of the same person", async () => {
@@ -98,5 +122,52 @@ describe("who the lead may ask without a grant", () => {
 
   test("not itself being unknown", async () => {
     expect(await leadMayAddress("agent_nope", "agent_nada")).toBe(false);
+  });
+});
+
+describe("who may ask whom in a room", () => {
+  test("two colleagues may ask each other in the team channel, and not outside it", async () => {
+    const owner = await person();
+    await employee(owner, "Ana");
+    const ben = await employee(owner, "Ben");
+    const cy = await employee(owner, "Cy");
+    const team = await channelStore.team(owner);
+
+    // Neither of them leads, so without the room the answer is no.
+    expect(await leadMayAddress(ben.id, cy.id)).toBe(false);
+    expect(await leadMayAddress(ben.id, cy.id, "some-other-thread")).toBe(
+      false,
+    );
+    expect(await leadMayAddress(ben.id, cy.id, team.threadId)).toBe(true);
+    expect(await leadMayAddress(cy.id, ben.id, team.threadId)).toBe(true);
+  });
+
+  test("a colleague who is not in the room may not be asked from it", async () => {
+    const owner = await person();
+    await employee(owner, "Ana");
+    const ben = await employee(owner, "Ben");
+    await employee(owner, "Cy");
+    const team = await channelStore.team(owner);
+    // Made after the room, and not yet in it until the channel is opened again.
+    const dee = await employee(owner, "Dee");
+    expect(await leadMayAddress(ben.id, dee.id, team.threadId)).toBe(false);
+    await channelStore.team(owner);
+    expect(await leadMayAddress(ben.id, dee.id, team.threadId)).toBe(true);
+  });
+
+  test("never across two people, whatever room they share", async () => {
+    const owner = await person();
+    const stranger = await person();
+    await employee(owner, "Ana");
+    const ben = await employee(owner, "Ben");
+    const theirs = await profiles.create(stranger, {
+      name: "Theirs",
+      title: "Teammate",
+      roleDescription: "Theirs works.",
+      visibility: "public",
+    });
+    agentIds.push(theirs.id);
+    const team = await channelStore.team(owner);
+    expect(await leadMayAddress(ben.id, theirs.id, team.threadId)).toBe(false);
   });
 });

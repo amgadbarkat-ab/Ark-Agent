@@ -133,7 +133,7 @@ import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
-import { createLeadReach } from "./agents/lead-reach";
+import { createTeamReach } from "./agents/lead-reach";
 import { teamTools } from "./agents/team-tools";
 import { approvalExecutors } from "./approvals/executors";
 import { createApprovalStore } from "./approvals/store";
@@ -557,14 +557,14 @@ useRoutineTools(routineStore);
  * that, because the Bot being addressed will very likely run on a different pod from the Bot that
  * addressed it, and a hop held in memory is lost the moment either is rescheduled.
  */
-const leadMayAddress = createLeadReach(database);
+const teamMayAsk = createTeamReach(database);
 
 const handoffDesk = createHandoffDesk({
   queue: createWorkQueue(database),
   profiles: agentProfileStore,
   // Read per hop and never held, so revoking a grant applies to the next hop rather than after a
   // restart.
-  mayAddress: async (fromBotId, toBotId) =>
+  mayAddress: async (fromBotId, toBotId, threadId) =>
     (
       await pluginStore
         .botsReachableFrom(fromBotId)
@@ -572,8 +572,8 @@ const handoffDesk = createHandoffDesk({
         // would let a Bot address one nobody gave it because the database blinked.
         .catch(() => [] as string[])
     ).includes(toBotId) ||
-    // The lead of a person's team may ask that person's other employees without a grant.
-    (await leadMayAddress(fromBotId, toBotId).catch(() => false)),
+    // The lead of a person's team, and employees in one room, may ask each other without a grant.
+    (await teamMayAsk(fromBotId, toBotId, threadId).catch(() => false)),
   /*
    * Deferred rather than passed directly, because `actorFor` is defined further down with the rest
    * of the run-building collaborators. It is only ever called during a hop, long after this module

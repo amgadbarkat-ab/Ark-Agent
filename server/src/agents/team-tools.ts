@@ -202,9 +202,11 @@ export async function teamTools(context: Context): Promise<GrantedTool[]> {
     owner(context.actorId),
     context.botId,
   );
-  if (!me?.primary || me.ownerUserId !== context.actorId) return [];
+  if (!me || me.ownerUserId !== context.actorId) return [];
+  // A team of one has nobody to look after or ask, and the tools would only be noise in its prompt.
+  if ((await colleaguesOf(context)).length === 0) return [];
 
-  const tools: GrantedTool[] = [
+  const everyone: GrantedTool[] = [
     {
       name: "team_list",
       ref: "team/list",
@@ -436,5 +438,14 @@ export async function teamTools(context: Context): Promise<GrantedTool[]> {
     },
   ];
 
-  return tools;
+  // Everybody on a team can see who is on it and ask a colleague; looking after the colleagues' work
+  // is the lead's alone.
+  const LEAD_ONLY = new Set([
+    "team_report",
+    "team_pause_routine",
+    "team_request_change",
+  ]);
+  return me.primary
+    ? everyone
+    : everyone.filter((tool) => !LEAD_ONLY.has(tool.name));
 }

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AgentCard } from "@/components/agents/agent-card";
 import { AgentDialog } from "@/components/agents/agent-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
+import { OpenTeamChannelButton } from "@/components/agents/open-team-channel-button";
 import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
 import { StaggerItem } from "@/components/layout/stagger";
 import { Button } from "@/components/ui/button";
@@ -63,16 +64,20 @@ function AgentsScreen() {
           <div className="mt-12 w-full max-w-2xl">
             <div className="flex flex-row w-full items-center justify-between">
               <h2 className="font-bold text-lg">Your agents</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                render={(props) => (
-                  <Link to="/agents" search={{ new: true }} {...props} />
-                )}
-              >
-                <IconPlus />
-                New agent
-              </Button>
+              <div className="flex items-start gap-1">
+                {/* A team needs somebody besides the lead. */}
+                {(mine?.length ?? 0) >= 2 ? <OpenTeamChannelButton /> : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  render={(props) => (
+                    <Link to="/agents" search={{ new: true }} {...props} />
+                  )}
+                >
+                  <IconPlus />
+                  New agent
+                </Button>
+              </div>
             </div>
             {loading ? (
               // Approximate one row of cards while the roster loads.

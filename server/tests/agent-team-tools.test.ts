@@ -131,8 +131,18 @@ describe("who is offered the team tools", () => {
     ]);
   });
 
-  test("not a colleague that does not lead", async () => {
-    expect(await harness().tools("ben")).toEqual([]);
+  test("a colleague that does not lead can see the team and ask, and nothing more", async () => {
+    expect((await harness().tools("ben")).map((t) => t.name)).toEqual([
+      "team_list",
+      "team_ask",
+    ]);
+  });
+
+  test("nobody on a team of one is offered anything", async () => {
+    const { tools } = harness({
+      roster: [profile("ana", "Ana", { primary: true })],
+    });
+    expect(await tools()).toEqual([]);
   });
 
   test("not the lead when somebody else is using it", async () => {
@@ -181,6 +191,7 @@ describe("looking at the team", () => {
     const { call } = harness({
       roster: [
         profile("ana", "Ana", { primary: true }),
+        profile("ben", "Ben"),
         profile("x", "Xavier", { ownerUserId: "someone-else" }),
       ],
     });

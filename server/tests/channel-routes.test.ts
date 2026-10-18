@@ -27,6 +27,7 @@ import {
   createChannelRoutes,
   createChannelStore,
   parseChannelInput,
+  TeamTooSmallError,
 } from "../src/channels/routes";
 import { createThreadIdentity } from "../src/channels/thread-identity";
 import { loadConfig } from "../src/config";
@@ -250,6 +251,32 @@ describe("channel routes", () => {
       ["create", actor, ["agent-1", "agent-2"]],
       ["get", actor, "channel-1"],
     ]);
+  });
+
+  test("the team channel is opened for the signed-in person, and a team of one is a 409", async () => {
+    const store = fakeStore({
+      async team(receivedActor) {
+        store.calls.push(["team", receivedActor]);
+        return channel({ name: "Your team" });
+      },
+    });
+    const opened = await appFor(store).request("http://openbot.test/team", {
+      method: "POST",
+    });
+    expect(opened.status).toBe(200);
+    expect((await json(opened)).channel.name).toBe("Your team");
+    expect(store.calls).toEqual([["team", actor]]);
+
+    const alone = fakeStore({
+      async team() {
+        throw new TeamTooSmallError();
+      },
+    });
+    const refused = await appFor(alone).request("http://openbot.test/team", {
+      method: "POST",
+    });
+    expect(refused.status).toBe(409);
+    expect((await json(refused)).error).toContain("at least two");
   });
 
   test("returns only the channel DTO for create and get", async () => {
