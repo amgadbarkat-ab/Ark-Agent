@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.8
+
 ### The marketplace has 17 digital employees, each with a real job
 
 The marketplace now offers Sales, Front Desk, Marketing, Accounting, Customer Support, Inventory and Logistics,
