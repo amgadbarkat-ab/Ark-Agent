@@ -107,7 +107,7 @@ const KIND_OPTIONS: Array<{
     value: "builtin",
     title: "Built-in",
     description:
-      "Runs on this deployment's own Bot. Nothing to host or connect — it is ready the moment it is created.",
+      "Runs on this deployment's own digital employee. Nothing to host or connect — it is ready the moment it is created.",
   },
   {
     value: "managed",
@@ -540,7 +540,7 @@ function KindStep({
               <span className="font-medium">{option.title}</span>
               <QuestionnaireChoiceDescription>
                 {unavailable
-                  ? "Not available here: this deployment has no Bot of its own for a coworker to run on."
+                  ? "Not available here: this deployment has no digital employee of its own for a coworker to run on."
                   : option.description}
               </QuestionnaireChoiceDescription>
             </QuestionnaireChoice>

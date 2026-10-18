@@ -12,6 +12,13 @@ import {
 } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
 import { Button } from "@/components/ui/button";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -58,13 +65,13 @@ function MarketplacePage() {
           Share a coworker
         </Button>
       }
-      description="Digital employees you can hire into your own account, and coworkers other people have shared as guides to read."
+      description="Digital employees you can hire into your own account, and ones other people have shared as guides to read."
       title="Marketplace"
     >
       <PageSection
         description={
           kind === "official"
-            ? "Made by Ark. Install one and it becomes a coworker of yours, with no tools until you grant them."
+            ? "Made by Ark. Add one and it becomes a digital employee of yours, with its skills and no tools until you grant them."
             : "Set up by other people. These are for reading: they cannot be installed, copied or exported."
         }
       >
@@ -129,7 +136,7 @@ function MarketplacePage() {
             {q || category
               ? "Nothing matches that."
               : kind === "shared"
-                ? "Nobody has shared a coworker yet."
+                ? "Nobody has shared a digital employee yet."
                 : "Nothing is listed yet."}
           </PageEmpty>
         ) : (
@@ -142,6 +149,29 @@ function MarketplacePage() {
             ))}
           </PageRows>
         )}
+
+        {kind === "official" && !q && !category ? (
+          <PageRows>
+            <Item
+              render={(props) => (
+                <Link search={{ new: true }} to="/agents" {...props} />
+              )}
+              size="sm"
+              variant="muted"
+            >
+              <ItemMedia variant="icon">
+                <IconPlus />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>A role you write yourself</ItemTitle>
+                <ItemDescription className="line-clamp-none">
+                  Not on the list? Describe the job in your own words and you
+                  have a digital employee for it.
+                </ItemDescription>
+              </ItemContent>
+            </Item>
+          </PageRows>
+        ) : null}
 
         {listings.hasNextPage ? (
           <Button

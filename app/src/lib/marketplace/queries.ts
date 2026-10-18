@@ -40,9 +40,23 @@ export type ListingCard = {
   version: number;
 };
 
+/** Who one of Ark's digital employees is, what it brings and what it will ask to be connected. */
+export type OfficialRole = {
+  iam: string;
+  duties: string[];
+  worksWith: string[];
+  supportedBy: string[];
+  canDo: string[];
+  skills: { slug: string; title: string; summary: string }[];
+  connections: { app: string; why: string }[];
+  mcpServers: { server: string; why: string }[];
+};
+
 export type OfficialContent = {
   install: { name: string; title: string; roleDescription: string };
   suggestedTools: string[];
+  /** Absent on a listing written before roles had one. */
+  role?: OfficialRole;
 };
 
 /** What a shared listing shows. Text only: it has no address and no key, and nothing runs from it. */

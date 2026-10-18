@@ -756,9 +756,9 @@ function ConnectionSection({
   if (!profile.endpoint || profile.builtIn) {
     return (
       <p className="text-sm text-muted-foreground">
-        Runs on this deployment's own Bot. Nothing to connect and nothing to
-        authenticate: its tool calls are covered by the deployment's own
-        credential.
+        Runs on this deployment's own digital employee. Nothing to connect and
+        nothing to authenticate: its tool calls are covered by the deployment's
+        own credential.
       </p>
     );
   }

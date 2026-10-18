@@ -161,7 +161,7 @@ function RouteComponent() {
   return (
     <PageShell
       className="max-w-4xl @container"
-      description="Connect your apps so your Bots can work with them."
+      description="Connect your apps so your digital employees can work with them."
       title="Connected accounts"
     >
       {/*

@@ -557,7 +557,7 @@ test("a completed installation can be repaired after a provider reports missing 
   expect(installations).toBe(2);
 });
 
-test("changing the Bot invalidates its completed installation", async () => {
+test("changing the digital employee invalidates its completed installation", async () => {
   useBringYourOwnHarnessSetup();
   const view = await renderApp();
   await enterInstallation(view);
@@ -1154,7 +1154,7 @@ function setupRootConfiguration(
         {
           id: "langgraph",
           name: "LangGraph",
-          summary: "Default Bot",
+          summary: "Default digital employee",
           image: null,
           health_path: null,
           credential: "any-provider",
@@ -1319,7 +1319,7 @@ function useCompatibleEndpointSetup(
         {
           id: "langgraph",
           name: "LangGraph",
-          summary: "Default Bot",
+          summary: "Default digital employee",
           image: null,
           health_path: null,
           credential: "any-provider",
@@ -1540,7 +1540,7 @@ test("Change the model after an Ask failure stops the stack and reaches the prov
         {
           id: "langgraph",
           name: "LangGraph",
-          summary: "Default Bot",
+          summary: "Default digital employee",
           image: null,
           health_path: null,
           credential: "any-provider",
@@ -1689,7 +1689,7 @@ test("saved credentials start ArkAgent without raw protected secrets on mount", 
         {
           id: "langgraph",
           name: "LangGraph",
-          summary: "Default Bot",
+          summary: "Default digital employee",
           image: null,
           health_path: null,
           credential: "any-provider",
@@ -2042,7 +2042,7 @@ function useBringYourOwnHarnessSetup() {
         {
           id: "langgraph",
           name: "LangGraph",
-          summary: "Default Bot",
+          summary: "Default digital employee",
           image: null,
           health_path: null,
           credential: "any-provider",
@@ -2117,7 +2117,9 @@ test.each([
   const continueButton = view.getByRole("button", { name: "Continue" });
   expect(continueButton).toHaveProperty("disabled", true);
   await userEvent.click(continueButton);
-  expect(view.getByRole("heading", { name: "Your first Bot" })).toBeTruthy();
+  expect(
+    view.getByRole("heading", { name: "Your first digital employee" }),
+  ).toBeTruthy();
   expect(view.queryByRole("heading", { name: "Connect your AI" })).toBeNull();
   expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(invokeCalls.filter((call) => call.command === "start_stack")).toEqual(
@@ -2395,7 +2397,7 @@ test("Start credential failures do not expose a restore action", async () => {
   ).toEqual([]);
 });
 
-test("the Enter that finishes a composed character does not ask the Bot", async () => {
+test("the Enter that finishes a composed character does not ask the digital employee", async () => {
   useCompatibleEndpointSetup({});
   const previous = invokeHandler;
   invokeHandler = async (command, args) => {

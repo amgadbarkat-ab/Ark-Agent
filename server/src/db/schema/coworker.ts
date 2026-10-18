@@ -44,6 +44,15 @@ export const agentProfiles = pgTable(
      * Null means the default, which the app draws itself.
      */
     avatarImage: text("avatar_image"),
+    /**
+     * Who this digital employee is, in full: its work, who it works with and what it can do. Written by
+     * a marketplace install and sent to the runtime in place of `roleDescription` when present.
+     *
+     * Separate from `roleDescription` on purpose. That one is a sentence or two, shown on screens and read
+     * by the router that picks a digital employee for a message, so a long one would be paid for every time
+     * any message is routed. Null means the role description is the whole instruction, as it always was.
+     */
+    persona: text("persona"),
     visibility: agentVisibility("visibility").notNull(),
     /**
      * Whose account this coworker belongs to. Null for the platform's own (the ones a deployment

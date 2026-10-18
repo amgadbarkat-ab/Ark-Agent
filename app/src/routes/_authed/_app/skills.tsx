@@ -110,7 +110,8 @@ function SkillsPage() {
         description={
           <>
             A skill is a named instruction you invoke with <code>/</code> and a
-            Bot follows. Yours are yours alone, and go on the Bots you own.
+            Digital employee follows. Yours are yours alone, and go on the
+            digital employees you own.
           </>
         }
         title="Agent Skills"
@@ -228,7 +229,7 @@ function SkillsPage() {
          */}
         {deployment.length > 0 ? (
           <PageSection
-            description="Written for everyone by an administrator. Which Bots carry them is decided in Admin."
+            description="Written for everyone by an administrator. Which digital employees carry them is decided in Admin."
             title="Workspace skills"
           >
             <PageRows>

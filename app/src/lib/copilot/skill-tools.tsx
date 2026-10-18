@@ -106,7 +106,7 @@ export function SkillTools() {
   useFrontendTool({
     name: "list_skill_tools",
     description:
-      "The `serverId/toolName` refs a skill here can declare, grouped by connector. Declaring a tool grants nothing — the offer a run gets is always the intersection of what the skill names with what the Bot was granted — so a skill may name tools for a connector this Bot does not hold yet.",
+      "The `serverId/toolName` refs a skill here can declare, grouped by connector. Declaring a tool grants nothing — the offer a run gets is always the intersection of what the skill names with what the digital employee was granted — so a skill may name tools for a connector this digital employee does not hold yet.",
     parameters: z.object({}),
     available: authoring,
     handler: async () => describeToolRefs(page?.servers ?? []),

@@ -145,7 +145,7 @@ export function agentHandoffQueryOptions(agentId: string) {
     queryKey: agentKeys.handoff(agentId),
     queryFn: (): Promise<HandoffGrants> =>
       client(`${agentApiPath(agentId)}/handoff`, "handoff", {
-        fallback: "Could not load which Bots this one may ask",
+        fallback: "Could not load which digital employees this one may ask",
       }),
   });
 }

@@ -219,8 +219,8 @@ function RouteComponent() {
             <Button
               aria-label={
                 needsYou
-                  ? "This Bot is waiting for you. Open its screen"
-                  : "Watch this Bot's screen"
+                  ? "This digital employee is waiting for you. Open its screen"
+                  : "Watch this digital employee's screen"
               }
               aria-pressed={isWatching}
               className={`relative ${isWatching ? "bg-foreground/5" : ""}`}

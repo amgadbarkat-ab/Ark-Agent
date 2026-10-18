@@ -57,7 +57,8 @@ export function Ask({
       <p className="steps-of">Last step</p>
       <h1>Ask it something.</h1>
       <p className="lede">
-        Your Bot is set up. This proves it can answer before you start using it.
+        Your digital employee is set up. This proves it can answer before you
+        start using it.
       </p>
 
       <div className="field">
@@ -90,7 +91,7 @@ export function Ask({
 
       {answer !== null && (
         <div className="answer">
-          <p className="answer-from">Your Bot said</p>
+          <p className="answer-from">Your digital employee said</p>
           <p className="answer-text">{answer}</p>
         </div>
       )}

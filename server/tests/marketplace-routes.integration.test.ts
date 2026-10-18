@@ -263,7 +263,10 @@ describe("browsing and reading", () => {
     const finance = (await (
       await call(ann, "GET", "/api/marketplace?kind=official&category=finance")
     ).json()) as { listings: Array<{ slug: string }> };
-    expect(finance.listings.map((l) => l.slug)).toEqual(["finance-assistant"]);
+    expect(finance.listings.map((l) => l.slug).sort()).toEqual([
+      "accounting",
+      "finance-assistant",
+    ]);
   });
 
   test("refuses a search it cannot understand instead of guessing", async () => {
@@ -295,7 +298,9 @@ describe("browsing and reading", () => {
         mine: boolean;
       };
     };
-    expect(listing.content.install.roleDescription).toContain("customers");
+    expect(listing.content.install.roleDescription).toContain(
+      "customer support",
+    );
     expect(listing.mine).toBe(false);
   });
 

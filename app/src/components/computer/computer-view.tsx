@@ -127,7 +127,7 @@ function NothingToSee({
 
             The picture is gone: nothing stored it, and fetching one now would show a different page.
             Naming the page is the honest version of the same sentence, and it stays true however
-            many times the Bot has browsed since.
+            many times the digital employee has browsed since.
 
             GATED ON THE TURN BEING OVER, not on whether a live frame happens to be in hand. A tile
             that was live a moment ago keeps its last screenshot in state after it settles, and this
@@ -677,7 +677,7 @@ export function ComputerView({
                 {/*
                   NOT ON A TURN THAT IS OVER. Every past turn used to carry the wheel and the
                   standing "who is driving" prose under a picture of a page it opened an hour ago,
-                  offering control of whatever the Bot has open now. Those sentences are about the
+                  offering control of whatever the digital employee has open now. Those sentences are about the
                   present and this view is a record; a record does not get a steering wheel.
                 */}
                 {settled ? null : (

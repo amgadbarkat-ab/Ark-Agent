@@ -76,7 +76,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
         {/* Offered only on a Bot holding the skill-creator skill; see skill-tools.tsx. */}
         <SkillTools />
         {/*
-          Making a coworker from a conversation. Registers nothing unless the declared Bot holds the
+          Making a coworker from a conversation. Registers nothing unless the declared digital employee holds the
           `bot-creator` skill, so most runs are not offered these four tools at all.
         */}
         <BotTools />

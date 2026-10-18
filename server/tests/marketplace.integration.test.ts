@@ -191,7 +191,7 @@ describe("Ark's own digital employees", () => {
     expect(mine?.title).toBe("Research Analyst");
     expect(mine?.visibility).toBe("private");
     expect(mine?.ownerUserId).toBe(ann.id);
-    expect(mine?.roleDescription).toContain("careful research analyst");
+    expect(mine?.roleDescription).toContain("research analyst");
 
     // Nothing was granted: tools are the person's decision, one at a time.
     const grants = await database
@@ -955,5 +955,97 @@ describe("accounts", () => {
       .from(marketplacePublishers)
       .where(eq(marketplacePublishers.id, listing.publisher.id));
     expect(publishers).toEqual([]);
+  });
+});
+
+describe("a digital employee installed from a role", () => {
+  function storeWithSkills() {
+    const calls = { installed: [] as string[], granted: [] as string[] };
+    const store = createMarketplaceStore(database, {
+      accounts,
+      profiles,
+      skills: {
+        install: async (input) => {
+          calls.installed.push(input.slug);
+          return { id: `skill-${input.slug}` };
+        },
+        grant: async (_kind, ref) => {
+          calls.granted.push(ref);
+        },
+      },
+    });
+    return { store, calls };
+  }
+
+  async function instructionOf(agentId: string) {
+    const [row] = await database
+      .select({ persona: agentProfiles.persona })
+      .from(agentProfiles)
+      .where(eq(agentProfiles.agentId, agentId));
+    return row?.persona ?? null;
+  }
+
+  test("knows who it is, names the company and brings its skills", async () => {
+    const { store, calls } = storeWithSkills();
+    const ann = await person("role-company");
+    const tenantId = await accounts.ensureTenant(ann.id);
+    await database
+      .update(tenants)
+      .set({ name: "Acme Ltd" })
+      .where(eq(tenants.id, tenantId));
+
+    const result = await store.install(ann, "marketing");
+    made.agents.push(result.agentId);
+    const prompt = await instructionOf(result.agentId);
+    expect(prompt).toContain("You are Marketing at Acme Ltd");
+    expect(prompt).toContain("marketing manager");
+    expect(prompt).toContain("/marketing-plan");
+    expect(prompt).toContain("never pretend I used it");
+    expect(prompt.toLowerCase()).not.toMatch(/\bbots?\b/);
+
+    const role = OFFICIAL_LISTINGS.find((l) => l.slug === "marketing")?.role;
+    expect(calls.installed).toEqual(role?.skills.map((skill) => skill.slug));
+    expect(calls.granted).toEqual(
+      calls.installed.map((slug) => `skill-${slug}`),
+    );
+  });
+
+  test("does not call an email address a company", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-email");
+    const tenantId = await accounts.ensureTenant(ann.id);
+    await database
+      .update(tenants)
+      .set({ name: "ann@example.com" })
+      .where(eq(tenants.id, tenantId));
+    const result = await store.install(ann, "sales");
+    made.agents.push(result.agentId);
+    const prompt = await instructionOf(result.agentId);
+    expect(prompt).toContain("You are Sales, the sales lead");
+    expect(prompt).not.toContain("ann@example.com");
+  });
+
+  test("keeps its instruction when only its name is edited", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-edit");
+    const result = await store.install(ann, "accounting");
+    made.agents.push(result.agentId);
+    const before = await instructionOf(result.agentId);
+    const profile = await profiles.get(ann, result.agentId);
+    await profiles.update(ann, result.agentId, {
+      name: "Renamed",
+      title: profile?.title ?? "",
+      roleDescription: profile?.roleDescription ?? "",
+      visibility: "private",
+    });
+    expect(await instructionOf(result.agentId)).toBe(before);
+    // Changing the role description itself replaces it: the person's own words are what runs.
+    await profiles.update(ann, result.agentId, {
+      name: "Renamed",
+      title: profile?.title ?? "",
+      roleDescription: "Something else entirely.",
+      visibility: "private",
+    });
+    expect(await instructionOf(result.agentId)).toBeNull();
   });
 });

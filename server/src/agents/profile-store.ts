@@ -63,6 +63,8 @@ export type AgentProfileStore = {
        * different act with different consequences, and this is the creation path.
        */
       systemPrompt?: string;
+      /** The full standing instruction a marketplace install writes. See `agentProfiles.persona`. */
+      persona?: string;
     },
   ): Promise<AgentProfile>;
   update(
@@ -488,6 +490,7 @@ export function createAgentProfileStore(
           ...(tenantId ? { tenantId } : {}),
           title: input.title,
           roleDescription: input.roleDescription,
+          persona: input.persona?.trim() || null,
           avatarSeed: id,
           visibility: input.visibility,
           ...(input.runLocation ? { runLocation: input.runLocation } : {}),
@@ -546,7 +549,11 @@ export function createAgentProfileStore(
            */
           const configuration = {
             ...previous,
-            ...(row?.type === "built_in"
+            // Only when the role description itself changed. An instruction longer than the role description
+            // (a digital employee from the marketplace has one) must survive an edit of its name, which
+            // sends the unchanged role description along with it.
+            ...(row?.type === "built_in" &&
+            input.roleDescription !== profile.roleDescription
               ? { systemPrompt: input.roleDescription }
               : {}),
             ...(input.endpoint ? { endpoint: input.endpoint } : {}),
@@ -589,6 +596,11 @@ export function createAgentProfileStore(
             .set({
               title: input.title,
               roleDescription: input.roleDescription,
+              // Somebody who rewrites the role means that text to be what runs, so the longer
+              // instruction an install wrote gives way to it.
+              ...(input.roleDescription !== profile.roleDescription
+                ? { persona: null }
+                : {}),
               visibility: input.visibility,
               ...(input.runLocation ? { runLocation: input.runLocation } : {}),
               updatedAt,
@@ -651,6 +663,11 @@ export function createAgentProfileStore(
         if (!run) {
           throw new ManagedAgentUnavailableError();
         }
+        const [personaRow] = await transaction
+          .select({ persona: agentProfiles.persona })
+          .from(agentProfiles)
+          .where(eq(agentProfiles.agentId, id))
+          .limit(1);
         const duplicateId = newAgentId();
         await transaction.insert(agents).values({
           id: duplicateId,
@@ -664,6 +681,7 @@ export function createAgentProfileStore(
           ...(tenantId ? { tenantId } : {}),
           title: source.title,
           roleDescription: source.roleDescription,
+          persona: personaRow?.persona ?? null,
           avatarSeed: source.avatarSeed,
           avatarImage: source.avatarImage,
           visibility: "private",

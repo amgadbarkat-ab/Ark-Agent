@@ -181,12 +181,12 @@ function RouteComponent() {
   if (brokered && server) {
     /* Bound once because the row below is told it twice — once inside the whole disconnected
        sentence and once on its own — and two copies of it would drift. */
-    const reassurance = "No Bot can read this as you.";
+    const reassurance = "No digital employee can read this as you.";
 
     return (
       <PageShell
         backButton={back}
-        description="Reached through Composio, which holds the account, so a Bot sees only what you can see."
+        description="Reached through Composio, which holds the account, so a digital employee sees only what you can see."
         title={server.title}
       >
         {notice ? (
@@ -203,10 +203,10 @@ function RouteComponent() {
               /* Said beside the button rather than after it: disconnecting ends the account at
                  Composio, so what it undoes is not the row here but the grant on your own mailbox,
                  and connecting again is a fresh consent. */
-              connectedDescription={`A Bot granted its tools reads your ${server.title} as you. Disconnecting ends the account at Composio, not just here.`}
+              connectedDescription={`A digital employee granted its tools reads your ${server.title} as you. Disconnecting ends the account at Composio, not just here.`}
               disconnectedDescription={`${reassurance} Connecting takes you to Composio and then to the vendor to consent.`}
               /* What is true either way. The trip to Composio is not — an app whose key somebody
-                 types never leaves this page — but which Bots can read this person's mail is the
+                 types never leaves this page — but which digital employees can read this person's mail is the
                  whole point of the screen and holds for both kinds. */
               disconnectedReassurance={reassurance}
               title={server.title}
@@ -231,7 +231,7 @@ function RouteComponent() {
       >
         <PageEmpty>
           {entry
-            ? "A Bot reaches this one with a credential the deployment holds, the same for everybody."
+            ? "A digital employee reaches this one with a credential the deployment holds, the same for everybody."
             : "This deployment has no connector by that name."}
         </PageEmpty>
       </PageShell>
@@ -262,8 +262,8 @@ function RouteComponent() {
                 {!enabled
                   ? "An administrator has not enabled this connector, so there is nothing to connect to yet."
                   : connection
-                    ? "A Bot granted its tools reads this as you, and sees only what you can see."
-                    : "No Bot can read this as you. Connecting takes you to the vendor to consent."}
+                    ? "A digital employee granted its tools reads this as you, and sees only what you can see."
+                    : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
