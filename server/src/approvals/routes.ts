@@ -2,9 +2,9 @@ import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import type { AppVariables } from "../auth/guards";
 import {
-  type ApprovalRecord,
   ApprovalNotFoundError,
   ApprovalNotPendingError,
+  type ApprovalRecord,
   type ApprovalStore,
 } from "./store";
 

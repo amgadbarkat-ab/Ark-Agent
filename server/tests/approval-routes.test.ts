@@ -3,9 +3,9 @@ import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { createApprovalRoutes } from "../src/approvals/routes";
 import {
-  type ApprovalRecord,
   ApprovalNotFoundError,
   ApprovalNotPendingError,
+  type ApprovalRecord,
   type ApprovalStore,
 } from "../src/approvals/store";
 import type { AppVariables } from "../src/auth/guards";

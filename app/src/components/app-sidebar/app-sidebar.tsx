@@ -1,8 +1,8 @@
 import {
   IconBolt,
-  IconInbox,
   IconBox,
   IconBuildingStore,
+  IconInbox,
   IconLogout,
   IconPlus,
   IconSearch,
@@ -436,11 +436,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
               <span className="text-sm trackint-tight">Requests</span>
               {waiting ? (
-                <span
-                  aria-label={`${waiting} waiting`}
-                  className="ml-auto rounded-full bg-brand px-1.5 py-px text-[10px] font-medium text-brand-foreground tabular-nums"
-                >
+                <span className="ml-auto rounded-full bg-brand px-1.5 py-px text-[10px] font-medium text-brand-foreground tabular-nums">
                   {waiting}
+                  <span className="sr-only"> waiting</span>
                 </span>
               ) : null}
             </SidebarMenuButton>

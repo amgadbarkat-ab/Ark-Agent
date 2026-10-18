@@ -12,5 +12,5 @@ export * from "./plugins";
 export * from "./push";
 export * from "./tenants";
 export * from "./terms";
-export * from "./work";
 export * from "./voice";
+export * from "./work";

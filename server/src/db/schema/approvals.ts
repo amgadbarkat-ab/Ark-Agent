@@ -4,13 +4,7 @@
  * Its own file, by owner, like the other schema files. The table holds what was asked and what was
  * decided; the change itself is applied by the store when, and only when, the owner approves.
  */
-import {
-  index,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { agents, users } from "./core";
 
 export const approvals = pgTable(
