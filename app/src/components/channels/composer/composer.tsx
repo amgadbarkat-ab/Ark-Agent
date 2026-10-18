@@ -1347,7 +1347,7 @@ export function Composer({
   );
   const primaryAction = canStop ? (
     <Button
-      aria-label="Stop the Bot"
+      aria-label="Stop the digital employee"
       className={actionClassName}
       data-testid="composer-stop"
       onClick={onStop}

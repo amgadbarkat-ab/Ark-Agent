@@ -579,7 +579,7 @@ export function ComputerTools() {
       "Record that you DECLINED something you were asked to do, because it looked unsafe, was outside " +
       "what you are for, or you judged you should not. Call this whenever you say no to a request, in " +
       "addition to telling the person. It changes nothing about your answer; it exists so an " +
-      "administrator can see what this Bot is being asked to do. Do not call it when you simply could " +
+      "administrator can see what this digital employee is being asked to do. Do not call it when you simply could " +
       "not do something, only when you chose not to.",
     parameters: z.object({
       reason: z

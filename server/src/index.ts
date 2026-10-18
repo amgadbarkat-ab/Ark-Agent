@@ -262,6 +262,12 @@ const agentProfileStore = createAgentProfileStore(
 const marketplaceStore = createMarketplaceStore(database, {
   accounts: accountStore,
   profiles: agentProfileStore,
+  // Read when an install happens, which is after the plugin store below exists.
+  skills: {
+    install: (input) => pluginStore.installSkill(input),
+    grant: (kind, ref, agentId, by) =>
+      pluginStore.grant(kind, ref, agentId, by),
+  },
 });
 await marketplaceStore.syncOfficial();
 // Read here rather than beside the synchronise below, because the package names the deployment and

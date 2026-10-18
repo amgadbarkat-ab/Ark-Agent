@@ -266,6 +266,13 @@ describe("OpenBot database schema", () => {
         hasDefault: false,
         primary: false,
       },
+      // The full instruction an install writes. Null means the role description is all there is.
+      {
+        name: "persona",
+        notNull: false,
+        hasDefault: false,
+        primary: false,
+      },
       {
         name: "visibility",
         notNull: true,

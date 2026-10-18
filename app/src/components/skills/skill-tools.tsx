@@ -165,8 +165,8 @@ export function SkillTools({
 
       <p className="text-muted-foreground text-xs">
         Picking this skill is what loads these tools for a turn. It does not
-        grant them — a Bot still only calls what it was granted, so naming a
-        tool here gives nobody access to it.
+        grant them — a digital employee still only calls what it was granted, so
+        naming a tool here gives nobody access to it.
       </p>
     </Field>
   );

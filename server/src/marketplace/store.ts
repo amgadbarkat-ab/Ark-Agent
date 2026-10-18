@@ -34,8 +34,14 @@ import {
   marketplacePublishers,
   marketplaceReports,
   pluginGrants,
+  tenants,
 } from "../db/schema";
-import { OFFICIAL_LISTINGS, type OfficialListing } from "./official";
+import {
+  composeInstruction,
+  OFFICIAL_LISTINGS,
+  type OfficialListing,
+  type OfficialRole,
+} from "./official";
 import { type Finding, judge } from "./sanitize";
 
 /**
@@ -99,6 +105,19 @@ export type ListingCard = {
 export type OfficialContent = {
   install: { name: string; title: string; roleDescription: string };
   suggestedTools: string[];
+  /** Who the digital employee is, its skills and what it will ask to be connected. Empty on older rows. */
+  role: OfficialRole;
+};
+
+const NO_ROLE: OfficialRole = {
+  iam: "",
+  duties: [],
+  worksWith: [],
+  supportedBy: [],
+  canDo: [],
+  skills: [],
+  connections: [],
+  mcpServers: [],
 };
 
 /** What a shared listing shows: text read out of a coworker, and nothing it could be rebuilt from. */
@@ -408,6 +427,50 @@ function parseOfficialContent(content: unknown): OfficialContent {
           (tool): tool is string => typeof tool === "string",
         ) as string[])
       : [],
+    role: parseRole((content as { role?: unknown }).role),
+  };
+}
+
+function textList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+/** The role part of an official listing's content, tolerant of rows written before roles had one. */
+function parseRole(value: unknown): OfficialRole {
+  if (typeof value !== "object" || value === null) return NO_ROLE;
+  const role = value as Record<string, unknown>;
+  const objects = (field: unknown) =>
+    (Array.isArray(field) ? field : []).filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null,
+    );
+  const text = (item: Record<string, unknown>, key: string) =>
+    typeof item[key] === "string" ? (item[key] as string) : "";
+  return {
+    iam: typeof role.iam === "string" ? role.iam : "",
+    duties: textList(role.duties),
+    worksWith: textList(role.worksWith),
+    supportedBy: textList(role.supportedBy),
+    canDo: textList(role.canDo),
+    skills: objects(role.skills).map((item) => ({
+      slug: text(item, "slug"),
+      title: text(item, "title"),
+      summary: text(item, "summary"),
+      instructions: text(item, "instructions"),
+    })),
+    connections: objects(role.connections).map((item) => ({
+      app: text(item, "app"),
+      why: text(item, "why"),
+    })),
+    mcpServers: objects(role.mcpServers).map((item) => ({
+      server: text(
+        item,
+        "server",
+      ) as OfficialRole["mcpServers"][number]["server"],
+      why: text(item, "why"),
+    })),
   };
 }
 
@@ -470,10 +533,83 @@ export function createMarketplaceStore(
     profiles: AgentProfileStore;
     /** For tests: a different set of official listings than the real ones. */
     official?: OfficialListing[];
+    /**
+     * What an install uses to add the role's skills to the person's own and switch them on for the new
+     * digital employee. Absent in a test that does not care, in which case an install adds none.
+     */
+    skills?: {
+      install: (input: {
+        slug: string;
+        title: string;
+        summary: string;
+        instructions: string;
+        origin: string;
+        ownerUserId: string;
+        by: string;
+      }) => Promise<{ id: string }>;
+      grant: (
+        kind: "skill",
+        ref: string,
+        agentId: string,
+        by: string,
+      ) => Promise<void>;
+    };
   },
 ): MarketplaceStore {
   const { accounts, profiles } = dependencies;
   const officialListings = dependencies.official ?? OFFICIAL_LISTINGS;
+
+  /**
+   * The company's name for a digital employee to use, or null.
+   *
+   * An account's name is "their email or company name", so an address is not offered as a company: saying
+   * "I work at someone@example.com" would be wrong in a way the person would notice at once.
+   */
+  async function companyName(tenantId: string): Promise<string | null> {
+    const [row] = await database
+      .select({ name: tenants.name })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    const name = row?.name?.trim();
+    if (!name || name.includes("@")) return null;
+    return name.slice(0, 120);
+  }
+
+  /**
+   * Adds the role's skills to the person's own and switches them on for the new employee.
+   *
+   * Skills are instructions only and declare no tools, so they load without granting anything. One that
+   * cannot be added is reported and skipped rather than undoing an employee that now exists: the person can
+   * add it by hand from the skills page.
+   */
+  async function addRoleSkills(
+    actor: AgentActor,
+    agentId: string,
+    listingSlug: string,
+    role: OfficialRole,
+  ) {
+    if (!dependencies.skills) return;
+    for (const skill of role.skills) {
+      try {
+        const saved = await dependencies.skills.install({
+          slug: skill.slug,
+          title: skill.title,
+          summary: skill.summary,
+          instructions: skill.instructions,
+          origin: `marketplace:${listingSlug}`,
+          ownerUserId: actor.id,
+          by: actor.id,
+        });
+        await dependencies.skills.grant("skill", saved.id, agentId, actor.id);
+      } catch (error) {
+        console.error(
+          `Could not add the skill /${skill.slug} for ${listingSlug}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+  }
 
   async function publisherForTenant(
     tenantId: string,
@@ -687,6 +823,7 @@ export function createMarketplaceStore(
           content: {
             install: listing.install,
             suggestedTools: listing.suggestedTools,
+            role: listing.role,
           },
           status: "published" as const,
           reviewNote: null,
@@ -808,8 +945,12 @@ export function createMarketplaceStore(
           "A shared coworker is for reading. It cannot be installed, copied or exported.",
         );
       }
-      const { install } = parseOfficialContent(listing.content);
+      const { install, role } = parseOfficialContent(listing.content);
       const tenantId = await accounts.ensureTenant(actor.id);
+      const company = await companyName(tenantId);
+      const instruction = role.iam
+        ? composeInstruction({ title: install.title, role }, company)
+        : install.roleDescription;
       const profile = await profiles.create(actor, {
         name: install.name,
         title: install.title,
@@ -817,8 +958,12 @@ export function createMarketplaceStore(
         // Private to the person who installed it, like anything they make. They may share it with
         // their account afterwards, and grant it tools one at a time.
         visibility: "private",
-        systemPrompt: install.roleDescription,
+        // A listing written before roles had a persona has nothing to compose from, and runs on its role
+        // description as it always did.
+        systemPrompt: instruction,
+        ...(role.iam ? { persona: instruction } : {}),
       });
+      await addRoleSkills(actor, profile.id, listing.slug, role);
       await database.transaction(async (transaction) => {
         await transaction.insert(marketplaceInstalls).values({
           listingId: listing.id,

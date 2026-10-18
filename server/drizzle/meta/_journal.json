@@ -421,6 +421,13 @@
       "when": 1792316244703,
       "tag": "0059_agent_avatar_image",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792323479743,
+      "tag": "0060_agent_persona",
+      "breakpoints": true
     }
   ]
 }

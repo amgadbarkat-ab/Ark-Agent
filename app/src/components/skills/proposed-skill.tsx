@@ -145,8 +145,8 @@ export function ProposedSkillCard({
 
       {values.tools.length > 0 ? (
         <p className="mt-2 text-muted-foreground text-xs">
-          Naming a tool grants nothing. A Bot is offered these only if an
-          administrator has already granted them to it.
+          Naming a tool grants nothing. A digital employee is offered these only
+          if an administrator has already granted them to it.
         </p>
       ) : null}
 
@@ -197,7 +197,7 @@ function PutItOnABot({ slug }: { slug: string }) {
       search={{ edit: slug }}
       to="/skills"
     >
-      Put it on a Bot
+      Put it on a digital employee
     </Link>
   );
 }
@@ -236,8 +236,8 @@ function Unwritable({
       title="Skill"
     >
       <p className="text-sm">
-        The Bot's draft was not a valid skill, so nothing was saved. It has been
-        told what to fix.
+        The digital employee's draft was not a valid skill, so nothing was
+        saved. It has been told what to fix.
       </p>
     </GalleryFrame>
   );

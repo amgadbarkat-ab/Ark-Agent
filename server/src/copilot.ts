@@ -119,6 +119,8 @@ export type AgentStandingProfile = {
   name: string;
   title: string;
   roleDescription: string;
+  /** The full instruction, when the digital employee has one. It is sent in place of the role description. */
+  persona?: string | null;
 };
 
 /**
@@ -137,7 +139,7 @@ export function standingRoleMessage(
     role: "system",
     content: [
       `You are ${profile.name}, ${profile.title}.`,
-      profile.roleDescription,
+      profile.persona?.trim() ? profile.persona : profile.roleDescription,
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
       /*
        * Here rather than in the package, because for a remote Bot the standing role is the only
@@ -225,6 +227,7 @@ type RuntimeAgentRow = {
   configuration: unknown;
   title: string;
   roleDescription: string;
+  persona?: string | null;
 };
 
 export function registeredAgentFromRow(

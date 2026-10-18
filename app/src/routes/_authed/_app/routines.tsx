@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authed/_app/routines")({
 function RoutinesPage() {
   return (
     <PageShell
-      description="What a Bot does on a schedule, without being asked each time. Made and changed by talking to a Bot — this page only shows what is standing, and lets you stop one."
+      description="What a digital employee does on a schedule, without being asked each time. Made and changed by talking to a digital employee — this page only shows what is standing, and lets you stop one."
       title="Routines"
     >
       <RoutinesList />

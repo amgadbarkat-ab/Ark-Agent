@@ -143,3 +143,5 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 - **Dark is the default, light is a setting (2026-10-18).** The look follows Grok and openbot.run with BlackArk's Ember as
   a light accent. The ArkAgent character's face is the application icon, the top-left logo and every coworker's
   default picture; a coworker's owner can replace its picture.
+- **Digital employee, never "bot" (2026-10-18, from the owner).** Product copy says "digital employee" and "digital
+  team". The marketplace lists 17 roles, each with a persona, skills and requests (docs/ark/23-digital-employees.md).

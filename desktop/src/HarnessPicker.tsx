@@ -74,7 +74,7 @@ export function HarnessPicker({
     return (
       <div className="sheet">
         <div className="blocker" role="alert">
-          <h2>The list of Bots could not be read</h2>
+          <h2>The list of digital employees could not be read</h2>
           <p>{failure}</p>
         </div>
       </div>
@@ -84,7 +84,7 @@ export function HarnessPicker({
   return (
     <div className="sheet">
       <p className="steps-of">Step 1 of 3</p>
-      <h1>Your first Bot</h1>
+      <h1>Your first digital employee</h1>
       {/*
         Written to the person who has to act, not about the situation.
 

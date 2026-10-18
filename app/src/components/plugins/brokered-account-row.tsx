@@ -703,7 +703,7 @@ function accountSentence(input: {
      * Neither screen's own sentence fits: both are about an account, and there is none to have.
      * Capitalised because this is the one position the name opens a sentence in.
      */
-    return `${title.charAt(0).toUpperCase()}${title.slice(1)} needs no account. A Bot granted these tools can use it as it is.`;
+    return `${title.charAt(0).toUpperCase()}${title.slice(1)} needs no account. A digital employee granted these tools can use it as it is.`;
   }
 
   if (account.kind === "fields") {

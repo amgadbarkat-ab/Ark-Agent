@@ -8,6 +8,35 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### The marketplace has 17 digital employees, each with a real job
+
+The marketplace now offers Sales, Front Desk, Marketing, Accounting, Customer Support, Inventory and Logistics,
+Personal Secretary, Chief of Operations, Sales Engineer, Finance, Programmer, Chief of Staff, Designer and
+Coding Engineer, besides the earlier Research Analyst, Writing Editor and Code Reviewer. "A role you write yourself"
+sits at the end of the list. Customer Support, Personal Secretary, Chief of Operations and Finance are the earlier
+Support Agent, Executive Assistant, Operations Coordinator and Finance Assistant under their new names, so nothing
+is listed twice; digital employees already added keep working.
+
+Each one has a personality and a job. Ask it who it is and it answers as that role, in the first person: its work, who
+it works with, who supports it and what it can do, and it names the company when your account has a company name.
+It also knows it is one digital employee in a team that cannot do everything alone: it says who it would ask and asks
+you to bring them in, and does not claim to have contacted anyone. A role's page shows all of this.
+
+Adding one also adds its skills (three or four each, such as "Prospect brief", "Quote draft" or "Reconcile two
+lists") to your Skills page and switches them on for it. It lists the accounts it will ask you to connect and the
+servers it would use; nothing is connected for it. Skills declare no tools, so adding a role grants nothing.
+
+An instruction longer than the role description is kept with the digital employee (new nullable column
+`agent_profiles.persona`, added at the next start) and is sent in its place. Renaming a digital employee no longer
+overwrites its instruction; rewriting the role description does, as before.
+
+### The product says "digital employee", never "bot"
+
+In the app and the desktop setup window, text a customer reads now says "digital employee" and "digital employees"
+(the composer's Stop button, empty states, the setup screens, the marketplace, the skills pages). The administrator
+console, the server's own messages and the desktop's native error messages still use the old word and are next.
+"Coworker" is unchanged for now.
+
 ## 0.1.7
 
 ### ArkAgent opens dark, and can be switched to light

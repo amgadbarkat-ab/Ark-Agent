@@ -10,7 +10,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   PageRows,
   PageSection,
@@ -36,6 +36,7 @@ import {
   CATEGORIES,
   isOfficialContent,
   type ListingDetail,
+  type OfficialRole,
 } from "@/lib/marketplace/queries";
 import { queryClient } from "@/query-client";
 
@@ -215,7 +216,7 @@ export function ListingView({
         title={official ? "What you get" : "How it is set up"}
         description={
           official
-            ? "A coworker of your own, private to you. It starts with this role and no tools; you decide what it may use."
+            ? "A digital employee of your own, private to you. It starts with this role and the skills below, and no tools; you decide what it may use."
             : undefined
         }
       >
@@ -262,6 +263,10 @@ export function ListingView({
           )}
         </PageRows>
       </PageSection>
+
+      {official && content.role?.iam ? (
+        <RoleSections role={content.role} />
+      ) : null}
 
       <PageSection title="Details">
         <PageRows>
@@ -318,6 +323,76 @@ export function ListingView({
 }
 
 /** A labelled, read-only value. The text is the point, so it is not clipped. */
+const bullets = (items: string[]) =>
+  items.map((item) => `\u2022 ${item}`).join("\n");
+
+/** What a role is, said the way it says it: who it is, who it works with, what it brings and what it asks for. */
+function RoleSections({ role }: { role: OfficialRole }) {
+  const requests = [
+    ...role.connections.map((request) => ({
+      label: request.app,
+      why: request.why,
+    })),
+    ...role.mcpServers.map((request) => ({
+      label: `${request.server} (server)`,
+      why: request.why,
+    })),
+  ];
+  return (
+    <>
+      <PageSection
+        description="How it introduces itself, and what its work is."
+        title="Who it is"
+      >
+        <PageRows>
+          <Detail label="Introduces itself as" value={`I am ${role.iam}.`} />
+          <Separator />
+          <Detail label="Its work" value={bullets(role.duties)} />
+          <Separator />
+          <Detail label="Works with" value={bullets(role.worksWith)} />
+          <Separator />
+          <Detail label="Supported by" value={bullets(role.supportedBy)} />
+          <Separator />
+          <Detail label="What it can do" value={bullets(role.canDo)} />
+        </PageRows>
+      </PageSection>
+      <PageSection
+        description="Added to your Skills page and switched on for it when you add it."
+        title="Skills it comes with"
+      >
+        <PageRows>
+          {role.skills.map((skill, index) => (
+            <Fragment key={skill.slug}>
+              <Detail
+                label={`/${skill.slug}`}
+                value={`${skill.title}. ${skill.summary}`}
+              />
+              {index !== role.skills.length - 1 && <Separator />}
+            </Fragment>
+          ))}
+        </PageRows>
+      </PageSection>
+      <PageSection
+        description="Nothing is connected for you. It asks, and works only with what you allow."
+        title="What it will ask you to connect"
+      >
+        <PageRows>
+          {requests.map((request, index) => (
+            <Fragment key={request.label}>
+              <Detail
+                icon={<IconTool />}
+                label={request.label}
+                value={request.why}
+              />
+              {index !== requests.length - 1 && <Separator />}
+            </Fragment>
+          ))}
+        </PageRows>
+      </PageSection>
+    </>
+  );
+}
+
 function Detail({
   icon,
   label,

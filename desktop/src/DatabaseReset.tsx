@@ -30,8 +30,8 @@ export function DatabaseReset({
       </h2>
       <p>
         This permanently deletes the local ArkAgent database, including saved
-        chats, Bots, and settings. Only continue if you want a fresh
-        installation and do not need that data.
+        chats, digital employees, and settings. Only continue if you want a
+        fresh installation and do not need that data.
       </p>
       <p>
         The previous installation’s database service is stopped and removed with

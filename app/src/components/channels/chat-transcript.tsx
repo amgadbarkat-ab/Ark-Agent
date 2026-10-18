@@ -593,7 +593,7 @@ const TranscriptMessage = memo(function TranscriptMessage({
       <MessageContent>
         <Arriving delay={delay}>
           {/*
-            A Bot's message takes the whole column, not the width of its words: block content
+            A digital employee's message takes the whole column, not the width of its words: block content
             inside it — a fenced code block, a table — should span the transcript rather than
             shrink to its own text. A person's bubble keeps fitting what they said.
           */}
@@ -1167,7 +1167,7 @@ function AttachmentLightbox({
  */
 function activityName(activityType: string): string {
   return activityType === "open-generative-ui"
-    ? "This Bot's generated interface"
+    ? "This digital employee's generated interface"
     : activityType;
 }
 

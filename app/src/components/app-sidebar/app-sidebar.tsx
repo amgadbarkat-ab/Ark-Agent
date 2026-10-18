@@ -415,7 +415,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           {/* Routines live on each coworker's own dialog now, not as a nav destination: the
-              question "what does this Bot do on a schedule" is asked while looking at the Bot.
+              question "what does this digital employee do on a schedule" is asked while looking at the Bot.
               The /routines route still answers a direct link. */}
           <SidebarMenuItem>
             <DropdownMenu>

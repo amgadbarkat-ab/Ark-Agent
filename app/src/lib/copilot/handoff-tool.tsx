@@ -44,7 +44,7 @@ export function HandoffTool() {
       const running = status !== "complete" && result === undefined;
       return (
         <ToolLine
-          label={asked ? `Asked ${asked}` : "Asked another Bot"}
+          label={asked ? `Asked ${asked}` : "Asked another digital employee"}
           detail={given?.task}
           running={running}
           refused={!running && refused(result)}

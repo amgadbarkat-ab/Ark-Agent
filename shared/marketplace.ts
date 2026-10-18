@@ -19,6 +19,9 @@ export const CATEGORIES = [
   { id: "engineering", name: "Engineering" },
   { id: "finance", name: "Finance" },
   { id: "support", name: "Support" },
+  { id: "sales", name: "Sales" },
+  { id: "marketing", name: "Marketing" },
+  { id: "design", name: "Design" },
   { id: "operations", name: "Operations" },
   { id: "other", name: "Other" },
 ] as const;

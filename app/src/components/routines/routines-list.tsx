@@ -194,7 +194,7 @@ export function RoutinesList({
             <EmptyDescription>
               {agentId
                 ? 'Ask it in a channel — "every weekday at 9, …" — and it will appear here.'
-                : 'Ask a Bot — "every weekday at 9, …" — and it will appear here.'}
+                : 'Ask a digital employee — "every weekday at 9, …" — and it will appear here.'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

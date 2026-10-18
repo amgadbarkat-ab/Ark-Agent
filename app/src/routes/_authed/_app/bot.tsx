@@ -54,10 +54,11 @@ async function loadExplicitBot(agentId: string): Promise<BotDetailLookup> {
     `/api/agents/${encodeURIComponent(agentId)}`,
   );
   if (response.status === 404) return { status: "missing" };
-  if (!response.ok) throw new Error("Bot couldn't be loaded.");
+  if (!response.ok) throw new Error("Digital employee couldn't be loaded.");
 
   const body: unknown = await response.json().catch(() => null);
-  if (!isAgentEnvelope(body)) throw new Error("Bot couldn't be loaded.");
+  if (!isAgentEnvelope(body))
+    throw new Error("Digital employee couldn't be loaded.");
   return { bot: body.agent, status: "found" };
 }
 
@@ -93,7 +94,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Bots couldn't be loaded.
+          Digital employees couldn't be loaded.
         </p>
       </div>
     );
@@ -102,7 +103,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Bot couldn't be loaded.
+          Digital employee couldn't be loaded.
         </p>
       </div>
     );
@@ -112,8 +113,8 @@ function RouteComponent() {
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-muted-foreground text-sm">
           {agent
-            ? `This deployment has no Bot called "${agent}".`
-            : "This deployment has no Bots yet."}
+            ? `This deployment has no digital employee called "${agent}".`
+            : "This deployment has no digital employees yet."}
         </p>
       </div>
     );
@@ -184,8 +185,8 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           data-testid="bot-chat-history-unavailable"
           role="alert"
         >
-          Earlier messages in this conversation could not be loaded, and the Bot
-          is answering without them.
+          Earlier messages in this conversation could not be loaded, and the
+          digital employee is answering without them.
         </p>
       ) : null}
       {/*

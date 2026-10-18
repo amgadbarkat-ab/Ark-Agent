@@ -151,7 +151,7 @@ const PICKED_HARNESS = agent({
   title: "LangGraph",
 });
 
-test("/bot defaults to the picked harness when this setup selected one", async () => {
+test("/digital employee defaults to the picked harness when this setup selected one", async () => {
   const view = renderBot(
     queryClientWithAgents([GENERAL_ASSISTANT, PICKED_HARNESS]),
   );
@@ -162,7 +162,7 @@ test("/bot defaults to the picked harness when this setup selected one", async (
   );
 });
 
-test("/bot with an empty agent query uses the normal default Bot", async () => {
+test("/digital employee with an empty agent query uses the normal default digital employee", async () => {
   const view = renderBot(
     queryClientWithAgents([GENERAL_ASSISTANT, PICKED_HARNESS]),
     "/bot?agent=",
@@ -172,18 +172,26 @@ test("/bot with an empty agent query uses the normal default Bot", async () => {
   expect(view.getByTestId("copilot-chat").dataset.agentId).toBe(
     "picked-harness",
   );
-  expect(view.queryByText('This deployment has no Bot called "".')).toBeNull();
-  expect(view.queryByText("This deployment has no Bots yet.")).toBeNull();
+  expect(
+    view.queryByText('This deployment has no digital employee called "".'),
+  ).toBeNull();
+  expect(
+    view.queryByText("This deployment has no digital employees yet."),
+  ).toBeNull();
 });
 
-test("/bot reports a failed initial roster load instead of claiming there are no Bots", async () => {
+test("/digital employee reports a failed initial roster load instead of claiming there are no digital employees", async () => {
   const view = renderBot(queryClientWithFailingAgents());
 
-  expect(await view.findByText("Bots couldn't be loaded.")).toBeTruthy();
-  expect(view.queryByText("This deployment has no Bots yet.")).toBeNull();
+  expect(
+    await view.findByText("Digital employees couldn't be loaded."),
+  ).toBeTruthy();
+  expect(
+    view.queryByText("This deployment has no digital employees yet."),
+  ).toBeNull();
 });
 
-test("/bot preserves an explicit agent, including the built-in first agent", async () => {
+test("/digital employee preserves an explicit agent, including the built-in first agent", async () => {
   const view = renderBot(
     queryClientWithAgents([GENERAL_ASSISTANT, PICKED_HARNESS]),
     "/bot?agent=general-assistant",
@@ -197,7 +205,7 @@ test("/bot preserves an explicit agent, including the built-in first agent", asy
   );
 });
 
-test("/bot preserves an explicit unknown agent as a clear missing-bot state", async () => {
+test("/digital employee preserves an explicit unknown agent as a clear missing-digital employee state", async () => {
   const view = renderBot(
     queryClientWithAgentsAndFetchedAgent(
       [GENERAL_ASSISTANT, PICKED_HARNESS],
@@ -208,17 +216,19 @@ test("/bot preserves an explicit unknown agent as a clear missing-bot state", as
   );
 
   expect(
-    await view.findByText('This deployment has no Bot called "missing-agent".'),
+    await view.findByText(
+      'This deployment has no digital employee called "missing-agent".',
+    ),
   ).toBeTruthy();
   expect(view.queryByTestId("copilot-chat")).toBeNull();
 });
 
-test("/bot loads a hidden explicit agent from the detail endpoint", async () => {
+test("/digital employee loads a hidden explicit agent from the detail endpoint", async () => {
   const hiddenBot = agent({
     hidden: true,
     id: "hidden-bot",
-    name: "Hidden Bot",
-    title: "Hidden Bot",
+    name: "Hidden digital employee",
+    title: "Hidden digital employee",
   });
   const view = renderBot(
     queryClientWithAgentsAndFetchedAgent(
@@ -229,19 +239,23 @@ test("/bot loads a hidden explicit agent from the detail endpoint", async () => 
     "/bot?agent=hidden-bot",
   );
 
-  expect(await view.findByRole("heading", { name: "Hidden Bot" })).toBeTruthy();
+  expect(
+    await view.findByRole("heading", { name: "Hidden digital employee" }),
+  ).toBeTruthy();
   expect(view.getByTestId("copilot-chat").dataset.agentId).toBe("hidden-bot");
   expect(
-    view.queryByText('This deployment has no Bot called "hidden-bot".'),
+    view.queryByText(
+      'This deployment has no digital employee called "hidden-digital employee".',
+    ),
   ).toBeNull();
 });
 
-test("/bot hidden lookup does not collide with the shared agent detail cache", async () => {
+test("/digital employee hidden lookup does not collide with the shared agent detail cache", async () => {
   const hiddenBot = agent({
     hidden: true,
     id: "hidden-bot",
-    name: "Hidden Bot",
-    title: "Hidden Bot",
+    name: "Hidden digital employee",
+    title: "Hidden digital employee",
   });
   const queryClient = queryClientWithAgentsAndFetchedAgent(
     [GENERAL_ASSISTANT],
@@ -251,14 +265,18 @@ test("/bot hidden lookup does not collide with the shared agent detail cache", a
   queryClient.setQueryData(agentKeys.detail("hidden-bot"), hiddenBot);
   const view = renderBot(queryClient, "/bot?agent=hidden-bot");
 
-  expect(await view.findByRole("heading", { name: "Hidden Bot" })).toBeTruthy();
+  expect(
+    await view.findByRole("heading", { name: "Hidden digital employee" }),
+  ).toBeTruthy();
   expect(view.getByTestId("copilot-chat").dataset.agentId).toBe("hidden-bot");
   expect(
-    view.queryByText('This deployment has no Bot called "hidden-bot".'),
+    view.queryByText(
+      'This deployment has no digital employee called "hidden-digital employee".',
+    ),
   ).toBeNull();
 });
 
-test("/bot reports an explicit agent detail load failure", async () => {
+test("/digital employee reports an explicit agent detail load failure", async () => {
   const view = renderBot(
     queryClientWithAgentsAndFetchedAgent(
       [GENERAL_ASSISTANT],
@@ -269,12 +287,12 @@ test("/bot reports an explicit agent detail load failure", async () => {
   );
 
   expect((await view.findByRole("alert")).textContent).toBe(
-    "Bot couldn't be loaded.",
+    "Digital employee couldn't be loaded.",
   );
   expect(view.queryByTestId("copilot-chat")).toBeNull();
 });
 
-test("/bot still falls back to the first agent when no picked harness exists", async () => {
+test("/digital employee still falls back to the first agent when no picked harness exists", async () => {
   const otherAgent = agent({ id: "researcher", name: "Researcher" });
   const view = renderBot(
     queryClientWithAgents([GENERAL_ASSISTANT, otherAgent]),

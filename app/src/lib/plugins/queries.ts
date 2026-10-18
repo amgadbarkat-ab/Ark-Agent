@@ -335,7 +335,7 @@ export function agentPluginsQueryOptions(agentId: string) {
     queryFn: async (): Promise<GrantedPlugins> => {
       const response = await client(
         `/api/plugins/for/${encodeURIComponent(agentId)}`,
-        { fallback: "This Bot's plugins could not be read." },
+        { fallback: "This digital employee's plugins could not be read." },
       );
       return response.json();
     },
