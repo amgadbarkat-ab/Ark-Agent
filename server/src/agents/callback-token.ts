@@ -335,7 +335,7 @@ export async function authoriseAgentCall(options: {
     return {
       ok: false,
       status: 403,
-      reason: "That token is not for this Bot.",
+      reason: "That token is not for this digital employee.",
     };
   }
 

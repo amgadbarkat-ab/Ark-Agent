@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { visibleAgentProfiles } from "../accounts/visibility";
 import type { CredentialStore } from "../credentials";
 import type { Database } from "../db/client";
@@ -63,8 +63,6 @@ export type AgentProfileStore = {
        * different act with different consequences, and this is the creation path.
        */
       systemPrompt?: string;
-      /** The full standing instruction a marketplace install writes. See `agentProfiles.persona`. */
-      persona?: string;
     },
   ): Promise<AgentProfile>;
   update(
@@ -79,6 +77,12 @@ export type AgentProfileStore = {
     image: string | null,
   ): Promise<AgentProfile>;
   duplicate(actor: AgentActor, id: string): Promise<AgentProfile>;
+  /**
+   * Makes this digital employee the lead of its owner's team, and the one that was is no longer.
+   *
+   * The first employee a person makes is lead without being asked; this is how they change their mind.
+   */
+  setPrimary(actor: AgentActor, id: string): Promise<AgentProfile>;
   setHidden(actor: AgentActor, id: string, hidden: boolean): Promise<void>;
   softDelete(actor: AgentActor, id: string): Promise<void>;
   /**
@@ -124,7 +128,7 @@ export class ProtectedAgentError extends Error {
 export class ManagedAgentUnavailableError extends Error {
   constructor() {
     super(
-      "This deployment has no managed Bot. Give the coworker its own AG-UI endpoint.",
+      "This deployment has no managed digital employee. Give the digital employee its own AG-UI endpoint.",
     );
     this.name = "ManagedAgentUnavailableError";
   }
@@ -135,11 +139,13 @@ const joinedProjection = {
   name: agents.name,
   title: agentProfiles.title,
   roleDescription: agentProfiles.roleDescription,
+  persona: agentProfiles.persona,
   avatarSeed: agentProfiles.avatarSeed,
   avatarImage: agentProfiles.avatarImage,
   visibility: agentProfiles.visibility,
   runLocation: agentProfiles.runLocation,
   ownerUserId: agentProfiles.ownerUserId,
+  isPrimary: agentProfiles.isPrimary,
   packageId: deploymentPackages.id,
   hiddenAt: agentPreferences.hiddenAt,
   deletedAt: agentProfiles.deletedAt,
@@ -173,11 +179,13 @@ function mapProfile(
     name: row.name,
     title: row.title,
     roleDescription: row.roleDescription,
+    persona: row.persona,
     avatarSeed: row.avatarSeed,
     avatarImage: row.avatarImage,
     visibility: row.visibility,
     runLocation: row.runLocation === "device" ? "device" : "cloud",
     ownerUserId: row.ownerUserId,
+    primary: row.isPrimary,
     systemOwned: row.packageId !== null,
     hasCallbackToken: row.callbackTokenHash !== null,
     hidden: row.hiddenAt !== null,
@@ -353,6 +361,36 @@ function newAgentId() {
 }
 
 /**
+ * Serialises every change to who leads one person's team.
+ *
+ * Without it two employees made at the same moment would each find the team leaderless and both claim
+ * it, and the second would be refused by the unique index with a database error the person cannot act
+ * on. Held until the transaction ends.
+ */
+async function lockLead(transaction: Transaction, ownerId: string) {
+  await transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`lead:${ownerId}`}))`,
+  );
+}
+
+/** The first digital employee a person has leads their team without being asked; a later one does not. */
+async function leadIfNone(
+  transaction: Transaction,
+  ownerId: string,
+  agentId: string,
+) {
+  await lockLead(transaction, ownerId);
+  await transaction.execute(
+    sql`update agent_profiles set is_primary = true
+        where agent_id = ${agentId}
+          and not exists (
+            select 1 from agent_profiles other
+            where other.owner_user_id = ${ownerId} and other.is_primary and other.deleted_at is null
+          )`,
+  );
+}
+
+/**
  * Which agent a token belongs to.
  *
  * Selected by hash and then compared in constant time. The lookup alone would be enough to identify
@@ -495,6 +533,7 @@ export function createAgentProfileStore(
           visibility: input.visibility,
           ...(input.runLocation ? { runLocation: input.runLocation } : {}),
         });
+        await leadIfNone(transaction, actor.id, id);
 
         const profile = await findAccessibleProfile(transaction, actor, id);
         if (!profile) throw new AgentNotFoundError(id);
@@ -547,14 +586,30 @@ export function createAgentProfileStore(
            * `role_description`, cannot reach this code at all: `requireManageable` above throws
            * `ProtectedAgentError` for anything the package owns.
            */
+          /*
+           * What runs, when this edit changes it. A new role description replaces the longer instruction,
+           * as it always has (somebody who rewrites the role means that text to be what runs). Instructions
+           * sent with the edit win over that: text sets them, and null clears them back to the role.
+           * Undefined means this edit changes neither.
+           */
+          const roleChanged = input.roleDescription !== profile.roleDescription;
+          const nextPersona =
+            input.persona !== undefined
+              ? input.persona?.trim() || null
+              : roleChanged
+                ? null
+                : undefined;
+          const nextInstruction =
+            nextPersona !== undefined
+              ? (nextPersona ?? input.roleDescription)
+              : undefined;
           const configuration = {
             ...previous,
             // Only when the role description itself changed. An instruction longer than the role description
             // (a digital employee from the marketplace has one) must survive an edit of its name, which
             // sends the unchanged role description along with it.
-            ...(row?.type === "built_in" &&
-            input.roleDescription !== profile.roleDescription
-              ? { systemPrompt: input.roleDescription }
+            ...(row?.type === "built_in" && nextInstruction !== undefined
+              ? { systemPrompt: nextInstruction }
               : {}),
             ...(input.endpoint ? { endpoint: input.endpoint } : {}),
             ...(input.auth && vault
@@ -596,11 +651,7 @@ export function createAgentProfileStore(
             .set({
               title: input.title,
               roleDescription: input.roleDescription,
-              // Somebody who rewrites the role means that text to be what runs, so the longer
-              // instruction an install wrote gives way to it.
-              ...(input.roleDescription !== profile.roleDescription
-                ? { persona: null }
-                : {}),
+              ...(nextPersona !== undefined ? { persona: nextPersona } : {}),
               visibility: input.visibility,
               ...(input.runLocation ? { runLocation: input.runLocation } : {}),
               updatedAt,
@@ -626,6 +677,42 @@ export function createAgentProfileStore(
             .update(agentProfiles)
             .set({ avatarImage: image, updatedAt: new Date() })
             .where(eq(agentProfiles.agentId, id));
+          const updated = await findAccessibleProfile(transaction, actor, id);
+          if (!updated) throw new AgentNotFoundError(id);
+          return updated;
+        },
+        { isolationLevel: "read committed" },
+      );
+    },
+
+    setPrimary(actor, id) {
+      return database.transaction(
+        async (transaction) => {
+          await lockProfileMutationRows(transaction, id);
+          const profile = await findAccessibleProfile(transaction, actor, id);
+          if (!profile) throw new AgentNotFoundError(id);
+          requireManageable(actor, profile);
+          // A digital employee nobody owns is the platform's, and leads no one's team.
+          if (!profile.ownerUserId) throw new ProtectedAgentError(id);
+          await lockLead(transaction, profile.ownerUserId);
+
+          const now = new Date();
+          await transaction
+            .update(agentProfiles)
+            .set({ isPrimary: false, updatedAt: now })
+            .where(
+              and(
+                eq(agentProfiles.ownerUserId, profile.ownerUserId),
+                eq(agentProfiles.isPrimary, true),
+                isNull(agentProfiles.deletedAt),
+                ne(agentProfiles.agentId, id),
+              ),
+            );
+          await transaction
+            .update(agentProfiles)
+            .set({ isPrimary: true, updatedAt: now })
+            .where(eq(agentProfiles.agentId, id));
+
           const updated = await findAccessibleProfile(transaction, actor, id);
           if (!updated) throw new AgentNotFoundError(id);
           return updated;
@@ -687,6 +774,7 @@ export function createAgentProfileStore(
           visibility: "private",
           runLocation: source.runLocation,
         });
+        await leadIfNone(transaction, actor.id, duplicateId);
 
         const duplicate = await findAccessibleProfile(
           transaction,
@@ -728,8 +816,24 @@ export function createAgentProfileStore(
           const deletedAt = new Date();
           await transaction
             .update(agentProfiles)
-            .set({ deletedAt, updatedAt: deletedAt })
+            .set({ deletedAt, isPrimary: false, updatedAt: deletedAt })
             .where(eq(agentProfiles.agentId, id));
+
+          /*
+           * A team is never left leaderless while it has anyone in it: the one that has been there
+           * longest takes over, and the person can choose another afterwards.
+           */
+          if (profile.primary && profile.ownerUserId) {
+            await lockLead(transaction, profile.ownerUserId);
+            await transaction.execute(
+              sql`update agent_profiles set is_primary = true
+                  where agent_id = (
+                    select agent_id from agent_profiles
+                    where owner_user_id = ${profile.ownerUserId} and deleted_at is null and agent_id <> ${id}
+                    order by created_at asc, agent_id asc limit 1
+                  )`,
+            );
+          }
 
           /*
            * And its key stops working.

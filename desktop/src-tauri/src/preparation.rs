@@ -332,7 +332,7 @@ fn require_with(
         || selection.is_some_and(|selection| selection != &record.harness)
     {
         return Err(required(
-            "The deployment folder or Bot selection changed after installation.",
+            "The deployment folder or digital employee selection changed after installation.",
         ));
     }
     if let Some(problem) = stack::deployment_problem(root) {

@@ -70,6 +70,8 @@ function serve(endpoint: string, cloud: Cloud) {
     roleDescription: "Review receipts.",
     avatarSeed: "expenses",
     avatarImage: null,
+    persona: null,
+    primary: false,
     visibility: "private",
     ownerUserId: actor.id,
     systemOwned: false,

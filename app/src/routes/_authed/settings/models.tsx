@@ -93,7 +93,7 @@ function ModelsPage() {
           Add model
         </Button>
       }
-      description="Choose the model your coworkers think with. Models on your computer and free models cost nothing. If you use your own key, your provider bills you directly."
+      description="Choose the model your digital employees think with. Models on your computer and free models cost nothing. If you use your own key, your provider bills you directly."
       title="Models"
     >
       {catalogue.data ? (
@@ -115,7 +115,7 @@ function ModelsPage() {
       ) : null}
 
       <PageSection
-        description="Your default is used for every conversation unless a coworker says otherwise."
+        description="Your default is used for every conversation unless a digital employee says otherwise."
         title="Your models"
       >
         {connections.isPending ? null : connections.error ? (
@@ -124,8 +124,8 @@ function ModelsPage() {
           </p>
         ) : connections.data?.length === 0 ? (
           <PageEmpty>
-            No model is connected. Your coworkers use this deployment's own
-            model, if it has one. Add one to choose for yourself.
+            No model is connected. Your digital employees use this deployment's
+            own model, if it has one. Add one to choose for yourself.
           </PageEmpty>
         ) : (
           <PageRows>
@@ -196,8 +196,8 @@ function ModelsPage() {
       (coworkers.data?.length ?? 0) > 0 &&
       choices.data ? (
         <PageSection
-          description="Each coworker uses your default model unless you choose another for it."
-          title="Coworkers"
+          description="Each digital employee uses your default model unless you choose another for it."
+          title="Digital employees"
         >
           <PageRows>
             {coworkers.data?.map((coworker, index) => (

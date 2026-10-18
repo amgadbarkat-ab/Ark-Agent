@@ -46,7 +46,7 @@ const GROUPS: {
   }[];
 }[] = [
   {
-    label: "What Bots can reach",
+    label: "What digital employees can reach",
     items: [
       {
         title: "Credentials",
@@ -66,7 +66,7 @@ const GROUPS: {
     ],
   },
   {
-    label: "What Bots can do",
+    label: "What digital employees can do",
     items: [
       {
         title: "Plugins",

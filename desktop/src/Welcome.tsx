@@ -16,7 +16,7 @@ export function Welcome({ onStart }: { onStart: () => void }) {
         <Portrait />
         <span>ArkAgent</span>
       </div>
-      <h1>Your own AI coworkers, on this computer.</h1>
+      <h1>Your own AI digital employees, on this computer.</h1>
       <p className="lede big">
         They answer questions, use the tools you connect, and can work in a
         browser for you.

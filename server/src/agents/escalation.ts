@@ -93,7 +93,7 @@ export function escalationTool(options: {
     description:
       "Put a question to a person when the work needs judgement you do not have: a decision only " +
       "they can make, a fact only they know, permission you do not hold. Prefer this to guessing, " +
-      "and prefer it to asking another Bot when no other Bot could settle it either. Say what you " +
+      "and prefer it to asking another digital employee when no other digital employee could settle it either. Say what you " +
       "need and why, then stop and wait for their answer.",
     parameters,
     execute: async (args: unknown) => {
@@ -204,7 +204,7 @@ export function escalationTool(options: {
       }
 
       return "reached" in outcome
-        ? `${PUT_TO}${outcome.reached}. Ask it in your own words now, plainly, and stop there: do not answer it yourself and do not hand it to another Bot.`
+        ? `${PUT_TO}${outcome.reached}. Ask it in your own words now, plainly, and stop there: do not answer it yourself and do not hand it to another digital employee.`
         : outcome.refusal;
     },
   };

@@ -16,7 +16,7 @@ fn refused(message: impl Into<String>) -> HostAccessError {
 // truncating it would authorize bytes the person never saw.
 fn reviewable(value: &str) -> HostAccessResult<()> {
     if value.chars().count() > 2_000 || value.lines().count() > 24 || value.contains('\0') {
-        return Err(refused("This operation is too large for native approval. Ask the Bot for a smaller edit or command."));
+        return Err(refused("This operation is too large for native approval. Ask the digital employee for a smaller edit or command."));
     }
     Ok(())
 }
@@ -82,7 +82,7 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
             .into_path()
             .map_err(|error| refused(error.to_string()))?;
         self.confirm("Allow folder access?", format!(
-            "Bot: {bot}\nRequested by: {}\n\nFolder: {}\n\nAllow this Bot to read this folder for this ArkAgent session? Each edit and command asks separately. You can revoke access in Computers.",
+            "Digital employee: {bot}\nRequested by: {}\n\nFolder: {}\n\nAllow this digital employee to read this folder for this ArkAgent session? Each edit and command asks separately. You can revoke access in Computers.",
             request.actor_id, root.display()
         ))?;
         Ok(ApprovedFolder { root })
@@ -92,7 +92,7 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
         reviewable(&request.content)?;
         let bot = bot_label(request.bot_name.as_deref(), &request.bot_id);
         self.confirm("Allow this file change?", format!(
-            "Bot: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
+            "Digital employee: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
             request.root.display(), request.relative_path, request.content
         ))
     }
@@ -106,7 +106,7 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
             "The approved folder stays read-only. The command can write only to its temporary workspace."
         };
         self.confirm("Allow this command?", format!(
-            "Bot: {bot}\nFolder: {}\nWorking folder: {}\n\nCommand:\n{}\n\n{access}\nNetwork access is disabled. Allow this command once?",
+            "Digital employee: {bot}\nFolder: {}\nWorking folder: {}\n\nCommand:\n{}\n\n{access}\nNetwork access is disabled. Allow this command once?",
             request.root.display(), request.working_directory.as_deref().unwrap_or("/workspace"), request.command
         ))
     }

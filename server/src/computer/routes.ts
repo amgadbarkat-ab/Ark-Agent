@@ -84,7 +84,7 @@ export function createComputerRoutes(
     }
 
     if (botId && !(await canUseBot(context.var.actor, botId))) {
-      return context.json({ error: "There is no such Bot." }, 404);
+      return context.json({ error: "There is no such digital employee." }, 404);
     }
     await next();
   });
@@ -151,7 +151,7 @@ export function createComputerRoutes(
       if (gateway.provider.isolation === "per-bot") return { ok: true };
       return {
         ok: false,
-        why: "this computer is shared and the screenshot did not say which page it is of, so it cannot be told apart from another Bot's",
+        why: "this computer is shared and the screenshot did not say which page it is of, so it cannot be told apart from another digital employee's",
       };
     }
     if (!samePage(shotUrl, pageUrl)) {
@@ -554,10 +554,16 @@ export function createComputerRoutes(
     const botId = context.req.param("botId");
     const toolCallId = context.req.param("toolCallId");
     if (!botId.trim() || !toolCallId.trim()) {
-      return context.json({ error: "A Bot and a turn are required." }, 400);
+      return context.json(
+        { error: "A digital employee and a turn are required." },
+        400,
+      );
     }
     if (botId.length > 200 || toolCallId.length > 200) {
-      return context.json({ error: "A Bot and a turn are required." }, 400);
+      return context.json(
+        { error: "A digital employee and a turn are required." },
+        400,
+      );
     }
     const stored = await pageFrames.load(botId, toolCallId);
     return context.json({ frame: stored });

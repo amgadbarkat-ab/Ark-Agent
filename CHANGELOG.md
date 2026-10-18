@@ -8,6 +8,34 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A team: a primary digital employee, and every employee knows its colleagues
+
+The first digital employee a person makes now leads their team; they can choose another on its General page ("Make
+primary"), and the lead shows a "Primary" tag. If the lead is deleted, the one that has been there longest takes over.
+Every employee is now told who its colleagues are and who leads, so asked for something outside its role it says which
+colleague owns it and what it would ask them, and asks you to bring them in. It does not claim to have contacted
+anyone. A shared employee is not told about someone else's team.
+
+The lead does not yet have tools over the others (giving them work, reading their reports, switching routines off), and
+channels are still one employee each; both are written up in docs/ark/23-digital-employees.md with what they wait on.
+
+### The General page shows and edits the full instructions
+
+An owner can read and edit the full standing instruction of a digital employee (up to 8,000 characters). Empty means the
+Role is the whole instruction. Editing the Role replaces the long instruction, as before.
+
+### Long conversations cost less
+
+The built-in agent sent the whole conversation to the model on every turn. It now sends the standing role, the last 12
+turns, and earlier tool results shortened to 2,000 characters, and leaves out the oldest turns when the rest is over 60,000
+characters, telling the model so it asks rather than guesses. The limits are `BOT_HISTORY_TURNS`,
+`BOT_HISTORY_CHARACTERS` and `BOT_TOOL_RESULT_CHARACTERS`. A very long conversation now forgets its beginning.
+
+### "Digital employee" everywhere
+
+The administrator console, server messages, the setup window and the desktop's own messages say "digital employee"
+where they said "Bot". Names used by the software itself (services, events, settings) are unchanged.
+
 ## 0.1.8
 
 ### The marketplace has 17 digital employees, each with a real job

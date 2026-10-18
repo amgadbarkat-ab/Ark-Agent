@@ -11,6 +11,8 @@ export type AgentInput = {
   name: string;
   title: string;
   roleDescription: string;
+  /** The full standing instruction; absent leaves it alone, empty clears it. */
+  persona?: string;
   visibility: AgentVisibility;
   /** Where this coworker runs. Empty means the Bot in the box. */
   endpoint?: string;
@@ -19,7 +21,7 @@ export type AgentInput = {
 };
 
 /** The sentence for every write here, since they all fail the same way to a reader. */
-const FALLBACK = "Coworker operation failed";
+const FALLBACK = "Digital employee operation failed";
 
 /** Server-derived fields are invalidated instead of patched by hand. */
 function invalidateAgents(queryClient: QueryClient) {
@@ -70,6 +72,18 @@ export function setAgentIconMutationOptions(queryClient: QueryClient) {
             body: { image: variables.image },
             fallback: "The icon could not be changed",
           }),
+    onSuccess: () => invalidateAgents(queryClient),
+  });
+}
+
+/** Makes this digital employee the lead of the team; the one that was no longer is. */
+export function setPrimaryAgentMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (agentId: string): Promise<AgentProfile> =>
+      client(`${agentApiPath(agentId)}/primary`, "agent", {
+        method: "POST",
+        fallback: "Could not make this digital employee the primary one",
+      }),
     onSuccess: () => invalidateAgents(queryClient),
   });
 }

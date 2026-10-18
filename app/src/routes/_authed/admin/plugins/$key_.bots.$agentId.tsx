@@ -199,8 +199,8 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="This deployment has no Bot by that name, so there is nobody to grant these actions to."
-        title="Not a Bot"
+        description="This deployment has no digital employee by that name, so there is nobody to grant these actions to."
+        title="Not a digital employee"
       >
         <PageEmpty>
           It may have been deleted since this page was opened.

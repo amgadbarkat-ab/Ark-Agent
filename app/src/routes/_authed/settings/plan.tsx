@@ -155,8 +155,8 @@ function PlanPage() {
     <PageShell
       description={
         purchasesAllowed
-          ? "What you have, how much of it is in use, and how to change it. A coworker counts only while it is working."
-          : "What you have and how much of it is in use. A coworker counts only while it is working."
+          ? "What you have, how much of it is in use, and how to change it. A digital employee counts only while it is working."
+          : "What you have and how much of it is in use. A digital employee counts only while it is working."
       }
       title="Plan"
     >
@@ -218,7 +218,7 @@ function PlanPage() {
                   <IconRobot />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Coworkers</ItemTitle>
+                  <ItemTitle>Digital employees</ItemTitle>
                   <ItemDescription>{workingLine(data.account)}</ItemDescription>
                 </ItemContent>
               </Item>
@@ -227,7 +227,7 @@ function PlanPage() {
 
           {purchasesAllowed && data.billing.mode === "subscriptions" ? (
             <PageSection
-              description="Every plan is for one person. Switch any time; your coworkers keep their work."
+              description="Every plan is for one person. Switch any time; your digital employees keep their work."
               title="Plans"
             >
               {data.plans.length === 0 ? (
@@ -313,7 +313,7 @@ function PlanPage() {
                         <ItemTitle>Cancel</ItemTitle>
                         <ItemDescription>
                           {confirmCancel
-                            ? "Your coworkers keep working until the end of the period you have paid for. Cancel now?"
+                            ? "Your digital employees keep working until the end of the period you have paid for. Cancel now?"
                             : "Stop renewing at the end of this period."}
                         </ItemDescription>
                       </ItemContent>

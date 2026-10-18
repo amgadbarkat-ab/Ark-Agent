@@ -400,6 +400,7 @@ export const auditEventTypes = [
   "bot.callback_token_issued",
   "bot.callback_token_revoked",
   "bot.icon_changed",
+  "bot.primary_changed",
 
   /*
    * One Bot handing work to another.

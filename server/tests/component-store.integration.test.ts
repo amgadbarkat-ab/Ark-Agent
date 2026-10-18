@@ -72,7 +72,7 @@ afterAll(async () => {
   await database.delete(agents).where(inArray(agents.id, [...fixtureAgentIds]));
 });
 
-describe("deciding whether a Bot may use a component", () => {
+describe("deciding whether a digital employee may use a component", () => {
   test("a published component nobody configured is allowed", async () => {
     const decision = await store.decide(componentName, botA);
 
@@ -89,17 +89,17 @@ describe("deciding whether a Bot may use a component", () => {
     const decision = await store.decide(componentName, botA);
     expect(decision.allowed).toBeFalse();
     if (!decision.allowed) {
-      expect(decision.reason).toContain("withheld from this Bot");
+      expect(decision.reason).toContain("withheld from this digital employee");
     }
   });
 
-  test("withholding is per Bot and reaches no other Bot", async () => {
+  test("withholding is per digital employee and reaches no other digital employee", async () => {
     // Withholding is scoped to botA and does not affect botB.
     expect((await store.decide(componentName, botA)).allowed).toBeFalse();
     expect((await store.decide(componentName, botB)).allowed).toBeTrue();
   });
 
-  test("an unpublished component is refused to every Bot", async () => {
+  test("an unpublished component is refused to every digital employee", async () => {
     const decision = await store.decide(otherName, botB);
     expect(decision.allowed).toBeFalse();
     if (!decision.allowed) {
@@ -151,7 +151,7 @@ describe("withholding", () => {
     ).rejects.toThrow(ComponentNotFoundError);
   });
 
-  test("deleting a Bot takes its withholdings with it", async () => {
+  test("deleting a digital employee takes its withholdings with it", async () => {
     const doomed = `agent_test_doomed_${suite}`;
     fixtureAgentIds.add(doomed);
     await database.insert(agents).values({
@@ -172,7 +172,7 @@ describe("withholding", () => {
   });
 });
 
-describe("what a Bot holds", () => {
+describe("what a digital employee holds", () => {
   test("lists the published components, and not the unpublished ones", async () => {
     const held = await store.listForAgent(botA);
     const names = held.map((component) => component.name);
@@ -181,7 +181,7 @@ describe("what a Bot holds", () => {
     expect(names).not.toContain(otherName);
   });
 
-  test("a component this Bot is withheld from is left out", async () => {
+  test("a component this digital employee is withheld from is left out", async () => {
     await store.revoke(componentName, botA, "x@example.test");
 
     const names = (await store.listForAgent(botA)).map(
@@ -243,7 +243,7 @@ describe("learning what a build ships", () => {
   };
   fixtureComponentNames.add(announced.name);
 
-  test("a component the deployment has never seen is added, published and available to every Bot", async () => {
+  test("a component the deployment has never seen is added, published and available to every digital employee", async () => {
     const { added } = await store.syncCatalogue([announced]);
     expect(added).toEqual([announced.name]);
 

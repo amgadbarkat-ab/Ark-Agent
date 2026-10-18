@@ -94,7 +94,7 @@ function RouteComponent() {
           Write a skill
         </Button>
       }
-      description="Named instructions anybody here can invoke with a slash. A skill adds no capability: it can only ask a Bot to use what that Bot already holds, and every one of those calls is still decided and recorded."
+      description="Named instructions anybody here can invoke with a slash. A skill adds no capability: it can only ask a digital employee to use what that digital employee already holds, and every one of those calls is still decided and recorded."
       title="Skills"
     >
       {error ? (
@@ -187,7 +187,7 @@ function RouteComponent() {
             <DialogDescription>
               The slug is what a person types after a slash, and the
               instructions are added to the run when they do. Everybody here can
-              use it, and you decide which Bots have it.
+              use it, and you decide which digital employees have it.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
@@ -247,7 +247,7 @@ function RouteComponent() {
                       instructions: event.target.value,
                     }))
                   }
-                  placeholder="What the Bot should do when this skill is used."
+                  placeholder="What the digital employee should do when this skill is used."
                   value={draft.instructions}
                 />
               </Field>

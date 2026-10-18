@@ -31,7 +31,7 @@ const PRESETS: { label: string; rule: string; cost?: string }[] = [
     // flag that presses it once the text is in, and a rule naming only `computer_key` left that door
     // open.
     rule: '(intent == "activate" && contains(element.name, "submit")) || ((tool.name == "computer_key" || tool.name == "computer_type") && key == "Enter")',
-    cost: "Also stops the Bot pressing Enter for anything else, because a form submits from Enter in any of its fields.",
+    cost: "Also stops the digital employee pressing Enter for anything else, because a form submits from Enter in any of its fields.",
   },
   {
     label: "Never type into a password field",
@@ -130,8 +130,9 @@ function BoundariesPage() {
     <PageShell
       description={
         <>
-          What every Bot may and may not do with its computer. Rules are checked
-          on every action before it happens, and a refusal is recorded in{" "}
+          What every digital employee may and may not do with its computer.
+          Rules are checked on every action before it happens, and a refusal is
+          recorded in{" "}
           <Link className="underline" to="/admin/audit">
             Audit
           </Link>{" "}
@@ -163,7 +164,7 @@ function BoundariesPage() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {policy.mode === "enforce"
-            ? "The Bot is stopped and told which rule refused it."
+            ? "The digital employee is stopped and told which rule refused it."
             : "Nothing is stopped. Every action a rule matches is recorded as it would have been refused, which is how a rule is tried out before it is switched on."}
         </p>
       </PageSection>
@@ -172,8 +173,8 @@ function BoundariesPage() {
         description={
           <>
             Checked first, and a match ends it: nothing below is consulted and
-            the Bot is told which rule refused it. Rules are CEL, and can ask
-            about <code>tool.name</code>, <code>intent</code>,{" "}
+            the digital employee is told which rule refused it. Rules are CEL,
+            and can ask about <code>tool.name</code>, <code>intent</code>,{" "}
             <code>bot.id</code>, <code>actor.id</code>, <code>page.url</code>{" "}
             and <code>page.host</code>, the element being acted on, the{" "}
             <code>key</code> being pressed, the file being touched, the{" "}
@@ -302,9 +303,9 @@ function BoundariesPage() {
             {problem}
           </span>
         ) : saved ? (
-          "Saved. It applies to the next action any Bot takes."
+          "Saved. It applies to the next action any digital employee takes."
         ) : (
-          "Changes apply to the next action any Bot takes, and are kept: a restart comes back up enforcing what is here."
+          "Changes apply to the next action any digital employee takes, and are kept: a restart comes back up enforcing what is here."
         )}
       </p>
     </PageShell>
@@ -322,7 +323,7 @@ function DryRunResult({ report }: { report: DryRunReport }) {
     return (
       <p className="mt-2 text-xs text-muted-foreground" role="status">
         No recorded computer actions to test against yet. The rule is valid;
-        what it matches will only be known once Bots have acted.
+        what it matches will only be known once digital employees have acted.
       </p>
     );
   }

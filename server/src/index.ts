@@ -978,7 +978,7 @@ const buildAgentFor = async ({
      * a routine pointed at something that is not coming back.
      */
     const error = new Error(
-      `That Bot is no longer registered, so this routine has nothing to run: ${agentId}.`,
+      `That digital employee is no longer registered, so this routine has nothing to run: ${agentId}.`,
     );
     error.name = "RoutineBotNotRegistered";
     throw error;
@@ -1227,7 +1227,7 @@ if (config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0) {
         const actor = await actorFor(actorId).catch(() => null);
         if (!actor) {
           throw new Error(
-            "who this is for could not be confirmed, so the Bot was not run",
+            "who this is for could not be confirmed, so the digital employee was not run",
           );
         }
         return copilotRuntime.agentFor({
@@ -1481,7 +1481,7 @@ const app = createApp(
     }).find((candidate) => candidate.name === name);
     if (!tool) {
       return {
-        text: `${REFUSAL_MARKER} That host tool is not available for this Bot right now.`,
+        text: `${REFUSAL_MARKER} That host tool is not available for this digital employee right now.`,
         isError: true,
       };
     }
@@ -1705,7 +1705,9 @@ const server = serve<SocketData>({
           .get({ id: actor.id, role: actor.role }, streamBotId)
           .catch(() => null))
       ) {
-        return new Response("There is no such Bot.", { status: 404 });
+        return new Response("There is no such digital employee.", {
+          status: 404,
+        });
       }
       /*
        * Through the gateway, not the provider.
@@ -1732,7 +1734,7 @@ const server = serve<SocketData>({
         return new Response(
           error instanceof Error
             ? error.message
-            : "That Bot's computer could not be reached.",
+            : "That digital employee's computer could not be reached.",
           { status: 502 },
         );
       }

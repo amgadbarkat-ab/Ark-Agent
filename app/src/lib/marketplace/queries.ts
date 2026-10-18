@@ -189,7 +189,7 @@ export function myListingsQueryOptions() {
     queryFn: async (): Promise<MyListings> =>
       (
         await client("/api/marketplace/mine", {
-          fallback: "Could not load your shared coworkers",
+          fallback: "Could not load your shared digital employees",
         })
       ).json(),
   });

@@ -91,9 +91,10 @@ function toggled(
  * case that gets a number.
  */
 function grantSummary(held: number, total: number): string {
-  if (held === 0) return "No Bots";
-  if (held === total) return total === 1 ? "1 Bot" : "All Bots";
-  return `${held} of ${total} Bots`;
+  if (held === 0) return "No digital employees";
+  if (held === total)
+    return total === 1 ? "1 digital employee" : "All digital employees";
+  return `${held} of ${total} digital employees`;
 }
 
 /**
@@ -456,8 +457,8 @@ function RouteComponent() {
               <ItemTitle>Enable for this deployment</ItemTitle>
               <ItemDescription>
                 {server
-                  ? "Bots may be granted its tools. Switching this off removes it and every grant on its tools."
-                  : "No Bot can reach this vendor. Switch it on to configure it and grant its tools."}
+                  ? "Digital employees may be granted its tools. Switching this off removes it and every grant on its tools."
+                  : "No digital employee can reach this vendor. Switch it on to configure it and grant its tools."}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -479,7 +480,7 @@ function RouteComponent() {
         <PageSection
           description={
             auth === "user-oauth"
-              ? "This vendor answers as whoever is asking. The deployment registers an OAuth client, and each person connects their own account, so a Bot only ever sees what that person can see."
+              ? "This vendor answers as whoever is asking. The deployment registers an OAuth client, and each person connects their own account, so a digital employee only ever sees what that person can see."
               : auth === "builtin"
                 ? "Built into this deployment. There is no vendor to reach and no credential to hold — a call runs as whoever asked."
                 : auth === "brokered"
@@ -547,8 +548,8 @@ function RouteComponent() {
                     This app is reached through Composio, which holds the
                     account. This deployment sends one key and the name of
                     whoever is asking, so each person connects their own and a
-                    Bot sees only what that person can see. There is no token to
-                    paste.
+                    Digital employee sees only what that person can see. There
+                    is no token to paste.
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
@@ -665,7 +666,7 @@ function RouteComponent() {
                     /* Said beside the button rather than after it: disconnecting ends the account
                        at Composio, so what it undoes is not the row here but the grant on this
                        person's mailbox, and connecting again is a fresh consent. */
-                    connectedDescription={`Connected, so a Bot granted these tools uses your ${title} as you. Disconnecting ends the account at Composio, not just here.`}
+                    connectedDescription={`Connected, so a digital employee granted these tools uses your ${title} as you. Disconnecting ends the account at Composio, not just here.`}
                     disconnectedDescription={`Connect your own account to try this connector. ${reassurance}`}
                     /* The half of the line above that is true whichever way this app connects.
                        An app whose key somebody types gets a different first sentence from the
@@ -691,7 +692,7 @@ function RouteComponent() {
                       <ItemTitle>Your account</ItemTitle>
                       <ItemDescription>
                         {youConnected
-                          ? `Connected, so a Bot granted these tools uses your ${title} as you. Everybody else connects their own.`
+                          ? `Connected, so a digital employee granted these tools uses your ${title} as you. Everybody else connects their own.`
                           : "Connect your own account to try this connector. Setup is complete without it, and it reaches your documents only."}
                       </ItemDescription>
                     </ItemContent>
@@ -856,7 +857,7 @@ function RouteComponent() {
               ) : null}
             </div>
           }
-          description="A Bot is told about a tool only when it holds it. Every call is decided again when it happens, so removing a grant takes effect on the next one."
+          description="A digital employee is told about a tool only when it holds it. Every call is decided again when it happens, so removing a grant takes effect on the next one."
           title="Tools"
         >
           {server.tools.length === 0 ? (
@@ -929,7 +930,7 @@ function RouteComponent() {
            */}
           {server.tools.length > 0 && bots.length > 0 ? (
             <>
-              <p className="mt-8 font-medium text-sm">By Bot</p>
+              <p className="mt-8 font-medium text-sm">By digital employee</p>
               <PageRows>
                 {bots.map((bot, index) => (
                   <React.Fragment key={bot.id}>
@@ -980,7 +981,7 @@ function RouteComponent() {
        */}
       {server && server.withdrawn.length > 0 ? (
         <PageSection
-          description="This vendor no longer lists these, so no Bot is told about them and no model can call one. The grant is still recorded, and the tool would be offered again if the vendor started listing it. Revoke from the Bot's own page if that is not what you want."
+          description="This vendor no longer lists these, so no digital employee is told about them and no model can call one. The grant is still recorded, and the tool would be offered again if the vendor started listing it. Revoke from the digital employee's own page if that is not what you want."
           title="Held but not offered"
         >
           <PageRows>

@@ -59,10 +59,39 @@ reads every role description to choose who answers, is not made to read 3,000 ch
 So there is no per-role skill catalogue elsewhere to copy: the skills here were written for each role from what the job
 involves, in the same shape OpenBot describes (instructions, plus the connection that brings the data).
 
+## A team (release C)
+
+- **The primary digital employee.** The first one a person makes leads their team without being asked. They can choose another
+  on its General page ("Make primary"). One at a time per person, never a platform employee. If the lead is deleted, the one
+  that has been there longest takes over. Changes are recorded as `bot.primary_changed`.
+- **Every employee knows it is on a team.** Its standing instruction now names its colleagues (up to twelve, then a count),
+  says who leads, and says what to do when a task is someone else's: name the colleague, say what it would ask them, and ask the
+  person to bring them in. It asks a colleague directly only if it was given a tool for that, and never says a colleague did
+  something unless a tool result shows it. When nobody on the team can settle a question it says so and suggests ArkAgent
+  support. The text is `server/src/agents/team.ts`; it is built from rows already loaded for the request, so it costs no query.
+  A person's shared employee is not told about someone else's team.
+- **Instructions on the General page.** The owner can read and edit the full standing instruction (up to 8,000 characters).
+  Leave it empty and the Role is the whole instruction. Editing the Role replaces the long instruction, as before. The long
+  instruction is only sent to people who may change it.
+- **Cheaper turns.** The built-in agent used to send the whole conversation to the model on every turn, tool results included.
+  It now keeps the standing role and the last 12 turns, shortens tool results from earlier turns to 2,000 characters, and drops
+  the oldest turns when what is left is over 60,000 characters. When something was left out the model is told so and asks the
+  person to repeat it rather than guessing. Limits: `BOT_HISTORY_TURNS`, `BOT_HISTORY_CHARACTERS`,
+  `BOT_TOOL_RESULT_CHARACTERS` (0 switches a limit off). This is `agent-bot`; the framework agents are unchanged.
+
 ## Not done
 
-- Employee-to-employee messaging, team channels with several employees, and the primary employee (release C).
-- A rename of "coworker" to "digital employee" everywhere. This release changes "bot" in what customers read in the app and
-  the desktop setup window; the administrator console, server messages and the desktop's native error messages still say
-  "Bot".
+- **The primary employee managing the others** (giving them work, reading their jobs and reports, switching their routines
+  off, editing or deleting their routines). Today the lead knows the team and leads it in conversation; it has no tools over its
+  colleagues. Two things stand in the way and are decisions rather than code: (1) the existing hand-off between employees is
+  only offered to built-in employees, not to the ones that run on the shared agent, which is every employee in the desktop
+  product, so reaching a colleague needs a new route for a running agent to call back; (2) anything that edits or deletes a
+  colleague's work should ask the person first, which needs an approvals design. Proposed first step: read-only tools (team,
+  routines, last runs) and switching a routine off, then writes with approval.
+- **Team channels with several employees talking to each other.** A channel is pinned to one employee in the app and in the
+  conversation store, and the group chat the owner described needs that changed; the database already allows several
+  employees in one channel. Not started.
+- **Memories.** There is no memory feature to edit or delete yet.
+- A rename of "coworker" to "digital employee" everywhere. "Bot" is now "digital employee" in the app, the administrator console,
+  server messages and the desktop's messages; "coworker" still appears in some screens (for example the Models page).
 - Translations. The roles are in English; an employee answers in the language it is written to, but the instruction is English.

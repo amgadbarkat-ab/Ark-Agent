@@ -95,7 +95,7 @@ const TOOLS: readonly McpTool[] = Object.freeze([
       "share with this person; when you share more than one you will be told so and asked to pick, and the",
       "answer to that is to ask them which.",
       "",
-      "It takes no owner and no Bot. The routine belongs to the person you are talking to and runs as you;",
+      "It takes no owner and no digital employee. The routine belongs to the person you are talking to and runs as you;",
       "both are taken from the run itself, and there is no field for either.",
     ].join("\n"),
     inputSchema: {
@@ -367,7 +367,9 @@ export async function callTool(
   }
   const agentId = connection.botId?.trim();
   if (!agentId) {
-    return failure("A routine runs as a Bot, and this run does not name one.");
+    return failure(
+      "A routine runs as a digital employee, and this run does not name one.",
+    );
   }
   const tools = installed;
   if (!tools) {

@@ -54,7 +54,7 @@ export const botCardAnswer = {
      */
     if (input.failed.length > 0) {
       parts.push(
-        `${input.failed.map((s) => `/${s}`).join(", ")} could not be put on it; tell the person to add ${input.failed.length === 1 ? "it" : "them"} from the coworker's profile.`,
+        `${input.failed.map((s) => `/${s}`).join(", ")} could not be put on it; tell the person to add ${input.failed.length === 1 ? "it" : "them"} from the digital employee's profile.`,
       );
     }
     parts.push(
@@ -64,10 +64,10 @@ export const botCardAnswer = {
     return parts.join(" ");
   },
   declined: () =>
-    "The person did not create this coworker. Ask what to change rather than proposing the same one again.",
+    "The person did not create this digital employee. Ask what to change rather than proposing the same one again.",
   /** A proposal the fields refuse, answered rather than shown as a question. See the card. */
   unwritable: (problems: readonly string[]) =>
-    `Not created, and the person was not asked, because the coworker is not valid: ${problems.join(" ")} Fix those and propose it again.`,
+    `Not created, and the person was not asked, because the digital employee is not valid: ${problems.join(" ")} Fix those and propose it again.`,
 };
 
 /** Whether a completed card's recorded answer is one that made a coworker. */
@@ -119,23 +119,23 @@ export const proposedBotSchema = z.object({
   name: z
     .string()
     .describe(
-      "What the coworker is called, as a person would say it: `Renewal Desk`, not `renewal_desk_bot`. Up to 80 characters.",
+      "What the digital employee is called, as a person would say it: `Renewal Desk`, not `renewal_desk_bot`. Up to 80 characters.",
     ),
   title: z
     .string()
     .describe(
-      "The job it does, the way a job title reads: `Accounts Receivable`, `Support Operations`. Up to 120 characters. This is given to the model on every turn, so it is part of what the coworker is rather than a label.",
+      "The job it does, the way a job title reads: `Accounts Receivable`, `Support Operations`. Up to 120 characters. This is given to the model on every turn, so it is part of what the digital employee is rather than a label.",
     ),
   roleDescription: z
     .string()
     .describe(
-      "The coworker's standing instructions, written as directions to it in the imperative, up to 1000 characters. Say what it does, what it must not conclude, and what it says when the evidence is thin. This text is given to a model on every turn in every channel, so write the rules that should always hold rather than a description of the coworker in the third person. Do not address the person talking to it.",
+      "The digital employee's standing instructions, written as directions to it in the imperative, up to 1000 characters. Say what it does, what it must not conclude, and what it says when the evidence is thin. This text is given to a model on every turn in every channel, so write the rules that should always hold rather than a description of the digital employee in the third person. Do not address the person talking to it.",
     ),
   skills: z
     .array(z.string())
     .optional()
     .describe(
-      "Slugs of skills that already exist here to put on this coworker, from list_bot_skills, without the slash. This is the only capability the card grants, and it grants nothing else: no connector, no tool and no address. Omit for a coworker that is only its instructions, which is most of them.",
+      "Slugs of skills that already exist here to put on this digital employee, from list_bot_skills, without the slash. This is the only capability the card grants, and it grants nothing else: no connector, no tool and no address. Omit for a digital employee that is only its instructions, which is most of them.",
     ),
 });
 
@@ -227,14 +227,14 @@ export function ownershipOf(
  */
 export function describeBots(agents: readonly AgentProfile[]): string {
   if (agents.length === 0) {
-    return "No coworkers exist here yet. Anything you propose is the first.";
+    return "No digital employees exist here yet. Anything you propose is the first.";
   }
   const lines = agents.map((agent) => {
     const where = agent.endpoint ? "runs at its own address" : "runs here";
     return `- ${agent.name} — ${agent.title} (${ownershipOf(agent)}, ${where})`;
   });
   return [
-    `${agents.length} coworker${agents.length === 1 ? "" : "s"} already exist here. If one of them already does the job being described, say so and offer that one instead of making a second.`,
+    `${agents.length} digital employee${agents.length === 1 ? "" : "s"} already exist here. If one of them already does the job being described, say so and offer that one instead of making a second.`,
     ...lines,
   ].join("\n");
 }
@@ -250,7 +250,7 @@ export function describeBot(agent: AgentProfile): string {
   return [
     `${agent.name} — ${agent.title} (${ownershipOf(agent)})`,
     agent.endpoint
-      ? "Runs at its own address, which a coworker made here cannot be given."
+      ? "Runs at its own address, which a digital employee made here cannot be given."
       : "Runs on this deployment, on the instructions below.",
     "Instructions:",
     agent.roleDescription,
@@ -272,7 +272,7 @@ export function describeGrantableSkills(
   skills: readonly PluginSkill[],
 ): string {
   if (skills.length === 0) {
-    return "No skills exist here yet, so a coworker made now runs on its instructions alone. That is ordinary — most coworkers do.";
+    return "No skills exist here yet, so a digital employee made now runs on its instructions alone. That is ordinary — most digital employees do.";
   }
   const lines = skills.map((skill) => {
     const parts = [`/${skill.slug} — ${skill.title}`];
@@ -281,7 +281,7 @@ export function describeGrantableSkills(
     return `- ${parts.join(" · ")}`;
   });
   return [
-    "Skills that can be put on a new coworker. A skill is an instruction, not a capability: one naming a tool the coworker was not granted loads nothing, so putting it on is safe and granting the connector is a separate step somebody takes on the profile.",
+    "Skills that can be put on a new digital employee. A skill is an instruction, not a capability: one naming a tool the digital employee was not granted loads nothing, so putting it on is safe and granting the connector is a separate step somebody takes on the profile.",
     ...lines,
   ].join("\n");
 }

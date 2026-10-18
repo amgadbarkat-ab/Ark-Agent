@@ -317,7 +317,7 @@ export function createHandoffRunner(options: {
                 to: work.toBotId,
                 run: work.runId,
                 attempt: item.attempts,
-                note: "A previous attempt may already have run this Bot.",
+                note: "A previous attempt may already have run this digital employee.",
               },
             });
           }
@@ -550,7 +550,7 @@ function attribute(work: HandoffWork): string {
    * one.
    */
   if (work.answerIn) {
-    return `${work.task}\n\nSay this in your own words to the person in this conversation, in a sentence or two. Do not hand it to another Bot.`;
+    return `${work.task}\n\nSay this in your own words to the person in this conversation, in a sentence or two. Do not hand it to another digital employee.`;
   }
   const lines = [
     `${work.fromBotId} has asked you to help with this, on behalf of the person in this conversation.`,
@@ -562,7 +562,7 @@ function attribute(work: HandoffWork): string {
     lines.push(`What a good answer looks like: ${work.expecting}`);
   lines.push(
     "",
-    "Answer in this conversation as yourself. The person can see it, so write it for them rather than for the Bot that asked.",
+    "Answer in this conversation as yourself. The person can see it, so write it for them rather than for the digital employee that asked.",
   );
   return lines.join("\n");
 }

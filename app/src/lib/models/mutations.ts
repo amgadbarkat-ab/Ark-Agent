@@ -128,7 +128,7 @@ export function setBotModelMutationOptions(queryClient: QueryClient) {
       await client(`/api/models/bots/${encodeURIComponent(variables.botId)}`, {
         method: "PUT",
         body: { connectionId: variables.connectionId },
-        fallback: "Could not change the model for that coworker",
+        fallback: "Could not change the model for that digital employee",
       });
     },
     onSuccess: () => invalidate(queryClient),

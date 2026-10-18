@@ -477,7 +477,7 @@ impl Inner {
             } else if state.active_by_operation.len() >= MAX_ACTIVE_OPERATIONS {
                 Err("Too many host operations are already waiting.".to_string())
             } else if state.active_by_bot.contains(&operation.bot_id) {
-                Err("That Bot already has a host operation in progress.".to_string())
+                Err("That digital employee already has a host operation in progress.".to_string())
             } else {
                 state
                     .active_by_operation
@@ -850,7 +850,7 @@ impl Inner {
         }
         if grant.bot_id != operation.bot_id || grant.actor_id != operation.actor_id {
             return Err(HostAccessError::Denied(
-                "Host grant is bound to a different Bot or actor.".into(),
+                "Host grant is bound to a different digital employee or actor.".into(),
             ));
         }
         Ok(grant.clone())
@@ -1148,7 +1148,7 @@ fn public_error_message(error: &HostAccessError) -> String {
             "The requested path is unavailable.".into()
         }
         HostAccessError::Denied(message) if message.contains("cannot be granted") => {
-            "That folder cannot be granted to a Bot.".into()
+            "That folder cannot be granted to a digital employee.".into()
         }
         HostAccessError::Denied(message) => message.clone(),
     }
@@ -1289,14 +1289,14 @@ fn validate_grant_root_with_forbidden(
     for denied in &forbidden.exact_or_ancestor_only {
         if &root == denied || path_contains(&root, denied) {
             return Err(HostAccessError::Denied(
-                "That folder cannot be granted to a Bot.".into(),
+                "That folder cannot be granted to a digital employee.".into(),
             ));
         }
     }
     for denied in &forbidden.protected_subtrees {
         if path_contains(&root, denied) || path_contains(denied, &root) {
             return Err(HostAccessError::Denied(
-                "That folder cannot be granted to a Bot.".into(),
+                "That folder cannot be granted to a digital employee.".into(),
             ));
         }
     }
@@ -2082,7 +2082,7 @@ mod tests {
                 kind: HostOperationKind::ChooseFolder,
                 bot_id: "bot-a".into(),
                 actor_id: "actor-a".into(),
-                bot_name: Some("Research Bot".into()),
+                bot_name: Some("Research digital employee".into()),
                 grant_id: None,
                 target_operation_id: None,
                 relative_path: None,

@@ -88,7 +88,7 @@ function summaryFor(
 
   const bots = new Set(server.tools.flatMap((tool) => tool.grantedTo)).size;
   const tools = `${server.tools.length} ${server.tools.length === 1 ? "tool" : "tools"}`;
-  if (bots === 0) return `${tools} · no Bots`;
+  if (bots === 0) return `${tools} · no digital employees`;
   return `${tools} · ${bots} ${bots === 1 ? "Bot" : "Bots"}`;
 }
 
@@ -110,7 +110,7 @@ function RouteComponent() {
 
   return (
     <PageShell
-      description="What this deployment can reach, and which Bots may reach it. Adding a plugin is account-wide; which Bots hold its tools is decided on its own page."
+      description="What this deployment can reach, and which digital employees may reach it. Adding a plugin is account-wide; which digital employees hold its tools is decided on its own page."
       title="Plugins"
     >
       {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
@@ -121,7 +121,7 @@ function RouteComponent() {
       ) : (
         <>
           <PageSection
-            description="Added for the whole deployment. Open one to set what it needs and which Bots hold its tools."
+            description="Added for the whole deployment. Open one to set what it needs and which digital employees hold its tools."
             title="Connected"
           >
             {plugins.data?.servers.length === 0 ? (

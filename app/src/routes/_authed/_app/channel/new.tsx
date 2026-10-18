@@ -74,9 +74,9 @@ function RouteComponent() {
   const urlAgentDetailFailed = needsUrlAgentDetail && detailError && !fetched;
   const loadError =
     rosterError && profiles === undefined
-      ? "Coworkers couldn't be loaded."
+      ? "Digital employees couldn't be loaded."
       : urlAgentDetailFailed
-        ? "Coworker couldn't be loaded."
+        ? "Digital employee couldn't be loaded."
         : null;
   const recipients: Recipient[] = chosen
     ? [{ id: chosen.id, name: chosen.name }]
@@ -114,7 +114,7 @@ function RouteComponent() {
             // the caret starts here whenever the recipient question is still open. Same condition
             // as `defaultOpen` — a recipient from the URL means the composer takes focus instead.
             autoFocus={!chosen}
-            placeholder="Choose a coworker…"
+            placeholder="Choose a digital employee…"
             // InputGroup owns focus rings via `has-[…:focus-visible]`; disable that wrapper ring here.
             className="border-none w-full bg-transparent! text-sm has-[[data-slot=input-group-control]:focus-visible]:ring-0"
           />

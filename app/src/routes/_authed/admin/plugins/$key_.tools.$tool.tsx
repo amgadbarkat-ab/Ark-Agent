@@ -155,13 +155,13 @@ function RouteComponent() {
       </PageSection>
 
       <PageSection
-        description="A Bot may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between."
+        description="A digital employee may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between."
         title="Bots"
       >
         {bots.length === 0 ? (
           <PageEmpty>
-            This deployment has no Bots yet, so there is nobody to grant this
-            to.
+            This deployment has no digital employees yet, so there is nobody to
+            grant this to.
           </PageEmpty>
         ) : (
           <PageRows>
@@ -176,7 +176,7 @@ function RouteComponent() {
                         {held
                           ? canCallBack(bot)
                             ? "May call this tool. Every call is still checked against the boundaries and written to the audit trail."
-                            : "Granted, but this Bot has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment."
+                            : "Granted, but this digital employee has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment."
                           : "Cannot call this tool. It is not offered to the model at all, so it has nothing to refuse."}
                       </ItemDescription>
                     </ItemContent>

@@ -215,4 +215,8 @@ test.each(["internal", "release"])(
     expect(f.read("desktop/src-tauri/Cargo.toml")).toBe(cargo);
     expect(f.read("desktop/src-tauri/Cargo.lock")).toBe(lock);
   },
+  // Each of these makes a git repository and a commit before it runs the script. On the Windows
+  // installer runner that took six seconds, one past the default five, and the v0.1.8 publish failed
+  // on it before building a single installer. The work is slow there, not wrong.
+  60_000,
 );

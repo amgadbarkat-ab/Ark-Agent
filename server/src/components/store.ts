@@ -272,13 +272,13 @@ export function createComponentStore(database: Database): ComponentStore {
       if (!row.published || !row.description) {
         return {
           allowed: false,
-          reason: `${row.title} is not published in this deployment, so no Bot may use it. Answer in prose instead.`,
+          reason: `${row.title} is not published in this deployment, so no digital employee may use it. Answer in prose instead.`,
         };
       }
       if (row.withheldFrom) {
         return {
           allowed: false,
-          reason: `${row.title} has been withheld from this Bot in this deployment, though other Bots may use it. Answer in prose instead.`,
+          reason: `${row.title} has been withheld from this digital employee in this deployment, though other digital employees may use it. Answer in prose instead.`,
         };
       }
       return { allowed: true, description: row.description };

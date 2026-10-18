@@ -69,7 +69,7 @@ describe("routing a message with no @mention", () => {
     ).route("x", ROSTER, "general-assistant");
     expect(r.agentId).toBe("general-assistant");
     expect(r.fallback).toBe(true);
-    expect(r.reason).toContain("no coworker on your roster");
+    expect(r.reason).toContain("no digital employee on your roster");
   });
 
   test("defers to the default when confidence is low", async () => {
@@ -111,7 +111,7 @@ describe("routing a message with no @mention", () => {
  * the vendor, met a sign-in wall, and asked the person to sign in to an account they had already
  * connected. The coworker that could have answered was one line further down the roster.
  */
-describe("routing on what a coworker can reach", () => {
+describe("routing on what a digital employee can reach", () => {
   const withReach: RoutingCandidate[] = [
     {
       id: "knowledge",
@@ -131,7 +131,7 @@ describe("routing on what a coworker can reach", () => {
     expect(prompt).toContain("can reach: google-drive");
   });
 
-  test("says nothing about reach for a coworker that holds nothing", () => {
+  test("says nothing about reach for a digital employee that holds nothing", () => {
     // Most coworkers in most deployments. An empty line here would be noise in every prompt.
     const prompt = routingPrompt("anything", withReach);
     const knowledgeBlock = prompt.slice(
@@ -148,7 +148,7 @@ describe("routing on what a coworker can reach", () => {
      * which is a different bug with the same shape.
      */
     const prompt = routingPrompt("anything", withReach);
-    expect(prompt).toContain("prefer that coworker");
+    expect(prompt).toContain("prefer that digital employee");
     expect(prompt).toContain("Purpose still comes first");
   });
 
@@ -194,7 +194,7 @@ describe("falling back to somebody who can actually answer", () => {
     },
   });
 
-  test("names the one coworker that can reach the system in the message", async () => {
+  test("names the one digital employee that can reach the system in the message", async () => {
     const decision = await BROKEN.route(
       "In my OpenBot PRD in Google Drive, list the proxy metrics.",
       ROSTER,
@@ -276,7 +276,7 @@ describe("falling back to somebody who can actually answer", () => {
     expect(decision.agentId).toBe("slackbot");
   });
 
-  test("uses the default when two coworkers reach the same system", async () => {
+  test("uses the default when two digital employees reach the same system", async () => {
     // Not a decision this can make. Two holders is exactly the case the router is for.
     const shared: RoutingCandidate[] = [
       { ...ROSTER[0], reaches: ["google-drive"] } as RoutingCandidate,

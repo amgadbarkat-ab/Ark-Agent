@@ -36,7 +36,7 @@ export async function answerReadBot(
     (candidate) => candidate.name.toLowerCase() === wanted,
   );
   if (!agent) {
-    return `There is no coworker called ${name} that this person can see. Call list_bots for the ones there are.`;
+    return `There is no digital employee called ${name} that this person can see. Call list_bots for the ones there are.`;
   }
   return describeBot(agent);
 }

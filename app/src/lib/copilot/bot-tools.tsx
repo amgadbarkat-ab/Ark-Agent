@@ -81,7 +81,7 @@ export function BotTools() {
   useFrontendTool({
     name: "list_bots",
     description:
-      "The coworkers that already exist here, one line each, with whose each one is and where it runs. Read this before proposing a coworker: the most expensive mistake this job can make is rebuilding one somebody already maintains.",
+      "The digital employees that already exist here, one line each, with whose each one is and where it runs. Read this before proposing a digital employee: the most expensive mistake this job can make is rebuilding one somebody already maintains.",
     parameters: z.object({}),
     available: authoring,
     handler: async () => answerListBots(queryClient),
@@ -90,9 +90,11 @@ export function BotTools() {
   useFrontendTool({
     name: "read_bot",
     description:
-      "One existing coworker in full, including the standing instructions it runs on. Use this when somebody asks for one like an existing coworker — never paraphrase a role description you have not read.",
+      "One existing digital employee in full, including the standing instructions it runs on. Use this when somebody asks for one like an existing digital employee — never paraphrase a role description you have not read.",
     parameters: z.object({
-      name: z.string().describe("The coworker's name, as list_bots spells it."),
+      name: z
+        .string()
+        .describe("The digital employee's name, as list_bots spells it."),
     }),
     available: authoring,
     handler: async ({ name }) => answerReadBot(queryClient, String(name)),
@@ -101,7 +103,7 @@ export function BotTools() {
   useFrontendTool({
     name: "list_bot_skills",
     description:
-      "The skills that could be put on a new coworker, by slug. Putting a skill on a coworker is the only capability the card grants: a skill is an instruction, so one naming a tool the coworker was not granted simply loads nothing.",
+      "The skills that could be put on a new digital employee, by slug. Putting a skill on a digital employee is the only capability the card grants: a skill is an instruction, so one naming a tool the digital employee was not granted simply loads nothing.",
     parameters: z.object({}),
     available: authoring,
     handler: async () => answerListBotSkills(queryClient),
@@ -198,7 +200,7 @@ export function BotTools() {
   useHumanInTheLoop({
     name: "save_bot",
     description:
-      "Put a finished coworker in front of the person to create. They see its name, its job, the whole of its standing instructions and the skills it will hold, and nothing is written unless they press the button. Call this once, at the end, after they have agreed to what the coworker will be told to do — not to check your draft.",
+      "Put a finished digital employee in front of the person to create. They see its name, its job, the whole of its standing instructions and the skills it will hold, and nothing is written unless they press the button. Call this once, at the end, after they have agreed to what the digital employee will be told to do — not to check your draft.",
     parameters: proposedBotSchema,
     available: authoring,
     render: Card,

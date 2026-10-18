@@ -92,7 +92,7 @@ export function botModelChoicesQueryOptions() {
     queryKey: modelKeys.bots(),
     queryFn: async (): Promise<BotModelChoice[]> =>
       client("/api/models/bots", "choices", {
-        fallback: "Could not load which model each coworker uses",
+        fallback: "Could not load which model each digital employee uses",
       }),
   });
 }

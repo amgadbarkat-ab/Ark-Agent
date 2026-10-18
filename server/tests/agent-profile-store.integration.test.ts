@@ -922,4 +922,156 @@ describe("agent profile store integration", () => {
       packageId: null,
     });
   });
+
+  describe("the primary digital employee", () => {
+    const input = (name: string) =>
+      ({
+        name,
+        title: "Teammate",
+        roleDescription: `${name} does the work.`,
+        visibility: "private",
+      }) satisfies CreateAgentInput;
+
+    async function made(owner: AgentActor, name: string) {
+      const profile = await store.create(owner, input(name));
+      createdAgentIds.push(profile.id);
+      return profile;
+    }
+
+    async function primariesOf(owner: AgentActor) {
+      return (await store.list(owner)).filter((profile) => profile.primary);
+    }
+
+    test("the first one a person makes leads, and a later one does not", async () => {
+      const owner = await createUser();
+      const first = await made(owner, "First");
+      const second = await made(owner, "Second");
+      expect(first.primary).toBe(true);
+      expect(second.primary).toBe(false);
+      expect((await primariesOf(owner)).map((p) => p.id)).toEqual([first.id]);
+    });
+
+    test("two made at the same moment still leave one lead, not an error", async () => {
+      const owner = await createUser();
+      const both = await Promise.all([
+        store.create(owner, input("A")),
+        store.create(owner, input("B")),
+      ]);
+      createdAgentIds.push(...both.map((profile) => profile.id));
+      expect(await primariesOf(owner)).toHaveLength(1);
+    });
+
+    test("an owner can choose another, and only one leads afterwards", async () => {
+      const owner = await createUser();
+      const first = await made(owner, "First");
+      const second = await made(owner, "Second");
+      const chosen = await store.setPrimary(owner, second.id);
+      expect(chosen.primary).toBe(true);
+      expect((await primariesOf(owner)).map((p) => p.id)).toEqual([second.id]);
+      expect((await profileById(owner, first.id)).primary).toBe(false);
+    });
+
+    test("somebody else cannot choose for them, and a public one is not theirs to lead", async () => {
+      const owner = await createUser();
+      const other = await createUser();
+      const mine = await store.create(owner, {
+        ...input("Shared"),
+        visibility: "public",
+      });
+      createdAgentIds.push(mine.id);
+      await expect(store.setPrimary(other, mine.id)).rejects.toBeInstanceOf(
+        AgentNotManageableError,
+      );
+      // Making one for themselves does not touch the other person's team.
+      const theirs = await made(other, "Theirs");
+      expect(theirs.primary).toBe(true);
+      expect((await profileById(owner, mine.id)).primary).toBe(true);
+    });
+
+    test("deleting the lead hands the team to whoever has been there longest", async () => {
+      const owner = await createUser();
+      const first = await made(owner, "First");
+      const second = await made(owner, "Second");
+      await made(owner, "Third");
+      await store.softDelete(owner, first.id);
+      expect((await primariesOf(owner)).map((p) => p.id)).toEqual([second.id]);
+    });
+
+    test("deleting the only one leaves nobody leading, and the next one made leads", async () => {
+      const owner = await createUser();
+      const only = await made(owner, "Only");
+      await store.softDelete(owner, only.id);
+      expect(await primariesOf(owner)).toHaveLength(0);
+      expect((await made(owner, "Next")).primary).toBe(true);
+    });
+
+    test("a copy never takes the lead from the original", async () => {
+      const owner = await createUser();
+      const first = await made(owner, "First");
+      const copy = await store.duplicate(owner, first.id);
+      createdAgentIds.push(copy.id);
+      expect(copy.primary).toBe(false);
+      expect((await profileById(owner, first.id)).primary).toBe(true);
+    });
+  });
+
+  describe("standing instructions", () => {
+    test("an owner can set them, change the role without losing them when they are sent again, and clear them", async () => {
+      const owner = await createUser();
+      const made = await store.create(owner, {
+        name: "Writer",
+        title: "Writer",
+        roleDescription: "Writes.",
+        visibility: "private",
+      });
+      createdAgentIds.push(made.id);
+      expect(made.persona).toBeNull();
+
+      const set = await store.update(owner, made.id, {
+        name: "Writer",
+        title: "Writer",
+        roleDescription: "Writes.",
+        visibility: "private",
+        persona: "Write in short sentences. Never use jargon.",
+      });
+      expect(set.persona).toBe("Write in short sentences. Never use jargon.");
+
+      // An edit that says nothing about instructions leaves them alone...
+      const renamed = await store.update(owner, made.id, {
+        name: "Writer Two",
+        title: "Writer",
+        roleDescription: "Writes.",
+        visibility: "private",
+      });
+      expect(renamed.persona).toBe(
+        "Write in short sentences. Never use jargon.",
+      );
+
+      // ...and one that rewrites the role replaces them, as it always has.
+      const rewritten = await store.update(owner, made.id, {
+        name: "Writer Two",
+        title: "Writer",
+        roleDescription: "Edits instead.",
+        visibility: "private",
+      });
+      expect(rewritten.persona).toBeNull();
+
+      const again = await store.update(owner, made.id, {
+        name: "Writer Two",
+        title: "Writer",
+        roleDescription: "Edits instead.",
+        visibility: "private",
+        persona: "Edit gently.",
+      });
+      expect(again.persona).toBe("Edit gently.");
+      const cleared = await store.update(owner, made.id, {
+        name: "Writer Two",
+        title: "Writer",
+        roleDescription: "Edits instead.",
+        visibility: "private",
+        persona: null,
+      });
+      expect(cleared.persona).toBeNull();
+    });
+  });
 });

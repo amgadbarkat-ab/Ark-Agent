@@ -142,6 +142,50 @@ describe("runtime agent loading", () => {
     });
   });
 
+  test("tells each of a person's digital employees who its colleagues are, and who leads", async () => {
+    const owner = await createUser();
+    const lead = await createCoworker(owner, { name: "Ana" });
+    const other = await createCoworker(owner, { name: "Ben" });
+
+    const loaded = await loadAgents(owner);
+    const said = (id: string) => {
+      const agent = loaded.find((candidate) => candidate.id === id);
+      return agent && "standingMessage" in agent
+        ? String(agent.standingMessage.content)
+        : "";
+    };
+
+    expect(said(lead.id)).toContain("Ben (Finance Operations)");
+    expect(said(lead.id)).toContain("You are the lead of this team");
+    expect(said(other.id)).toContain("Ana (Finance Operations)");
+    expect(said(other.id)).toContain("Ana is the lead of this team.");
+    expect(said(other.id)).not.toContain("Ben (Finance Operations)");
+  });
+
+  test("says nothing of a team to one that works alone, or to somebody else's shared employee", async () => {
+    const owner = await createUser();
+    const colleague = await createUser();
+    const alone = await createCoworker(owner, { name: "Solo" });
+    const theirs = await createCoworker(colleague, {
+      name: "Shared",
+      visibility: "public",
+    });
+    await createCoworker(colleague, { name: "Hidden", visibility: "private" });
+
+    const loaded = await loadAgents(owner);
+    const said = (id: string) => {
+      const agent = loaded.find((candidate) => candidate.id === id);
+      return agent && "standingMessage" in agent
+        ? String(agent.standingMessage.content)
+        : "";
+    };
+
+    expect(said(alone.id)).not.toContain("Your team");
+    // The shared one belongs to somebody else's team, so what it is told is not this person's business.
+    expect(said(theirs.id)).not.toContain("Your team");
+    expect(said(alone.id)).not.toContain("Shared");
+  });
+
   test("carries the managed deployment token to a Mastra endpoint this deployment runs", async () => {
     const owner = await createUser();
     const profile = await createCoworker(owner);

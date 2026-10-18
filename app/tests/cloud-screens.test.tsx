@@ -165,12 +165,16 @@ test("the prices are shown in plain words before anybody agrees to them", async 
   const screen = renderPlan();
   const user = userEvent.setup({ document });
   expect(
-    await screen.findByText(/for each hour a coworker is working/, {}, SLOW),
+    await screen.findByText(
+      /for each hour a digital employee is working/,
+      {},
+      SLOW,
+    ),
   ).toBeTruthy();
   await user.click(screen.getByRole("button", { name: /Run in Ark's cloud/ }));
   const dialog = await screen.findByRole("dialog");
   expect(
-    within(dialog).getByText("An hour of a coworker working"),
+    within(dialog).getByText("An hour of a digital employee working"),
   ).toBeTruthy();
   expect(within(dialog).getByText("€0.60")).toBeTruthy();
   // The fee is shown as the fee, with its fixed part.

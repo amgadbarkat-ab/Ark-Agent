@@ -195,7 +195,7 @@ function ModelForm({
       <DialogHeader>
         <DialogTitle>{editing ? "Change model" : "Add a model"}</DialogTitle>
         <DialogDescription>
-          Your coworkers think with the model you choose. Keys are held
+          Your digital employees think with the model you choose. Keys are held
           encrypted and are never shown again.
         </DialogDescription>
       </DialogHeader>

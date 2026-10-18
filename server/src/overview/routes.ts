@@ -101,7 +101,7 @@ export function attentionFrom(
     items.push({
       id: "marketplace-review",
       severity: "action",
-      title: "Shared coworkers waiting for review",
+      title: "Shared digital employees waiting for review",
       detail: `${plural(counts.marketplace.pendingListings, "listing is", "listings are")} not visible to anyone until you approve or reject ${counts.marketplace.pendingListings === 1 ? "it" : "them"}.`,
       to: "/admin/marketplace",
     });
@@ -110,8 +110,8 @@ export function attentionFrom(
     items.push({
       id: "marketplace-reports",
       severity: "action",
-      title: "Reported coworkers",
-      detail: `${plural(counts.marketplace.openReports, "report is", "reports are")} open against shared coworkers.`,
+      title: "Reported digital employees",
+      detail: `${plural(counts.marketplace.openReports, "report is", "reports are")} open against shared digital employees.`,
       to: "/admin/marketplace",
     });
   }
@@ -138,7 +138,7 @@ export function attentionFrom(
       id: "accounts-suspended",
       severity: "watch",
       title: "Suspended accounts",
-      detail: `${plural(counts.accounts.suspended, "account is", "accounts are")} suspended and cannot run coworkers.`,
+      detail: `${plural(counts.accounts.suspended, "account is", "accounts are")} suspended and cannot run digital employees.`,
       to: "/admin/accounts",
     });
   }

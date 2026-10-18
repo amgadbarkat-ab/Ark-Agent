@@ -79,7 +79,7 @@ function AuditPage() {
           Refresh
         </Button>
       }
-      description="Every action a Bot took, and every one this deployment's policy refused."
+      description="Every action a digital employee took, and every one this deployment's policy refused."
       title="Audit"
       width="wide"
     >
@@ -198,10 +198,10 @@ function Row({
   const routed =
     event.eventType === "channel.routed"
       ? payload.viaMention === true
-        ? "The person chose this coworker"
+        ? "The person chose this digital employee"
         : payload.fallback === true
-          ? "Sent to the default coworker"
-          : "Sent to the coworker it is for"
+          ? "Sent to the default digital employee"
+          : "Sent to the digital employee it is for"
       : null;
   // Allowed by policy but not carried out. A stalled turn belongs in the same family: the Bot was
   // asked and the answer never arrived. Colour is how this table is read, and a row left in the
@@ -356,7 +356,9 @@ function Row({
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
             {payload.reason}
-            <span className="italic">, reported by the Bot itself</span>
+            <span className="italic">
+              , reported by the digital employee itself
+            </span>
           </div>
         ) : null}
         {failed && typeof payload.failure === "string" ? (
@@ -419,24 +421,24 @@ const NAMED_TARGETS = new Set([
 ]);
 
 const DECISIONS: Record<string, string> = {
-  "bot.declined": "The Bot declined",
+  "bot.declined": "The digital employee declined",
   // Not a refusal, so not the refusal colour: nothing was blocked. The Bot was asked and never
   // answered, which is the same complaint as an action that was allowed and then did not happen.
-  "agent.stream_stalled": "The Bot stopped responding",
+  "agent.stream_stalled": "The digital employee stopped responding",
   "computer.policy_loaded": "Boundary at start-up",
   "computer.isolation_loaded": "Isolation at start-up",
   "computer.control_taken": "A person took the wheel",
   "computer.control_released": "The wheel was handed back",
-  "computer.help_requested": "The Bot asked for help",
-  "computer.secret_requested": "The Bot asked for a secret",
+  "computer.help_requested": "The digital employee asked for help",
+  "computer.secret_requested": "The digital employee asked for a secret",
   "computer.secret_supplied": "A person supplied a secret",
   "computer.reset": "The computer was reset",
   "computer.stopped": "A person pressed stop",
 
-  "component.granted": "Granted to this Bot",
-  "component.revoked": "Taken away from this Bot",
-  "component.published": "Published, so every Bot may use it",
-  "component.unpublished": "Unpublished, so no Bot may use it",
+  "component.granted": "Granted to this digital employee",
+  "component.revoked": "Taken away from this digital employee",
+  "component.published": "Published, so every digital employee may use it",
+  "component.unpublished": "Unpublished, so no digital employee may use it",
   "component.draft_saved": "Draft saved, not yet published",
   "component.refused": "Refused",
   "component.function_granted": "May read this",
@@ -449,11 +451,11 @@ const DECISIONS: Record<string, string> = {
   // Not a call and not a decision: the tools this run was allowed to see. Worded so nobody reads it
   // as permission, which it is not — everything named was already granted.
   "mcp.tools_discovered": "Tools offered for one run",
-  "mcp.call_succeeded": "Called on this Bot's behalf",
+  "mcp.call_succeeded": "Called on this digital employee's behalf",
   "mcp.call_rejected": "Blocked",
   "mcp.call_failed": "The server did not answer",
   // Not "Blocked": nothing about the Bot was judged, because nothing proved which Bot it was.
-  "mcp.callback_refused": "Could not prove which Bot it was",
+  "mcp.callback_refused": "Could not prove which digital employee it was",
 
   "configuration.changed": "Configuration changed",
   "credential.created": "Credential saved",

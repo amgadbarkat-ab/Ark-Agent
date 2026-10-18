@@ -435,7 +435,7 @@ function grantsApp(
   return { calls, app };
 }
 
-describe("granting one Bot to another", () => {
+describe("granting one digital employee to another", () => {
   test("an administrator can grant it", async () => {
     const { calls, app } = grantsApp();
 
@@ -516,7 +516,7 @@ describe("granting one Bot to another", () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({
       error:
-        "An administrator decides which Bots may hand work to another Bot.",
+        "An administrator decides which digital employees may hand work to another digital employee.",
     });
     expect(calls).toEqual([]);
   });
@@ -550,7 +550,7 @@ describe("granting one Bot to another", () => {
  * what it may call back for; there is no callback path that would execute a hop. Stored anyway, the
  * grant reads as configured and nothing ever happens.
  */
-describe("granting a hop to a Bot that runs somewhere else", () => {
+describe("granting a hop to a digital employee that runs somewhere else", () => {
   test("is refused, and says why", async () => {
     const { calls, app } = grantsApp();
 
@@ -572,7 +572,7 @@ describe("granting a hop to a Bot that runs somewhere else", () => {
     expect(calls).toEqual([]);
   });
 
-  test("a Bot nobody has heard of is refused too", async () => {
+  test("a digital employee nobody has heard of is refused too", async () => {
     // Undefined is "no such Bot", which must not read as "runs somewhere else" or as permission.
     const { calls, app } = grantsApp("admin", () => undefined);
 
@@ -590,11 +590,13 @@ describe("granting a hop to a Bot that runs somewhere else", () => {
     );
 
     expect(response.status).toBe(403);
-    expect((await response.json()).error).toBe("There is no such Bot.");
+    expect((await response.json()).error).toBe(
+      "There is no such digital employee.",
+    );
     expect(calls).toEqual([]);
   });
 
-  test("a Bot that does run here is granted as before", async () => {
+  test("a digital employee that does run here is granted as before", async () => {
     const { calls, app } = grantsApp();
 
     const response = await app.request(
@@ -633,7 +635,7 @@ describe("granting a hop to a Bot that runs somewhere else", () => {
  * here, before checking the role handed out three distinguishable 403s and turned the refusal into
  * an oracle for other people's private Bots — the exact property `handoff.ts` collapses on purpose.
  */
-describe("what a bot grant refusal reveals", () => {
+describe("what a digital employee grant refusal reveals", () => {
   const refusalFor = async (
     agentId: string,
     role: "admin" | "user",
@@ -651,7 +653,7 @@ describe("what a bot grant refusal reveals", () => {
     return { status: response.status, body: await response.json(), calls };
   };
 
-  test("a non-administrator gets one answer, whatever the Bot is", async () => {
+  test("a non-administrator gets one answer, whatever the digital employee is", async () => {
     const said = new Set<string>();
     for (const agentId of [
       "general-assistant",
@@ -666,7 +668,7 @@ describe("what a bot grant refusal reveals", () => {
     // One sentence for all three, so nothing distinguishes "exists" from "does not".
     expect(said.size).toBe(1);
     expect([...said][0]).toBe(
-      "An administrator decides which Bots may hand work to another Bot.",
+      "An administrator decides which digital employees may hand work to another digital employee.",
     );
   });
 
@@ -675,7 +677,7 @@ describe("what a bot grant refusal reveals", () => {
       "its own endpoint",
     );
     expect((await refusalFor("never-registered", "admin")).body.error).toBe(
-      "There is no such Bot.",
+      "There is no such digital employee.",
     );
   });
 
@@ -690,7 +692,7 @@ describe("what a bot grant refusal reveals", () => {
       "never-registered",
     );
     expect(status).toBe(403);
-    expect(body.error).toContain("no Bot called never-registered");
+    expect(body.error).toContain("no digital employee called never-registered");
     expect(calls).toEqual([]);
   });
 });
@@ -699,7 +701,7 @@ describe("what a bot grant refusal reveals", () => {
  * The desk refuses a self-hop outright — "a Bot cannot hand work to itself" — so a grant of a Bot to
  * itself is dead the moment it is written, and reads as configured.
  */
-describe("granting a Bot itself", () => {
+describe("granting a digital employee itself", () => {
   test("is refused rather than stored", async () => {
     const { calls, app } = grantsApp();
 

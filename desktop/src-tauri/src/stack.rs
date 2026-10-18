@@ -493,7 +493,7 @@ fn harness_port_overlay(root: &Path, ipv4_only: bool) -> Result<Option<String>, 
     )
     .map_err(|error| {
         Problem::with(
-            "ArkAgent could not read the Bot's local port.",
+            "ArkAgent could not read the digital employee's local port.",
             error.to_string(),
         )
     })?;
@@ -506,7 +506,9 @@ fn harness_port_overlay(root: &Path, ipv4_only: bool) -> Result<Option<String>, 
             .ok()
             .filter(|port| *port != 0)
             .ok_or_else(|| {
-                Problem::plain("The Bot's local port setting is invalid. Try Start again.")
+                Problem::plain(
+                    "The digital employee's local port setting is invalid. Try Start again.",
+                )
             })
     };
     let host = parse(host)?;
@@ -926,7 +928,7 @@ pub fn stop_computers(engine: &Address, root: &Path) -> Result<bool, String> {
             &namespace_filter,
         ])
         .output()
-        .map_err(|error| format!("could not list the Bots' computers: {error}"))?;
+        .map_err(|error| format!("could not list the digital employees' computers: {error}"))?;
     if !listed.status.success() {
         return Err(command_said(&listed.stderr));
     }
@@ -944,7 +946,7 @@ pub fn stop_computers(engine: &Address, root: &Path) -> Result<bool, String> {
         .arg("stop")
         .args(&running)
         .output()
-        .map_err(|error| format!("could not stop the Bots' computers: {error}"))?;
+        .map_err(|error| format!("could not stop the digital employees' computers: {error}"))?;
     if stopped.status.success() {
         return Ok(true);
     }
@@ -2837,7 +2839,7 @@ The ports this deployment's own containers already publish.
 
 MEASURED, AND IT LEAVES A PERSON STUCK. A start that fails after `compose up` leaves the containers
 it raised running, so the next press of Start finds the harness port held and refuses with
-"something is already listening on port 4206, which ArkAgent uses for the Bot you picked" — about a
+"something is already listening on port 4206, which ArkAgent uses for the digital employee you picked" — about a
 container ArkAgent itself started, which the person never saw and cannot find. There is no way
 forward from that screen.
 
@@ -7004,8 +7006,8 @@ fn main() {
             PathBuf::from("/home/me/My Files/OpenBot")
         );
         assert_eq!(
-            root_from(r"C:\Users\me\Open Bot"),
-            PathBuf::from(r"C:\Users\me\Open Bot")
+            root_from(r"C:\Users\me\Open digital employee"),
+            PathBuf::from(r"C:\Users\me\Open digital employee")
         );
         // And an ordinary path is handed back exactly as it was.
         assert_eq!(
@@ -7042,7 +7044,7 @@ fn main() {
         let anthropic = selected_services(false, BundledBots::anthropic());
         assert!(
             !anthropic.contains(&AGENT_BOT),
-            "Anthropic credentials must not start the OpenAI-only managed Bot"
+            "Anthropic credentials must not start the OpenAI-only managed digital employee"
         );
         assert!(anthropic.contains(&AGENT_LANGGRAPH));
 
@@ -7133,10 +7135,10 @@ fn main() {
     fn our_own_published_port_is_not_a_conflict() {
         let held = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = held.local_addr().unwrap().port();
-        assert!(port_already_taken(&[("Bot you picked", port)]).is_some());
+        assert!(port_already_taken(&[("Digital employee you picked", port)]).is_some());
         let ours = std::collections::HashSet::from([port]);
         assert_eq!(
-            port_already_taken_except(&[("Bot you picked", port)], &ours),
+            port_already_taken_except(&[("Digital employee you picked", port)], &ours),
             None,
             "a container this deployment started was treated as somebody else"
         );

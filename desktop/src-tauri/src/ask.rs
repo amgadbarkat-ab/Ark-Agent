@@ -70,7 +70,7 @@ pub fn ask(endpoint: &str, token: &str, question: &str) -> Result<String, Proble
         .send()
         .map_err(|error| {
             Problem::with(
-                "ArkAgent could not reach the Bot it just set up.",
+                "ArkAgent could not reach the digital employee it just set up.",
                 error.to_string(),
             )
         })?;
@@ -81,9 +81,9 @@ pub fn ask(endpoint: &str, token: &str, question: &str) -> Result<String, Proble
         // "check your API key" would send them to fix the wrong thing.
         return Err(Problem::with(
             if status == reqwest::StatusCode::UNAUTHORIZED {
-                "The Bot refused ArkAgent's own request. Stop ArkAgent and start it again."
+                "The digital employee refused ArkAgent's own request. Stop ArkAgent and start it again."
             } else {
-                "The Bot could not answer."
+                "The digital employee could not answer."
             },
             format!("HTTP {status}\n{text}"),
         ));
@@ -120,7 +120,7 @@ pub fn ask_mastra(
     let agent_id = agent_id.trim();
     if agent_id.is_empty() {
         return Err(Problem::plain(
-            "ArkAgent cannot find the Mastra Bot it just set up. Stop ArkAgent and start it again.",
+            "ArkAgent cannot find the Mastra digital employee it just set up. Stop ArkAgent and start it again.",
         ));
     }
 
@@ -148,7 +148,7 @@ pub fn ask_mastra(
         .send()
         .map_err(|error| {
             Problem::with(
-                "ArkAgent could not reach the Bot it just set up.",
+                "ArkAgent could not reach the digital employee it just set up.",
                 error.to_string(),
             )
         })?;
@@ -157,9 +157,9 @@ pub fn ask_mastra(
     if !status.is_success() {
         return Err(Problem::with(
             if status == reqwest::StatusCode::UNAUTHORIZED {
-                "The Bot refused ArkAgent's own request. Stop ArkAgent and start it again."
+                "The digital employee refused ArkAgent's own request. Stop ArkAgent and start it again."
             } else {
-                "The Bot could not answer."
+                "The digital employee could not answer."
             },
             format!("HTTP {status}\n{text}"),
         ));
@@ -177,11 +177,11 @@ fn read_response(
     response.text().map(|text| (status, text)).map_err(|error| {
         Problem::with(
             if status.is_success() {
-                "The Bot started answering and then stopped. Its own record of what happened is below."
+                "The digital employee started answering and then stopped. Its own record of what happened is below."
             } else if status == reqwest::StatusCode::UNAUTHORIZED {
-                "The Bot refused ArkAgent's own request. Stop ArkAgent and start it again."
+                "The digital employee refused ArkAgent's own request. Stop ArkAgent and start it again."
             } else {
-                "The Bot could not answer."
+                "The digital employee could not answer."
             },
             format!("kind {kind}\nendpoint {endpoint}\nHTTP {status}\nbody read error: {error}"),
         )
@@ -219,14 +219,14 @@ pub fn answer_in(body: &str) -> Option<String> {
 fn mastra_stream_url(endpoint: &str, agent_id: &str) -> Result<reqwest::Url, Problem> {
     let mut url = reqwest::Url::parse(endpoint.trim()).map_err(|error| {
         Problem::with(
-            "ArkAgent cannot find the Bot it just set up. Stop ArkAgent and start it again.",
+            "ArkAgent cannot find the digital employee it just set up. Stop ArkAgent and start it again.",
             error.to_string(),
         )
     })?;
     url.path_segments_mut()
         .map_err(|_| {
             Problem::plain(
-                "ArkAgent cannot find the Bot it just set up. Stop ArkAgent and start it again.",
+                "ArkAgent cannot find the digital employee it just set up. Stop ArkAgent and start it again.",
             )
         })?
         .clear()
@@ -282,7 +282,7 @@ pub fn why_nothing_came_back(log: &str) -> Problem {
     }
     if lower.contains("insufficient_quota") || lower.contains("exceeded your current quota") {
         return Problem::with(
-            "That account has no credit left with the model provider, so the Bot cannot answer yet.",
+            "That account has no credit left with the model provider, so the digital employee cannot answer yet.",
             log,
         );
     }
@@ -304,12 +304,12 @@ pub fn why_nothing_came_back(log: &str) -> Problem {
     }
     if lower.contains("connection") || lower.contains("timed out") || lower.contains("timeout") {
         return Problem::with(
-            "The Bot could not reach the model provider. Check this machine's internet connection and ask again.",
+            "The digital employee could not reach the model provider. Check this machine's internet connection and ask again.",
             log,
         );
     }
     Problem::with(
-        "The Bot started answering and then stopped. Its own record of what happened is below.",
+        "The digital employee started answering and then stopped. Its own record of what happened is below.",
         log,
     )
 }
@@ -441,7 +441,7 @@ mod tests {
         let endpoint = std::env::var("OPENBOT_ASK_ENDPOINT").expect("OPENBOT_ASK_ENDPOINT");
         let token = std::env::var("OPENBOT_ASK_TOKEN").expect("OPENBOT_ASK_TOKEN");
         let answer = ask(&endpoint, &token, SUGGESTED).expect("the harness did not answer");
-        println!("the Bot said: {answer}");
+        println!("the digital employee said: {answer}");
         assert!(
             answer.contains("391"),
             "answered {answer:?}, which is not 17 x 23"
@@ -548,7 +548,7 @@ mod tests {
         assert!(
             problem
                 .said
-                .contains("The Bot started answering and then stopped"),
+                .contains("The digital employee started answering and then stopped"),
             "{}",
             problem.said
         );
@@ -582,7 +582,9 @@ mod tests {
         .expect_err("a truncated Mastra response must keep the transport error");
 
         assert!(
-            problem.said.contains("The Bot could not answer"),
+            problem
+                .said
+                .contains("The digital employee could not answer"),
             "{}",
             problem.said
         );

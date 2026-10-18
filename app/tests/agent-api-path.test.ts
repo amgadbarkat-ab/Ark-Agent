@@ -46,6 +46,8 @@ function boundary(id: string, refusal?: "unauthenticated" | "forbidden") {
     runLocation: "cloud",
     avatarSeed: id,
     avatarImage: null,
+    persona: null,
+    primary: false,
     ownerUserId: actor.id,
     systemOwned: false,
     hidden: false,
@@ -88,6 +90,10 @@ function boundary(id: string, refusal?: "unauthenticated" | "forbidden") {
     async setAvatarImage(_actor, receivedId, image) {
       record("setAvatarImage", receivedId, image);
       return { ...profile, avatarImage: image };
+    },
+    async setPrimary(_actor, receivedId) {
+      record("setPrimary", receivedId);
+      return { ...profile, primary: true };
     },
     async setHidden(_actor, receivedId, value) {
       record("setHidden", receivedId, value);

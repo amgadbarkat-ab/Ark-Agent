@@ -198,7 +198,7 @@ function CreateAgentWizard({
   const endpointError = !tried
     ? undefined
     : kind === "managed" && values.endpoint.trim() === ""
-      ? "An endpoint is required for a managed coworker."
+      ? "An endpoint is required for a managed digital employee."
       : agentFormSchema.shape.endpoint.safeParse(values.endpoint).error
           ?.issues[0]?.message;
 
@@ -245,7 +245,7 @@ function CreateAgentWizard({
     <>
       {/* Read aloud, never shown: each step carries its own heading, and a dialog-level title
           above them made two heading sizes compete. The popup still needs an accessible name. */}
-      <DialogTitle className="sr-only">New coworker</DialogTitle>
+      <DialogTitle className="sr-only">New digital employee</DialogTitle>
       <DialogBody className="overflow-y-auto">
         <Questionnaire
           item={STEPS[step]}
@@ -363,7 +363,7 @@ function CreateAgentWizard({
               {last
                 ? createAgent.isPending
                   ? "Creating…"
-                  : "Create coworker"
+                  : "Create digital employee"
                 : "Continue"}
             </Button>
           </div>
@@ -409,9 +409,10 @@ function IdentityStep({
 }) {
   return (
     <StepItem name="identity">
-      <QuestionnaireTitle>Who is this coworker?</QuestionnaireTitle>
+      <QuestionnaireTitle>Who is this digital employee?</QuestionnaireTitle>
       <QuestionnaireDescription>
-        The role you write here applies in every channel this coworker works in.
+        The role you write here applies in every channel this digital employee
+        works in.
       </QuestionnaireDescription>
       <FieldGroup>
         <Field data-invalid={errors.name ? true : undefined}>
@@ -540,7 +541,7 @@ function KindStep({
               <span className="font-medium">{option.title}</span>
               <QuestionnaireChoiceDescription>
                 {unavailable
-                  ? "Not available here: this deployment has no digital employee of its own for a coworker to run on."
+                  ? "Not available here: this deployment has no digital employee of its own for a digital employee to run on."
                   : option.description}
               </QuestionnaireChoiceDescription>
             </QuestionnaireChoice>
@@ -549,7 +550,7 @@ function KindStep({
       </QuestionnaireChoices>
       {showKindError ? (
         <p className="text-sm text-destructive" role="alert">
-          Choose where this coworker runs.
+          Choose where this digital employee runs.
         </p>
       ) : null}
       {kind === "managed" ? (

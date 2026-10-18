@@ -121,9 +121,9 @@ export function ListingView({
               <ItemContent>
                 <ItemTitle>For reading only</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  This is a guide to how someone set up their coworker. It
-                  cannot be installed, copied or exported, and it never runs on
-                  your account.
+                  This is a guide to how someone set up their digital employee.
+                  It cannot be installed, copied or exported, and it never runs
+                  on your account.
                 </ItemDescription>
               </ItemContent>
             </Item>

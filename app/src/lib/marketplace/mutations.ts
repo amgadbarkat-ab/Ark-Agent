@@ -119,7 +119,10 @@ export function installListingMutationOptions(queryClient: QueryClient) {
       (
         await client(
           `/api/marketplace/listings/${encodeURIComponent(slug)}/install`,
-          { method: "POST", fallback: "Could not install this coworker" },
+          {
+            method: "POST",
+            fallback: "Could not install this digital employee",
+          },
         )
       ).json(),
     onSuccess: async () => {

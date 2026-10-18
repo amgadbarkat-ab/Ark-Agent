@@ -141,16 +141,16 @@ export function hostAccessTools(options: {
       name: "host_list_folders",
       ref: "host-access/list_folders",
       description:
-        "List the host folders this person has explicitly granted to this Bot, including the grantId to use with host file and command tools.",
+        "List the host folders this person has explicitly granted to this digital employee, including the grantId to use with host file and command tools.",
       parameters: empty,
       execute: async () => {
         if (grants.length === 0) {
           await auditHostAccess(audit("list_folders"), {
             operation: "list_folders",
             outcome: "refused",
-            reason: "No host folders are granted to this Bot.",
+            reason: "No host folders are granted to this digital employee.",
           });
-          return `${REFUSAL_MARKER} No host folders are granted to this Bot.`;
+          return `${REFUSAL_MARKER} No host folders are granted to this digital employee.`;
         }
         await auditHostAccess(audit("list_folders"), {
           operation: "list_folders",
@@ -174,7 +174,7 @@ export function hostAccessTools(options: {
       name: "host_list_files",
       ref: "host-access/list_files",
       description:
-        "List files in a host folder this person granted to this Bot. First call host_list_folders for grantId values.",
+        "List files in a host folder this person granted to this digital employee. First call host_list_folders for grantId values.",
       parameters: grantPath,
       execute: async (args) => {
         const parsed = grantPath.parse(args ?? {});

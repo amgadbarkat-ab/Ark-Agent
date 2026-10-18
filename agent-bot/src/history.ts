@@ -9,13 +9,25 @@ import type { RunAgentInput } from "@ag-ui/core";
 import type OpenAI from "openai";
 import { COMPUTER_GUIDANCE, NO_ANSWER_CAME } from "../../shared/bot-prompt";
 import { userContent } from "../../shared/user-content";
+import {
+  budgetFromEnvironment,
+  economise,
+  type HistoryBudget,
+} from "./history-budget";
 
 export { NO_ANSWER_CAME };
 
-/** Translate the conversation AG-UI carries into the shape the model provider expects. */
+/**
+ * Translate the conversation AG-UI carries into the shape the model provider expects.
+ *
+ * Not all of it: `economise` keeps the standing role and the recent turns and shortens old tool results,
+ * so the price of a turn stops growing with the length of the conversation. See `history-budget.ts`.
+ */
 export function toProviderMessages(
   input: RunAgentInput,
+  budget: HistoryBudget = budgetFromEnvironment(),
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const history = economise(input.messages, budget).messages;
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: COMPUTER_GUIDANCE },
     // AG-UI application context is separate from history. The A2UI catalog and tool instructions
@@ -33,7 +45,7 @@ export function toProviderMessages(
    * `NO_ANSWER_CAME` for what happens to a conversation carrying a call nothing ever answered.
    */
   const answered = new Set(
-    input.messages
+    history
       .filter((message) => message.role === "tool")
       .map((message) => (message as { toolCallId?: string }).toolCallId)
       .filter((id): id is string => Boolean(id)),
@@ -49,13 +61,13 @@ export function toProviderMessages(
    * both, so the pairing is rebuilt here instead of trusted.
    */
   const resultsByCall = new Map<string, string>();
-  for (const message of input.messages) {
+  for (const message of history) {
     if (message.role !== "tool") continue;
     const id = (message as { toolCallId?: string }).toolCallId;
     if (id) resultsByCall.set(id, String(message.content ?? ""));
   }
 
-  for (const message of input.messages) {
+  for (const message of history) {
     // Placed with the call they answer, below, rather than wherever they arrived.
     if (message.role === "tool") continue;
     if (message.role === "user") {

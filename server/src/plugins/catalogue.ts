@@ -282,7 +282,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     title: "Routines",
     vendor: "ArkAgent",
     summary:
-      "Standing instructions a Bot runs on a schedule, as whoever scheduled them.",
+      "Standing instructions a digital employee runs on a schedule, as whoever scheduled them.",
     /*
      * First-party and in-process: no host to dial, no credential to hold. In the catalogue anyway,
      * because the catalogue is where a deployment decides WHICH Bots may do WHAT — and scheduling

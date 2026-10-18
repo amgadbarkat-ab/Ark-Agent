@@ -17,7 +17,7 @@ export const ActivityReportProps = z.object({
   report: z
     .enum(["activity", "refusals"])
     .describe(
-      "Which report to show: 'activity' for how much each Bot has done, 'refusals' for what this deployment recently refused",
+      "Which report to show: 'activity' for how much each digital employee has done, 'refusals' for what this deployment recently refused",
     ),
   title: z
     .string()
@@ -146,7 +146,7 @@ function ActivityChart({
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Bot activity"}>
+      <GalleryFrame title={title ?? "Digital employee activity"}>
         <p className="text-sm text-muted-foreground">
           No Bot has done anything in the last {data?.days ?? 7} days.
         </p>
@@ -175,7 +175,7 @@ function ActivityChart({
         ) : undefined
       }
       caption={`Counted from this deployment's audit trail, last ${data.days} days`}
-      title={title ?? "Bot activity"}
+      title={title ?? "Digital employee activity"}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row, index) => (
@@ -277,7 +277,7 @@ export const GALLERY: GalleryComponent[] = [
     title: "Activity report",
     kind: "card",
     description:
-      "Show what this deployment has actually been doing, read from its own records rather than from anything you know. Use for 'what have the Bots been up to' and 'what has been refused'. You choose the report and the period; the figures are read for you and you will not see them.",
+      "Show what this deployment has actually been doing, read from its own records rather than from anything you know. Use for 'what have the digital employees been up to' and 'what has been refused'. You choose the report and the period; the figures are read for you and you will not see them.",
     parameters: ActivityReportProps,
     Component: ActivityReportCard as GalleryComponent["Component"],
     confirmation:

@@ -96,7 +96,7 @@ function PeoplePage() {
 
   return (
     <PageShell
-      description="Everybody who has signed in. Administrators reach these screens; everybody else talks to Bots."
+      description="Everybody who has signed in. Administrators reach these screens; everybody else talks to digital employees."
       title="People"
     >
       <PageSection

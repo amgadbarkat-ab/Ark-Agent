@@ -705,7 +705,7 @@ export function createMarketplaceStore(
     if (!row) {
       throw new MarketplaceError(
         "not_found",
-        "Choose one of your own coworkers to share.",
+        "Choose one of your own digital employees to share.",
       );
     }
     const prompt =
@@ -942,7 +942,7 @@ export function createMarketplaceStore(
       if (listing.kind !== "official") {
         throw new MarketplaceError(
           "view_only",
-          "A shared coworker is for reading. It cannot be installed, copied or exported.",
+          "A shared digital employee is for reading. It cannot be installed, copied or exported.",
         );
       }
       const { install, role } = parseOfficialContent(listing.content);

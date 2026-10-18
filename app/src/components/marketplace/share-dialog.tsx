@@ -165,9 +165,9 @@ function ShareForm({
         <DialogHeader>
           <DialogTitle>Sent for review</DialogTitle>
           <DialogDescription>
-            Our team reads every shared coworker before anyone else can see it.
-            You can follow it, change it or withdraw it from your shared
-            coworkers.
+            Our team reads every shared digital employee before anyone else can
+            see it. You can follow it, change it or withdraw it from your shared
+            digital employees.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-4">
@@ -178,7 +178,7 @@ function ShareForm({
             render={(props) => <Link to="/marketplace/mine" {...props} />}
             size="sm"
           >
-            See my shared coworkers
+            See my shared digital employees
           </Button>
         </DialogFooter>
       </>
@@ -199,7 +199,7 @@ function ShareForm({
             ? "Change what you shared"
             : agent
               ? `Share ${agent.name}`
-              : "Share a coworker"}
+              : "Share a digital employee"}
         </DialogTitle>
         <DialogDescription>
           People can read how it is set up: its role, its instruction and the
@@ -211,7 +211,9 @@ function ShareForm({
         <FieldGroup>
           {editing || agent ? null : (
             <Field>
-              <FieldLabel htmlFor="share-coworker">Which coworker</FieldLabel>
+              <FieldLabel htmlFor="share-coworker">
+                Which digital employee
+              </FieldLabel>
               <Select
                 onValueChange={(value) => {
                   const chosen = choices.find((c) => c.id === value);
@@ -336,9 +338,9 @@ function ShareForm({
             </ul>
             {hasSecret ? (
               <p className="text-muted-foreground">
-                Fix these in the coworker itself, then share it again. The
-                listing is a copy, so changing the coworker changes what is
-                shared only when you share it again.
+                Fix these in the digital employee itself, then share it again.
+                The listing is a copy, so changing the digital employee changes
+                what is shared only when you share it again.
               </p>
             ) : (
               <div className="flex items-start gap-2">

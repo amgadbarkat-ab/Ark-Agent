@@ -100,12 +100,12 @@ export function routingPrompt(
     )
     .join("\n");
   return [
-    "You route a person's message to the one coworker best suited to it.",
-    "Here are the coworkers and what each is for:",
+    "You route a person's message to the one digital employee best suited to it.",
+    "Here are the digital employees and what each is for:",
     roster,
     "",
     'Reply with only JSON: {"agentId": "<one id from the list>", "reason": "<short, names the fit>", "confidence": <0..1>}.',
-    "Pick the specialist whose purpose matches the message. If none clearly fits, use the most general coworker and give it a low confidence.",
+    "Pick the specialist whose purpose matches the message. If none clearly fits, use the most general digital employee and give it a low confidence.",
     /*
      * Only when somebody on the roster can actually reach something.
      *
@@ -115,7 +115,7 @@ export function routingPrompt(
      */
     ...(candidates.some((c) => c.reaches && c.reaches.length > 0)
       ? [
-          "When the message names a system a coworker can reach, prefer that coworker: one that cannot reach it has no way to answer and will fall back to a browser that is signed in as nobody. Purpose still comes first — a specialist with no systems listed is right for a question about its specialism.",
+          "When the message names a system a digital employee can reach, prefer that digital employee: one that cannot reach it has no way to answer and will fall back to a browser that is signed in as nobody. Purpose still comes first — a specialist with no systems listed is right for a question about its specialism.",
         ]
       : []),
     "",
@@ -215,7 +215,7 @@ export function createIntentRouter(deps: {
           return {
             agentId: reachable.id,
             name: reachable.name,
-            reason: `the only coworker that can reach ${reachable.system}`,
+            reason: `the only digital employee that can reach ${reachable.system}`,
             fallback: true,
             // Carried through. Reach answered where the message went; it did not answer whether the
             // router did, and a router that has been down for a week must not read as this.
@@ -243,7 +243,7 @@ export function createIntentRouter(deps: {
 
       // Nothing to decide between: one coworker, or none but the default.
       if (candidates.length <= 1) {
-        return fallback("the only coworker available", "one-candidate");
+        return fallback("the only digital employee available", "one-candidate");
       }
 
       let raw: string;
@@ -288,7 +288,7 @@ export function createIntentRouter(deps: {
       if (!match) {
         // A returned id that is not on the roster is the dangerous case: never act on it.
         return fallback(
-          "sent to your default; the router named no coworker on your roster",
+          "sent to your default; the router named no digital employee on your roster",
           "off-roster",
         );
       }

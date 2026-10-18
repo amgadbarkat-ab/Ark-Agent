@@ -14,7 +14,7 @@
 </div>
 
 Bring any AG-UI agent, written on a framework or by hand, and it arrives as a
-coworker with a channel of its own. Watch it work on its own screen, take the
+digital employee with a channel of its own. Watch it work on its own screen, take the
 wheel when it reaches something it should not do alone, then hand it back. It
 answers with components rather than only prose.
 
@@ -36,7 +36,7 @@ answers with components rather than only prose.
 
 An agent platform. Docker Compose brings up every part of it, the data sits in PostgreSQL, and the model is yours to choose: no model ships in the box, and an administrator supplies the credential, which is encrypted at rest and never logged.
 
-Thirteen coworkers ship in the example package, and they are configuration rather than code: **General Assistant** for everyday work and **Knowledge** for company questions, a **Risk Analyst** reached as an endpoint, and ten in `examples/fintech/agents/` that each do one job — reading an expense claim against the policy as written, turning a meeting note into the follow-ups actually in it, drafting release notes from what shipped, triaging a ticket, answering a new starter from the handbook, writing a brief that names what it could not find, writing up an interview, handing an on-call shift over, assembling what is known before a renewal, and grouping customer feedback into themes it can cite. Add your own by dropping a file in that directory, by editing `agents.yaml`, or from `/agents` in the UI.
+Thirteen digital employees ship in the example package, and they are configuration rather than code: **General Assistant** for everyday work and **Knowledge** for company questions, a **Risk Analyst** reached as an endpoint, and ten in `examples/fintech/agents/` that each do one job — reading an expense claim against the policy as written, turning a meeting note into the follow-ups actually in it, drafting release notes from what shipped, triaging a ticket, answering a new starter from the handbook, writing a brief that names what it could not find, writing up an interview, handing an on-call shift over, assembling what is known before a renewal, and grouping customer feedback into themes it can cite. Add your own by dropping a file in that directory, by editing `agents.yaml`, or from `/agents` in the UI.
 
 Anything a Bot does to a computer, a file, an MCP server or a component goes through one gateway that decides and records it. That is the difference between an agent that can use your tools and an agent you can let near them.
 
@@ -121,15 +121,15 @@ Leave `EMBEDDED_POSTGRES` off and set `DATABASE_URL` to point at a database you 
 - Open `/bot` and ask: `Open news.ycombinator.com and tell me the top story.`
 - Ask the Bot to fill out <https://httpbin.org/forms/post>, then inspect `/admin/audit`.
 - Open `/admin/boundaries`, add a deny rule or preset, and retry the same browser action.
-- Create a coworker from `/agents`, give it a standing role, and start a channel with it.
+- Create a digital employee from `/agents`, give it a standing role, and start a channel with it.
 
 ## Main surfaces
 
 | Route                       | Purpose                                                            |
 | --------------------------- | ------------------------------------------------------------------ |
 | `/`                         | Start and browse channels.                                         |
-| `/agents`                   | Create, edit, duplicate, hide, delete, and launch coworkers.       |
-| `/channel/:id`              | Converse with one coworker, watch its screen, and see what it ran. |
+| `/agents`                   | Create, edit, duplicate, hide, delete, and launch digital employees.       |
+| `/channel/:id`              | Converse with one digital employee, watch its screen, and see what it ran. |
 | `/bot`                      | Direct chat with a Bot; `?agent=<id>` selects one.                 |
 | `/skills`                   | Create and enable personal skills.                                 |
 | `/routines`                 | See the routines that are standing, and stop one.                  |
@@ -172,14 +172,14 @@ Leave `EMBEDDED_POSTGRES` off and set `DATABASE_URL` to point at a database you 
 
 Any AG-UI endpoint can be a Bot.
 
-From `/agents`, create a coworker with:
+From `/agents`, create a digital employee with:
 
 - name, title, and role description;
 - private or public visibility;
 - optional AG-UI endpoint;
 - optional write-only authorization header.
 
-The server validates agent endpoints with the same target checks used for browser navigation, at registration and again on every redirect the endpoint answers with. If no custom endpoint is set, product-created coworkers use `MANAGED_AGENT_AG_UI_URL` when it is configured, and are refused when it is not.
+The server validates agent endpoints with the same target checks used for browser navigation, at registration and again on every redirect the endpoint answers with. If no custom endpoint is set, product-created digital employees use `MANAGED_AGENT_AG_UI_URL` when it is configured, and are refused when it is not.
 
 A private address is refused unless it is listed in `AGENT_ENDPOINT_ALLOWED_HOSTS`:
 
@@ -241,7 +241,7 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 | Service                  | Port                       | Purpose                                                                                          |
 | ------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------ |
 | `app`                    | 3010                       | React/Vite UI.                                                                                   |
-| `server`                 | 3001                       | Hono API, CopilotKit runtime, auth, policy, audit, plugins, components, coworkers, and channels. |
+| `server`                 | 3001                       | Hono API, CopilotKit runtime, auth, policy, audit, plugins, components, digital employees, and channels. |
 | `agent-computer`         | 4100                       | Chromium plus `/workspace` and browser profile.                                                  |
 | `agent-bot`              | 4200                       | Proof-of-concept AG-UI Bot.                                                                          |
 | `agent-langgraph`        | 4201                       | LangGraph AG-UI Bot.                                                                             |

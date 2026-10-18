@@ -214,7 +214,7 @@ export function createStallGuard(options: StallGuardOptions): StallGuard {
         silentForMs: stalled.silentForMs,
         chunks: stalled.chunks,
         ...(turn ? { thread: turn.threadId, run: turn.runId } : {}),
-        note: "The Bot's stream produced nothing for the configured timeout, so the turn was ended.",
+        note: "The digital employee's stream produced nothing for the configured timeout, so the turn was ended.",
       }),
     );
 
@@ -380,7 +380,7 @@ function stalledEvent(botName: string, stallMs: number): Uint8Array {
     type: "RUN_ERROR",
     message:
       `${botName} stopped responding. Nothing arrived from it for ${inWords(stallMs)}, ` +
-      "so this turn was ended. Ask again, or check that the Bot is running.",
+      "so this turn was ended. Ask again, or check that the digital employee is running.",
     code: "AGENT_STREAM_STALLED",
   };
   return ENCODER.encode(`data: ${JSON.stringify(event)}\n\n`);

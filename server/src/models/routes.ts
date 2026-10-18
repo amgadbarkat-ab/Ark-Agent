@@ -374,7 +374,7 @@ export function modelConnectionRoutes(options: {
     const botId = context.req.param("botId");
     const actor = context.var.actor;
     if (!(await botVisible(actor, botId))) {
-      return context.json({ error: "No such coworker." }, 404);
+      return context.json({ error: "No such digital employee." }, 404);
     }
     const done = await store.setChoice(
       actor.id,
