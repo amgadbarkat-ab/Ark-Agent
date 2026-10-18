@@ -104,12 +104,12 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
       {grantable ? null : (
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>This coworker cannot hand work on</ItemTitle>
+            <ItemTitle>This digital employee cannot hand work on</ItemTitle>
             {/* Unclamped for the same reason as above: three lines, and the third is the useful one. */}
             <ItemDescription className="line-clamp-none">
               Handing work on is a tool that runs inside this deployment's own
-              loop, and this coworker runs as its own agent — so there is
-              nothing to grant it. It can still be asked by digital employees
+              loop, and this digital employee runs as its own agent — so there
+              is nothing to grant it. It can still be asked by digital employees
               that can.
             </ItemDescription>
           </ItemContent>

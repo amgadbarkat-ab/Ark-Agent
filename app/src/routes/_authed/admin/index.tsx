@@ -141,7 +141,7 @@ const SECTIONS: {
       {
         title: "Marketplace",
         description:
-          "Shared coworkers waiting for review, and the ones people have reported.",
+          "Shared digital employees waiting for review, and the ones people have reported.",
         icon: IconBuildingStore,
         linkOptions: { to: "/admin/marketplace" },
       },

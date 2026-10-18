@@ -83,7 +83,7 @@ export function CloudRunningSection() {
 
   return (
     <PageSection
-      description="Your coworkers can run on your own computer at no charge. Letting them run on Ark's computers is optional: you pay what it costs us, for the time they are working, and never more than the limit you set."
+      description="Your digital employees can run on your own computer at no charge. Letting them run on Ark's computers is optional: you pay what it costs us, for the time they are working, and never more than the limit you set."
       title="Cloud running"
     >
       <PageRows>
@@ -170,7 +170,7 @@ export function CloudRunningSection() {
 /** The current answer, not the field's name. */
 function summary(cloud: CloudOverview["cloud"]): string {
   if (!cloud.priced || !cloud.rates) {
-    return "Not available yet. For now, run your coworkers on your own computer.";
+    return "Not available yet. For now, run your digital employees on your own computer.";
   }
   if (cloud.enabled && cloud.ratesChanged) {
     return "The prices changed. Cloud runs are paused until you agree to the new ones.";
@@ -178,13 +178,13 @@ function summary(cloud: CloudOverview["cloud"]): string {
   if (cloud.enabled) {
     return `On. Up to ${formatEur(cloud.monthlyCapCents)} a month, charged once a month.`;
   }
-  return `Off. ${formatRate(cloud.rates.computeCentsPerHour)} for each hour a coworker is working, plus the payment fee.`;
+  return `Off. ${formatRate(cloud.rates.computeCentsPerHour)} for each hour a digital employee is working, plus the payment fee.`;
 }
 
 function priceLines(rates: CloudRates): { label: string; value: string }[] {
   const lines = [
     {
-      label: "An hour of a coworker working",
+      label: "An hour of a digital employee working",
       value: formatRate(rates.computeCentsPerHour),
     },
   ];
@@ -303,9 +303,9 @@ function CloudForm({
             : "Switch on cloud running"}
         </DialogTitle>
         <DialogDescription>
-          You pay what it costs us to run your coworkers for you, and nothing
-          for the ones that run on your own computer. It is charged once a month
-          to your plan's payment method, with tax where it applies.
+          You pay what it costs us to run your digital employees for you, and
+          nothing for the ones that run on your own computer. It is charged once
+          a month to your plan's payment method, with tax where it applies.
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -355,7 +355,7 @@ function CloudForm({
               />
               <label htmlFor="cloud-agree">
                 I have read these prices and agree to be charged them for the
-                time my coworkers run in Ark's cloud.
+                time my digital employees run in Ark's cloud.
               </label>
             </div>
           ) : null}

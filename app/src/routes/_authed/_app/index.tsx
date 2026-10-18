@@ -92,8 +92,8 @@ function RouteComponent() {
             // Said out loud: a message that silently reaches somebody you did not choose is the
             // kind of surprise that costs trust the first time it happens.
             <p className="mt-2 w-full max-w-2xl text-xs text-muted-foreground text-center">
-              Sent to the coworker it is for. Type <code>@</code> to choose one
-              yourself.
+              Sent to the digital employee it is for. Type <code>@</code> to
+              choose one yourself.
             </p>
           ) : null}
           {error ? (
@@ -115,8 +115,8 @@ function RouteComponent() {
               className="mt-2 w-full max-w-2xl text-sm text-destructive"
               role="alert"
             >
-              Your coworkers couldn't be loaded, so there's no one to send this
-              to yet.
+              Your digital employees couldn't be loaded, so there's no one to
+              send this to yet.
             </p>
           ) : null}
         </div>

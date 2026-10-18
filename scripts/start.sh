@@ -279,7 +279,7 @@ for table in agent_profiles agent_preferences; do
     exit 1
   fi
 done
-green "  coworker tables migrated"
+green "  digital employee tables migrated"
 
 # Resolved at the top, where the default that .env deliberately does not carry is applied. Reading
 # .env again here would have demanded the line be present in a file the comment above that default
@@ -290,7 +290,7 @@ green "  coworker tables migrated"
 # pipeline, and `set -e` then aborts the assignment before the check below could say why. The same
 # grep survives inside `setting()` only because `local v="$(...)"` takes `local`'s own exit status
 # and masks it. So: report what was resolved, and do not re-read the file.
-green "  managed coworker endpoint: $MANAGED_AGENT_AG_UI_URL"
+green "  managed digital employee endpoint: $MANAGED_AGENT_AG_UI_URL"
 
 info "     Conversation hub"
 bash "$ROOT/scripts/hub.sh" start
@@ -421,8 +421,8 @@ $(green "Ready. http://localhost:$APP_PORT")
 
 Next steps:
 
-  - Direct Bot chat:       http://localhost:$APP_PORT/bot
-  - Coworkers:             http://localhost:$APP_PORT/agents
+  - Direct chat:          http://localhost:$APP_PORT/bot
+  - Digital employees:     http://localhost:$APP_PORT/agents
   - Audit trail:           http://localhost:$APP_PORT/admin/audit
   - Boundaries/policy:     http://localhost:$APP_PORT/admin/boundaries
   - Setup docs:            README.md
@@ -431,7 +431,7 @@ Next steps:
 Try:
 
   1. Open /bot and ask: Open news.ycombinator.com and tell me the top story.
-  2. Create a coworker in /agents and start a channel with it.
+  2. Create a digital employee in /agents and start a channel with it.
   3. Review browser/file actions in /admin/audit.
   4. Add a deny rule in /admin/boundaries, then retry the same action.
 

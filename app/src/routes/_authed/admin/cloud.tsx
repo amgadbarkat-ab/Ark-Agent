@@ -86,13 +86,13 @@ const RATE_FIELDS: {
     key: "computeCentsPerHour",
     label: "Running",
     unit: "cents per hour",
-    help: "What one coworker's cloud capacity costs us for an hour. Measure it: see docs/ark/17-cloud-runtime.md.",
+    help: "What one digital employee's cloud capacity costs us for an hour. Measure it: see docs/ark/17-cloud-runtime.md.",
   },
   {
     key: "storageCentsPerGbMonth",
     label: "Storage",
     unit: "cents per GB a month",
-    help: "What a gigabyte of a coworker's saved files costs us for a month. Zero if storage is not charged.",
+    help: "What a gigabyte of a digital employee's saved files costs us for a month. Zero if storage is not charged.",
   },
   {
     key: "egressCentsPerGb",
@@ -479,7 +479,7 @@ function RatesForm({
           Customers see these exactly, and agree to them before anything is
           charged. A customer who agreed to earlier prices is asked again. A
           month is charged at the prices they agreed to, worked out from the
-          time the coworkers ran.
+          time the digital employees ran.
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">

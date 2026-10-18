@@ -124,7 +124,7 @@ export function agentListQueryOptions(hidden = false) {
     queryKey: agentKeys.list(hidden),
     queryFn: (): Promise<AgentProfile[]> =>
       client(`/api/agents${hidden ? "?hidden=true" : ""}`, "agents", {
-        fallback: "Could not load coworkers",
+        fallback: "Could not load digital employees",
       }),
   });
 }
@@ -139,7 +139,7 @@ export function agentQueryOptions(agentId: string) {
     queryKey: agentKeys.detail(agentId),
     queryFn: (): Promise<AgentProfile> =>
       client(agentApiPath(agentId), "agent", {
-        fallback: "Could not load this coworker",
+        fallback: "Could not load this digital employee",
       }),
   });
 }

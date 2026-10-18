@@ -85,7 +85,7 @@ function AccountsPage() {
       title="Accounts"
     >
       <PageSection
-        description="Changing a plan here sets it by hand and does not charge anyone. Suspending stops every coworker on the account at its next run and shows the customer the reason."
+        description="Changing a plan here sets it by hand and does not charge anyone. Suspending stops every digital employee on the account at its next run and shows the customer the reason."
         title="Who is paying"
       >
         {failure ? (

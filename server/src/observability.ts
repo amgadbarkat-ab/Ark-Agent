@@ -189,7 +189,7 @@ export function registerBusinessMetrics(
   );
   const runs = registry.gauge(
     "ark_runs_in_progress",
-    "Runs holding a slot now (a coworker working).",
+    "Runs holding a slot now (a digital employee working).",
   );
   const charges = registry.gauge(
     "ark_cloud_charges",

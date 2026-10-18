@@ -62,7 +62,7 @@ function MarketplacePage() {
       action={
         <Button onClick={() => setSharing(true)} size="sm" variant="ghost">
           <IconPlus />
-          Share a coworker
+          Share a digital employee
         </Button>
       }
       description="Digital employees you can hire into your own account, and ones other people have shared as guides to read."

@@ -188,7 +188,7 @@ export function RoutinesList({
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
               {agentId
-                ? "Nothing scheduled for this coworker"
+                ? "Nothing scheduled for this digital employee"
                 : "Nothing scheduled"}
             </EmptyTitle>
             <EmptyDescription>

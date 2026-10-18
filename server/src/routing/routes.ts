@@ -129,7 +129,7 @@ export function createRoutingRoutes(
     // The same default the composer shows: the package-picked harness, then the first public coworker.
     const preferred = defaultRoutingProfile(roster);
     if (!preferred) {
-      return context.json({ error: "No coworker is available." }, 409);
+      return context.json({ error: "No digital employee is available." }, 409);
     }
 
     /*
@@ -144,7 +144,7 @@ export function createRoutingRoutes(
       const chosen = roster.find((a) => a.id === named);
       if (!chosen) {
         return context.json(
-          { error: "That coworker is not on your roster." },
+          { error: "That digital employee is not on your roster." },
           404,
         );
       }

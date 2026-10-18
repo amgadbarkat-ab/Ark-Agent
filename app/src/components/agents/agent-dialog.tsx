@@ -138,7 +138,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-6 text-sm text-destructive" role="alert">
-        Could not load this coworker.
+        Could not load this digital employee.
       </p>
     );
   }
@@ -349,7 +349,7 @@ function GeneralSection({
         <ItemContent>
           <ItemTitle>Start channel</ItemTitle>
           <ItemDescription>
-            Open a new channel with this coworker.
+            Open a new channel with this digital employee.
           </ItemDescription>
         </ItemContent>
         <ItemActions>
@@ -724,7 +724,7 @@ function AccessSection({ agentId }: { agentId: string }) {
   if (plugins.error || !plugins.data) {
     return (
       <p className="text-sm text-destructive" role="alert">
-        What this coworker may reach could not be loaded.
+        What this digital employee may reach could not be loaded.
       </p>
     );
   }
@@ -759,7 +759,8 @@ function AccessSection({ agentId }: { agentId: string }) {
           </EmptyTitle>
           <EmptyDescription>
             An administrator grants connectors and skills from the Plugins
-            screens. Until then this coworker can converse, and nothing more.
+            screens. Until then this digital employee can converse, and nothing
+            more.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -769,8 +770,9 @@ function AccessSection({ agentId }: { agentId: string }) {
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        What this coworker may reach when it works. Granted by an administrator
-        on the Plugins screens; anything not listed is refused when called.
+        What this digital employee may reach when it works. Granted by an
+        administrator on the Plugins screens; anything not listed is refused
+        when called.
       </p>
       <div className="flex flex-col gap-2">
         {[...connectors.entries()].map(([key, labels]) => (

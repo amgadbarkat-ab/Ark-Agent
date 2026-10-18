@@ -64,20 +64,20 @@ function MinePage() {
       action={
         <Button onClick={() => setSharing(true)} size="sm" variant="ghost">
           <IconPlus />
-          Share a coworker
+          Share a digital employee
         </Button>
       }
       backButton={{
         label: "Marketplace",
         linkProps: { to: "/marketplace" },
       }}
-      description="Coworkers you have shared as guides. Our team reads each one before anyone else can see it."
+      description="Digital employees you have shared as guides. Our team reads each one before anyone else can see it."
       title="Shared by you"
     >
       <PageSection title="Your name">
         {mine.isPending ? null : mine.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load your shared coworkers.
+            Could not load your shared digital employees.
           </p>
         ) : (
           <PageRows>
@@ -95,7 +95,7 @@ function MinePage() {
                 <ItemDescription className="line-clamp-none">
                   {publisher
                     ? publisher.bio || "Shown on everything you share."
-                    : "Chosen when you share your first coworker."}
+                    : "Chosen when you share your first digital employee."}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
@@ -108,7 +108,7 @@ function MinePage() {
 
       <PageSection title="Your listings">
         {mine.isPending ? null : mine.error ? null : listings.length === 0 ? (
-          <PageEmpty>You have not shared a coworker yet.</PageEmpty>
+          <PageEmpty>You have not shared a digital employee yet.</PageEmpty>
         ) : (
           <PageRows>
             {listings.map((listing, index) => (

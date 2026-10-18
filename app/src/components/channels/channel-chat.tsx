@@ -976,8 +976,8 @@ export function ChannelChat({
                     className="pb-2 text-sm text-muted-foreground"
                     role="status"
                   >
-                    This coworker has been deleted. The conversation stays
-                    readable, but it can no longer reply.
+                    This digital employee has been deleted. The conversation
+                    stays readable, but it can no longer reply.
                   </p>
                 )}
               </>

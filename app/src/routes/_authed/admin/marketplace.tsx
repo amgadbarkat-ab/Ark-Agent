@@ -46,7 +46,7 @@ function MarketplaceReview() {
 
   return (
     <PageShell
-      description="Shared coworkers are read here before anyone else can see them, and reported ones are decided here."
+      description="Shared digital employees are read here before anyone else can see them, and reported ones are decided here."
       title="Marketplace"
     >
       <PageSection

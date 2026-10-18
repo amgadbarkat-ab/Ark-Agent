@@ -52,7 +52,7 @@ export async function routeMessage(
   const response = await client("/api/route", {
     method: "POST",
     body: agentId ? { text: asked, agentId } : { text: asked },
-    fallback: "Could not choose a coworker.",
+    fallback: "Could not choose a digital employee.",
   });
   return (await response.json()) as RoutingDecision;
 }

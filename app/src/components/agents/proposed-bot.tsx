@@ -95,7 +95,9 @@ export function ProposedBotCard({
   if (!respond) {
     return (
       <GalleryFrame title={titleFor(args.name, clashes)}>
-        <p className="text-muted-foreground text-sm">Writing the coworker…</p>
+        <p className="text-muted-foreground text-sm">
+          Writing the digital employee…
+        </p>
       </GalleryFrame>
     );
   }
@@ -118,7 +120,7 @@ export function ProposedBotCard({
       setRefusal(
         cause instanceof Error
           ? cause.message
-          : "The coworker was not created.",
+          : "The digital employee was not created.",
       );
       return;
     }
@@ -209,7 +211,7 @@ function titleFor(
   name: string | undefined,
   clashes: { title: string } | undefined,
 ): string {
-  const called = name?.trim() ? name.trim() : "a new coworker";
+  const called = name?.trim() ? name.trim() : "a new digital employee";
   return clashes ? `Create ${called}, again` : `Create ${called}`;
 }
 
@@ -233,7 +235,7 @@ function TalkToIt({
       search={{ agent: agentId }}
       to="/agents"
     >
-      Open {name?.trim() || "the coworker"}
+      Open {name?.trim() || "the digital employee"}
     </Link>
   );
 }
@@ -269,11 +271,11 @@ function Unwritable({
   return (
     <GalleryFrame
       action={<Badge tone="neutral">Not created</Badge>}
-      title="Create a coworker"
+      title="Create a digital employee"
     >
       <p className="text-sm">
-        The coworker could not be created as written, so nothing was asked of
-        you. It is being redrafted.
+        The digital employee could not be created as written, so nothing was
+        asked of you. It is being redrafted.
       </p>
     </GalleryFrame>
   );

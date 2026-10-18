@@ -198,10 +198,10 @@ function Row({
   const routed =
     event.eventType === "channel.routed"
       ? payload.viaMention === true
-        ? "The person chose this coworker"
+        ? "The person chose this digital employee"
         : payload.fallback === true
-          ? "Sent to the default coworker"
-          : "Sent to the coworker it is for"
+          ? "Sent to the default digital employee"
+          : "Sent to the digital employee it is for"
       : null;
   // Allowed by policy but not carried out. A stalled turn belongs in the same family: the Bot was
   // asked and the answer never arrived. Colour is how this table is read, and a row left in the

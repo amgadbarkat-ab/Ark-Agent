@@ -54,7 +54,7 @@ function PrivacyPage() {
       title="Your data"
     >
       <PageSection
-        description="Your account, your coworkers and what they were told, your skills and routines, your conversations and the record of what you did. Never a key or a token."
+        description="Your account, your digital employees and what they were told, your skills and routines, your conversations and the record of what you did. Never a key or a token."
         title="Get a copy"
       >
         <PageRows>
@@ -84,7 +84,7 @@ function PrivacyPage() {
       </PageSection>
 
       <PageSection
-        description="Removes you, your coworkers, your conversations, your keys and your sign-ins. If this account is only you, the account and its plan go too, and your subscription is stopped at once. This cannot be undone."
+        description="Removes you, your digital employees, your conversations, your keys and your sign-ins. If this account is only you, the account and its plan go too, and your subscription is stopped at once. This cannot be undone."
         title="Delete your account"
       >
         <PageRows>
