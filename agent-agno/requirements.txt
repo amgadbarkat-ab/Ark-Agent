@@ -1,5 +1,7 @@
 agno[agui]
-litellm
+# litellm 1.106 needs the mcp library (2.2 or later), which these harnesses do not install, so model calls through
+# it fail on import. Hold it below 1.106 until the harnesses move to mcp 2.
+litellm<1.106
 fastapi
 python-multipart
 uvicorn[standard]
