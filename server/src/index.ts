@@ -133,6 +133,8 @@ import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
+import { createLeadReach } from "./agents/lead-reach";
+import { teamTools } from "./agents/team-tools";
 import { approvalExecutors } from "./approvals/executors";
 import { createApprovalStore } from "./approvals/store";
 import { createRoutineStore } from "./routines/store";
@@ -555,6 +557,8 @@ useRoutineTools(routineStore);
  * that, because the Bot being addressed will very likely run on a different pod from the Bot that
  * addressed it, and a hop held in memory is lost the moment either is rescheduled.
  */
+const leadMayAddress = createLeadReach(database);
+
 const handoffDesk = createHandoffDesk({
   queue: createWorkQueue(database),
   profiles: agentProfileStore,
@@ -567,7 +571,9 @@ const handoffDesk = createHandoffDesk({
         // A grant that cannot be read is not a grant. Failing closed here costs a hop; failing open
         // would let a Bot address one nobody gave it because the database blinked.
         .catch(() => [] as string[])
-    ).includes(toBotId),
+    ).includes(toBotId) ||
+    // The lead of a person's team may ask that person's other employees without a grant.
+    (await leadMayAddress(fromBotId, toBotId).catch(() => false)),
   /*
    * Deferred rather than passed directly, because `actorFor` is defined further down with the rest
    * of the run-building collaborators. It is only ever called during a hop, long after this module
@@ -735,10 +741,26 @@ const hostAccessBroker = createHostAccessBroker();
 // grant, the policy and the audit row are exactly where they were. Host-folder tools are also
 // server-dispatched: the selected Bot and the signed-in owner are bound here, then the desktop worker
 // receives only opaque grant ids and relative paths.
+/**
+ * What the lead of a team needs to look after its colleagues: the roster, their routines, the inbox
+ * its requests go to, and the desk for asking one of them for work.
+ */
+const teamToolDependencies = {
+  profiles: agentProfileStore,
+  routines: routineStore,
+  approvals: approvalStore,
+  ...(config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0
+    ? { handoff: handoffDesk }
+    : {}),
+  auditStore: bootAuditStore,
+};
+
 const loadToolsForActor =
   (actorId: string, initiator: AuditInitiator = PERSON_INITIATOR) =>
   async (botId: string) => [
     ...(await grantedTools({ store: pluginStore, botId, actorId, initiator })),
+    // Only the lead of the team, and only for its own owner; empty for everybody else.
+    ...(await teamTools({ deps: teamToolDependencies, botId, actorId })),
     ...hostAccessTools({
       broker: hostAccessBroker,
       botId,
@@ -1484,7 +1506,21 @@ const app = createApp(
   // desktop worker must authenticate with a fresh token for this run.
   hostAccessBroker,
   process.env.OPENBOT_DESKTOP_HOST_TOKEN,
-  async ({ name, args, botId, actorId, initiator }) => {
+  async ({ name, args, botId, actorId, initiator, run }) => {
+    if (name.startsWith("team_")) {
+      // Built per call, with the signed run, so asking a colleague knows which conversation it is in.
+      const tool = (
+        await teamTools({ deps: teamToolDependencies, botId, actorId, run })
+      ).find((candidate) => candidate.name === name);
+      if (!tool) {
+        return {
+          text: `${REFUSAL_MARKER} That tool is not available to this digital employee.`,
+          isError: true,
+        };
+      }
+      const text = await tool.execute(args);
+      return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    }
     if (!name.startsWith("host_")) return null;
     const tool = hostAccessTools({
       broker: hostAccessBroker,

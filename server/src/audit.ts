@@ -408,6 +408,9 @@ export const auditEventTypes = [
   "approval.rejected",
   "approval.failed",
 
+  /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
+  "team.action",
+
   /*
    * One Bot handing work to another.
    *

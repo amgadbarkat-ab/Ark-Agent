@@ -6,6 +6,7 @@ import { MAX_IMAGE_BYTES } from "../../shared/attachments";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
+  type RunAssertion,
   sameToken,
 } from "./agents/callback-token";
 import type { BotAccessCheck } from "./agents/profile-policy";
@@ -178,6 +179,8 @@ export type DeploymentToolCaller = (input: {
   botId: string;
   actorId: string;
   initiator?: AuditInitiator;
+  /** The signed run this call belongs to: which run, which conversation, how deep. */
+  run?: RunAssertion;
 }) => Promise<{ text: string; isError: boolean } | null>;
 
 async function recordPersonEvent(
@@ -1905,6 +1908,7 @@ export function createApp(
           botId: verdict.botId,
           actorId: verdict.actorId,
           initiator: verdict.initiator,
+          run: verdict.run,
         });
         if (deploymentResult) return context.json(deploymentResult);
 

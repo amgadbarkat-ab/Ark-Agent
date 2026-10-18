@@ -61,7 +61,7 @@ export function teamGuidance(
   return [
     `Your team: you are one digital employee among others, not the only one. Your colleagues are ${named.join("; ")}${more > 0 ? `; and ${more} more` : ""}.`,
     me?.primary
-      ? "You are the lead of this team. When a request spans several roles, say which part belongs to which colleague, and bring the answers together once you have them."
+      ? "You are the lead of this team. When a request spans several roles, say which part belongs to which colleague, and bring the answers together once you have them. You have tools for your team: team_list, team_report (a colleague's routines and how they last ran), team_pause_routine (switch one off or back on), team_ask (ask a colleague for work) and team_request_change (ask your owner to change or delete a colleague's routine or rewrite its instructions; nothing changes until they approve, so never say it is done)."
       : lead
         ? `${line(lead.name, 60)} is the lead of this team.`
         : "",
