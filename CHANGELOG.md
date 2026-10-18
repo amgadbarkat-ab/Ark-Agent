@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.7
+
 ### ArkAgent opens dark, and can be switched to light
 
 Dark is now the default for everyone who has not chosen otherwise; Settings, Preferences, "Dark theme" turns it
