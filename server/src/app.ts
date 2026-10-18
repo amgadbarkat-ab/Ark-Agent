@@ -88,6 +88,8 @@ import {
 } from "./provider-oauth";
 import { createApprovalRoutes } from "./approvals/routes";
 import type { ApprovalStore } from "./approvals/store";
+import { createMemoryRoutes } from "./memories/routes";
+import type { MemoryStore } from "./memories/store";
 import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
@@ -435,6 +437,11 @@ export function createApp(
    * for the positional reason above. Absent leaves `/api/approvals` unmounted.
    */
   approvals?: ApprovalStore,
+  /**
+   * What each digital employee keeps in mind. Appended last, for the positional reason above. Absent
+   * leaves `/api/agents/:agentId/memories` unmounted.
+   */
+  memories?: MemoryStore,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1769,6 +1776,13 @@ export function createApp(
 
   if (approvals) {
     app.route("/api/approvals", createApprovalRoutes(approvals, requireUser));
+  }
+
+  if (memories) {
+    app.route(
+      "/api/agents/:agentId/memories",
+      createMemoryRoutes(memories, requireUser),
+    );
   }
 
   if (routineStore) {

@@ -1,4 +1,5 @@
 import type { AgentProfileStore } from "../agents/profile-store";
+import type { MemoryStore } from "../memories/store";
 import type { RoutinePatch, RoutineStore } from "../routines/store";
 import type { ApprovalExecutor } from "./store";
 
@@ -19,6 +20,8 @@ export const APPROVAL_KINDS = [
   "routine.update",
   "routine.delete",
   "instructions.update",
+  "memory.update",
+  "memory.delete",
 ] as const;
 
 export type ApprovalKind = (typeof APPROVAL_KINDS)[number];
@@ -50,8 +53,9 @@ function routinePatchFrom(value: unknown): RoutinePatch {
 export function approvalExecutors(dependencies: {
   routines: Pick<RoutineStore, "update" | "remove">;
   profiles: Pick<AgentProfileStore, "get" | "update">;
+  memories: Pick<MemoryStore, "update" | "remove">;
 }): Record<ApprovalKind, ApprovalExecutor> {
-  const { routines, profiles } = dependencies;
+  const { routines, profiles, memories } = dependencies;
   return {
     "routine.update": async (approval) => {
       const payload = (approval.payload ?? {}) as Record<string, unknown>;
@@ -70,6 +74,26 @@ export function approvalExecutors(dependencies: {
         text(payload.routineId, "The routine"),
       );
       return "The routine was deleted. It will not run again.";
+    },
+
+    "memory.update": async (approval) => {
+      const payload = (approval.payload ?? {}) as Record<string, unknown>;
+      await memories.update(
+        approval.ownerUserId,
+        text(payload.memoryId, "The memory"),
+        text(payload.content, "The new wording"),
+        "approved",
+      );
+      return "The memory was changed.";
+    },
+
+    "memory.delete": async (approval) => {
+      const payload = (approval.payload ?? {}) as Record<string, unknown>;
+      await memories.remove(
+        approval.ownerUserId,
+        text(payload.memoryId, "The memory"),
+      );
+      return "The memory was deleted.";
     },
 
     "instructions.update": async (approval) => {

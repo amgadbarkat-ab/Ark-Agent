@@ -23,6 +23,7 @@ import { HANDED_OVER } from "../../../shared/handoff-markers";
 import type { ApprovalStore } from "../approvals/store";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import { REFUSAL_MARKER, type GrantedTool } from "../plugins/tools";
+import type { MemoryStore } from "../memories/store";
 import type { RoutineStore, RoutineSummary } from "../routines/store";
 import type { RunAssertion } from "./callback-token";
 import type { HandoffDesk } from "./handoff";
@@ -35,6 +36,7 @@ export type TeamToolDependencies = {
   profiles: Pick<AgentProfileStore, "list" | "get">;
   routines: Pick<RoutineStore, "listFor" | "setEnabled">;
   approvals: Pick<ApprovalStore, "request">;
+  memories: Pick<MemoryStore, "list">;
   /** Absent when this deployment has switched hand-offs off. */
   handoff?: Pick<HandoffDesk, "send">;
   auditStore?: AuditStore;
@@ -77,9 +79,15 @@ const askParameters = z.object({
 
 const requestParameters = z.object({
   kind: z
-    .enum(["update_routine", "delete_routine", "replace_instructions"])
+    .enum([
+      "update_routine",
+      "delete_routine",
+      "replace_instructions",
+      "update_memory",
+      "delete_memory",
+    ])
     .describe(
-      "update_routine changes a colleague's routine, delete_routine removes one, replace_instructions rewrites a colleague's full instructions",
+      "update_routine changes a colleague's routine, delete_routine removes one, replace_instructions rewrites a colleague's full instructions, update_memory rewords one of its memories, delete_memory removes one",
     ),
   reason: z
     .string()
@@ -101,6 +109,14 @@ const requestParameters = z.object({
     .string()
     .optional()
     .describe("update_routine: a new instruction for each firing"),
+  memoryId: z
+    .string()
+    .optional()
+    .describe("For the memory kinds: the memory's id, from team_report"),
+  content: z
+    .string()
+    .optional()
+    .describe("update_memory: the new wording, one short sentence"),
   newInstructions: z
     .string()
     .optional()
@@ -242,16 +258,26 @@ export async function teamTools(context: Context): Promise<GrantedTool[]> {
         const mine = all.filter(
           (routine) => routine.agentId === found.colleague.id,
         );
+        const kept = await context.deps.memories.list(
+          context.actorId,
+          found.colleague.id,
+        );
         await audit(context, "report", { target: found.colleague.id });
-        if (mine.length === 0) {
-          return `${found.colleague.name} has nothing scheduled.`;
-        }
         const failing = mine.filter(
           (r) => r.lastRun?.status === "failed",
         ).length;
         return [
-          `${found.colleague.name} (${found.colleague.title}) has ${mine.length} ${mine.length === 1 ? "routine" : "routines"}${failing ? `, ${failing} failing` : ""}:`,
+          mine.length === 0
+            ? `${found.colleague.name} has nothing scheduled.`
+            : `${found.colleague.name} (${found.colleague.title}) has ${mine.length} ${mine.length === 1 ? "routine" : "routines"}${failing ? `, ${failing} failing` : ""}:`,
           ...mine.map(routineLine),
+          kept.length === 0
+            ? `${found.colleague.name} keeps nothing in mind.`
+            : `${found.colleague.name} keeps ${kept.length} ${kept.length === 1 ? "thing" : "things"} in mind:`,
+          ...kept.map(
+            (memory) =>
+              `- "${clip(oneLine(memory.content), 160)}". id: ${memory.id}`,
+          ),
         ].join("\n");
       },
     },
@@ -337,6 +363,56 @@ export async function teamTools(context: Context): Promise<GrantedTool[]> {
               kind: input.kind,
             });
             return `Asked your owner. ${found.colleague.name}'s instructions are unchanged until they approve it in Requests.`;
+          }
+
+          if (
+            input.kind === "update_memory" ||
+            input.kind === "delete_memory"
+          ) {
+            const found = await resolveColleague(context, input.colleague);
+            if (!found.ok) return found.refusal;
+            const kept = await context.deps.memories.list(
+              context.actorId,
+              found.colleague.id,
+            );
+            const memory = kept.find(
+              (candidate) => candidate.id === input.memoryId,
+            );
+            if (!memory) {
+              return `${REFUSAL_MARKER} ${found.colleague.name} has no memory with that id. Use team_report to find it.`;
+            }
+            const was = `"${clip(oneLine(memory.content), 120)}"`;
+            if (input.kind === "delete_memory") {
+              await context.deps.approvals.request({
+                ownerUserId: context.actorId,
+                requestedByAgentId: context.botId,
+                kind: "memory.delete",
+                targetAgentId: found.colleague.id,
+                targetId: memory.id,
+                summary: `Delete this memory of ${found.colleague.name}'s: ${was}. Why: ${reason}`,
+                payload: { memoryId: memory.id },
+              });
+            } else {
+              const content = (input.content ?? "").trim();
+              if (!content) {
+                return `${REFUSAL_MARKER} Give the new wording, one short sentence.`;
+              }
+              await context.deps.approvals.request({
+                ownerUserId: context.actorId,
+                requestedByAgentId: context.botId,
+                kind: "memory.update",
+                targetAgentId: found.colleague.id,
+                targetId: memory.id,
+                summary: `Change this memory of ${found.colleague.name}'s from ${was} to "${clip(oneLine(content), 160)}". Why: ${reason}`,
+                payload: { memoryId: memory.id, content },
+              });
+            }
+            await audit(context, "request_change", {
+              target: found.colleague.id,
+              memory: memory.id,
+              kind: input.kind,
+            });
+            return `Asked your owner. ${found.colleague.name}'s memory stays as it is until they approve it in Requests.`;
           }
 
           const all = await context.deps.routines.listFor(context.actorId);

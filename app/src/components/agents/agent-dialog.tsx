@@ -1,6 +1,7 @@
 import {
   IconAdjustments,
   IconArrowsExchange,
+  IconBrain,
   IconClock,
   IconPencil,
   IconPlugConnected,
@@ -15,6 +16,7 @@ import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { AgentIconItem } from "@/components/agents/agent-icon-item";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
+import { MemoriesSection } from "@/components/agents/memories-section";
 import { ShareDialog } from "@/components/marketplace/share-dialog";
 import { RoutinesList } from "@/components/routines/routines-list";
 import { Button } from "@/components/ui/button";
@@ -116,6 +118,7 @@ const SECTIONS = [
   { id: "access", name: "Access", icon: IconPuzzle },
   { id: "connection", name: "Connection", icon: IconPlugConnected },
   { id: "handoff", name: "Handoff", icon: IconArrowsExchange },
+  { id: "memories", name: "Memories", icon: IconBrain },
   { id: "routines", name: "Routines", icon: IconClock },
   { id: "manage", name: "Manage", icon: IconAdjustments },
 ] as const;
@@ -232,6 +235,11 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
               <ConnectionSection agentId={agentId} profile={profile} />
             ) : section === "handoff" ? (
               <HandoffPanel agentId={agentId} />
+            ) : section === "memories" ? (
+              <MemoriesSection
+                agentId={agentId}
+                canManage={profile.canManage}
+              />
             ) : section === "routines" ? (
               <RoutinesList agentId={agentId} embedded />
             ) : (

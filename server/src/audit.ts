@@ -411,6 +411,11 @@ export const auditEventTypes = [
   /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
   "team.action",
 
+  /* What a digital employee keeps in mind: added, changed, deleted. The text itself is never written here. */
+  "memory.added",
+  "memory.changed",
+  "memory.deleted",
+
   /*
    * One Bot handing work to another.
    *

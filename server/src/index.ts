@@ -137,6 +137,8 @@ import { createTeamReach } from "./agents/lead-reach";
 import { teamTools } from "./agents/team-tools";
 import { approvalExecutors } from "./approvals/executors";
 import { createApprovalStore } from "./approvals/store";
+import { createMemoryStore } from "./memories/store";
+import { memoryTools } from "./memories/tools";
 import { createRoutineStore } from "./routines/store";
 import { RunGateAgent } from "./accounts/run-gate";
 import { billingFromEnvironment } from "./billing/select";
@@ -323,6 +325,8 @@ const loadAgentsForActor = createRuntimeAgentLoader(
     config.keyEncryptionKey,
     starterModel,
   ),
+  // Reads only: what each of the person's digital employees keeps in mind, for its instructions.
+  createMemoryStore(database),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -540,10 +544,14 @@ const routineStore = createRoutineStore(database);
  * Changes one digital employee asked to make to another's work, held until their owner decides.
  * Built here because applying one needs the routine and profile stores, which exist by now.
  */
+/** What a digital employee keeps in mind. This one writes, so it records who added and who deleted. */
+const memoryStore = createMemoryStore(database, { auditStore: bootAuditStore });
+
 const approvalStore = createApprovalStore(database, {
   executors: approvalExecutors({
     routines: routineStore,
     profiles: agentProfileStore,
+    memories: memoryStore,
   }),
   auditStore: bootAuditStore,
 });
@@ -749,6 +757,7 @@ const teamToolDependencies = {
   profiles: agentProfileStore,
   routines: routineStore,
   approvals: approvalStore,
+  memories: memoryStore,
   ...(config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0
     ? { handoff: handoffDesk }
     : {}),
@@ -761,6 +770,7 @@ const loadToolsForActor =
     ...(await grantedTools({ store: pluginStore, botId, actorId, initiator })),
     // Only the lead of the team, and only for its own owner; empty for everybody else.
     ...(await teamTools({ deps: teamToolDependencies, botId, actorId })),
+    ...memoryTools({ store: memoryStore, botId, actorId }),
     ...hostAccessTools({
       broker: hostAccessBroker,
       botId,
@@ -1521,6 +1531,19 @@ const app = createApp(
       const text = await tool.execute(args);
       return { text, isError: text.startsWith(REFUSAL_MARKER) };
     }
+    if (name.startsWith("memory_")) {
+      const tool = memoryTools({ store: memoryStore, botId, actorId }).find(
+        (candidate) => candidate.name === name,
+      );
+      if (!tool) {
+        return {
+          text: `${REFUSAL_MARKER} That tool is not available to this digital employee.`,
+          isError: true,
+        };
+      }
+      const text = await tool.execute(args);
+      return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    }
     if (!name.startsWith("host_")) return null;
     const tool = hostAccessTools({
       broker: hostAccessBroker,
@@ -1642,6 +1665,8 @@ const app = createApp(
     : undefined,
   // What a digital employee asked to change about another's work, waiting for its owner.
   approvalStore,
+  // What each digital employee keeps in mind, for its owner to read and correct.
+  memoryStore,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

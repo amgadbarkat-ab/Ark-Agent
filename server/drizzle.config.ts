@@ -32,6 +32,7 @@ export default defineConfig({
     "./src/db/schema/terms.ts",
     "./src/db/schema/push.ts",
     "./src/db/schema/approvals.ts",
+    "./src/db/schema/memories.ts",
   ],
   out: "./drizzle",
   dbCredentials: {

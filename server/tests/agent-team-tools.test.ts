@@ -47,6 +47,7 @@ function harness(
     routines?: RoutineSummary[];
     withHandoff?: boolean;
     approvalFails?: string;
+    memories?: { id: string; agentId: string; content: string }[];
   } = {},
 ) {
   const roster = options.roster ?? [
@@ -75,6 +76,10 @@ function harness(
       setEnabled: async (...args: unknown[]) => {
         calls.toggled.push(args);
       },
+    },
+    memories: {
+      list: async (_owner: string, agentId: string) =>
+        (options.memories ?? []).filter((m) => m.agentId === agentId),
     },
     approvals: {
       request: async (input) => {
@@ -333,5 +338,62 @@ describe("asking a colleague for work", () => {
     expect(
       await call("team_ask", { colleague: "Ben", task: "x" }, run),
     ).toContain("does not let digital employees ask each other");
+  });
+});
+
+describe("a colleague's memories", () => {
+  const memories = [
+    { id: "mem_1", agentId: "ben", content: "Reports go out on Fridays." },
+  ];
+
+  test("team_report shows what a colleague keeps in mind, with the ids", async () => {
+    const { call } = harness({ memories });
+    const text = await call("team_report", { colleague: "ben" });
+    expect(text).toContain("Ben keeps 1 thing in mind");
+    expect(text).toContain('"Reports go out on Fridays.". id: mem_1');
+  });
+
+  test("deleting one is a request and changes nothing", async () => {
+    const { call, calls } = harness({ memories });
+    const text = await call("team_request_change", {
+      kind: "delete_memory",
+      colleague: "ben",
+      memoryId: "mem_1",
+      reason: "It is out of date",
+    });
+    expect(text).toContain("stays as it is until they approve");
+    expect(calls.requested[0]).toMatchObject({
+      kind: "memory.delete",
+      targetAgentId: "ben",
+      targetId: "mem_1",
+      payload: { memoryId: "mem_1" },
+    });
+  });
+
+  test("rewording one carries the new text", async () => {
+    const { call, calls } = harness({ memories });
+    await call("team_request_change", {
+      kind: "update_memory",
+      colleague: "ben",
+      memoryId: "mem_1",
+      content: "Reports go out on Thursdays.",
+      reason: "The schedule moved",
+    });
+    expect(calls.requested[0]).toMatchObject({
+      kind: "memory.update",
+      payload: { memoryId: "mem_1", content: "Reports go out on Thursdays." },
+    });
+  });
+
+  test("a memory that is not that colleague's is not found", async () => {
+    const { call, calls } = harness({ memories });
+    const text = await call("team_request_change", {
+      kind: "delete_memory",
+      colleague: "cy",
+      memoryId: "mem_1",
+      reason: "x",
+    });
+    expect(text).toContain("Refused.");
+    expect(calls.requested).toEqual([]);
   });
 });

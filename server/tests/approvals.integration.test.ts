@@ -245,6 +245,7 @@ describe("what approving each kind does", () => {
         remove: async () => {},
       },
       profiles: { get: async () => null, update: async () => ({}) as never },
+      memories: { update: async () => ({}) as never, remove: async () => {} },
     });
     await executors["routine.update"]?.({
       ...base,
@@ -263,6 +264,7 @@ describe("what approving each kind does", () => {
     const executors = approvalExecutors({
       routines: { update: async () => ({}) as never, remove: async () => {} },
       profiles: { get: async () => null, update: async () => ({}) as never },
+      memories: { update: async () => ({}) as never, remove: async () => {} },
     });
     await expect(
       executors["routine.update"]?.({
@@ -286,6 +288,7 @@ describe("what approving each kind does", () => {
           return {} as never;
         },
       },
+      memories: { update: async () => ({}) as never, remove: async () => {} },
     });
     await expect(
       executors["instructions.update"]?.({
@@ -297,5 +300,56 @@ describe("what approving each kind does", () => {
       }),
     ).rejects.toThrow("no longer yours");
     expect(updates).toEqual([]);
+  });
+});
+
+describe("what approving a memory change does", () => {
+  const base = {
+    id: "apr_1",
+    ownerUserId: "owner-1",
+    requestedByAgentId: "lead",
+    requestedByName: "Ana",
+    targetAgentId: "ben",
+    targetAgentName: "Ben",
+    summary: "s",
+    status: "approved" as const,
+    result: null,
+    createdAt: new Date(),
+    expiresAt: new Date(),
+    decidedAt: new Date(),
+  };
+
+  test("rewording marks the memory as agreed by the owner, and deleting removes only that one", async () => {
+    const updates: unknown[] = [];
+    const removed: unknown[] = [];
+    const executors = approvalExecutors({
+      routines: { update: async () => ({}) as never, remove: async () => {} },
+      profiles: { get: async () => null, update: async () => ({}) as never },
+      memories: {
+        update: async (...args: unknown[]) => {
+          updates.push(args);
+          return {} as never;
+        },
+        remove: async (...args: unknown[]) => {
+          removed.push(args);
+        },
+      },
+    });
+    await executors["memory.update"]?.({
+      ...base,
+      kind: "memory.update",
+      targetId: "mem_1",
+      payload: { memoryId: "mem_1", content: "Reports go out on Thursdays." },
+    });
+    await executors["memory.delete"]?.({
+      ...base,
+      kind: "memory.delete",
+      targetId: "mem_2",
+      payload: { memoryId: "mem_2" },
+    });
+    expect(updates).toEqual([
+      ["owner-1", "mem_1", "Reports go out on Thursdays.", "approved"],
+    ]);
+    expect(removed).toEqual([["owner-1", "mem_2"]]);
   });
 });

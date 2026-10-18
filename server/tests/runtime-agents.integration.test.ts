@@ -6,6 +6,7 @@ import { createAgentProfileStore } from "../src/agents/profile-store";
 import type { AgentActor } from "../src/agents/profile-types";
 import { createRuntimeAgentLoader } from "../src/agents/runtime-agents";
 import { createChannelStore } from "../src/channels/routes";
+import { createMemoryStore } from "../src/memories/store";
 import { createThreadIdentity } from "../src/channels/thread-identity";
 import { standingRoleMessage } from "../src/copilot";
 import { type CredentialSecretReader, encryptSecret } from "../src/credentials";
@@ -184,6 +185,51 @@ describe("runtime agent loading", () => {
     // The shared one belongs to somebody else's team, so what it is told is not this person's business.
     expect(said(theirs.id)).not.toContain("Your team");
     expect(said(alone.id)).not.toContain("Shared");
+  });
+
+  test("puts what an employee keeps in mind in front of it, for its owner and nobody else", async () => {
+    const owner = await createUser();
+    const stranger = await createUser();
+    const mine = await createCoworker(owner, {
+      name: "Ana",
+      visibility: "public",
+    });
+    const memories = createMemoryStore(database);
+    await memories.add({
+      ownerUserId: owner.id,
+      agentId: mine.id,
+      content: "Prefers short answers.",
+      source: "person",
+    });
+    const withMemories = createRuntimeAgentLoader(
+      database,
+      undefined,
+      {
+        endpoint: managedEndpoint,
+        token: managedAgentToken,
+        alsoRun: mastraManagedEndpoint,
+      },
+      undefined,
+      memories,
+    );
+    const said = (loaded: Awaited<ReturnType<typeof withMemories>>) => {
+      const agent = loaded.find((candidate) => candidate.id === mine.id);
+      return agent && "standingMessage" in agent
+        ? String(agent.standingMessage.content)
+        : "";
+    };
+
+    const ownersRun = said(await withMemories(owner));
+    expect(ownersRun).toContain("Prefers short answers.");
+    expect(ownersRun).toContain("memory_remember");
+    // A person it is shared with is not told what its owner asked it to keep in mind.
+    expect(said(await withMemories(stranger))).not.toContain(
+      "Prefers short answers.",
+    );
+    // And a loader built without the store behaves as it always did.
+    expect(said(await loadAgents(owner))).not.toContain(
+      "Prefers short answers.",
+    );
   });
 
   test("carries the managed deployment token to a Mastra endpoint this deployment runs", async () => {
