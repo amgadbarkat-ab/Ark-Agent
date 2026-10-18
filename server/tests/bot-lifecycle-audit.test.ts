@@ -63,7 +63,7 @@ const json = (body: Record<string, unknown>) => ({
   body: JSON.stringify({ ...VALID, ...body }),
 });
 
-describe("what a Bot is, on the trail", () => {
+describe("what a digital employee is, on the trail", () => {
   test("creating one records the endpoint it was pointed at", async () => {
     const { rows, hono } = app();
 
@@ -211,7 +211,7 @@ describe("what a Bot is, on the trail", () => {
     expect(rows).toHaveLength(0);
   });
 
-  test("a decline is recorded against a Bot the caller may reach", async () => {
+  test("a decline is recorded against a digital employee the caller may reach", async () => {
     // The Bot reports through the person's session, so the row is only worth what that session
     // could reach: a decline on a Bot the caller may talk to is the Bot's own word.
     const { rows, hono } = app();
@@ -225,10 +225,10 @@ describe("what a Bot is, on the trail", () => {
     expect(response.status).toBe(200);
     expect(rows[0]?.eventType).toBe("bot.declined");
     expect(rows[0]?.targetId).toBe("bot-1");
-    expect(rows[0]?.payload.reportedBy).toBe("the Bot itself");
+    expect(rows[0]?.payload.reportedBy).toBe("the digital employee itself");
   });
 
-  test("a decline against a Bot the caller cannot reach is not found, and writes nothing", async () => {
+  test("a decline against a digital employee the caller cannot reach is not found, and writes nothing", async () => {
     // Every other route here asks the store first. Without the same question, a signed-in person
     // could write "the Bot itself declined" against any id at all and an administrator would read
     // it as something the Bot said.
@@ -325,7 +325,7 @@ describe("retiring the key an edit replaced", () => {
     expect(revoked).toEqual([]);
   });
 
-  test("retires the key when a Bot is removed entirely", async () => {
+  test("retires the key when a digital employee is removed entirely", async () => {
     // Deleting the Bot was the last chance anybody had to retire its credential.
     const { revoked, store } = vault();
 

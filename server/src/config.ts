@@ -1247,11 +1247,11 @@ function privateHostsAllowed(environment: Environment): boolean {
   // env file would slip past a gate that the switch beside it, which does trim, would still trip.
   if (isProduction(environment)) {
     throw new Error(
-      "AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS=true is for local development only: it lets a Bot reach this deployment's own network. Remove it from this deployment's environment.",
+      "AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS=true is for local development only: it lets a digital employee reach this deployment's own network. Remove it from this deployment's environment.",
     );
   }
   console.warn(
-    "AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS=true lets a Bot reach this machine's own services. Fine locally, and for local development only. Remove it before deploying.",
+    "AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS=true lets a digital employee reach this machine's own services. Fine locally, and for local development only. Remove it before deploying.",
   );
 
   return true;

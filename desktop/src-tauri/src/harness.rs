@@ -313,7 +313,7 @@ pub fn picked(
     let row = catalogue()
         .into_iter()
         .find(|row| row.id == id)
-        .ok_or_else(|| format!("There is no Bot called \"{id}\" to install."))?;
+        .ok_or_else(|| format!("There is no digital employee called \"{id}\" to install."))?;
     if row.id == "byo-url" {
         let url = choice
             .agent_url
@@ -329,7 +329,9 @@ pub fn picked(
         }));
     }
     let (Some(image), Some(port)) = (row.image, row.port) else {
-        return Err(format!("\"{id}\" is not a Bot this can install."));
+        return Err(format!(
+            "\"{id}\" is not a digital employee this can install."
+        ));
     };
     let mastra = row.id == "mastra";
     Ok(Some(crate::env::PickedHarness::Installed {

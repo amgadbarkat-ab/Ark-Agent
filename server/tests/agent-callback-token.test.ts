@@ -59,7 +59,7 @@ describe("the run assertion", () => {
     expect(readRunAssertion(signed, KEY)).toBeNull();
   });
 
-  test("is refused when the Bot is edited", () => {
+  test("is refused when the digital employee is edited", () => {
     // The whole point: an agent must not be able to promote itself to another Bot's grants.
     const signed = mintRunAssertion(RUN, KEY);
     const [value, signature] = signed.split(".");
@@ -119,7 +119,7 @@ describe("who may call a tool back, and as whom", () => {
       ...(legacyToken ? { legacyToken } : {}),
     });
 
-  test("allows an agent to act as the Bot its token was issued for", async () => {
+  test("allows an agent to act as the digital employee its token was issued for", async () => {
     expect(await call(tokenA, runForA())).toEqual({
       ok: true,
       botId: AGENT_A,
@@ -136,7 +136,7 @@ describe("who may call a tool back, and as whom", () => {
     expect(await call(tokenB, runForA())).toEqual({
       ok: false,
       status: 403,
-      reason: "That token is not for this Bot.",
+      reason: "That token is not for this digital employee.",
     });
   });
 
@@ -219,7 +219,7 @@ describe("who may call a tool back, and as whom", () => {
  * These assert the shape the row must keep. `authoriseAgentCall` is the decision the route acts on,
  * so a verdict that stops being a refusal is the thing that would silently drop the row again.
  */
-describe("a callback that cannot prove which Bot it is", () => {
+describe("a callback that cannot prove which digital employee it is", () => {
   test("is refused, with a reason and a status to record", async () => {
     const verdict = await authoriseAgentCall({
       presented: "obot_agt_not_a_token_this_deployment_issued",
@@ -251,7 +251,7 @@ describe("a callback that cannot prove which Bot it is", () => {
     expect(verdict.ok).toBe(false);
   });
 
-  test("carries no Bot or actor to record, which is why the row names neither", async () => {
+  test("carries no digital employee or actor to record, which is why the row names neither", async () => {
     /*
      * The row deliberately records no bot and no actor. Both arrive inside the credential that just
      * failed to verify, so writing them down would put an unproven claim in the one place that is
@@ -492,7 +492,7 @@ describe("the tool-call route a callback token guards", () => {
       [
         "refusal",
         new PluginRefusedError(
-          "No Bot holds linear/LINEAR_CREATE_ISSUE, so nothing was called.",
+          "No digital employee holds linear/LINEAR_CREATE_ISSUE, so nothing was called.",
           null,
         ),
       ],
@@ -544,11 +544,11 @@ describe("the tool-call route a callback token guards", () => {
     expect(
       await toolResult(
         new PluginRefusedError(
-          "No Bot holds linear/LINEAR_CREATE_ISSUE, so nothing was called.",
+          "No digital employee holds linear/LINEAR_CREATE_ISSUE, so nothing was called.",
           null,
         ),
       ),
-    ).toContain("No Bot holds linear/LINEAR_CREATE_ISSUE");
+    ).toContain("No digital employee holds linear/LINEAR_CREATE_ISSUE");
   });
 
   /** And a vendor's own words, which are the useful half of a 403 and are nobody's secret. */

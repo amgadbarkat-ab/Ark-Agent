@@ -53,7 +53,7 @@ export const DATA_FUNCTIONS: DataFunction[] = [
   {
     name: "botActivity",
     description:
-      "How many actions each Bot has taken, counted from the audit trail.",
+      "How many actions each digital employee has taken, counted from the audit trail.",
     reads: "the audit trail",
     async run(database, args) {
       const days = bounded(args.days, { fallback: 7, min: 1, max: 90 });

@@ -79,7 +79,7 @@ describe("deciding a component with functions", () => {
     });
   });
 
-  test("a padded Bot id is read for the Bot it names", async () => {
+  test("a padded digital employee id is read for the digital employee it names", async () => {
     expect(await post({ agentId: "  risk-analyst  " })).toEqual({
       status: 200,
       json: { allowed: true },
@@ -87,11 +87,13 @@ describe("deciding a component with functions", () => {
   });
 
   test.each([[null], [123], ["   "], ["\n\t "]])(
-    "refuses a blank Bot id %p with 400",
+    "refuses a blank digital employee id %p with 400",
     async (agentId) => {
       const result = await post({ agentId });
       expect(result.status).toBe(400);
-      expect(result.json).toEqual({ error: "The Bot is required." });
+      expect(result.json).toEqual({
+        error: "The digital employee is required.",
+      });
     },
   );
 

@@ -147,7 +147,7 @@ export async function retireReplacedKey(
       JSON.stringify({
         type: "agent-key-revoke-failed",
         credentialId: before,
-        note: "A Bot's key was replaced and the one it replaced is still live in the vault. Revoke it by hand.",
+        note: "A digital employee's key was replaced and the one it replaced is still live in the vault. Revoke it by hand.",
         error: String(error),
       }),
     );

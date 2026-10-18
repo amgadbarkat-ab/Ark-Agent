@@ -56,9 +56,9 @@ const SECTIONS: {
   }[];
 }[] = [
   {
-    title: "What Bots can reach",
+    title: "What digital employees can reach",
     description:
-      "Everything a Bot can touch outside this app, and the limits on it.",
+      "Everything a digital employee can touch outside this app, and the limits on it.",
     items: [
       {
         title: "Credentials",
@@ -68,26 +68,27 @@ const SECTIONS: {
       },
       {
         title: "Boundaries",
-        description: "Rules that decide what a Bot may never do.",
+        description: "Rules that decide what a digital employee may never do.",
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
       {
         title: "Computers",
-        description: "The machines Bots run their tools on.",
+        description: "The machines digital employees run their tools on.",
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
       },
     ],
   },
   {
-    title: "What Bots can do",
-    description: "Capabilities and interface pieces available across Bots.",
+    title: "What digital employees can do",
+    description:
+      "Capabilities and interface pieces available across digital employees.",
     items: [
       {
         title: "Plugins",
         description:
-          "The services this deployment can reach, and which Bots may.",
+          "The services this deployment can reach, and which digital employees may.",
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
@@ -99,7 +100,8 @@ const SECTIONS: {
       },
       {
         title: "UI Components",
-        description: "Custom pieces a Bot can draw in a conversation.",
+        description:
+          "Custom pieces a digital employee can draw in a conversation.",
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
@@ -169,7 +171,7 @@ const SECTIONS: {
 function RouteComponent() {
   return (
     <PageShell
-      description="What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every Bot, which is what separates it from your own preferences."
+      description="What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every digital employee, which is what separates it from your own preferences."
       title="Admin"
     >
       <AdminOverview />

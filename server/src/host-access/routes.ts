@@ -106,7 +106,10 @@ export function createHostAccessRoutes(options: {
     }
     const actor = context.var.actor;
     if (!(await canUseBot(actor, botId))) {
-      return context.json({ error: "That Bot is not available to you." }, 404);
+      return context.json(
+        { error: "That digital employee is not available to you." },
+        404,
+      );
     }
     try {
       const grant = await broker.requestFolderGrant({

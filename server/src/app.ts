@@ -1875,7 +1875,7 @@ export function createApp(
             payload: {
               refusal: verdict.reason,
               status: verdict.status,
-              note: "A caller could not prove which Bot it was, so no grant was consulted.",
+              note: "A caller could not prove which digital employee it was, so no grant was consulted.",
             },
           });
         }

@@ -437,7 +437,7 @@ export async function markAttachmentsSent(
   const named = unrecorded.map((id) => `"${id}"`).join(", ");
   throw new Error(
     `This turn was not run, because ${unrecorded.length === 1 ? "an attachment on your message" : "attachments on your message"} could not be recorded as sent (${named}). ` +
-      "A file withdrawn while the turn was being prepared is the usual cause. Nothing was sent to the Bot — attach the file again and resend.",
+      "A file withdrawn while the turn was being prepared is the usual cause. Nothing was sent to the digital employee — attach the file again and resend.",
   );
 }
 

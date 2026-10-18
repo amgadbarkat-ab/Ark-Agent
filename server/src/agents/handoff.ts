@@ -137,7 +137,7 @@ export function createHandoffDesk(options: {
           from,
           target,
           "no_task",
-          "Nothing was sent: a handoff has to say what the other Bot is being asked to do.",
+          "Nothing was sent: a handoff has to say what the other digital employee is being asked to do.",
         );
       }
 
@@ -146,7 +146,7 @@ export function createHandoffDesk(options: {
           from,
           target,
           "no_thread",
-          "This run is not in a conversation, so there is nowhere for another Bot's answer to land.",
+          "This run is not in a conversation, so there is nowhere for another digital employee's answer to land.",
         );
       }
 
@@ -164,7 +164,7 @@ export function createHandoffDesk(options: {
           target,
           "depth_cap",
           caps.maxDepth === 0
-            ? "This deployment does not let one Bot hand work to another."
+            ? "This deployment does not let one digital employee hand work to another."
             : `This is already ${depth} ${depth === 1 ? "Bot" : "Bots"} deep, which is as far as this deployment allows. Answer with what you have, or ask the person.`,
         );
       }
@@ -250,7 +250,7 @@ export function createHandoffDesk(options: {
           from,
           target,
           "no_such_bot",
-          `There is no Bot called "${target.trim().slice(0, 60)}" that you can reach.`,
+          `There is no digital employee called "${target.trim().slice(0, 60)}" that you can reach.`,
         );
       }
 
@@ -259,7 +259,7 @@ export function createHandoffDesk(options: {
           from,
           target,
           "self",
-          "A Bot cannot hand work to itself. Do it, or ask the person.",
+          "A digital employee cannot hand work to itself. Do it, or ask the person.",
         );
       }
 

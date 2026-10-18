@@ -62,7 +62,8 @@ export function GalleryPreview({
   if (shown.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        This Bot has not been granted any components, so it answers in prose.
+        This digital employee has not been granted any components, so it answers
+        in prose.
       </p>
     );
   }
@@ -118,7 +119,7 @@ function PreviewOf({ name }: { name: string }) {
     return (
       <p className="text-muted-foreground text-sm">
         Draws this deployment's own records, so it has nothing to show until a
-        Bot asks for it.
+        Digital employee asks for it.
       </p>
     );
   }

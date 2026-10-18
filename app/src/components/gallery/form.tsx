@@ -137,12 +137,12 @@ function InvalidForm({
     <GalleryFrame title="Form unavailable">
       <p role="alert" className="text-sm text-muted-foreground">
         {returned
-          ? "The form had invalid questions. The Bot can send a corrected form."
+          ? "The form had invalid questions. The digital employee can send a corrected form."
           : "The form has invalid questions and could not be displayed."}
       </p>
       {failed && (
         <Button className="mt-3" size="sm" onClick={() => void returnToBot()}>
-          Return to the Bot
+          Return to the digital employee
         </Button>
       )}
     </GalleryFrame>

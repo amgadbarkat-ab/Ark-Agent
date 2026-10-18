@@ -22,7 +22,7 @@ function appFor() {
       },
       canUseBot: async (actor, botId) =>
         actor.id === "user-a" && botId === "bot-a",
-      botName: async () => "Readable Bot Name",
+      botName: async () => "Readable digital employee Name",
     }),
   );
   return { app, broker };
@@ -33,7 +33,7 @@ describe("host access routes", () => {
     const { app, broker } = appFor();
     const grantRequest = broker.requestFolderGrant({
       botId: "bot-a",
-      botName: "Bot A",
+      botName: "Digital employee A",
       actorId: "user-a",
     });
 
@@ -70,7 +70,7 @@ describe("host access routes", () => {
     });
   });
 
-  test("owner grant requests send the Bot's readable name to native", async () => {
+  test("owner grant requests send the digital employee's readable name to native", async () => {
     const { app } = appFor();
     const request = app.request("/api/host-access/grants", {
       method: "POST",
@@ -84,7 +84,7 @@ describe("host access routes", () => {
     const body = await lease.json();
     expect(body.operations[0]).toMatchObject({
       kind: "choose_folder",
-      botName: "Readable Bot Name",
+      botName: "Readable digital employee Name",
     });
     await app.request("/api/host-access/desktop/result", {
       method: "POST",
@@ -101,7 +101,7 @@ describe("host access routes", () => {
     expect((await request).status).toBe(200);
   });
 
-  test("owner routes do not let an admin-style caller pick for a Bot they cannot use", async () => {
+  test("owner routes do not let an admin-style caller pick for a digital employee they cannot use", async () => {
     const { app } = appFor();
     const denied = await app.request("/api/host-access/grants", {
       method: "POST",
@@ -110,7 +110,7 @@ describe("host access routes", () => {
     });
     expect(denied.status).toBe(404);
     expect(await denied.json()).toEqual({
-      error: "That Bot is not available to you.",
+      error: "That digital employee is not available to you.",
     });
   });
 });

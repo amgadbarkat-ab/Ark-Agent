@@ -149,7 +149,7 @@ export function createComponentRoutes(
     // bury the trail it is written into.
     for (const name of added) {
       await audit(context, "component.published", name, {
-        note: "First seen in a build, published and available to every Bot.",
+        note: "First seen in a build, published and available to every digital employee.",
       });
     }
     return context.json({ added });
@@ -164,7 +164,7 @@ export function createComponentRoutes(
   routes.get("/for-agent/:agentId", requireUser, async (context) => {
     const agentId = context.req.param("agentId");
     if (!(await canUseBot(context.var.actor, agentId))) {
-      return context.json({ error: "There is no such Bot." }, 404);
+      return context.json({ error: "There is no such digital employee." }, 404);
     }
     return context.json({ components: await store.listForAgent(agentId) });
   });
@@ -186,12 +186,12 @@ export function createComponentRoutes(
     const agentId =
       typeof body?.agentId === "string" ? body.agentId.trim() : "";
     if (!agentId) {
-      return context.json({ error: "The Bot is required." }, 400);
+      return context.json({ error: "The digital employee is required." }, 400);
     }
     // Asked before the grant is, because the grant belongs to the Bot and says nothing about who is
     // asking on its behalf.
     if (!(await canUseBot(context.var.actor, agentId))) {
-      return context.json({ error: "There is no such Bot." }, 404);
+      return context.json({ error: "There is no such digital employee." }, 404);
     }
     /*
      * Every entry, or a 400. This used to filter non-strings out, so
@@ -280,7 +280,7 @@ export function createComponentRoutes(
     const agentId = typeof body?.agentId === "string" ? body.agentId : "";
     if (!functionName || !agentId) {
       return context.json(
-        { error: "The function and the Bot are both required." },
+        { error: "The function and the digital employee are both required." },
         400,
       );
     }
@@ -301,7 +301,7 @@ export function createComponentRoutes(
     // Before the grant, and before anything runs. This is the route that executes, so borrowing a
     // Bot here borrows whatever its components were granted.
     if (!(await canUseBot(context.var.actor, agentId))) {
-      return context.json({ error: "There is no such Bot." }, 404);
+      return context.json({ error: "There is no such digital employee." }, 404);
     }
 
     const refuse = async (reason: string) => {
@@ -420,7 +420,7 @@ export function createComponentRoutes(
     const agentId =
       typeof body?.agentId === "string" ? body.agentId.trim() : "";
     if (!agentId) {
-      return context.json({ error: "The Bot is required." }, 400);
+      return context.json({ error: "The digital employee is required." }, 400);
     }
     try {
       await store.grant(name, agentId);
@@ -443,7 +443,7 @@ export function createComponentRoutes(
     const agentId = context.req.param("agentId");
     // Revoking `"   "` would delete zero rows yet answer `revoked:true` with an audit row.
     if (!agentId.trim()) {
-      return context.json({ error: "The Bot is required." }, 400);
+      return context.json({ error: "The digital employee is required." }, 400);
     }
     try {
       await store.revoke(name, agentId, context.var.actor.email);

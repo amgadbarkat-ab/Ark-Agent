@@ -4006,7 +4006,7 @@ export function createPluginStore(options: PluginStoreOptions) {
             // The refs, because that is what a grant is keyed on and what an administrator revokes.
             refs: stranded.map(([ref]) => ref),
             bots: [...new Set(stranded.flatMap(([, agents]) => agents))],
-            note: "Held by a Bot and not offered to any model, because this server no longer advertises the tool. Offered again if it starts.",
+            note: "Held by a digital employee and not offered to any model, because this server no longer advertises the tool. Offered again if it starts.",
           },
         });
       }
@@ -7036,8 +7036,8 @@ export function createPluginStore(options: PluginStoreOptions) {
           allowed: false,
           reason:
             kind === "mcp"
-              ? `This Bot has not been given the tool ${ref}.`
-              : `This Bot has not been given the skill ${ref}.`,
+              ? `This digital employee has not been given the tool ${ref}.`
+              : `This digital employee has not been given the skill ${ref}.`,
         };
       }
       return { allowed: true };

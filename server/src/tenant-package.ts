@@ -390,7 +390,7 @@ function parseAgents(
      */
     if (DEPLOYMENT_ROUTES.has(id)) {
       throw new Error(
-        `${source}: agent.id "${id}" is reserved for a deployment route and cannot name a Bot`,
+        `${source}: agent.id "${id}" is reserved for a deployment route and cannot name a digital employee`,
       );
     }
     if (type === "remote_ag_ui" || type === "remote_mastra") {
@@ -770,7 +770,7 @@ export async function synchronizeTenantPackage(
     if (reserved.length > 0) {
       const names = reserved.map((agent) => `"${agent.id}"`).join(", ");
       throw new Error(
-        `Bot ${names} is reserved for a deployment route and cannot exist; rename or remove it before this deployment can start`,
+        `Digital employee ${names} is reserved for a deployment route and cannot exist; rename or remove it before this deployment can start`,
       );
     }
 

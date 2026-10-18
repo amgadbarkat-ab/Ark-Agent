@@ -175,7 +175,7 @@ export function createHostAccessBroker(
     }
     if (grant.botId !== input.botId || grant.actorId !== input.actorId) {
       throw new HostAccessRefusedError(
-        "That folder was not granted to this Bot and person.",
+        "That folder was not granted to this digital employee and person.",
       );
     }
     return grant;

@@ -93,7 +93,7 @@ function ComputersPage() {
 
   return (
     <PageShell
-      description="Each Bot's browser and the profile it keeps. A profile is what makes a Bot still signed in tomorrow, and resetting one signs it out of everything."
+      description="Each digital employee's browser and the profile it keeps. A profile is what makes a digital employee still signed in tomorrow, and resetting one signs it out of everything."
       title="Computers"
     >
       {problem ? (
@@ -108,16 +108,17 @@ function ComputersPage() {
       {isolation === "shared" ? (
         <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
           <span className="font-medium">
-            Every Bot is sharing one computer.
+            Every digital employee is sharing one computer.
           </span>{" "}
-          They share its logins, its files and its session, so a Bot can reach
-          what another signed into. Set <code>COMPUTER_SUPERVISOR_URL</code> to
-          give each Bot its own.
+          They share its logins, its files and its session, so a digital
+          employee can reach what another signed into. Set{" "}
+          <code>COMPUTER_SUPERVISOR_URL</code> to give each digital employee its
+          own.
         </p>
       ) : isolation === "per-bot" ? (
         <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-          Each Bot has a computer of its own: its own container, its own files
-          and its own browser profile.
+          Each digital employee has a computer of its own: its own container,
+          its own files and its own browser profile.
         </p>
       ) : null}
 
@@ -150,7 +151,8 @@ function ComputersPage() {
           <PageEmpty>The list could not be loaded.</PageEmpty>
         ) : computers === null ? null : computers.length === 0 ? (
           <PageEmpty>
-            No computers yet. One appears the first time a Bot opens a page.
+            No computers yet. One appears the first time a digital employee
+            opens a page.
           </PageEmpty>
         ) : (
           <PageRows>
@@ -164,7 +166,7 @@ function ComputersPage() {
                     <ItemDescription>
                       {computer.running
                         ? `Browser running since ${new Date(computer.startedAt ?? "").toLocaleTimeString()}`
-                        : "No browser running. It starts when the Bot next needs it."}
+                        : "No browser running. It starts when the digital employee next needs it."}
                       {" · "}
                       {computer.egress === undefined
                         ? "Egress not reported"
@@ -217,8 +219,9 @@ function ComputersPage() {
               Reset {confirming ? nameFor(confirming) : ""}'s computer?
             </DialogTitle>
             <DialogDescription>
-              Its profile is deleted, so the Bot is signed out of every service
-              it had logged into and starts clean. This cannot be undone.
+              Its profile is deleted, so the digital employee is signed out of
+              every service it had logged into and starts clean. This cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -298,7 +301,7 @@ function HostFoldersSection({
 
   return (
     <PageSection
-      description="Choose folders a Bot can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot."
+      description="Choose folders a digital employee can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot."
       title="Folders on this computer"
     >
       {problem ? (
@@ -319,7 +322,8 @@ function HostFoldersSection({
 
       {loading ? null : botIds.length === 0 ? (
         <PageEmpty>
-          No Bots yet. Create a Bot before choosing folders.
+          No digital employees yet. Create a digital employee before choosing
+          folders.
         </PageEmpty>
       ) : (
         <PageRows>
@@ -359,7 +363,7 @@ function HostFoldersSection({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-muted-foreground text-sm">
         <p>
           Grants are read-only by default. Writes are requested from the native
-          desktop prompt when a Bot needs them.
+          desktop prompt when a digital employee needs them.
         </p>
         <div className="flex items-center gap-3">
           <Button

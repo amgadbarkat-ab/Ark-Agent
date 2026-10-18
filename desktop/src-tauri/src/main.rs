@@ -2661,7 +2661,7 @@ async fn ask_the_bot_with_settings(
         .unwrap_or_default();
     if endpoint.trim().is_empty() || token.trim().is_empty() {
         return Err(openbot_desktop_lib::problem::Problem::plain(
-            "ArkAgent cannot find the Bot it just set up. Stop ArkAgent and start it again.",
+            "ArkAgent cannot find the digital employee it just set up. Stop ArkAgent and start it again.",
         ));
     }
 
@@ -2684,7 +2684,7 @@ async fn ask_the_bot_with_settings(
             // they cannot explain a BYO endpoint, even when an old local harness still has logs.
             Err(problem) if problem.said.is_empty() && log_service.is_none() => {
                 Err(Some(Problem::with(
-                    "The Bot at the selected endpoint returned no answer text. Check that endpoint's logs and ask again.",
+                    "The digital employee at the selected endpoint returned no answer text. Check that endpoint's logs and ask again.",
                     format!("endpoint {endpoint}\nThe run returned no answer text."),
                 )))
             }
@@ -7253,7 +7253,7 @@ fn main() {
         assert!(
             problem
                 .said
-                .contains("The Bot started answering and then stopped"),
+                .contains("The digital employee started answering and then stopped"),
             "{}",
             problem.said
         );
@@ -7498,7 +7498,7 @@ fn main() {
                 ),
             ]),
         ))
-        .expect_err("empty managed answer must be diagnosed from managed Bot logs");
+        .expect_err("empty managed answer must be diagnosed from managed digital employee logs");
 
         let request = server.request();
         assert_eq!(request.path, "/");

@@ -349,7 +349,7 @@ function PlaygroundPage() {
                       <div className="text-xs text-muted-foreground">
                         {component.published
                           ? `published, revision ${component.revision}`
-                          : "draft only, no Bot can draw it"}
+                          : "draft only, no digital employee can draw it"}
                         {component.hasUnpublishedChanges
                           ? " · edited since publishing"
                           : ""}
@@ -378,9 +378,9 @@ function PlaygroundPage() {
               </ul>
             )}
             <p className="border-border border-t px-4 py-2 text-muted-foreground text-xs">
-              Publishing makes it available to every Bot. Switch it off for a
-              particular Bot on the Components page, the same as for a component
-              this build ships.
+              Publishing makes it available to every digital employee. Switch it
+              off for a particular digital employee on the Components page, the
+              same as for a component this build ships.
             </p>
           </div>
         </div>
@@ -400,8 +400,8 @@ function PlaygroundPage() {
           <DialogHeader>
             <DialogTitle>Delete {deleting}?</DialogTitle>
             <DialogDescription>
-              It is removed from this deployment. Any Bot that could draw it no
-              longer can, and this cannot be undone.
+              It is removed from this deployment. Any digital employee that
+              could draw it no longer can, and this cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

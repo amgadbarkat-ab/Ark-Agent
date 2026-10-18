@@ -21,7 +21,10 @@ export type ComputerLocation = {
 
 /** A description of how a provider separates one Bot's computer from another. */
 export type IsolationDescription = {
-  isolation: "off" | "one computer per Bot" | "one shared computer";
+  isolation:
+    | "off"
+    | "one computer per digital employee"
+    | "one shared computer";
   note: string;
   warning?: string;
 };
@@ -47,16 +50,16 @@ export function describeComputerIsolation(
 
   if (provider.isolation === "per-bot") {
     return {
-      isolation: "one computer per Bot",
-      note: "Each Bot gets its own isolated computer with its own /workspace and browser profile.",
+      isolation: "one computer per digital employee",
+      note: "Each digital employee gets its own isolated computer with its own /workspace and browser profile.",
     };
   }
 
   return {
     isolation: "one shared computer",
-    note: "No supervisor is configured, so every Bot uses the same browser. Sessions, files and logins are shared between them. Set COMPUTER_SUPERVISOR_URL to give each Bot its own.",
+    note: "No supervisor is configured, so every digital employee uses the same browser. Sessions, files and logins are shared between them. Set COMPUTER_SUPERVISOR_URL to give each digital employee its own.",
     warning:
-      "Every Bot shares one browser. Set COMPUTER_SUPERVISOR_URL for a computer each.",
+      "Every digital employee shares one browser. Set COMPUTER_SUPERVISOR_URL for a computer each.",
   };
 }
 

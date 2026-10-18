@@ -602,7 +602,7 @@ export class BrokerRefusalError extends Error {
 export class BrokerUnconfiguredError extends BrokerRefusalError {
   constructor() {
     super(
-      "Composio is not configured for this deployment, so nothing was asked. Set COMPOSIO_API_KEY to make the brokered apps available; until it is set there is nothing to connect, nothing to grant and no Composio tool for a Bot to call, and the admin Plugins page shows one row under More apps that goes nowhere.",
+      "Composio is not configured for this deployment, so nothing was asked. Set COMPOSIO_API_KEY to make the brokered apps available; until it is set there is nothing to connect, nothing to grant and no Composio tool for a digital employee to call, and the admin Plugins page shows one row under More apps that goes nowhere.",
     );
     this.name = "BrokerUnconfiguredError";
   }

@@ -363,7 +363,7 @@ describe("attribution", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("a run that names no Bot is refused", async () => {
+  test("a run that names no digital employee is refused", async () => {
     const calls = recordingTools();
     const result = await callTool(
       { url: CONNECTION.url, actorId: "user_asker" },
@@ -373,7 +373,7 @@ describe("attribution", () => {
 
     expect(result.isError).toBe(true);
     expect(result.text).toBe(
-      "A routine runs as a Bot, and this run does not name one.",
+      "A routine runs as a digital employee, and this run does not name one.",
     );
     expect(calls).toHaveLength(0);
   });

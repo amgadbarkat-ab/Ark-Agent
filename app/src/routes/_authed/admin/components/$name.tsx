@@ -274,12 +274,12 @@ function ComponentDetail({
 
   const grantSummary =
     bots.length === 0
-      ? "There are no Bots yet"
+      ? "There are no digital employees yet"
       : granted.length === bots.length
-        ? `All ${bots.length} Bots`
+        ? `All ${bots.length} digital employees`
         : granted.length === 0
-          ? "No Bots"
-          : `${granted.length} of ${bots.length} Bots`;
+          ? "No digital employees"
+          : `${granted.length} of ${bots.length} digital employees`;
 
   const functionSummary =
     dataFunctions.length === 0
@@ -293,7 +293,7 @@ function ComponentDetail({
       backButton={BACK}
       description={
         component.publishedDescription ??
-        "Nothing is published, so no Bot is told about this."
+        "Nothing is published, so no digital employee is told about this."
       }
       title={component.title}
     >
@@ -311,7 +311,7 @@ function ComponentDetail({
       </div>
 
       <PageSection
-        description="What this component is for, and which Bots are allowed to answer with it."
+        description="What this component is for, and which digital employees are allowed to answer with it."
         title="Configuration"
       >
         <PageRows>
@@ -344,8 +344,8 @@ function ComponentDetail({
               <ItemTitle>Published</ItemTitle>
               <ItemDescription>
                 {component.published
-                  ? "Bots may answer with it."
-                  : "No Bot may use it."}
+                  ? "Digital employees may answer with it."
+                  : "No digital employee may use it."}
                 {component.hasUnpublishedChanges
                   ? " The description has changes that are not published."
                   : null}
@@ -475,15 +475,15 @@ function ComponentDetail({
           <DialogHeader>
             <DialogTitle>Available to</DialogTitle>
             <DialogDescription>
-              Switch a Bot off and it is never told this component exists, so it
-              cannot ask for it and does not apologise for not having it. Each
-              change takes effect immediately.
+              Switch a digital employee off and it is never told this component
+              exists, so it cannot ask for it and does not apologise for not
+              having it. Each change takes effect immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
             {bots.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                There are no Bots yet.
+                There are no digital employees yet.
               </p>
             ) : (
               <div className="flex flex-col">
@@ -530,8 +530,8 @@ function ComponentDetail({
               A separate grant from Available to, and not implied by it: that
               one decides who may draw this, and this decides what it may go and
               fetch in order to draw itself. Until one of these is on it shows
-              only what the Bot passes it, and every read it does make is a row
-              in Audit. Each change takes effect immediately.
+              only what the digital employee passes it, and every read it does
+              make is a row in Audit. Each change takes effect immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">

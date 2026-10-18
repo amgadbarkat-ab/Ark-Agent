@@ -25,11 +25,13 @@ const parameters = z.object({
   bot: z
     .string()
     .describe(
-      "The name of the Bot to hand this to, as it appears in the roster",
+      "The name of the digital employee to hand this to, as it appears in the roster",
     ),
   task: z
     .string()
-    .describe("What you are asking that Bot to do, in a sentence or two"),
+    .describe(
+      "What you are asking that digital employee to do, in a sentence or two",
+    ),
   constraints: z
     .string()
     .optional()
@@ -86,16 +88,16 @@ export function handoffTool(options: {
     name: HANDOFF_TOOL,
     ref: `bot/${HANDOFF_TOOL}`,
     description:
-      "Hand a piece of work to another Bot in this workspace and let it answer for itself. " +
-      "Use this when the work needs a role you do not have. The other Bot answers in its own " +
+      "Hand a piece of work to another digital employee in this workspace and let it answer for itself. " +
+      "Use this when the work needs a role you do not have. The other digital employee answers in its own " +
       "conversation with this person, so do not wait for it or repeat what it will say: tell them " +
       "who you have asked and what for. If the work is yours to do, do it, and if it needs a " +
-      "person's judgement rather than another Bot's, ask the person instead.",
+      "person's judgement rather than another digital employee's, ask the person instead.",
     parameters,
     execute: async (args: unknown) => {
       const parsed = parameters.safeParse(args);
       if (!parsed.success) {
-        return "That handoff was not sent: name the Bot and say what you are asking it to do.";
+        return "That handoff was not sent: name the digital employee and say what you are asking it to do.";
       }
       const outcome = await desk.send({
         from,

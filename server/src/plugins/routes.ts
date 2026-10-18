@@ -1166,7 +1166,7 @@ export function createPluginRoutes(
       if (kind === "none") {
         return context.json(
           {
-            error: `${row.title} needs no account, so there is nothing to connect. A Bot granted its tools can use it as it is.`,
+            error: `${row.title} needs no account, so there is nothing to connect. A digital employee granted its tools can use it as it is.`,
           },
           400,
         );
@@ -2309,7 +2309,7 @@ export function createPluginRoutes(
 
     if (kind === "mcp") {
       if (!actor.isAdmin) {
-        return "An administrator decides which Bots may reach a tool.";
+        return "An administrator decides which digital employees may reach a tool.";
       }
       // Taking something away is always allowed: see the note on `intent`. It matters more here
       // than anywhere else, because the rows this check exists to prevent are the same shape as the
@@ -2336,7 +2336,7 @@ export function createPluginRoutes(
        */
       const [serverId] = ref.split("/");
       if (!(await store.serverExists(serverId ?? ""))) {
-        return `${serverId} is not an app this deployment has added, so there is nothing for a Bot to reach. Add it first, and its tools can be granted then.`;
+        return `${serverId} is not an app this deployment has added, so there is nothing for a digital employee to reach. Add it first, and its tools can be granted then.`;
       }
       return null;
     }
@@ -2354,7 +2354,7 @@ export function createPluginRoutes(
        * this, deliberately, and this had it backwards.
        */
       if (!actor.isAdmin) {
-        return "An administrator decides which Bots may hand work to another Bot.";
+        return "An administrator decides which digital employees may hand work to another digital employee.";
       }
       // Taking something away is always allowed: see the note on `intent`.
       if (intent === "revoke") return null;
@@ -2375,15 +2375,15 @@ export function createPluginRoutes(
        * work to itself" — so the row is dead the moment it is written, and reads as configured.
        */
       if (ref === agentId) {
-        return "A Bot cannot be granted itself to hand work to.";
+        return "A digital employee cannot be granted itself to hand work to.";
       }
       const runsHere = await store.agentRunsHere(agentId);
-      if (runsHere === undefined) return "There is no such Bot.";
+      if (runsHere === undefined) return "There is no such digital employee.";
       if (!runsHere) {
-        return `${agentId} runs at its own endpoint, so this deployment cannot offer it a tool for handing work on. Only a Bot that runs here can be given one.`;
+        return `${agentId} runs at its own endpoint, so this deployment cannot offer it a tool for handing work on. Only a digital employee that runs here can be given one.`;
       }
       if (!(await store.agentIsRegistered(ref))) {
-        return `There is no Bot called ${ref} to hand work to.`;
+        return `There is no digital employee called ${ref} to hand work to.`;
       }
       return null;
     }
@@ -2394,15 +2394,15 @@ export function createPluginRoutes(
     const owner = await store.skillOwner(ref, actor);
     if (owner === undefined) return `There is no skill called ${ref}.`;
     if (owner !== actor.id) {
-      return `This skill belongs to this deployment. An administrator decides which Bots use it.`;
+      return `This skill belongs to this deployment. An administrator decides which digital employees use it.`;
     }
 
     const botOwner = await store.agentOwner(agentId);
-    if (botOwner === undefined) return "There is no such Bot.";
+    if (botOwner === undefined) return "There is no such digital employee.";
     if (botOwner !== actor.id) {
       // Including the shared Bots this deployment publishes, which have no owner at all: a skill
       // one person wrote would otherwise change how a Bot answers everybody.
-      return "You can only put your own skills on Bots you own.";
+      return "You can only put your own skills on digital employees you own.";
     }
     return null;
   }
@@ -2444,7 +2444,7 @@ export function createPluginRoutes(
     skillId: string,
   ): Promise<string | null> {
     return (await store.botHoldsSkillNamed(agentId, slug, skillId))
-      ? `This Bot already has a different skill called /${slug}. Take that one off first, or give this one another name.`
+      ? `This digital employee already has a different skill called /${slug}. Take that one off first, or give this one another name.`
       : null;
   }
 
@@ -2468,7 +2468,7 @@ export function createPluginRoutes(
       !body.agentId.trim()
     ) {
       return context.json(
-        { error: "A kind, a ref and a Bot are required." },
+        { error: "A kind, a ref and a digital employee are required." },
         400,
       );
     }
@@ -2527,7 +2527,7 @@ export function createPluginRoutes(
       !agentId.trim()
     ) {
       return context.json(
-        { error: "A kind, a ref and a Bot are required." },
+        { error: "A kind, a ref and a digital employee are required." },
         400,
       );
     }
@@ -2559,7 +2559,7 @@ export function createPluginRoutes(
     // A grant list is a fact about the Bot it belongs to. Left open it says which tools somebody
     // else's private coworker has been given.
     if (!(await canUseBot(context.var.actor, agentId))) {
-      return context.json({ error: "There is no such Bot." }, 404);
+      return context.json({ error: "There is no such digital employee." }, 404);
     }
     return context.json(await store.listForAgent(agentId));
   });
@@ -2590,7 +2590,10 @@ export function createPluginRoutes(
       typeof body.agentId !== "string" ||
       !body.agentId.trim()
     ) {
-      return context.json({ error: "A tool and a Bot are required." }, 400);
+      return context.json(
+        { error: "A tool and a digital employee are required." },
+        400,
+      );
     }
     // `args` reaches `Object.entries` inside the store, where a string fans out into indexed
     // entries, a number becomes no entries, and an array passes as an object — all escaping as
@@ -2609,7 +2612,7 @@ export function createPluginRoutes(
     // Bot may use the tool; it says nothing about whether this person may act as this Bot, and the
     // call goes out on the deployment's own credential either way.
     if (!(await canUseBot(context.var.actor, body.agentId))) {
-      return context.json({ error: "There is no such Bot." }, 404);
+      return context.json({ error: "There is no such digital employee." }, 404);
     }
 
     try {

@@ -100,7 +100,7 @@ export async function readSandboxTemplate(
     raw = await readFile(path, "utf8");
   } catch {
     throw new SandboxError(
-      `COMPUTER_SANDBOX_TEMPLATE_FILE points at ${path}, which cannot be read. That file is what a Bot's computer is cut from; the chart mounts it when computers.mode is sandbox.`,
+      `COMPUTER_SANDBOX_TEMPLATE_FILE points at ${path}, which cannot be read. That file is what a digital employee's computer is cut from; the chart mounts it when computers.mode is sandbox.`,
     );
   }
   let parsed: unknown;
@@ -137,7 +137,7 @@ export async function inClusterConfig(): Promise<{
   const port = process.env.KUBERNETES_SERVICE_PORT ?? "443";
   if (!host) {
     throw new SandboxError(
-      "COMPUTER_PROVIDER=sandbox needs to run inside a cluster: KUBERNETES_SERVICE_HOST is not set, so there is no API server to ask for a Bot's computer.",
+      "COMPUTER_PROVIDER=sandbox needs to run inside a cluster: KUBERNETES_SERVICE_HOST is not set, so there is no API server to ask for a digital employee's computer.",
     );
   }
   /*
