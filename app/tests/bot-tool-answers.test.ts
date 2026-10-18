@@ -108,7 +108,7 @@ test("the roster is fetched when asked, not read off a render", async () => {
   const answer = await answerListBots(coldClient());
 
   expect(calls.some((path) => path.startsWith("/api/agents"))).toBe(true);
-  expect(answer).toContain("2 coworkers already exist here");
+  expect(answer).toContain("2 digital employees already exist here");
   expect(answer).toContain("General Assistant — Everyday Work");
   // Whose it is and where it runs, which is what stops a duplicate being proposed.
   expect(answer).toContain("the deployment's");
@@ -129,7 +129,7 @@ test("the skills are fetched when asked, so an unloaded list never reads as an e
   expect(answer).toContain("A skill is an instruction, not a capability");
 });
 
-test("one coworker comes back in full, including what it runs on", async () => {
+test("one digital employee comes back in full, including what it runs on", async () => {
   const answer = await answerReadBot(coldClient(), "renewal desk");
 
   expect(answer).toContain("Renewal Desk — Accounts Receivable (yours)");
@@ -137,10 +137,10 @@ test("one coworker comes back in full, including what it runs on", async () => {
   expect(answer).toContain("Runs at its own address");
 });
 
-test("a coworker that is not here is named rather than guessed at", async () => {
+test("a digital employee that is not here is named rather than guessed at", async () => {
   const answer = await answerReadBot(coldClient(), "Nobody");
 
-  expect(answer).toContain("There is no coworker called Nobody");
+  expect(answer).toContain("There is no digital employee called Nobody");
   expect(answer).toContain("Call list_bots");
 });
 
@@ -166,7 +166,9 @@ test("a genuinely empty deployment is described as empty", async () => {
     });
   }) as typeof fetch;
 
-  expect(await answerListBots(client)).toContain("No coworkers exist here yet");
+  expect(await answerListBots(client)).toContain(
+    "No digital employees exist here yet",
+  );
   expect(await answerListBotSkills(client)).toContain(
     "No skills exist here yet",
   );

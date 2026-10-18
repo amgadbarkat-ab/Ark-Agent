@@ -302,7 +302,7 @@ describe("start.sh selected provider services", () => {
       expect(result.stdout).not.toContain("agent-bot ready");
       expect(result.stdout).toContain("agent-langgraph ready");
       expect(result.stdout).toContain(
-        "managed coworker endpoint: http://localhost:4201/ag-ui",
+        "managed digital employee endpoint: http://localhost:4201/ag-ui",
       );
       expect(result.stdout).toContain("Ready. http://localhost:3010");
     },

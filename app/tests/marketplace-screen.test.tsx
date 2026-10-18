@@ -171,7 +171,7 @@ test("an official digital employee shows what it starts with and can be installe
   ).toContain("/agents");
 });
 
-test("a shared coworker is for reading: no way to install it, and it says so", async () => {
+test("a shared digital employee is for reading: no way to install it, and it says so", async () => {
   const screen = inRouter(<ListingView backButton={back} listing={shared} />);
   expect(await screen.findByText("For reading only", {}, SLOW)).toBeTruthy();
   expect(
@@ -232,7 +232,7 @@ const mineAnswer = () =>
     listings: [],
   });
 
-test("sharing a coworker with a secret in it is refused, and nothing offers to override it", async () => {
+test("sharing a digital employee with a secret in it is refused, and nothing offers to override it", async () => {
   serve({
     "GET /api/marketplace/mine": mineAnswer,
     "POST /api/marketplace/mine/listings": () =>
@@ -274,7 +274,9 @@ test("sharing a coworker with a secret in it is refused, and nothing offers to o
       SLOW,
     ),
   ).toBeTruthy();
-  expect(screen.getByText(/Fix these in the coworker itself/)).toBeTruthy();
+  expect(
+    screen.getByText(/Fix these in the digital employee itself/),
+  ).toBeTruthy();
   expect(screen.queryByRole("checkbox")).toBeNull();
 });
 

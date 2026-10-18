@@ -104,7 +104,7 @@ test("a proposal still streaming shows nothing to press", async () => {
 
   // Awaited rather than read synchronously: the router mounts its route on a later tick, so nothing
   // at all is in the document on the first one.
-  expect(await view.findByText("Writing the coworker…")).toBeTruthy();
+  expect(await view.findByText("Writing the digital employee…")).toBeTruthy();
   expect(view.queryByRole("button")).toBeNull();
 });
 
@@ -205,7 +205,9 @@ test("a refusal keeps the run open with the buttons still live", async () => {
     <ProposedBotCard
       args={DRAFT}
       create={async () => {
-        throw new Error("A coworker called Renewal Desk already exists.");
+        throw new Error(
+          "A digital employee called Renewal Desk already exists.",
+        );
       }}
       respond={async (result) => {
         answers.push(String(result));
@@ -215,7 +217,9 @@ test("a refusal keeps the run open with the buttons still live", async () => {
 
   await userEvent.click(await view.findByText("Create it"));
 
-  await view.findByText("A coworker called Renewal Desk already exists.");
+  await view.findByText(
+    "A digital employee called Renewal Desk already exists.",
+  );
   expect(answers).toEqual([]);
   expect((view.getByText("Create it") as HTMLButtonElement).disabled).toBe(
     false,
@@ -283,7 +287,7 @@ test("an unwritable proposal is answered without asking anybody", async () => {
  * this link once, for the person who pressed the button, and then silently stop drawing it for
  * anybody who refreshed the page — which is not a failure anything would report.
  */
-test("a completed card links to the coworker, rebuilt from the answer alone", async () => {
+test("a completed card links to the digital employee, rebuilt from the answer alone", async () => {
   const view = routed(
     <ProposedBotCard
       args={DRAFT}

@@ -161,7 +161,7 @@ test("/channel/new reports a failed initial roster load", async () => {
   const view = renderChannelNew(queryClientWithFailingAgents());
 
   expect((await view.findByRole("alert")).textContent).toBe(
-    "Coworkers couldn't be loaded.",
+    "Digital employees couldn't be loaded.",
   );
   expect(view.queryByText("No agents found.")).toBeNull();
   await expectMessageComposerDisabled(view, true);
@@ -176,7 +176,7 @@ test("/channel/new reports a failed URL-selected hidden detail load", async () =
   );
 
   expect((await view.findByRole("alert")).textContent).toBe(
-    "Coworker couldn't be loaded.",
+    "Digital employee couldn't be loaded.",
   );
   expect(view.queryByText("No agents found.")).toBeNull();
   await expectMessageComposerDisabled(view, true);

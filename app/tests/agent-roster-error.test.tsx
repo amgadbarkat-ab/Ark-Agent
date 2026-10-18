@@ -304,7 +304,7 @@ test("a failed roster on / reports the failure and explains the disabled compose
   // saying why unless this alert renders.
   expect(
     await view.findByText(
-      "Your coworkers couldn't be loaded, so there's no one to send this to yet.",
+      "Your digital employees couldn't be loaded, so there's no one to send this to yet.",
       {},
       HOME_FIND_TIMEOUT,
     ),
@@ -390,14 +390,14 @@ test("a failed REFETCH on / keeps the roster and does not disclaim the composer"
   // evidence that the composer is not the disabled, nothing-to-send-to state its alert describes.
   expect(
     await view.findByText(
-      "Sent to the coworker it is for.",
+      "Sent to the digital employee it is for.",
       { exact: false },
       HOME_FIND_TIMEOUT,
     ),
   ).toBeTruthy();
   expect(
     view.queryByText(
-      "Your coworkers couldn't be loaded, so there's no one to send this to yet.",
+      "Your digital employees couldn't be loaded, so there's no one to send this to yet.",
     ),
   ).toBeNull();
   expect(
@@ -469,7 +469,7 @@ test("a failed REFETCH on / with explore empty shows it as empty, not broken", a
   // enabled — the alert claiming a load failure must not appear beside that working composer.
   expect(
     view.queryByText(
-      "Your coworkers couldn't be loaded, so there's no one to send this to yet.",
+      "Your digital employees couldn't be loaded, so there's no one to send this to yet.",
     ),
   ).toBeNull();
 });
