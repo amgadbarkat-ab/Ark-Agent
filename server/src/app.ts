@@ -85,6 +85,8 @@ import {
   type ModelProviderProxy,
   mountProviderOAuthProxy,
 } from "./provider-oauth";
+import { createApprovalRoutes } from "./approvals/routes";
+import type { ApprovalStore } from "./approvals/store";
 import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
@@ -425,6 +427,11 @@ export function createApp(
    * Absent answers `/api/push` with `enabled: false`, which is how the app knows not to offer them.
    */
   push?: Omit<Parameters<typeof pushRoutes>[0], "requireUser">,
+  /**
+   * Changes a digital employee asked to make to another's work, waiting for its owner. Appended last,
+   * for the positional reason above. Absent leaves `/api/approvals` unmounted.
+   */
+  approvals?: ApprovalStore,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1755,6 +1762,10 @@ export function createApp(
       "/api/attachments",
       createAttachmentRoutes(attachmentDatabase, requireUser),
     );
+  }
+
+  if (approvals) {
+    app.route("/api/approvals", createApprovalRoutes(approvals, requireUser));
   }
 
   if (routineStore) {

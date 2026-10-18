@@ -133,6 +133,8 @@ import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
+import { approvalExecutors } from "./approvals/executors";
+import { createApprovalStore } from "./approvals/store";
 import { createRoutineStore } from "./routines/store";
 import { RunGateAgent } from "./accounts/run-gate";
 import { billingFromEnvironment } from "./billing/select";
@@ -531,6 +533,18 @@ if (composio) {
  * silent outage for this one.
  */
 const routineStore = createRoutineStore(database);
+
+/**
+ * Changes one digital employee asked to make to another's work, held until their owner decides.
+ * Built here because applying one needs the routine and profile stores, which exist by now.
+ */
+const approvalStore = createApprovalStore(database, {
+  executors: approvalExecutors({
+    routines: routineStore,
+    profiles: agentProfileStore,
+  }),
+  auditStore: bootAuditStore,
+});
 useRoutineTools(routineStore);
 
 /**
@@ -1590,6 +1604,8 @@ const app = createApp(
         extraHosts: config.webPush.allowedHosts,
       }
     : undefined,
+  // What a digital employee asked to change about another's work, waiting for its owner.
+  approvalStore,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

@@ -402,6 +402,12 @@ export const auditEventTypes = [
   "bot.icon_changed",
   "bot.primary_changed",
 
+  /* A change one digital employee asked for, and what its owner decided. */
+  "approval.requested",
+  "approval.approved",
+  "approval.rejected",
+  "approval.failed",
+
   /*
    * One Bot handing work to another.
    *

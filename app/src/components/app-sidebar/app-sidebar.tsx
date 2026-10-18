@@ -1,5 +1,6 @@
 import {
   IconBolt,
+  IconInbox,
   IconBox,
   IconBuildingStore,
   IconLogout,
@@ -46,6 +47,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { approvalCountQueryOptions } from "@/lib/approvals/queries";
 import { signOutMutationOptions } from "@/lib/auth/mutations";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import {
@@ -219,6 +221,8 @@ function ChannelRow({
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const emphasis = useMessageListEmphasis();
   const { data: currentUser } = useQuery(currentUserQueryOptions());
+  // Quiet on failure and on zero: a number beside the inbox only when something is waiting.
+  const { data: waiting } = useQuery(approvalCountQueryOptions());
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const signOut = useMutation(signOutMutationOptions(queryClient));
@@ -412,6 +416,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <IconBolt />
               </div>
               <span className="text-sm trackint-tight">Agents</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="hover:bg-foreground/5 h-10"
+              render={(props) => (
+                <Link
+                  {...props}
+                  to="/approvals"
+                  activeProps={{
+                    className: "bg-foreground/5",
+                  }}
+                />
+              )}
+            >
+              <div className="size-[28px] flex items-center justify-center">
+                <IconInbox />
+              </div>
+              <span className="text-sm trackint-tight">Requests</span>
+              {waiting ? (
+                <span
+                  aria-label={`${waiting} waiting`}
+                  className="ml-auto rounded-full bg-brand px-1.5 py-px text-[10px] font-medium text-brand-foreground tabular-nums"
+                >
+                  {waiting}
+                </span>
+              ) : null}
             </SidebarMenuButton>
           </SidebarMenuItem>
           {/* Routines live on each coworker's own dialog now, not as a nav destination: the

@@ -19,6 +19,7 @@ import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/rou
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedSettingsRouteRouteImport } from './routes/_authed/settings/route'
 import { Route as AuthedAppIndexRouteImport } from './routes/_authed/_app/index'
+import { Route as AuthedAppApprovalsRouteImport } from './routes/_authed/_app/approvals'
 import { Route as AuthedAppBotRouteImport } from './routes/_authed/_app/bot'
 import { Route as AuthedAppRoutinesRouteImport } from './routes/_authed/_app/routines'
 import { Route as AuthedAppSkillsRouteImport } from './routes/_authed/_app/skills'
@@ -103,6 +104,11 @@ const AuthedSettingsRouteRoute = AuthedSettingsRouteRouteImport.update({
 const AuthedAppIndexRoute = AuthedAppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthedAppRoute,
+} as any)
+const AuthedAppApprovalsRoute = AuthedAppApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
   getParentRoute: () => AuthedAppRoute,
 } as any)
 const AuthedAppBotRoute = AuthedAppBotRouteImport.update({
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/accept-terms': typeof AuthedAcceptTermsRoute
   '/onboarding': typeof AuthedOnboardingRoute
+  '/approvals': typeof AuthedAppApprovalsRoute
   '/bot': typeof AuthedAppBotRoute
   '/routines': typeof AuthedAppRoutinesRoute
   '/skills': typeof AuthedAppSkillsRoute
@@ -360,6 +367,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/accept-terms': typeof AuthedAcceptTermsRoute
   '/onboarding': typeof AuthedOnboardingRoute
+  '/approvals': typeof AuthedAppApprovalsRoute
   '/bot': typeof AuthedAppBotRoute
   '/routines': typeof AuthedAppRoutinesRoute
   '/skills': typeof AuthedAppSkillsRoute
@@ -409,6 +417,7 @@ export interface FileRoutesById {
   '/_authed/_app': typeof AuthedAppRouteWithChildren
   '/_authed/accept-terms': typeof AuthedAcceptTermsRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
+  '/_authed/_app/approvals': typeof AuthedAppApprovalsRoute
   '/_authed/_app/bot': typeof AuthedAppBotRoute
   '/_authed/_app/routines': typeof AuthedAppRoutinesRoute
   '/_authed/_app/skills': typeof AuthedAppSkillsRoute
@@ -459,6 +468,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/accept-terms'
     | '/onboarding'
+    | '/approvals'
     | '/bot'
     | '/routines'
     | '/skills'
@@ -504,6 +514,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/accept-terms'
     | '/onboarding'
+    | '/approvals'
     | '/bot'
     | '/routines'
     | '/skills'
@@ -552,6 +563,7 @@ export interface FileRouteTypes {
     | '/_authed/_app'
     | '/_authed/accept-terms'
     | '/_authed/onboarding'
+    | '/_authed/_app/approvals'
     | '/_authed/_app/bot'
     | '/_authed/_app/routines'
     | '/_authed/_app/skills'
@@ -669,6 +681,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthedAppIndexRouteImport
+      parentRoute: typeof AuthedAppRoute
+    }
+    '/_authed/_app/approvals': {
+      id: '/_authed/_app/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof AuthedAppApprovalsRouteImport
       parentRoute: typeof AuthedAppRoute
     }
     '/_authed/_app/bot': {
@@ -1010,6 +1029,7 @@ const AuthedSettingsRouteRouteWithChildren =
   AuthedSettingsRouteRoute._addFileChildren(AuthedSettingsRouteRouteChildren)
 
 interface AuthedAppRouteChildren {
+  AuthedAppApprovalsRoute: typeof AuthedAppApprovalsRoute
   AuthedAppBotRoute: typeof AuthedAppBotRoute
   AuthedAppRoutinesRoute: typeof AuthedAppRoutinesRoute
   AuthedAppSkillsRoute: typeof AuthedAppSkillsRoute
@@ -1024,6 +1044,7 @@ interface AuthedAppRouteChildren {
 }
 
 const AuthedAppRouteChildren: AuthedAppRouteChildren = {
+  AuthedAppApprovalsRoute: AuthedAppApprovalsRoute,
   AuthedAppBotRoute: AuthedAppBotRoute,
   AuthedAppRoutinesRoute: AuthedAppRoutinesRoute,
   AuthedAppSkillsRoute: AuthedAppSkillsRoute,
