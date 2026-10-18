@@ -177,7 +177,10 @@ test("does not repeat the provider's name when the person never renamed the mode
     connections: [connection({})],
   });
   const screen = renderModels();
-  expect(await screen.findByText("Anthropic (Claude)", {}, SLOW)).toBeTruthy();
+  // Once in the person's own list, and once among the models that can be added.
+  expect(
+    (await screen.findAllByText("Anthropic (Claude)", {}, SLOW)).length,
+  ).toBeGreaterThan(0);
   expect(
     screen.getByText("claude-haiku-4-5-20251001 · key saved"),
   ).toBeTruthy();
@@ -245,4 +248,11 @@ test("shows no coworker section when there is only one model to use", async () =
   const screen = renderModels();
   expect(await screen.findByText("Work Claude", {}, SLOW)).toBeTruthy();
   expect(screen.queryByRole("combobox", { name: /Model for/ })).toBeNull();
+});
+
+test("lists the models that can be added, so the page is never only an Add button", async () => {
+  serve({ providers: catalogue([ollama, anthropic]), connections: [] });
+  const screen = renderModels();
+  expect(await screen.findByText("Available models", {}, SLOW)).toBeTruthy();
+  expect(screen.getAllByRole("button", { name: /^Add$/ }).length).toBe(2);
 });

@@ -46,7 +46,7 @@ function RouteComponent() {
             <ItemContent>
               <ItemTitle>Dark theme</ItemTitle>
               <ItemDescription>
-                Use the dark appearance across ArkAgent.
+                Dark is the default. Turn it off to use the light appearance.
               </ItemDescription>
             </ItemContent>
             <ItemActions>

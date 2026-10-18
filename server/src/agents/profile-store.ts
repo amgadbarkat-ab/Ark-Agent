@@ -70,6 +70,12 @@ export type AgentProfileStore = {
     id: string,
     input: CreateAgentInput,
   ): Promise<AgentProfile>;
+  /** Sets or clears the picture its owner chose. The value is already checked by `parseAvatarImage`. */
+  setAvatarImage(
+    actor: AgentActor,
+    id: string,
+    image: string | null,
+  ): Promise<AgentProfile>;
   duplicate(actor: AgentActor, id: string): Promise<AgentProfile>;
   setHidden(actor: AgentActor, id: string, hidden: boolean): Promise<void>;
   softDelete(actor: AgentActor, id: string): Promise<void>;
@@ -128,6 +134,7 @@ const joinedProjection = {
   title: agentProfiles.title,
   roleDescription: agentProfiles.roleDescription,
   avatarSeed: agentProfiles.avatarSeed,
+  avatarImage: agentProfiles.avatarImage,
   visibility: agentProfiles.visibility,
   runLocation: agentProfiles.runLocation,
   ownerUserId: agentProfiles.ownerUserId,
@@ -165,6 +172,7 @@ function mapProfile(
     title: row.title,
     roleDescription: row.roleDescription,
     avatarSeed: row.avatarSeed,
+    avatarImage: row.avatarImage,
     visibility: row.visibility,
     runLocation: row.runLocation === "device" ? "device" : "cloud",
     ownerUserId: row.ownerUserId,
@@ -595,6 +603,25 @@ export function createAgentProfileStore(
       );
     },
 
+    setAvatarImage(actor, id, image) {
+      return database.transaction(
+        async (transaction) => {
+          await lockProfileMutationRows(transaction, id);
+          const profile = await findAccessibleProfile(transaction, actor, id);
+          if (!profile) throw new AgentNotFoundError(id);
+          requireManageable(actor, profile);
+          await transaction
+            .update(agentProfiles)
+            .set({ avatarImage: image, updatedAt: new Date() })
+            .where(eq(agentProfiles.agentId, id));
+          const updated = await findAccessibleProfile(transaction, actor, id);
+          if (!updated) throw new AgentNotFoundError(id);
+          return updated;
+        },
+        { isolationLevel: "read committed" },
+      );
+    },
+
     async duplicate(actor, id) {
       const tenantId = await accounts?.ensureTenant(actor.id);
       return database.transaction(async (transaction) => {
@@ -638,6 +665,7 @@ export function createAgentProfileStore(
           title: source.title,
           roleDescription: source.roleDescription,
           avatarSeed: source.avatarSeed,
+          avatarImage: source.avatarImage,
           visibility: "private",
           runLocation: source.runLocation,
         });

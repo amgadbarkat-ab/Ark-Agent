@@ -1,6 +1,5 @@
 import { IconArrowRight } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import Avatar from "boring-avatars";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { Button } from "@/components/ui/button";
 import type { AgentProfile } from "@/lib/agents/queries";
@@ -19,7 +18,11 @@ export function AgentCard({
           aria-hidden="true"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
         >
-          <Avatar name={agent.avatarSeed} size={250} />
+          <AbstractAvatar
+            name={agent.name}
+            image={agent.avatarImage}
+            size={250}
+          />
         </div>
         <div className="absolute top-0 left-0 h-full w-full bg-background/40 dark:bg-background/50" />
         <div className="absolute top-0 left-0 flex h-full w-full flex-col justify-end gap-2 p-3">
@@ -35,7 +38,7 @@ export function AgentCard({
   return (
     <div className="relative flex h-[160px] w-full min-w-0 flex-col gap-2 overflow-hidden rounded-2xl border border-border bg-card p-3 dark:border-transparent">
       <div aria-hidden="true" className="mb-1 flex shrink-0">
-        <AbstractAvatar name={agent.name} seed={agent.avatarSeed} size={28} />
+        <AbstractAvatar name={agent.name} image={agent.avatarImage} size={28} />
       </div>
       <div className="flex min-w-0 flex-col gap-2">
         <span

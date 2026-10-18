@@ -71,6 +71,7 @@ function serve(endpoint: string) {
     title: "Finance Operations",
     roleDescription: "Review receipts.",
     avatarSeed: "expenses",
+    avatarImage: null,
     visibility: "private",
     ownerUserId: actor.id,
     systemOwned: false,

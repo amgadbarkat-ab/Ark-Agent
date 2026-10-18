@@ -23,6 +23,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type * as React from "react";
 import { useRef, useState } from "react";
+import { DEFAULT_BOT_ICON } from "@/components/agents/abstract-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -251,6 +252,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="font-semibold text-[14px] tracking-tighter h-full leading-tight"
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
+                  <img
+                    alt=""
+                    className="size-6 shrink-0 rounded-full"
+                    height={24}
+                    src={DEFAULT_BOT_ICON}
+                    width={24}
+                  />
                   {appConfig.brand.productName}
                 </Link>
               )}

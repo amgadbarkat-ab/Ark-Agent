@@ -1,7 +1,8 @@
 export const THEME_STORAGE_KEY = "openbot-theme";
 
+/** Dark is the default: only a person who chose light in Settings gets it. */
 export function parseStoredDarkTheme(value: string | null) {
-  return value === "dark";
+  return value !== "light";
 }
 
 type ThemeEffects = {

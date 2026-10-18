@@ -326,6 +326,38 @@ describe("agent lifecycle routes", () => {
     ]);
   });
 
+  test("the icon route stores a checked picture, refuses an unchecked one, and clears it", async () => {
+    const png = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 1]).toString("base64")}`;
+    const store = fakeStore({
+      async setAvatarImage(receivedActor, id, image) {
+        store.calls.push(["setAvatarImage", receivedActor, id, image]);
+        return profile({ id, avatarImage: image });
+      },
+    });
+    const app = appFor(store);
+    const put = (image: unknown) =>
+      app.request("/agent-1/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ image }),
+      });
+
+    const stored = await put(png);
+    expect(stored.status).toBe(200);
+    expect((await json(stored)).agent.avatarImage).toBe(png);
+
+    const refused = await put("data:image/svg+xml;base64,PHN2Zz4=");
+    expect(refused.status).toBe(400);
+
+    const cleared = await app.request("/agent-1/avatar", { method: "DELETE" });
+    expect(cleared.status).toBe(200);
+    expect((await json(cleared)).agent.avatarImage).toBeNull();
+    expect(store.calls).toEqual([
+      ["setAvatarImage", actor, "agent-1", png],
+      ["setAvatarImage", actor, "agent-1", null],
+    ]);
+  });
+
   test("projects exact DTO fields and computes permissions for the authenticated actor", async () => {
     const store = fakeStore({
       async list() {

@@ -56,6 +56,7 @@ const PROFILE: AgentProfile = {
   title: "Finance Operations",
   roleDescription: "Review receipts.",
   avatarSeed: "expenses",
+  avatarImage: null,
   visibility: "private",
   endpoint: null,
   builtIn: true,

@@ -10,7 +10,7 @@ describe("theme preference", () => {
   test("only the stored dark value enables dark theme", () => {
     expect(parseStoredDarkTheme("dark")).toBe(true);
     expect(parseStoredDarkTheme("light")).toBe(false);
-    expect(parseStoredDarkTheme(null)).toBe(false);
+    expect(parseStoredDarkTheme(null)).toBe(true);
   });
 
   test("persists and applies the selected theme", () => {

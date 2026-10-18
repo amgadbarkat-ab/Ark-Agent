@@ -1,5 +1,5 @@
 import { IconDownload, IconTrash } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -28,7 +28,6 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { useQuery } from "@tanstack/react-query";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import {
   deleteMyAccountMutationOptions,

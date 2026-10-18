@@ -28,12 +28,12 @@ import { queryClient } from "@/query-client";
 export function VoiceCallWidget({
   call,
   name,
-  avatarSeed,
+  avatarImage,
   taskRunning,
 }: {
   call: ReturnType<typeof useVoiceCall>;
   name: string;
-  avatarSeed: string;
+  avatarImage: string | null;
   taskRunning: boolean;
 }) {
   const { state, session, minimized, setMinimized } = call;
@@ -98,7 +98,7 @@ export function VoiceCallWidget({
       </div>
       {minimized ? (
         <div className="flex items-center gap-3">
-          <AbstractAvatar name={name} seed={avatarSeed} size={32} />
+          <AbstractAvatar name={name} image={avatarImage} size={32} />
           <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
           <Button
             aria-label="Expand voice call"
@@ -130,7 +130,7 @@ export function VoiceCallWidget({
                 state.speaking && "ring-primary/40",
               )}
             >
-              <AbstractAvatar name={name} seed={avatarSeed} size={40} />
+              <AbstractAvatar name={name} image={avatarImage} size={40} />
             </div>
             <div className="min-w-0 flex-1">
               {connecting ? (

@@ -1377,7 +1377,10 @@ export function Composer({
   ) : (
     <Button
       aria-label={sendLabel}
-      className={actionClassName}
+      className={cn(
+        actionClassName,
+        "bg-brand text-brand-foreground hover:bg-brand/90",
+      )}
       disabled={!canSend}
       size="icon"
       type="submit"

@@ -1,9 +1,10 @@
-// Renders every icon Ark ships from the company's app tile (brand/mark.svg) and writes it where it is used.
+// Renders every icon ArkAgent ships from the character's portrait (brand/arkagent/icon-source.webp) and
+// writes it where it is used.
 //
 //   node brand/render-icons.mjs
 //
 // Needs Playwright and a Chromium, because Chromium is the one renderer present on every machine that
-// builds this repository and it draws the same SVG the same way everywhere. Where they are is read from
+// builds this repository and it draws the same picture the same way everywhere. Where they are is read from
 // two optional variables:
 //
 //   PLAYWRIGHT_MODULE   path of the Playwright package, when `playwright` is not importable from here
@@ -11,23 +12,22 @@
 //
 // What it writes (nothing else in the repository is touched):
 //
-//   app/public/icons/            the installable web app: icon.svg, icon-maskable.svg, icon-512.png,
-//                                icon-maskable-512.png, plus the company's own 192 and 180 files copied
-//   mobile/ios/brand/            AppIcon-1024.png, flat colour with no transparency (the App Store refuses it)
-//   mobile/android/app/src/main/ the adaptive launcher icon (vector foreground, background colour) and the
-//                                company's 192 file as the icon for phones too old for an adaptive one
-//   app/public/brand/,           the ArkAgent character's head and shoulders, cropped from the poster the owner
-//   desktop/src/assets/,         supplied (brand/arkagent/arkagent-poster.webp): the product's face, a circle crop
-//   brand/arkagent/              used on the first screens each app shows
-//   brand/arkteam/,              the Ark Team roster the owner supplied (brand/arkteam/arkteam-roster.webp), cut into its
-//   app/public/brand/team/      eight characters and a four-face picture for the plan screen
+//   app/public/brand/arkagent-icon.jpg   the icon the app itself draws: the top-left logo and every Bot's
+//                                        default picture. Square; the screen rounds it.
+//   app/public/icons/            the installable web app: icon.svg, icon-maskable.svg, icon-192.png,
+//                                icon-512.png, icon-maskable-512.png, apple-touch-icon.png
+//   mobile/ios/brand/            AppIcon-1024.png, flat with no transparency (the App Store refuses it)
+//   mobile/android/app/src/main/ the adaptive launcher icon (picture foreground, the picture's own dark as
+//                                the background) and the 192 file as the icon for phones too old for one
 //   desktop/src-tauri/icons/     icon.png, the 1024 master. The platform sizes are then made from it by
 //                                `bun run tauri icon` (brand/README.md says how), because that is the tool
 //                                that knows each platform's formats.
-//
-// The 192 and 180 files are the company's own artwork, published on its website, and are copied rather than
-// redrawn so the app's icon is exactly the one a person has already seen.
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+//   app/public/brand/,           the ArkAgent character's head and shoulders, cropped from the poster the owner
+//   desktop/src/assets/,         supplied (brand/arkagent/arkagent-poster.webp): the product's face on the
+//   brand/arkagent/              first screens each app shows
+//   brand/arkteam/,              the Ark Team roster the owner supplied (brand/arkteam/arkteam-roster.webp), cut into its
+//   app/public/brand/team/       eight characters and a four-face picture for the plan screen
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deflateSync } from "node:zlib";
@@ -35,56 +35,11 @@ import { deflateSync } from "node:zlib";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const at = (...parts) => join(root, ...parts);
 
-// The company's tile, in its own 160 unit space (brand/mark.svg).
-const EMBER = "#FF7A1A";
-const INK = "#1A0B03";
-const TILE = 160;
-const TILE_RADIUS = 28;
-const BARS = [
-  { x: 34, y: 88, w: 26, h: 42 },
-  { x: 67, y: 64, w: 26, h: 66 },
-  { x: 100, y: 34, w: 26, h: 96 },
-];
-const BAR_RADIUS = 6;
-// The bars are not centred vertically (they span 34 to 130), so scaling them down around the tile's
-// centre would push them low. This is where their own middle is.
-const BARS_CENTRE = { x: 80, y: 82 };
-
-const barRects = (transform = "") =>
-  `<g${transform ? ` transform="${transform}"` : ""} fill="${INK}">${BARS.map(
-    (bar) =>
-      `<rect x="${bar.x}" y="${bar.y}" width="${bar.w}" height="${bar.h}" rx="${BAR_RADIUS}"/>`,
-  ).join("")}</g>`;
-
-/** An SVG document `size` pixels square showing `viewBox` of the tile's space. */
-function svg(size, viewBox, body) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}">${body}</svg>`;
-}
-
-/** The same document with an accessible name, as a file ending in a newline. */
-const labelled = (document) =>
-  `${document.replace("<svg ", '<svg role="img" aria-label="ArkAgent" ')}\n`;
-
-const tileBody = `<rect width="${TILE}" height="${TILE}" rx="${TILE_RADIUS}" fill="${EMBER}"/>${barRects()}`;
-const flatBody = `<rect width="${TILE}" height="${TILE}" fill="${EMBER}"/>${barRects()}`;
-
 /**
- * Full-bleed, for launchers that cut their own shape (maskable web icons). Everything that matters has to
- * sit inside the circle of 80% of the width that any mask leaves, so the bars shrink to 90%, which puts
- * their farthest corner at 75% of the way to that circle's edge.
+ * Where the head is in the 1024 square portrait the owner supplied: a square of this side from this corner.
+ * Found by fitting the owner's own round icon (256 px) to the portrait, so the framing is theirs.
  */
-const MASKABLE_SCALE = 0.9;
-const maskableBody = `<rect width="${TILE}" height="${TILE}" fill="${EMBER}"/>${barRects(
-  `translate(80 80) scale(${MASKABLE_SCALE}) translate(${-BARS_CENTRE.x} ${-BARS_CENTRE.y})`,
-)}`;
-
-/**
- * The desktop master: the tile with a margin of 1/16 of the width on every side, which is what macOS and
- * Windows expect so the icon does not look larger than its neighbours, and with transparent corners, which
- * the tray icon's test insists on.
- */
-const DESKTOP_MARGIN = TILE / 14;
-const desktopViewBox = `${-DESKTOP_MARGIN} ${-DESKTOP_MARGIN} ${TILE + 2 * DESKTOP_MARGIN} ${TILE + 2 * DESKTOP_MARGIN}`;
+const ICON_CROP = { x: 240, y: 30, size: 560 };
 
 /** Where the character's head and shoulders are in the 864 by 1152 poster: a square of this side, from this corner. */
 const PORTRAIT_CROP = { x: 430, y: 74, size: 346 };
@@ -162,71 +117,6 @@ function encodePng(rgba, size, keepAlpha) {
   ]);
 }
 
-// ---------- Android's vector foreground ----------
-
-const dp = (value) => Number(value.toFixed(2));
-
-/** A rounded rectangle as a vector-drawable path, because that format has no rounded rectangle. */
-function roundedRect(x, y, w, h, r) {
-  return [
-    `M${dp(x + r)},${dp(y)}`,
-    `H${dp(x + w - r)}`,
-    `A${dp(r)},${dp(r)} 0 0 1 ${dp(x + w)},${dp(y + r)}`,
-    `V${dp(y + h - r)}`,
-    `A${dp(r)},${dp(r)} 0 0 1 ${dp(x + w - r)},${dp(y + h)}`,
-    `H${dp(x + r)}`,
-    `A${dp(r)},${dp(r)} 0 0 1 ${dp(x)},${dp(y + h - r)}`,
-    `V${dp(y + r)}`,
-    `A${dp(r)},${dp(r)} 0 0 1 ${dp(x + r)},${dp(y)}`,
-    "Z",
-  ].join(" ");
-}
-
-/**
- * Android draws an adaptive icon on a 108 by 108 canvas and shows only a circle of 66 in the middle
- * wherever a launcher masks it. At 0.46 of a tile unit per unit of that canvas the bars' farthest corner is
- * 30.6 from the middle, inside the 33 that is always shown.
- */
-const ANDROID_SCALE = 0.46;
-
-function androidForeground() {
-  const paths = BARS.map((bar) => {
-    const x = 54 + (bar.x - BARS_CENTRE.x) * ANDROID_SCALE;
-    const y = 54 + (bar.y - BARS_CENTRE.y) * ANDROID_SCALE;
-    return `    <path
-        android:fillColor="${INK}"
-        android:pathData="${roundedRect(x, y, bar.w * ANDROID_SCALE, bar.h * ANDROID_SCALE, BAR_RADIUS * ANDROID_SCALE)}" />`;
-  });
-  return `<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated by brand/render-icons.mjs from the company's app tile. Do not edit by hand. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-${paths.join("\n")}
-</vector>
-`;
-}
-
-const ANDROID_ADAPTIVE = `<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated by brand/render-icons.mjs. The monochrome layer is what Android 13 tints for themed icons. -->
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
-</adaptive-icon>
-`;
-
-const ANDROID_BACKGROUND = `<?xml version="1.0" encoding="utf-8"?>
-<!-- Generated by brand/render-icons.mjs. The company's ember. -->
-<resources>
-    <color name="ic_launcher_background">${EMBER}</color>
-</resources>
-`;
-
-// ---------- Drawing ----------
-
 async function loadChromium() {
   const specifier = process.env.PLAYWRIGHT_MODULE
     ? pathToFileURL(
@@ -242,36 +132,123 @@ async function loadChromium() {
   });
 }
 
-/** RGBA pixels of an SVG document, as Chromium draws it. */
-async function pixels(page, document, size) {
-  const encoded = Buffer.from(document).toString("base64");
+/** The icon's average dark, taken from the portrait's own corner, so a launcher's fill matches the picture. */
+async function sourceBackground(page, source) {
+  const rgb = await page.evaluate(async (encoded) => {
+    const image = new Image();
+    image.src = `data:image/webp;base64,${encoded}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 20;
+    canvas.height = 20;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(image, 5, 5, 20, 20, 0, 0, 20, 20);
+    const data = context.getImageData(0, 0, 20, 20).data;
+    const sum = [0, 0, 0];
+    for (let index = 0; index < data.length; index += 4) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        sum[channel] += data[index + channel];
+      }
+    }
+    return sum.map((value) => Math.round(value / (data.length / 4)));
+  }, source.toString("base64"));
+  return `#${rgb.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * RGBA pixels of the icon: the portrait's head, cropped, in a shape, on an optional fill.
+ *
+ *   shape       "circle", "rounded" (a desktop icon's squircle) or "square"
+ *   inset       the fraction of the width left empty on every side (transparent unless `background`)
+ *   content     the fraction of the shape the picture fills, centred; below 1 it leaves a margin of `background`
+ */
+async function character(
+  page,
+  source,
+  { size, shape = "square", inset = 0, content = 1, background = null },
+) {
   const values = await page.evaluate(
-    async ({ encoded, size }) => {
+    async ({ encoded, crop, size, shape, inset, content, background }) => {
       const image = new Image();
-      image.src = `data:image/svg+xml;base64,${encoded}`;
+      image.src = `data:image/webp;base64,${encoded}`;
       await image.decode();
       const canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
       const context = canvas.getContext("2d", { willReadFrequently: true });
-      context.drawImage(image, 0, 0, size, size);
+      context.imageSmoothingQuality = "high";
+      const margin = size * inset;
+      const box = size - 2 * margin;
+      if (background) {
+        context.fillStyle = background;
+        context.fillRect(0, 0, size, size);
+      }
+      context.save();
+      context.beginPath();
+      if (shape === "circle") {
+        context.arc(size / 2, size / 2, box / 2, 0, Math.PI * 2);
+      } else if (shape === "rounded") {
+        context.roundRect(margin, margin, box, box, box * 0.22);
+      } else {
+        context.rect(margin, margin, box, box);
+      }
+      context.clip();
+      const side = box * content;
+      const offset = margin + (box - side) / 2;
+      context.drawImage(
+        image,
+        crop.x,
+        crop.y,
+        crop.size,
+        crop.size,
+        offset,
+        offset,
+        side,
+        side,
+      );
+      context.restore();
       return Array.from(context.getImageData(0, 0, size, size).data);
     },
-    { encoded, size },
+    {
+      encoded: source.toString("base64"),
+      crop: ICON_CROP,
+      size,
+      shape,
+      inset,
+      content,
+      background,
+    },
   );
   return Uint8Array.from(values);
 }
+
+/** An SVG that shows `href` (a data URI) in a circle, or full-bleed on `fill` when `fill` is given. */
+function iconSvg(href, fill, content) {
+  const body = fill
+    ? `<rect width="512" height="512" fill="${fill}"/><image href="${href}" x="${(512 * (1 - content)) / 2}" y="${(512 * (1 - content)) / 2}" width="${512 * content}" height="${512 * content}"/>`
+    : `<clipPath id="c"><circle cx="256" cy="256" r="256"/></clipPath><image href="${href}" width="512" height="512" clip-path="url(#c)"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ArkAgent" width="512" height="512" viewBox="0 0 512 512">${body}</svg>\n`;
+}
+
+const androidAdaptive = `<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by brand/render-icons.mjs. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+`;
+
+const androidBackground = (colour) => `<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by brand/render-icons.mjs. The picture's own dark. -->
+<resources>
+    <color name="ic_launcher_background">${colour}</color>
+</resources>
+`;
 
 function write(path, data) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, data);
   console.log(`wrote ${path.slice(root.length + 1)}`);
-}
-
-function copy(from, to) {
-  mkdirSync(dirname(to), { recursive: true });
-  copyFileSync(from, to);
-  console.log(`copied ${to.slice(root.length + 1)}`);
 }
 
 /** A JPEG made of rectangles cut from one picture and drawn at their own size (never scaled up). */
@@ -308,47 +285,65 @@ async function cut(page, source, mime, pieces, size) {
 const browser = await loadChromium();
 try {
   const page = await browser.newPage();
+  const source = readFileSync(at("brand/arkagent/icon-source.webp"));
+  const dark = await sourceBackground(page, source);
+
+  // What the app draws itself: a square, which the screen rounds.
+  const face = await cut(
+    page,
+    source,
+    "image/webp",
+    [
+      {
+        sx: ICON_CROP.x,
+        sy: ICON_CROP.y,
+        sw: ICON_CROP.size,
+        sh: ICON_CROP.size,
+        dx: 0,
+        dy: 0,
+        dw: 256,
+        dh: 256,
+      },
+    ],
+    { w: 256, h: 256 },
+  );
+  write(at("app/public/brand/arkagent-icon.jpg"), face);
+  const href = `data:image/jpeg;base64,${face.toString("base64")}`;
 
   // The installable web app.
-  write(
-    at("app/public/icons/icon.svg"),
-    labelled(svg(512, `0 0 ${TILE} ${TILE}`, tileBody)),
-  );
-  write(
-    at("app/public/icons/icon-maskable.svg"),
-    labelled(svg(512, `0 0 ${TILE} ${TILE}`, maskableBody)),
-  );
-  write(
-    at("app/public/icons/icon-512.png"),
-    encodePng(
-      await pixels(page, svg(512, `0 0 ${TILE} ${TILE}`, tileBody), 512),
-      512,
-      true,
-    ),
-  );
+  write(at("app/public/icons/icon.svg"), iconSvg(href, null, 1));
+  write(at("app/public/icons/icon-maskable.svg"), iconSvg(href, dark, 0.8));
+  const round = (size) =>
+    character(page, source, { size, shape: "circle" }).then((rgba) =>
+      encodePng(rgba, size, true),
+    );
+  write(at("app/public/icons/icon-512.png"), await round(512));
+  const round192 = await round(192);
+  write(at("app/public/icons/icon-192.png"), round192);
+  // A launcher cuts its own shape from a maskable icon, so it is full-bleed and everything that matters
+  // sits inside the circle of 80% of the width that any mask leaves.
   write(
     at("app/public/icons/icon-maskable-512.png"),
     encodePng(
-      await pixels(page, svg(512, `0 0 ${TILE} ${TILE}`, maskableBody), 512),
+      await character(page, source, {
+        size: 512,
+        content: 0.8,
+        background: dark,
+      }),
       512,
       false,
     ),
   );
-  copy(
-    at("brand/official/favicon-192.png"),
-    at("app/public/icons/icon-192.png"),
-  );
-  copy(
-    at("brand/official/apple-touch-icon.png"),
+  // iOS rounds its own corners, so these two are flat squares.
+  write(
     at("app/public/icons/apple-touch-icon.png"),
+    encodePng(
+      await character(page, source, { size: 180, background: dark }),
+      180,
+      false,
+    ),
   );
-
-  // The iOS app's App Store icon: flat, square, no transparency (the store applies its own corners).
-  const ios = await pixels(
-    page,
-    svg(1024, `0 0 ${TILE} ${TILE}`, flatBody),
-    1024,
-  );
+  const ios = await character(page, source, { size: 1024, background: dark });
   for (let index = 3; index < ios.length; index += 4) {
     if (ios[index] !== 255) {
       throw new Error("The App Store icon came out with transparent pixels.");
@@ -356,21 +351,36 @@ try {
   }
   write(at("mobile/ios/brand/AppIcon-1024.png"), encodePng(ios, 1024, false));
 
-  // The Android app.
+  // The Android app. Android draws an adaptive icon on a 108 by 108 canvas and shows only a circle of 66
+  // in the middle wherever a launcher masks it, so the picture fills 61% of the canvas.
   const res = at("mobile/android/app/src/main/res");
-  write(join(res, "drawable/ic_launcher_foreground.xml"), androidForeground());
-  write(join(res, "values/ic_launcher_background.xml"), ANDROID_BACKGROUND);
-  write(join(res, "mipmap-anydpi-v26/ic_launcher.xml"), ANDROID_ADAPTIVE);
-  copy(
-    at("brand/official/favicon-192.png"),
-    join(res, "mipmap-xxxhdpi/ic_launcher.png"),
+  rmSync(join(res, "drawable/ic_launcher_foreground.xml"), { force: true });
+  write(
+    join(res, "drawable-xxxhdpi/ic_launcher_foreground.png"),
+    encodePng(
+      await character(page, source, { size: 432, content: 0.61 }),
+      432,
+      true,
+    ),
   );
+  write(
+    join(res, "values/ic_launcher_background.xml"),
+    androidBackground(dark),
+  );
+  write(join(res, "mipmap-anydpi-v26/ic_launcher.xml"), androidAdaptive);
+  write(join(res, "mipmap-xxxhdpi/ic_launcher.png"), round192);
 
-  // The desktop master.
+  // The desktop master: a rounded square with a margin, which is what macOS and Windows expect so the icon
+  // does not look larger than its neighbours, and with transparent corners, which the tray icon's test
+  // insists on.
   write(
     at("desktop/src-tauri/icons/icon.png"),
     encodePng(
-      await pixels(page, svg(1024, desktopViewBox, tileBody), 1024),
+      await character(page, source, {
+        size: 1024,
+        shape: "rounded",
+        inset: 0.06,
+      }),
       1024,
       true,
     ),

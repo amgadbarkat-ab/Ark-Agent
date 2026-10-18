@@ -69,10 +69,11 @@ by these and is not kept.
 
 | Where | Files | How |
 | --- | --- | --- |
-| Web app (installable app, browser tab, push) | `app/public/icons/icon-192.png`, `apple-touch-icon.png` | The company's own files, copied. |
-|  | `icon-512.png`, `icon-maskable-512.png`, `icon.svg`, `icon-maskable.svg` | Drawn from `mark.svg`. The maskable one is full-bleed with the bars at 90%, so a launcher's circular mask never cuts them. |
-| Android app | `mobile/android/app/src/main/res/` adaptive icon (`mipmap-anydpi-v26`, `drawable/ic_launcher_foreground.xml`, `values/ic_launcher_background.xml`) | Ember background, bars sized to stay inside the 66 dp circle every launcher shows, and a monochrome layer for Android 13 themed icons. |
-|  | `mipmap-xxxhdpi/ic_launcher.png` | The company's 192 file, for phones too old for an adaptive icon. |
+| Web app (installable app, browser tab, push) | `app/public/icons/icon-192.png`, `icon-512.png`, `icon.svg` | The character's head, cropped from `arkagent/icon-source.webp` in the owner's framing, in a circle. |
+|  | `apple-touch-icon.png`, `icon-maskable-512.png`, `icon-maskable.svg` | Flat squares: iOS rounds its own corners, and a launcher cuts a maskable icon's shape, so the maskable one keeps the head inside the 80% circle any mask leaves. |
+| In the app (top-left logo, every Bot's default picture) | `app/public/brand/arkagent-icon.jpg` | 256 square, rounded by the screen. |
+| Android app | `mobile/android/app/src/main/res/` adaptive icon (`mipmap-anydpi-v26`, `drawable-xxxhdpi/ic_launcher_foreground.png`, `values/ic_launcher_background.xml`) | The picture's own dark as the background and the head inside the 66 dp circle every launcher shows. No themed layer: a picture has no silhouette to tint. |
+|  | `mipmap-xxxhdpi/ic_launcher.png` | The 192 round icon, for phones too old for an adaptive icon. |
 | iOS app | `mobile/ios/brand/AppIcon-1024.png` | 1024 by 1024, flat, no transparency (the App Store refuses it). `mobile/scripts/ios-config.ts` checks it before every build. |
 | Desktop app | `desktop/src-tauri/icons/icon.png` and everything made from it | The master is drawn here; the platform sizes come from `tauri icon` (`desktop/src-tauri/icons/README.md`). |
 

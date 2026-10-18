@@ -38,6 +38,7 @@ import {
   botModelChoicesQueryOptions,
   type ModelCatalogue,
   type ModelConnection,
+  type ModelProviderTier,
   modelCatalogueQueryOptions,
   modelConnectionsQueryOptions,
 } from "@/lib/models/queries";
@@ -50,10 +51,19 @@ export const Route = createFileRoute("/_authed/settings/models")({
   component: ModelsPage,
 });
 
+/** How a provider's tier reads on a row. */
+const TIER_LABEL: Record<ModelProviderTier, string> = {
+  local: "On this computer",
+  free: "Free",
+  paid: "Your own key",
+  custom: "Your own server",
+  plan: "Subscription",
+};
+
 /** What the dialog is for right now: nothing, a new model, or one that exists. */
 type Editing =
   | { kind: "none" }
-  | { kind: "new" }
+  | { kind: "new"; providerId?: string }
   | { kind: "edit"; id: string };
 
 function ModelsPage() {
@@ -90,6 +100,9 @@ function ModelsPage() {
         <ModelDialog
           catalogue={catalogue.data}
           connection={editedConnection}
+          initialProviderId={
+            editing.kind === "new" ? editing.providerId : undefined
+          }
           // Closed rather than mounted-and-hidden, so a connection removed under it cannot linger.
           onOpenChange={(open) => {
             if (!open) setEditing({ kind: "none" });
@@ -128,6 +141,54 @@ function ModelsPage() {
             ))}
           </PageRows>
         )}
+      </PageSection>
+
+      <PageSection
+        description="Add any of these. A model on this computer needs its program installed and running first: ArkAgent does not install Ollama, LM Studio or llama.cpp."
+        title="Available models"
+      >
+        {catalogue.data ? (
+          <PageRows>
+            {catalogue.data.providers
+              .filter((provider) => !provider.unavailable)
+              .map((provider, index, all) => (
+                <React.Fragment key={provider.id}>
+                  <Item size="sm">
+                    <ItemMedia variant="icon">
+                      {provider.tier === "local" ? <IconCpu /> : <IconCloud />}
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>
+                        {provider.name}
+                        <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
+                          {TIER_LABEL[provider.tier]}
+                        </span>
+                      </ItemTitle>
+                      <ItemDescription className="line-clamp-none">
+                        {provider.summary}
+                        {provider.suggestedModels.length > 0
+                          ? ` Such as ${provider.suggestedModels.slice(0, 3).join(", ")}.`
+                          : ""}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <Button
+                        onClick={() =>
+                          setEditing({ kind: "new", providerId: provider.id })
+                        }
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <IconPlus />
+                        Add
+                      </Button>
+                    </ItemActions>
+                  </Item>
+                  {index !== all.length - 1 && <Separator />}
+                </React.Fragment>
+              ))}
+          </PageRows>
+        ) : null}
       </PageSection>
 
       {/* Only worth showing when there is something to choose between. */}

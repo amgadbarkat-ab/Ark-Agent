@@ -4,8 +4,8 @@ import {
   IconCreditCard,
   IconLayoutGrid,
   IconPlug,
-  IconShieldLock,
   IconSettings,
+  IconShieldLock,
 } from "@tabler/icons-react";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import type * as React from "react";

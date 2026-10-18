@@ -53,6 +53,27 @@ export function updateAgentMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/** Sets the coworker's picture, or with `image: null` puts the default back. */
+export function setAgentIconMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (variables: {
+      agentId: string;
+      image: string | null;
+    }): Promise<AgentProfile> =>
+      variables.image === null
+        ? client(`${agentApiPath(variables.agentId)}/avatar`, "agent", {
+            method: "DELETE",
+            fallback: "The icon could not be changed",
+          })
+        : client(`${agentApiPath(variables.agentId)}/avatar`, "agent", {
+            method: "PUT",
+            body: { image: variables.image },
+            fallback: "The icon could not be changed",
+          }),
+    onSuccess: () => invalidateAgents(queryClient),
+  });
+}
+
 export function duplicateAgentMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     mutationFn: (agentId: string): Promise<AgentProfile> =>

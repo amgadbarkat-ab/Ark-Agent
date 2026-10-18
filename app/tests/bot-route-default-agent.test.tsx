@@ -32,6 +32,7 @@ function agent(
   return {
     runLocation: "cloud",
     avatarSeed: "seed",
+    avatarImage: null,
     builtIn: true,
     canManage: true,
     endpoint: null,

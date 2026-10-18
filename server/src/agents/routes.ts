@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AuditEventType, AuditStore } from "../audit";
 import { recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
+import { parseAvatarImage } from "./avatar-image";
 import { testAgentConnection } from "./connection-test";
 import { checkAgentEndpoint } from "./endpoint";
 import { canManageAgent } from "./profile-policy";
@@ -581,6 +582,44 @@ export function createAgentRoutes(
     }
   });
 
+  /*
+   * The picture. Its own route rather than a field of the edit form, so changing it never has to resend
+   * (or accidentally blank) the endpoint, the key or the instructions, and so the two edits are told
+   * apart in the audit trail. Who may do it is the same question as editing the coworker.
+   */
+  routes.put("/:agentId/avatar", requireUser, async (context) => {
+    const body = await context.req.json().catch(() => null);
+    const parsed = parseAvatarImage(
+      (body as { image?: unknown } | null)?.image,
+    );
+    if (!parsed.ok) return context.json({ error: parsed.error }, 400);
+    try {
+      const agent = await store.setAvatarImage(
+        context.var.actor,
+        context.req.param("agentId"),
+        parsed.value,
+      );
+      await record(context, "bot.icon_changed", agent.id, { custom: true });
+      return context.json({ agent: dto(context.var.actor, agent) });
+    } catch (error) {
+      return mapStoreError(context, error);
+    }
+  });
+
+  routes.delete("/:agentId/avatar", requireUser, async (context) => {
+    try {
+      const agent = await store.setAvatarImage(
+        context.var.actor,
+        context.req.param("agentId"),
+        null,
+      );
+      await record(context, "bot.icon_changed", agent.id, { custom: false });
+      return context.json({ agent: dto(context.var.actor, agent) });
+    } catch (error) {
+      return mapStoreError(context, error);
+    }
+  });
+
   routes.post("/:agentId/duplicate", requireUser, async (context) => {
     if (!context.req.param("agentId").trim()) {
       return context.json({ error: "A Bot id is required." }, 400);
@@ -748,6 +787,7 @@ function agentDto(actor: AgentActor, agent: AgentProfile) {
     title: agent.title,
     roleDescription: agent.roleDescription,
     avatarSeed: agent.avatarSeed,
+    avatarImage: agent.avatarImage,
     visibility: agent.visibility,
     runLocation: agent.runLocation,
     hidden: agent.hidden,

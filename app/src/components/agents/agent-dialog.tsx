@@ -12,6 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
+import { AgentIconItem } from "@/components/agents/agent-icon-item";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
 import { ShareDialog } from "@/components/marketplace/share-dialog";
@@ -71,8 +72,8 @@ import {
   updateAgentMutationOptions,
 } from "@/lib/agents/mutations";
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
-import { isComposing } from "@/lib/composing";
 import { cloudQueryOptions } from "@/lib/cloud/queries";
+import { isComposing } from "@/lib/composing";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 
@@ -152,7 +153,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
           <SidebarHeader className="flex-row items-center gap-3 p-4">
             <AbstractAvatar
               name={profile.name}
-              seed={profile.avatarSeed}
+              image={profile.avatarImage}
               size={36}
             />
             <div className="flex min-w-0 flex-col">
@@ -195,7 +196,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
             <div className="flex items-center gap-2">
               <AbstractAvatar
                 name={profile.name}
-                seed={profile.avatarSeed}
+                image={profile.avatarImage}
                 size={28}
               />
               <span className="truncate text-sm font-medium">
@@ -280,6 +281,12 @@ function GeneralSection({
       {/* Each stands on its own — muted, not bg-card, which is invisible against a popup — and
           each edits in place: the field somebody wants to change is the only one that opens. */}
       <div className="flex flex-col gap-2">
+        <AgentIconItem
+          agentId={agentId}
+          canManage={profile.canManage}
+          image={profile.avatarImage}
+          name={profile.name}
+        />
         <EditableTextItem
           canManage={profile.canManage}
           label="Name"
