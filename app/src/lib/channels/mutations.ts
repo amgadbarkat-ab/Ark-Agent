@@ -27,6 +27,26 @@ export function createChannelMutationOptions(queryClient: QueryClient) {
 }
 
 /**
+ * Open the one channel with the person's whole team, made if they have not had one.
+ *
+ * Idempotent, unlike `createChannelMutationOptions`: asking again returns the same channel and the
+ * same thread, with whoever is on the team now.
+ */
+export function openTeamChannelMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (): Promise<AgentChannel> => {
+      const response = await client("/api/channels/team", {
+        method: "POST",
+        fallback: "Could not open the team channel",
+      });
+      return ((await response.json()) as { channel: AgentChannel }).channel;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: channelKeys.all }),
+  });
+}
+
+/**
  * Report the last thing said in a channel.
  *
  * The client that ran the agent already has the message before platform replay can return it; the

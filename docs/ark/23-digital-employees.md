@@ -79,19 +79,41 @@ involves, in the same shape OpenBot describes (instructions, plus the connection
   person to repeat it rather than guessing. Limits: `BOT_HISTORY_TURNS`, `BOT_HISTORY_CHARACTERS`,
   `BOT_TOOL_RESULT_CHARACTERS` (0 switches a limit off). This is `agent-bot`; the framework agents are unchanged.
 
+## Looking after the team (release D)
+
+- **Requests.** A change one digital employee wants made to another's work is held in the owner's Requests screen
+  until they approve it. Nothing is applied before that, a request nobody answers lapses after seven days, one
+  employee can have ten waiting at most, and a double-click or two replicas applies it once (the row is claimed with a
+  conditional update before the change runs). Kinds today: change a routine, delete a routine, replace a colleague's
+  instructions, reword a memory, delete a memory. Every ask and every decision is in the audit trail
+  (`approval.requested`, `approval.approved`, `approval.rejected`, `approval.failed`). The sidebar shows how many are waiting.
+- **The lead's tools.** The lead (and only the lead, and only for its own owner) can `team_list`, `team_report` (a
+  colleague's routines, how they last ran, and what it keeps in mind), `team_pause_routine` (off or back on; reversible and
+  recorded as `team.action`), `team_request_change` (becomes a Request) and `team_ask` (ask a colleague for work through the
+  existing hand-off desk, with its depth and fan-out caps and its audit rows). Everyone else on a team of two or more gets
+  `team_list` and `team_ask` only. A team of one is offered nothing.
+- **Asking without a grant.** The lead may ask the same person's other employees, and two employees of one person may ask
+  each other in a conversation both are members of, without an administrator granting it: the person made one the lead, or
+  put them in the same room. The default chain depth is 1 (`BOT_HANDOFF_MAX_DEPTH`), so a colleague the lead asks cannot ask a
+  third; raise it to 2 to let them.
+- **The team channel.** `POST /api/channels/team` finds or makes the person's one channel with every digital employee they
+  own, lead first, and keeps its members in step (a new colleague joins, a deleted one leaves). The Agents page has a "Team
+  channel" button for a person with two or more. The person talks to the lead; the lead asks colleagues, and their answers
+  arrive in the same conversation. Writing `@name` tells the lead who the person wants; the composer still sends to the lead.
+- **Memories.** Each digital employee keeps up to 100 short memories (500 characters each); the newest 30 are in front of it
+  at the start of every run. It adds with `memory_remember` and drops its own with `memory_forget`; its owner reads, adds,
+  corrects and deletes on its Memories page; the lead can read a colleague's and ask, through Requests, to reword or delete
+  one. Passwords, keys, card numbers and account numbers are refused (the marketplace's scanner plus a check for "the
+  password is ..."): a net, not a guarantee. Audit rows say which memory and who, never the text.
+
+What is **not** verified: all of this is tested at the store, route and component level. It has not been run end to end
+against a real model in a signed-in browser, because the build environment has neither. The first thing to do on a
+deployed copy is open the team channel with a lead and two colleagues and ask for something that spans two roles.
+
 ## Not done
 
-- **The primary employee managing the others** (giving them work, reading their jobs and reports, switching their routines
-  off, editing or deleting their routines). Today the lead knows the team and leads it in conversation; it has no tools over its
-  colleagues. Two things stand in the way and are decisions rather than code: (1) the existing hand-off between employees is
-  only offered to built-in employees, not to the ones that run on the shared agent, which is every employee in the desktop
-  product, so reaching a colleague needs a new route for a running agent to call back; (2) anything that edits or deletes a
-  colleague's work should ask the person first, which needs an approvals design. Proposed first step: read-only tools (team,
-  routines, last runs) and switching a routine off, then writes with approval.
-- **Team channels with several employees talking to each other.** A channel is pinned to one employee in the app and in the
-  conversation store, and the group chat the owner described needs that changed; the database already allows several
-  employees in one channel. Not started.
-- **Memories.** There is no memory feature to edit or delete yet.
-- A rename of "coworker" to "digital employee" everywhere. "Bot" is now "digital employee" in the app, the administrator console,
-  server messages and the desktop's messages; "coworker" still appears in some screens (for example the Models page).
+- A message `@`-mentioned to a colleague is not sent to that colleague directly; it goes to the lead, which asks them.
+- Colleagues talking to each other freely. They can ask each other in the team channel only when the chain depth allows.
 - Translations. The roles are in English; an employee answers in the language it is written to, but the instruction is English.
+- Anything that moves money, contacts a customer on its own, or reaches outside the building still waits for the owner's
+  hand (docs/ark/01-product-decisions.md).

@@ -14,6 +14,7 @@ import {
 } from "../db/schema";
 import { agentAuthHeaders, authFromConfiguration } from "./auth-header";
 import type { AgentActor } from "./profile-types";
+import { type MemoryStore, memoryGuidance } from "../memories/store";
 import { type TeamMember, teamGuidance } from "./team";
 
 /**
@@ -38,6 +39,11 @@ export function createRuntimeAgentLoader(
     actorId: string,
     botId?: string,
   ) => Promise<string | undefined>,
+  /**
+   * What each of the person's digital employees keeps in mind, read once per load for all of them.
+   * Absent leaves every employee with no memories section, which is what they had before.
+   */
+  memories?: Pick<MemoryStore, "forRun">,
 ) {
   return async (actor: AgentActor): Promise<RegisteredAgent[]> => {
     const [active, tombstones] = await Promise.all([
@@ -59,10 +65,18 @@ export function createRuntimeAgentLoader(
         title: row.title,
         primary: row.isPrimary,
       }));
+    const held = await memories?.forRun(
+      actor.id,
+      team.map((member) => member.id),
+    );
     for (const row of active) {
       const agent = registeredAgentFromRow({
         ...row,
         team: row.ownerUserId === actor.id ? teamGuidance(row, team) : null,
+        memory:
+          held && row.ownerUserId === actor.id
+            ? memoryGuidance(held.get(row.id) ?? [])
+            : null,
       });
       if (!agent) continue;
       const isRemoteAgent =

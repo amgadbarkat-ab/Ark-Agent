@@ -133,6 +133,12 @@ import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
+import { createTeamReach } from "./agents/lead-reach";
+import { teamTools } from "./agents/team-tools";
+import { approvalExecutors } from "./approvals/executors";
+import { createApprovalStore } from "./approvals/store";
+import { createMemoryStore } from "./memories/store";
+import { memoryTools } from "./memories/tools";
 import { createRoutineStore } from "./routines/store";
 import { RunGateAgent } from "./accounts/run-gate";
 import { billingFromEnvironment } from "./billing/select";
@@ -319,6 +325,8 @@ const loadAgentsForActor = createRuntimeAgentLoader(
     config.keyEncryptionKey,
     starterModel,
   ),
+  // Reads only: what each of the person's digital employees keeps in mind, for its instructions.
+  createMemoryStore(database),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -531,6 +539,22 @@ if (composio) {
  * silent outage for this one.
  */
 const routineStore = createRoutineStore(database);
+
+/**
+ * Changes one digital employee asked to make to another's work, held until their owner decides.
+ * Built here because applying one needs the routine and profile stores, which exist by now.
+ */
+/** What a digital employee keeps in mind. This one writes, so it records who added and who deleted. */
+const memoryStore = createMemoryStore(database, { auditStore: bootAuditStore });
+
+const approvalStore = createApprovalStore(database, {
+  executors: approvalExecutors({
+    routines: routineStore,
+    profiles: agentProfileStore,
+    memories: memoryStore,
+  }),
+  auditStore: bootAuditStore,
+});
 useRoutineTools(routineStore);
 
 /**
@@ -541,19 +565,23 @@ useRoutineTools(routineStore);
  * that, because the Bot being addressed will very likely run on a different pod from the Bot that
  * addressed it, and a hop held in memory is lost the moment either is rescheduled.
  */
+const teamMayAsk = createTeamReach(database);
+
 const handoffDesk = createHandoffDesk({
   queue: createWorkQueue(database),
   profiles: agentProfileStore,
   // Read per hop and never held, so revoking a grant applies to the next hop rather than after a
   // restart.
-  mayAddress: async (fromBotId, toBotId) =>
+  mayAddress: async (fromBotId, toBotId, threadId) =>
     (
       await pluginStore
         .botsReachableFrom(fromBotId)
         // A grant that cannot be read is not a grant. Failing closed here costs a hop; failing open
         // would let a Bot address one nobody gave it because the database blinked.
         .catch(() => [] as string[])
-    ).includes(toBotId),
+    ).includes(toBotId) ||
+    // The lead of a person's team, and employees in one room, may ask each other without a grant.
+    (await teamMayAsk(fromBotId, toBotId, threadId).catch(() => false)),
   /*
    * Deferred rather than passed directly, because `actorFor` is defined further down with the rest
    * of the run-building collaborators. It is only ever called during a hop, long after this module
@@ -721,10 +749,28 @@ const hostAccessBroker = createHostAccessBroker();
 // grant, the policy and the audit row are exactly where they were. Host-folder tools are also
 // server-dispatched: the selected Bot and the signed-in owner are bound here, then the desktop worker
 // receives only opaque grant ids and relative paths.
+/**
+ * What the lead of a team needs to look after its colleagues: the roster, their routines, the inbox
+ * its requests go to, and the desk for asking one of them for work.
+ */
+const teamToolDependencies = {
+  profiles: agentProfileStore,
+  routines: routineStore,
+  approvals: approvalStore,
+  memories: memoryStore,
+  ...(config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0
+    ? { handoff: handoffDesk }
+    : {}),
+  auditStore: bootAuditStore,
+};
+
 const loadToolsForActor =
   (actorId: string, initiator: AuditInitiator = PERSON_INITIATOR) =>
   async (botId: string) => [
     ...(await grantedTools({ store: pluginStore, botId, actorId, initiator })),
+    // Only the lead of the team, and only for its own owner; empty for everybody else.
+    ...(await teamTools({ deps: teamToolDependencies, botId, actorId })),
+    ...memoryTools({ store: memoryStore, botId, actorId }),
     ...hostAccessTools({
       broker: hostAccessBroker,
       botId,
@@ -1470,7 +1516,34 @@ const app = createApp(
   // desktop worker must authenticate with a fresh token for this run.
   hostAccessBroker,
   process.env.OPENBOT_DESKTOP_HOST_TOKEN,
-  async ({ name, args, botId, actorId, initiator }) => {
+  async ({ name, args, botId, actorId, initiator, run }) => {
+    if (name.startsWith("team_")) {
+      // Built per call, with the signed run, so asking a colleague knows which conversation it is in.
+      const tool = (
+        await teamTools({ deps: teamToolDependencies, botId, actorId, run })
+      ).find((candidate) => candidate.name === name);
+      if (!tool) {
+        return {
+          text: `${REFUSAL_MARKER} That tool is not available to this digital employee.`,
+          isError: true,
+        };
+      }
+      const text = await tool.execute(args);
+      return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    }
+    if (name.startsWith("memory_")) {
+      const tool = memoryTools({ store: memoryStore, botId, actorId }).find(
+        (candidate) => candidate.name === name,
+      );
+      if (!tool) {
+        return {
+          text: `${REFUSAL_MARKER} That tool is not available to this digital employee.`,
+          isError: true,
+        };
+      }
+      const text = await tool.execute(args);
+      return { text, isError: text.startsWith(REFUSAL_MARKER) };
+    }
     if (!name.startsWith("host_")) return null;
     const tool = hostAccessTools({
       broker: hostAccessBroker,
@@ -1590,6 +1663,10 @@ const app = createApp(
         extraHosts: config.webPush.allowedHosts,
       }
     : undefined,
+  // What a digital employee asked to change about another's work, waiting for its owner.
+  approvalStore,
+  // What each digital employee keeps in mind, for its owner to read and correct.
+  memoryStore,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

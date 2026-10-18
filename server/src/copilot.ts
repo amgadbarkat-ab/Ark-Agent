@@ -126,6 +126,8 @@ export type AgentStandingProfile = {
    * `agents/team.ts`; built where the roster is read, so this stays a pure function of its argument.
    */
   team?: string | null;
+  /** What it keeps in mind between conversations, as a paragraph, or null. See `memories/store.ts`. */
+  memory?: string | null;
 };
 
 /**
@@ -146,6 +148,7 @@ export function standingRoleMessage(
       `You are ${profile.name}, ${profile.title}.`,
       profile.persona?.trim() ? profile.persona : profile.roleDescription,
       ...(profile.team ? [profile.team] : []),
+      ...(profile.memory ? [profile.memory] : []),
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
       /*
        * Here rather than in the package, because for a remote Bot the standing role is the only
@@ -235,6 +238,7 @@ type RuntimeAgentRow = {
   roleDescription: string;
   persona?: string | null;
   team?: string | null;
+  memory?: string | null;
 };
 
 export function registeredAgentFromRow(
@@ -255,9 +259,9 @@ export function registeredAgentFromRow(
           type: "built_in",
           // The team rides with the instruction it was written for, since a built-in digital employee
           // has no standing role message to carry it.
-          systemPrompt: row.team
-            ? `${trimmedSystemPrompt}\n\n${row.team}`
-            : trimmedSystemPrompt,
+          systemPrompt: [trimmedSystemPrompt, row.team, row.memory]
+            .filter(Boolean)
+            .join("\n\n"),
         }
       : null;
   }

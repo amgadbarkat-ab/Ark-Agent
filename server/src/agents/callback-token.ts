@@ -213,7 +213,14 @@ function readInitiator(value: unknown): AuditInitiator {
 }
 
 export type CallVerdict =
-  | { ok: true; botId: string; actorId: string; initiator?: AuditInitiator }
+  | {
+      ok: true;
+      botId: string;
+      actorId: string;
+      initiator?: AuditInitiator;
+      /** The whole signed assertion, for the calls that need to know which run and conversation. */
+      run: RunAssertion;
+    }
   | { ok: false; status: 401 | 403; reason: string };
 
 /**
@@ -344,5 +351,6 @@ export async function authoriseAgentCall(options: {
     botId: assertion.botId,
     actorId: assertion.actorId,
     initiator: assertion.initiator,
+    run: assertion,
   };
 }

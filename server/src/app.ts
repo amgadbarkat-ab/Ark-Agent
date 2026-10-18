@@ -6,6 +6,7 @@ import { MAX_IMAGE_BYTES } from "../../shared/attachments";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
+  type RunAssertion,
   sameToken,
 } from "./agents/callback-token";
 import type { BotAccessCheck } from "./agents/profile-policy";
@@ -85,6 +86,10 @@ import {
   type ModelProviderProxy,
   mountProviderOAuthProxy,
 } from "./provider-oauth";
+import { createApprovalRoutes } from "./approvals/routes";
+import type { ApprovalStore } from "./approvals/store";
+import { createMemoryRoutes } from "./memories/routes";
+import type { MemoryStore } from "./memories/store";
 import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
@@ -176,6 +181,8 @@ export type DeploymentToolCaller = (input: {
   botId: string;
   actorId: string;
   initiator?: AuditInitiator;
+  /** The signed run this call belongs to: which run, which conversation, how deep. */
+  run?: RunAssertion;
 }) => Promise<{ text: string; isError: boolean } | null>;
 
 async function recordPersonEvent(
@@ -425,6 +432,16 @@ export function createApp(
    * Absent answers `/api/push` with `enabled: false`, which is how the app knows not to offer them.
    */
   push?: Omit<Parameters<typeof pushRoutes>[0], "requireUser">,
+  /**
+   * Changes a digital employee asked to make to another's work, waiting for its owner. Appended last,
+   * for the positional reason above. Absent leaves `/api/approvals` unmounted.
+   */
+  approvals?: ApprovalStore,
+  /**
+   * What each digital employee keeps in mind. Appended last, for the positional reason above. Absent
+   * leaves `/api/agents/:agentId/memories` unmounted.
+   */
+  memories?: MemoryStore,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1757,6 +1774,17 @@ export function createApp(
     );
   }
 
+  if (approvals) {
+    app.route("/api/approvals", createApprovalRoutes(approvals, requireUser));
+  }
+
+  if (memories) {
+    app.route(
+      "/api/agents/:agentId/memories",
+      createMemoryRoutes(memories, requireUser),
+    );
+  }
+
   if (routineStore) {
     app.route("/api/routines", createRoutineRoutes(routineStore, requireUser));
   }
@@ -1894,6 +1922,7 @@ export function createApp(
           botId: verdict.botId,
           actorId: verdict.actorId,
           initiator: verdict.initiator,
+          run: verdict.run,
         });
         if (deploymentResult) return context.json(deploymentResult);
 

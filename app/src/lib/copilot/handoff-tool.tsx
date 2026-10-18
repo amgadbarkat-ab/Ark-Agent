@@ -35,44 +35,87 @@ function refused(result: unknown): boolean {
   return !saidItWentAhead(result, HANDED_OVER);
 }
 
+/** A team member asked for work by name. Same line as a hand-off, the colleague being named differently. */
+const teamAskParameters = z.object({
+  colleague: z.string().optional(),
+  task: z.string().optional(),
+  constraints: z.string().optional(),
+  expecting: z.string().optional(),
+});
+
+function AskedLine({
+  asked,
+  given,
+  result,
+  status,
+}: {
+  asked: string | undefined;
+  given:
+    | { task?: string; constraints?: string; expecting?: string }
+    | undefined;
+  result: unknown;
+  status: string;
+}) {
+  const running = status !== "complete" && result === undefined;
+  return (
+    <ToolLine
+      label={asked ? `Asked ${asked}` : "Asked another digital employee"}
+      detail={given?.task}
+      running={running}
+      refused={!running && refused(result)}
+    >
+      {/*
+       * The parts, kept as parts. The asking model was made to name them so the receiving one
+       * need not infer them, and a person reading the conversation gets the same benefit: what
+       * was asked, what bounded it, and what was wanted back.
+       */}
+      <div className="space-y-1 text-sm">
+        {given?.task ? <p>{given.task}</p> : null}
+        {given?.constraints ? (
+          <p className="text-muted-foreground">
+            Constraints: {given.constraints}
+          </p>
+        ) : null}
+        {given?.expecting ? (
+          <p className="text-muted-foreground">
+            Wanted back: {given.expecting}
+          </p>
+        ) : null}
+        {typeof result === "string" ? (
+          <p className="text-muted-foreground">{result}</p>
+        ) : null}
+      </div>
+    </ToolLine>
+  );
+}
+
 export function HandoffTool() {
   useRenderTool({
     name: "message_bot",
     parameters,
-    render: ({ parameters: given, result, status }) => {
-      const asked = given?.bot?.trim();
-      const running = status !== "complete" && result === undefined;
-      return (
-        <ToolLine
-          label={asked ? `Asked ${asked}` : "Asked another digital employee"}
-          detail={given?.task}
-          running={running}
-          refused={!running && refused(result)}
-        >
-          {/*
-           * The parts, kept as parts. The asking model was made to name them so the receiving one
-           * need not infer them, and a person reading the conversation gets the same benefit: what
-           * was asked, what bounded it, and what was wanted back.
-           */}
-          <div className="space-y-1 text-sm">
-            {given?.task ? <p>{given.task}</p> : null}
-            {given?.constraints ? (
-              <p className="text-muted-foreground">
-                Constraints: {given.constraints}
-              </p>
-            ) : null}
-            {given?.expecting ? (
-              <p className="text-muted-foreground">
-                Wanted back: {given.expecting}
-              </p>
-            ) : null}
-            {typeof result === "string" ? (
-              <p className="text-muted-foreground">{result}</p>
-            ) : null}
-          </div>
-        </ToolLine>
-      );
-    },
+    render: ({ parameters: given, result, status }) => (
+      <AskedLine
+        asked={given?.bot?.trim()}
+        given={given}
+        result={result}
+        status={status}
+      />
+    ),
+  });
+
+  // The team's own way of asking a colleague. Rendered the same, because to the person it is the same
+  // thing: a digital employee bringing in another.
+  useRenderTool({
+    name: "team_ask",
+    parameters: teamAskParameters,
+    render: ({ parameters: given, result, status }) => (
+      <AskedLine
+        asked={given?.colleague?.trim()}
+        given={given}
+        result={result}
+        status={status}
+      />
+    ),
   });
 
   return null;

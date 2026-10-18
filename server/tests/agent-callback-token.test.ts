@@ -120,11 +120,13 @@ describe("who may call a tool back, and as whom", () => {
     });
 
   test("allows an agent to act as the digital employee its token was issued for", async () => {
-    expect(await call(tokenA, runForA())).toEqual({
+    expect(await call(tokenA, runForA())).toMatchObject({
       ok: true,
       botId: AGENT_A,
       actorId: "visitor_9",
       initiator: { kind: "person" },
+      // The whole signed run, for the calls that need to know which conversation they are in.
+      run: { botId: AGENT_A, actorId: "visitor_9" },
     });
   });
 
@@ -173,7 +175,9 @@ describe("who may call a tool back, and as whom", () => {
 
   test("accepts the deployment-wide token, and still takes identity from the assertion", async () => {
     // The Bots in the box are configured with it. It authenticates; it does not assert.
-    expect(await call("legacy-secret", runForA(), "legacy-secret")).toEqual({
+    expect(
+      await call("legacy-secret", runForA(), "legacy-secret"),
+    ).toMatchObject({
       ok: true,
       botId: AGENT_A,
       actorId: "visitor_9",

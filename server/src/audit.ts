@@ -402,6 +402,20 @@ export const auditEventTypes = [
   "bot.icon_changed",
   "bot.primary_changed",
 
+  /* A change one digital employee asked for, and what its owner decided. */
+  "approval.requested",
+  "approval.approved",
+  "approval.rejected",
+  "approval.failed",
+
+  /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
+  "team.action",
+
+  /* What a digital employee keeps in mind: added, changed, deleted. The text itself is never written here. */
+  "memory.added",
+  "memory.changed",
+  "memory.deleted",
+
   /*
    * One Bot handing work to another.
    *

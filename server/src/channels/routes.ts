@@ -174,6 +174,16 @@ export type ChannelStore = {
    * would look for the answer.
    */
   direct(actor: AgentActor, agentId: string): Promise<AgentChannel>;
+  /**
+   * The one channel this person has with their whole team, made if they have not had one, and kept
+   * in step with who is on the team now.
+   *
+   * Everyone they own is a member: the lead answers the person, and the others answer when the lead
+   * asks them (or when they ask each other), in this same conversation. Found by what the channel is
+   * rather than by who is in it, so a newly added colleague joins it and a deleted one leaves it,
+   * instead of a second team channel appearing each time the team changes.
+   */
+  team(actor: AgentActor): Promise<AgentChannel>;
   get(actor: AgentActor, channelId: string): Promise<AgentChannel | null>;
   list(actor: AgentActor, query?: ChannelQuery): Promise<ChannelPage>;
   /** Pin or unpin the caller's own membership. Throws ChannelNotFoundError for a non-member. */
@@ -226,6 +236,20 @@ export type ChannelStore = {
 };
 
 const PRIVATE_AGENT_CHANNEL_DESCRIPTION = "Private agent channel.";
+
+/** What marks the one channel a person has with their whole team, so it can be found again. */
+const TEAM_CHANNEL_DESCRIPTION =
+  "A channel with the whole team of digital employees.";
+
+/** A team needs somebody besides the lead. */
+export class TeamTooSmallError extends Error {
+  constructor() {
+    super(
+      "A team channel needs at least two digital employees. Add another and try again.",
+    );
+    this.name = "TeamTooSmallError";
+  }
+}
 const MAX_CHANNEL_NAME_CODE_POINTS = 120;
 const MAX_ACTIVITY_GRAPHEMES = 200;
 
@@ -259,6 +283,8 @@ export function createChannelStore(
     transaction: ChannelTransaction,
     actor: AgentActor,
     agentIds: string[],
+    /** Only the team channel sets these; every other channel is named from its agents. */
+    kind?: { name: string; description: string },
   ): Promise<AgentChannel> => {
     // Validated on this transaction, not through `profileStore.get`: the read has to share
     // the connection this transaction already holds, and has to hold the profile so an agent
@@ -278,18 +304,20 @@ export function createChannelStore(
     // in a project that may hold more than one. See thread-identity.ts.
     const threadId = threadIdentity.mint();
     // Named from the caller's ordering, which is the order the channel presents its agents in.
-    const name = channelName(
-      agentIds.map((agentId) => {
-        const profile = profilesById.get(agentId);
-        if (!profile) throw new AgentNotFoundError(agentId);
-        return profile.name;
-      }),
-    );
+    const name =
+      kind?.name ??
+      channelName(
+        agentIds.map((agentId) => {
+          const profile = profilesById.get(agentId);
+          if (!profile) throw new AgentNotFoundError(agentId);
+          return profile.name;
+        }),
+      );
 
     await transaction.insert(channels).values({
       id,
       name,
-      description: PRIVATE_AGENT_CHANNEL_DESCRIPTION,
+      description: kind?.description ?? PRIVATE_AGENT_CHANNEL_DESCRIPTION,
     });
     await transaction.insert(channelMemberships).values({
       channelId: id,
@@ -380,6 +408,93 @@ export function createChannelStore(
       return channel ?? store.create(actor, [agentId]);
     },
 
+    async team(actor) {
+      const found = await database.transaction(
+        async (transaction) => {
+          // One at a time per person, for the reason `direct` is: finding and then making is not
+          // find-or-create, and two opens at once must not leave a person with two team channels.
+          await transaction.execute(
+            sql`select pg_advisory_xact_lock(hashtext(${`channel:team:${actor.id}`}))`,
+          );
+          // The person's own digital employees, the lead first. Someone else's shared employee is
+          // not on their team, whatever they can see.
+          const members = await transaction
+            .select({ id: agentProfiles.agentId })
+            .from(agentProfiles)
+            .where(
+              and(
+                eq(agentProfiles.ownerUserId, actor.id),
+                isNull(agentProfiles.deletedAt),
+              ),
+            )
+            .orderBy(desc(agentProfiles.isPrimary), asc(agentProfiles.agentId));
+          if (members.length < 2) throw new TeamTooSmallError();
+          const teamIds = members.map((member) => member.id);
+
+          const [existing] = await transaction
+            .select({ id: channels.id })
+            .from(channels)
+            .innerJoin(
+              channelMemberships,
+              and(
+                eq(channelMemberships.channelId, channels.id),
+                eq(channelMemberships.userId, actor.id),
+              ),
+            )
+            .where(
+              and(
+                isNull(channels.deletedAt),
+                eq(channels.description, TEAM_CHANNEL_DESCRIPTION),
+              ),
+            )
+            .orderBy(...ROSTER_ORDER)
+            .limit(1);
+          if (!existing) {
+            return (
+              await makeChannel(transaction, actor, teamIds, {
+                name: "Your team",
+                description: TEAM_CHANNEL_DESCRIPTION,
+              })
+            ).id;
+          }
+
+          // Kept in step with the team as it is now.
+          const current = (
+            await transaction
+              .select({ agentId: channelAgents.agentId })
+              .from(channelAgents)
+              .where(eq(channelAgents.channelId, existing.id))
+          ).map((row) => row.agentId);
+          const joining = teamIds.filter((id) => !current.includes(id));
+          if (joining.length > 0) {
+            await transaction
+              .insert(channelAgents)
+              .values(
+                joining.map((agentId) => ({ channelId: existing.id, agentId })),
+              );
+          }
+          const leaving = current.filter((id) => !teamIds.includes(id));
+          if (leaving.length > 0) {
+            await transaction
+              .delete(channelAgents)
+              .where(
+                and(
+                  eq(channelAgents.channelId, existing.id),
+                  inArray(channelAgents.agentId, leaving),
+                ),
+              );
+          }
+          return existing.id;
+        },
+        { isolationLevel: "read committed" },
+      );
+
+      if (typeof found !== "string") return found;
+      const channel = await store.get(actor, found);
+      if (!channel) throw new AgentNotFoundError(found);
+      return channel;
+    },
+
     async get(actor, channelId) {
       const rows = await database
         .select({
@@ -411,7 +526,9 @@ export function createChannelStore(
           eq(agentProfiles.agentId, channelAgents.agentId),
         )
         .where(and(eq(channels.id, channelId), isNull(channels.deletedAt)))
-        .orderBy(asc(channelAgents.agentId));
+        // The lead of the person's team first, so the one a conversation runs on is `agentIds[0]`
+        // wherever a channel holds more than one. Everything else keeps the order it always had.
+        .orderBy(desc(agentProfiles.isPrimary), asc(channelAgents.agentId));
 
       const first = rows[0];
       if (!first) return null;
@@ -529,7 +646,11 @@ export function createChannelStore(
           ),
         )
         // The same order the page was chosen in, since the rows below are read in order.
-        .orderBy(...ROSTER_ORDER, asc(channelAgents.agentId));
+        .orderBy(
+          ...ROSTER_ORDER,
+          desc(agentProfiles.isPrimary),
+          asc(channelAgents.agentId),
+        );
 
       // One row per channel-agent pair; the ordering above keeps each channel's rows together and
       // its agents in the same lexicographic order `get` returns.
@@ -1077,6 +1198,19 @@ export function createChannelRoutes(
       );
       return context.json({ channel: channelDto(channel) }, 201);
     } catch (error) {
+      return mapStoreError(context, error);
+    }
+  });
+
+  // The one channel with the person's whole team. Before "/:channelId" routes, so "team" is never an id.
+  routes.post("/team", requireUser, async (context) => {
+    try {
+      const channel = await store.team(context.var.actor);
+      return context.json({ channel: channelDto(channel) });
+    } catch (error) {
+      if (error instanceof TeamTooSmallError) {
+        return context.json({ error: error.message }, 409);
+      }
       return mapStoreError(context, error);
     }
   });
