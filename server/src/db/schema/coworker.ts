@@ -4,6 +4,7 @@
  * Split by owner so two people can add tables all day without touching the same lines. Add tables
  * here; never edit core.ts or computer.ts to do it.
  */
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -12,6 +13,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { agents, users } from "./core";
@@ -53,6 +55,12 @@ export const agentProfiles = pgTable(
      * any message is routed. Null means the role description is the whole instruction, as it always was.
      */
     persona: text("persona"),
+    /**
+     * Whether this is the digital employee that leads its owner's team: the first one they made, or the
+     * one they chose since. At most one per person (see the index below), and a person's own employees
+     * only, so a platform employee is never primary.
+     */
+    isPrimary: boolean("is_primary").notNull().default(false),
     visibility: agentVisibility("visibility").notNull(),
     /**
      * Whose account this coworker belongs to. Null for the platform's own (the ones a deployment
@@ -97,6 +105,9 @@ export const agentProfiles = pgTable(
       table.deletedAt,
     ),
     index("agent_profiles_tenant_idx").on(table.tenantId),
+    uniqueIndex("agent_profiles_one_primary_per_owner")
+      .on(table.ownerUserId)
+      .where(sql`${table.isPrimary} and ${table.deletedAt} is null`),
   ],
 );
 

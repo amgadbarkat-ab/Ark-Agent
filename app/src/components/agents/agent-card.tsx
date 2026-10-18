@@ -46,6 +46,11 @@ export function AgentCard({
           title={agent.name}
         >
           {agent.name}
+          {agent.primary ? (
+            <span className="ml-1.5 rounded-full border border-border px-1.5 py-px align-middle text-[10px] font-normal text-muted-foreground">
+              Primary
+            </span>
+          ) : null}
         </span>
         <span className="line-clamp-2 break-words text-xs leading-4 text-muted-foreground">
           {agent.roleDescription}

@@ -273,6 +273,13 @@ describe("OpenBot database schema", () => {
         hasDefault: false,
         primary: false,
       },
+      // Whether it leads its owner's team. Defaults to no: the first one a person makes is set by the store.
+      {
+        name: "is_primary",
+        notNull: true,
+        hasDefault: true,
+        primary: false,
+      },
       {
         name: "visibility",
         notNull: true,
@@ -449,6 +456,13 @@ describe("OpenBot database schema", () => {
         name: "agent_profiles_tenant_idx",
         columns: ["tenant_id"],
         unique: false,
+        method: "btree",
+      },
+      // One lead per person, among employees that are not deleted. The partial predicate is the point.
+      {
+        name: "agent_profiles_one_primary_per_owner",
+        columns: ["owner_user_id"],
+        unique: true,
         method: "btree",
       },
     ]);

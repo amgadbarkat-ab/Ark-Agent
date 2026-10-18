@@ -58,6 +58,9 @@ at `agent-langgraph` on a laptop.
 | `GOOGLE_GENERATIVE_AI_BASE_URL` | unset                   | Google-compatible endpoint that key is spent against.               |
 | `BOT_MODEL`          | provider default from Bot code/env | Model for the framework Bot (`agent-langgraph`). Provider defaults are `gpt-5.5`, `claude-sonnet-4-5`, and `gemini-2.5-flash`. |
 | `AGENT_BOT_MODEL`    | `gpt-5.5`                          | Model for the proof-of-concept Bot (`agent-bot`), kept separate because it speaks `/v1/chat/completions` directly and refuses a model it cannot use. |
+| `BOT_HISTORY_TURNS`  | `12`                               | How many of the person's latest messages the built-in agent (`agent-bot`) shows the model each turn. `0` shows all of them. |
+| `BOT_HISTORY_CHARACTERS` | `60000`                        | Over this many characters (about four to a token) of conversation, the oldest turns are left out until it fits, keeping at least the latest. `0` turns the limit off. |
+| `BOT_TOOL_RESULT_CHARACTERS` | `2000`                     | Tool results from earlier turns are cut to this many characters. The turn being answered keeps its results whole. `0` turns the limit off. |
 | `BOT_RESPONSES_API`  | `false`                            | Makes `agent-langgraph` use the OpenAI Responses API.               |
 | `BOT_REASONING_EFFORT` | unset (provider default)         | OpenAI and the Responses API only: one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `agent-langgraph` refuses to start on any other value, on a non-`openai` provider, or without the Responses API. |
 | `AGENT_STALL_TIMEOUT_MS` | unset (off)                    | How long a Bot's stream may produce nothing before the turn is ended for it. |

@@ -22,6 +22,9 @@ import {
   type RunLocation,
 } from "./profile-types";
 
+/** The longest standing instruction a person may write for a digital employee. */
+export const MAX_INSTRUCTIONS = 8000;
+
 type AgentInputParseResult =
   | { ok: true; value: CreateAgentInput }
   | { ok: false; error: string };
@@ -30,6 +33,7 @@ type AgentInputObject = {
   name?: unknown;
   title?: unknown;
   roleDescription?: unknown;
+  persona?: unknown;
   visibility?: unknown;
   runLocation?: unknown;
   endpoint?: unknown;
@@ -73,6 +77,21 @@ export function parseAgentInput(
     "Role description must be text between 1 and 1000 characters.",
   );
   if (typeof roleDescription !== "string") return roleDescription;
+
+  // Optional. Absent leaves the instructions alone; empty clears them back to the role description.
+  let persona: string | null | undefined;
+  if (input.persona !== undefined) {
+    if (input.persona !== null && typeof input.persona !== "string") {
+      return { ok: false, error: "Instructions must be text." };
+    }
+    persona = input.persona?.trim() || null;
+    if (persona && persona.length > MAX_INSTRUCTIONS) {
+      return {
+        ok: false,
+        error: `Instructions must be ${MAX_INSTRUCTIONS} characters or fewer.`,
+      };
+    }
+  }
 
   if (typeof input.visibility !== "string") {
     return { ok: false, error: "Visibility must be public or private." };
@@ -144,6 +163,7 @@ export function parseAgentInput(
       name,
       title,
       roleDescription,
+      ...(persona !== undefined ? { persona } : {}),
       visibility,
       ...(runLocation ? { runLocation } : {}),
       endpoint,
@@ -519,7 +539,10 @@ export function createAgentRoutes(
         ...parsed.value,
         ...(parsed.value.endpoint
           ? {}
-          : { systemPrompt: parsed.value.roleDescription }),
+          : {
+              systemPrompt:
+                parsed.value.persona || parsed.value.roleDescription,
+            }),
       });
       /*
        * The endpoint, because that is where conversation content will be sent, and whether a key was
@@ -614,6 +637,24 @@ export function createAgentRoutes(
         null,
       );
       await record(context, "bot.icon_changed", agent.id, { custom: false });
+      return context.json({ agent: dto(context.var.actor, agent) });
+    } catch (error) {
+      return mapStoreError(context, error);
+    }
+  });
+
+  /*
+   * Which digital employee leads the team. The first one a person makes does so without being asked;
+   * this is how they choose another. Its own route for the same reason the picture has one: it is not a
+   * field of the edit form, and the audit trail should say what it was.
+   */
+  routes.post("/:agentId/primary", requireUser, async (context) => {
+    try {
+      const agent = await store.setPrimary(
+        context.var.actor,
+        context.req.param("agentId"),
+      );
+      await record(context, "bot.primary_changed", agent.id, {});
       return context.json({ agent: dto(context.var.actor, agent) });
     } catch (error) {
       return mapStoreError(context, error);
@@ -786,10 +827,13 @@ function agentDto(actor: AgentActor, agent: AgentProfile) {
     name: agent.name,
     title: agent.title,
     roleDescription: agent.roleDescription,
+    // The long instruction is for whoever may change it. Everyone else sees the role description.
+    persona: canManageAgent(actor, agent) ? agent.persona : null,
     avatarSeed: agent.avatarSeed,
     avatarImage: agent.avatarImage,
     visibility: agent.visibility,
     runLocation: agent.runLocation,
+    primary: agent.primary,
     hidden: agent.hidden,
     systemOwned: agent.systemOwned,
     // Published so the edit form can show it. Safe to expose: it is an address the person supplied,

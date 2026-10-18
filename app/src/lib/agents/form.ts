@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const INSTRUCTIONS_TOO_LONG = "Instructions must be 8000 characters or fewer.";
+
+/** The instructions field on its own, for the screen that edits just that. */
+export const instructionsSchema = z.string().max(8000, INSTRUCTIONS_TOO_LONG);
+
 /**
  * Browser-side coworker form contract. Limits match the server parser so validation errors can be
  * shown next to fields before submit.
@@ -20,6 +25,11 @@ export const agentFormSchema = z.object({
     .trim()
     .min(1, "Role description is required.")
     .max(1000, "Role description must be 1000 characters or fewer."),
+  /**
+   * The full standing instruction. Left out, an edit leaves it alone; empty clears it, which puts the
+   * role description back as the whole instruction.
+   */
+  persona: z.string().max(8000, INSTRUCTIONS_TOO_LONG).optional(),
   visibility: z.enum(["public", "private"]),
   /**
    * The AG-UI endpoint this coworker runs on. Empty means the Bot in the box.
@@ -62,6 +72,7 @@ export function agentInputFrom(values: AgentFormValues) {
     name: values.name,
     title: values.title,
     roleDescription: values.roleDescription,
+    ...(values.persona !== undefined ? { persona: values.persona } : {}),
     visibility: values.visibility,
     endpoint: values.endpoint,
     ...(values.runLocation ? { runLocation: values.runLocation } : {}),

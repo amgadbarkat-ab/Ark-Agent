@@ -14,6 +14,7 @@ import {
 } from "../db/schema";
 import { agentAuthHeaders, authFromConfiguration } from "./auth-header";
 import type { AgentActor } from "./profile-types";
+import { type TeamMember, teamGuidance } from "./team";
 
 /**
  * Read the agents one person may run, on every request.
@@ -47,8 +48,22 @@ export function createRuntimeAgentLoader(
     // A row whose configuration cannot be understood is skipped rather than mounted as a broken
     // agent. Tombstones are appended after, and never overwrite a live agent of the same id.
     const registered = new Map<string, RegisteredAgent>();
+    // The person's own digital employees, which is who each of them works with. Read from the rows
+    // already loaded, so a team costs no query; another person's employee shared with them is a
+    // colleague of that person's, not of theirs.
+    const team: TeamMember[] = active
+      .filter((row) => row.ownerUserId === actor.id)
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        title: row.title,
+        primary: row.isPrimary,
+      }));
     for (const row of active) {
-      const agent = registeredAgentFromRow(row);
+      const agent = registeredAgentFromRow({
+        ...row,
+        team: row.ownerUserId === actor.id ? teamGuidance(row, team) : null,
+      });
       if (!agent) continue;
       const isRemoteAgent =
         agent.type === "remote_ag_ui" || agent.type === "remote_mastra";
@@ -128,6 +143,8 @@ function selectActiveAgents(database: Database, actor: AgentActor) {
       title: agentProfiles.title,
       roleDescription: agentProfiles.roleDescription,
       persona: agentProfiles.persona,
+      ownerUserId: agentProfiles.ownerUserId,
+      isPrimary: agentProfiles.isPrimary,
     })
     .from(agents)
     .innerJoin(agentProfiles, eq(agentProfiles.agentId, agents.id))

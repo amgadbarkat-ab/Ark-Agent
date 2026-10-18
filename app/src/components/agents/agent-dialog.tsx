@@ -64,11 +64,13 @@ import {
   type AgentFormValues,
   agentFormSchema,
   agentInputFrom,
+  instructionsSchema,
 } from "@/lib/agents/form";
 import {
   deleteAgentMutationOptions,
   duplicateAgentMutationOptions,
   setAgentHiddenMutationOptions,
+  setPrimaryAgentMutationOptions,
   updateAgentMutationOptions,
 } from "@/lib/agents/mutations";
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
@@ -309,6 +311,18 @@ function GeneralSection({
           schema={agentFormSchema.shape.roleDescription}
           value={profile.roleDescription}
         />
+        {profile.canManage && !profile.systemOwned ? (
+          <EditableTextItem
+            canManage
+            label="Instructions"
+            multiline
+            onSave={(persona) => save({ persona })}
+            placeholder="Using the role above"
+            schema={instructionsSchema}
+            value={profile.persona ?? ""}
+          />
+        ) : null}
+        <PrimaryItem agentId={agentId} profile={profile} />
         <VisibilityItem
           canManage={profile.canManage}
           onSave={(visibility) => save({ visibility })}
@@ -357,6 +371,54 @@ function GeneralSection({
 }
 
 /**
+ * Whether this digital employee leads the team, and the way to make it so.
+ *
+ * Only its owner can choose, and never for a platform employee, which has no team to lead.
+ */
+function PrimaryItem({
+  agentId,
+  profile,
+}: {
+  agentId: string;
+  profile: AgentProfile;
+}) {
+  const queryClient = useQueryClient();
+  const makePrimary = useMutation(setPrimaryAgentMutationOptions(queryClient));
+  if (profile.systemOwned || !profile.mine) return null;
+  return (
+    <Item variant="muted">
+      <ItemContent>
+        <ItemTitle>Primary digital employee</ItemTitle>
+        <ItemDescription>
+          {profile.primary
+            ? "Leads your team. The others know it is the lead, and when a request spans several roles it is the one to ask."
+            : "Your team has another lead. Make this one the lead instead."}
+        </ItemDescription>
+        {makePrimary.error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {makePrimary.error.message}
+          </p>
+        ) : null}
+      </ItemContent>
+      <ItemActions>
+        {profile.primary ? (
+          <span className="text-sm text-muted-foreground">Primary</span>
+        ) : (
+          <Button
+            disabled={makePrimary.isPending}
+            onClick={() => makePrimary.mutate(agentId)}
+            size="sm"
+            variant="outline"
+          >
+            Make primary
+          </Button>
+        )}
+      </ItemActions>
+    </Item>
+  );
+}
+
+/**
  * One fact about the coworker, edited in place.
  *
  * Only the field somebody wants to change opens: Edit swaps this item — and this item alone — for
@@ -369,6 +431,7 @@ function EditableTextItem({
   multiline = false,
   schema,
   onSave,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -378,6 +441,8 @@ function EditableTextItem({
   /** The field's slice of the shared form contract, so errors match the server's limits. */
   schema: ZodType<string>;
   onSave: (draft: string) => Promise<unknown>;
+  /** Shown, muted, in place of an empty value. */
+  placeholder?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -417,7 +482,7 @@ function EditableTextItem({
               multiline ? "line-clamp-2 whitespace-pre-wrap" : "truncate"
             }`}
           >
-            {value}
+            {value || placeholder}
           </span>
           {canManage ? (
             <Button

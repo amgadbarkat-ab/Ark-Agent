@@ -121,6 +121,11 @@ export type AgentStandingProfile = {
   roleDescription: string;
   /** The full instruction, when the digital employee has one. It is sent in place of the role description. */
   persona?: string | null;
+  /**
+   * What it is told about the colleagues it works with, or null when it works alone. See
+   * `agents/team.ts`; built where the roster is read, so this stays a pure function of its argument.
+   */
+  team?: string | null;
 };
 
 /**
@@ -140,6 +145,7 @@ export function standingRoleMessage(
     content: [
       `You are ${profile.name}, ${profile.title}.`,
       profile.persona?.trim() ? profile.persona : profile.roleDescription,
+      ...(profile.team ? [profile.team] : []),
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
       /*
        * Here rather than in the package, because for a remote Bot the standing role is the only
@@ -228,6 +234,7 @@ type RuntimeAgentRow = {
   title: string;
   roleDescription: string;
   persona?: string | null;
+  team?: string | null;
 };
 
 export function registeredAgentFromRow(
@@ -246,7 +253,11 @@ export function registeredAgentFromRow(
           id: row.id,
           name: row.name,
           type: "built_in",
-          systemPrompt: trimmedSystemPrompt,
+          // The team rides with the instruction it was written for, since a built-in digital employee
+          // has no standing role message to carry it.
+          systemPrompt: row.team
+            ? `${trimmedSystemPrompt}\n\n${row.team}`
+            : trimmedSystemPrompt,
         }
       : null;
   }

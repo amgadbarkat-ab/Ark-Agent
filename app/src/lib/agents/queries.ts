@@ -42,6 +42,10 @@ export type AgentProfile = {
    * surface needs this only to decide between offering "generate" and "rotate".
    */
   hasCallbackToken: boolean;
+  /** Whether this one leads its owner's team. Absent from a server that predates teams. */
+  primary?: boolean;
+  /** The long standing instruction, for the people who may change it. Null when it has none. */
+  persona?: string | null;
   hidden: boolean;
   systemOwned: boolean;
   canManage: boolean;

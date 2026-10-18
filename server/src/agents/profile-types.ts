@@ -19,12 +19,23 @@ export type AgentProfile = {
   name: string;
   title: string;
   roleDescription: string;
+  /**
+   * The full standing instruction, when it has one longer than the role description: what a
+   * marketplace install writes, or what its owner wrote in Instructions. Null means the role description
+   * is the whole of it. Only for people who may manage the employee; see `agentDto`.
+   */
+  persona: string | null;
   avatarSeed: string;
   /** The picture its owner chose, as a small `data:` image, or null for the default. */
   avatarImage: string | null;
   visibility: AgentVisibility;
   runLocation: RunLocation;
   ownerUserId: string | null;
+  /**
+   * Whether this is the digital employee that leads its owner's team: the first one they made, or the
+   * one they chose since. One per person; never true for a platform employee.
+   */
+  primary: boolean;
   systemOwned: boolean;
   hidden: boolean;
   deletedAt: Date | null;
@@ -47,6 +58,11 @@ export type CreateAgentInput = Pick<
 > & {
   /** Where it runs. Absent on a create is the cloud, and on an update leaves it where it is. */
   runLocation?: RunLocation;
+  /**
+   * The full standing instruction. On an update, absent leaves it alone, text replaces it and null
+   * clears it, which puts the role description back as the whole instruction.
+   */
+  persona?: string | null;
   /**
    * The AG-UI endpoint this Bot runs on, or undefined for the one in the box.
    *

@@ -38,6 +38,8 @@ function profile(overrides: Partial<AgentProfile> = {}): AgentProfile {
     title: validInput.title,
     roleDescription: validInput.roleDescription,
     avatarSeed: "expense-manager",
+    persona: null,
+    primary: false,
     visibility: validInput.visibility,
     ownerUserId: actor.id,
     systemOwned: false,
@@ -109,6 +111,35 @@ function appFor(
 async function json(response: Response) {
   return response.json();
 }
+
+describe("agent input parser: instructions", () => {
+  const base = { ...validInput };
+
+  test("leaves them out when the form did not send them", () => {
+    const parsed = parseAgentInput(base);
+    expect(parsed.ok && "persona" in parsed.value).toBe(false);
+  });
+
+  test("keeps text, and turns empty into a request to clear", () => {
+    const set = parseAgentInput({ ...base, persona: "  Be brief.  " });
+    expect(set.ok && set.value.persona).toBe("Be brief.");
+    const cleared = parseAgentInput({ ...base, persona: "   " });
+    expect(cleared.ok && cleared.value.persona).toBeNull();
+    const nulled = parseAgentInput({ ...base, persona: null });
+    expect(nulled.ok && nulled.value.persona).toBeNull();
+  });
+
+  test("refuses what is not text and what is too long", () => {
+    expect(parseAgentInput({ ...base, persona: 5 })).toEqual({
+      ok: false,
+      error: "Instructions must be text.",
+    });
+    expect(parseAgentInput({ ...base, persona: "x".repeat(8001) })).toEqual({
+      ok: false,
+      error: "Instructions must be 8000 characters or fewer.",
+    });
+  });
+});
 
 describe("agent input parser", () => {
   test.each([[null], [[]], ["input"], [42], [true]])(
@@ -326,6 +357,58 @@ describe("agent lifecycle routes", () => {
     ]);
   });
 
+  test("the primary route makes the employee the lead and says so in the answer", async () => {
+    const store = fakeStore({
+      async setPrimary(receivedActor, id) {
+        store.calls.push(["setPrimary", receivedActor, id]);
+        return profile({ id, primary: true });
+      },
+    });
+    const response = await appFor(store).request("/agent-2/primary", {
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+    expect((await json(response)).agent.primary).toBe(true);
+    expect(store.calls).toEqual([["setPrimary", actor, "agent-2"]]);
+  });
+
+  test("the primary route answers a refusal the way every other write here does", async () => {
+    const store = fakeStore({
+      async setPrimary() {
+        throw new AgentNotManageableError("agent-2");
+      },
+    });
+    const response = await appFor(store).request("/agent-2/primary", {
+      method: "POST",
+    });
+    expect(response.status).toBe(403);
+  });
+
+  test("the long instruction is shown to whoever can change it and to nobody else", async () => {
+    const store = fakeStore({
+      async get(_receivedActor, id) {
+        return profile({
+          id,
+          persona: "Be brief.",
+          ownerUserId: "someone-else",
+        });
+      },
+    });
+    const app = appFor(store);
+    // A member who does not own it cannot change it, so does not see it.
+    expect(
+      (await json(await app.request("/agent-2"))).agent.persona,
+    ).toBeNull();
+    const owned = fakeStore({
+      async get(_receivedActor, id) {
+        return profile({ id, persona: "Be brief." });
+      },
+    });
+    expect(
+      (await json(await appFor(owned).request("/agent-2"))).agent.persona,
+    ).toBe("Be brief.");
+  });
+
   test("the icon route stores a checked picture, refuses an unchecked one, and clears it", async () => {
     const png = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 1]).toString("base64")}`;
     const store = fakeStore({
@@ -384,6 +467,8 @@ describe("agent lifecycle routes", () => {
           title: validInput.title,
           roleDescription: validInput.roleDescription,
           avatarSeed: "expense-manager",
+          persona: null,
+          primary: false,
           visibility: "private",
           hidden: false,
           systemOwned: false,
@@ -397,6 +482,8 @@ describe("agent lifecycle routes", () => {
           title: validInput.title,
           roleDescription: validInput.roleDescription,
           avatarSeed: "expense-manager",
+          persona: null,
+          primary: false,
           visibility: "private",
           hidden: false,
           systemOwned: false,
@@ -410,6 +497,8 @@ describe("agent lifecycle routes", () => {
           title: validInput.title,
           roleDescription: validInput.roleDescription,
           avatarSeed: "expense-manager",
+          persona: null,
+          primary: false,
           visibility: "public",
           hidden: false,
           systemOwned: true,
