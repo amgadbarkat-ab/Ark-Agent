@@ -28,7 +28,13 @@ const repositoryRoot = resolve(import.meta.dir, "..", "..");
 const chart = parse(
   await Bun.file(resolve(repositoryRoot, "charts/openbot/values.yaml")).text(),
 ) as {
-  config?: { handoff?: { maxDepth?: number; maxPerRun?: number } };
+  config?: {
+    handoff?: {
+      maxDepth?: number;
+      maxPerRun?: number;
+      maxPerRequest?: number;
+    };
+  };
 };
 
 const docs = await Bun.file(
@@ -42,6 +48,7 @@ describe("the handoff caps say the same thing everywhere", () => {
   test("the chart's values match the code's fallbacks", () => {
     expect(chart.config?.handoff?.maxDepth).toBe(code.maxDepth);
     expect(chart.config?.handoff?.maxPerRun).toBe(code.maxPerRun);
+    expect(chart.config?.handoff?.maxPerRequest).toBe(code.maxPerRequest);
   });
 
   /*
@@ -60,5 +67,8 @@ describe("the handoff caps say the same thing everywhere", () => {
       docs.split("\n").find((line) => line.includes(name)) ?? "";
     expect(row("BOT_HANDOFF_MAX_DEPTH")).toContain(`\`${code.maxDepth}\``);
     expect(row("BOT_HANDOFF_MAX_PER_RUN")).toContain(`\`${code.maxPerRun}\``);
+    expect(row("BOT_HANDOFF_MAX_PER_REQUEST")).toContain(
+      `\`${code.maxPerRequest}\``,
+    );
   });
 });

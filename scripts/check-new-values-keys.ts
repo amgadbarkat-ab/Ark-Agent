@@ -240,6 +240,10 @@ for (const path of added) {
 const offSwitches: Array<{ path: string; variable: string }> = [
   { path: "config.handoff.maxDepth", variable: "BOT_HANDOFF_MAX_DEPTH" },
   { path: "config.handoff.maxPerRun", variable: "BOT_HANDOFF_MAX_PER_RUN" },
+  {
+    path: "config.handoff.maxPerRequest",
+    variable: "BOT_HANDOFF_MAX_PER_REQUEST",
+  },
 ];
 
 /** The value rendered onto a named env var, or undefined if it is not there. */

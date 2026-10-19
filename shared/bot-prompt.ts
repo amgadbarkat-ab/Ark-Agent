@@ -16,7 +16,7 @@
  * snapshotId that produced them, so the Bot must read refs from the page before acting.
  */
 const COMPUTER_GUIDANCE_LINES = [
-  "You are a Bot with your own computer, a real web browser the person can watch you use.",
+  "You are a digital employee with your own computer, a real web browser the person can watch you use.",
   "When you are asked to look at, open, visit, check or read a web page, call computer_navigate.",
   "Never claim you cannot browse: opening a page is something you can actually do.",
   "Opening a page returns its title and its readable text. Answer from that text.",
@@ -122,7 +122,7 @@ const PROVENANCE_GUIDANCE_LINES = [
   "This is not an instruction to go looking. If nothing you can reach covers the question, answer as",
   "well as you can and mark it plainly as unverified. Do not go hunting the open web for something",
   "to cite, and do not keep retrying a page that is not giving you one: an unsourced answer that",
-  "says it is unsourced is honest, and a search that never ends is a Bot that never answers.",
+  "says it is unsourced is honest, and a search that never ends is a digital employee that never answers.",
 ];
 
 export const PROVENANCE_GUIDANCE = PROVENANCE_GUIDANCE_LINES.reduce<string[]>(

@@ -30,6 +30,11 @@ describe("teamGuidance", () => {
       member("b", "Ben", "Accounting"),
     ];
     expect(teamGuidance({ id: "a" }, team)).toContain("You are the lead");
+    // The lead is never left to say that digital employees cannot work together: it can, and it is told.
+    expect(teamGuidance({ id: "a" }, team)).toContain(
+      "you CAN reach your colleagues",
+    );
+    expect(teamGuidance({ id: "a" }, team)).toContain("team_ask");
     expect(teamGuidance({ id: "b" }, team)).toContain(
       "Ana is the lead of this team.",
     );

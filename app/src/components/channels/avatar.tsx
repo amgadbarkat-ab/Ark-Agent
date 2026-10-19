@@ -1,12 +1,20 @@
-import Avatar from "boring-avatars";
+import { useQuery } from "@tanstack/react-query";
 import { memo } from "react";
+import { AbstractAvatar } from "@/components/agents/abstract-avatar";
+import { agentListQueryOptions } from "@/lib/agents/queries";
 import { cn } from "@/lib/utils";
 
 /**
  * Memoized roster avatar. Row updates usually change preview/timestamp only, and
  * `use-channel-events` preserves participant id arrays for unchanged rows.
  *
- * `size-full` opts the generated SVG out of ancestor icon selectors such as
+ * IT SHOWS THE DIGITAL EMPLOYEE'S OWN PICTURE, the one its owner chose or hired it with, and ArkAgent's
+ * icon until there is one. A generated pattern keyed on its id used to stand here, which is why every
+ * conversation in the list wore a different colour and none of them looked like the employee it was
+ * with. The picture comes from the same list the rest of the app reads, so changing it on the profile
+ * changes it here.
+ *
+ * `size-full` opts the picture out of ancestor icon selectors such as
  * `[&_svg:not([class*='size-'])]:size-4`.
  *
  * `typing` overlays a working indicator at the bottom-right — three bouncing dots, so a channel
@@ -21,11 +29,16 @@ export const ChannelAvatar = memo(function ChannelAvatar({
   size?: number;
   typing?: boolean;
 }) {
+  const { data: agents } = useQuery(agentListQueryOptions());
   const channelSize = participantIds?.length;
+  const faceOf = (id: string) => {
+    const agent = agents?.find((candidate) => candidate.id === id);
+    return { name: agent?.name ?? id, image: agent?.avatarImage ?? null };
+  };
 
   const avatar =
     channelSize === 1 ? (
-      <Avatar className="size-full" name={participantIds[0]} size={size} />
+      <AbstractAvatar {...faceOf(participantIds[0] as string)} size={size} />
     ) : (
       <div className="flex flex-row items-center size-full">
         {participantIds.slice(0, 3).map((c, i, shown) => (
@@ -38,11 +51,7 @@ export const ChannelAvatar = memo(function ChannelAvatar({
               transform: `translateX(${i * -75}%)`,
             }}
           >
-            <Avatar
-              className="size-full"
-              name={c}
-              size={size / (shown.length / 2)}
-            />
+            <AbstractAvatar {...faceOf(c)} size={size / (shown.length / 2)} />
           </div>
         ))}
       </div>

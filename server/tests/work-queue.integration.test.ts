@@ -423,6 +423,47 @@ describe("offering at most so many under one prefix", () => {
     );
   });
 
+  /*
+   * A whole request and one run inside it, both held at once. Offers from several runs of one request
+   * arrive together, and the request's number has to hold across them even though each run is well
+   * inside its own.
+   */
+  test("several prefixes are held to together, under concurrent offers", async () => {
+    const request = `${randomUUID()}:`;
+    const offers = await Promise.all(
+      ["a", "b", "c", "d", "e", "f"].map((run, index) =>
+        queue.offer({
+          kind,
+          key: `${request}${run}:${index}`,
+          atMost: [
+            { keyPrefix: `${request}${run}:`, max: 3 },
+            { keyPrefix: request, max: 4 },
+          ],
+        }),
+      ),
+    );
+    expect(offers.filter((result) => result === "queued")).toHaveLength(4);
+    expect(offers.filter((result) => result === "refused")).toHaveLength(2);
+
+    // The run's own number still holds inside the request's.
+    const run = `${randomUUID()}:`;
+    const request2 = `${randomUUID()}:`;
+    const results = [];
+    for (const word of ["one", "two", "three", "four"]) {
+      results.push(
+        await queue.offer({
+          kind,
+          key: `${request2}${run}${word}`,
+          atMost: [
+            { keyPrefix: `${request2}${run}`, max: 2 },
+            { keyPrefix: request2, max: 10 },
+          ],
+        }),
+      );
+    }
+    expect(results).toEqual(["queued", "queued", "refused", "refused"]);
+  });
+
   test("without a cap nothing is refused", async () => {
     const run = `${randomUUID()}:`;
     const results = await Promise.all(

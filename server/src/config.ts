@@ -159,16 +159,21 @@ export type ManagedAgentConfig = {
  * NUMBERS A DEPLOYMENT CHOOSES, not constants. A small team and a company running this across
  * departments want different answers, and neither should have to edit code to get one.
  *
- * Both defaults are deliberately mean. A hop costs a whole agent turn at the other end, fan-out
- * shapes cost several times a single run because each Bot spends its own full budget, and on a
- * cluster a hop to a Bot whose computer is asleep also pays a pod resume. One level of delegation is
- * what most systems allow by default, and a deployment that wants more can say so.
+ * The defaults let a team lead plan and hand on, and still stop. A hop costs a whole agent turn at the
+ * other end, fan-out shapes cost several times a single run because each Bot spends its own full
+ * budget, and on a cluster a hop to a Bot whose computer is asleep also pays a pod resume. Depth and
+ * width multiply, so the third number counts every hop one request of a person's causes.
  */
 export type HandoffCaps = {
   /** How many Bots deep a chain may go. `0` switches the whole capability off. */
   maxDepth: number;
   /** How many other Bots one run may address. */
   maxPerRun: number;
+  /**
+   * How many hops everything that starts from one request of a person's may make, however deep or
+   * wide it goes: the ceiling that stays true when the other two multiply.
+   */
+  maxPerRequest: number;
 };
 
 /** Where the app is served from on a developer's own machine, in every spelling a browser might use. */
@@ -473,9 +478,11 @@ function handoffCaps(environment: Environment): HandoffCaps {
     return value;
   };
   return {
-    // One level of delegation, which is what most systems allow before anybody asks for more.
-    maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 1),
+    // A lead can plan a few steps and a colleague can pass one on, and nothing goes round for ever:
+    // the third number is what stops depth and width multiplying into a bill nobody chose.
+    maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 5),
     maxPerRun: read("BOT_HANDOFF_MAX_PER_RUN", 3),
+    maxPerRequest: read("BOT_HANDOFF_MAX_PER_REQUEST", 20),
   };
 }
 

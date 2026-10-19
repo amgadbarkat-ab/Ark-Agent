@@ -393,10 +393,11 @@ A [Composio](plugins/composio.md) app needs `OPENBOT_APP_URL` and nothing else o
 
 | Variable                   | Meaning                                                                                     |
 | -------------------------- | ------------------------------------------------------------------------------------------- |
-| `BOT_HANDOFF_MAX_DEPTH`    | How many Bots deep a chain may go. `0` switches the capability off entirely. Default `1`.    |
+| `BOT_HANDOFF_MAX_DEPTH`    | How many Bots deep a chain may go. `0` switches the capability off entirely. Default `5`.    |
 | `BOT_HANDOFF_MAX_PER_RUN`  | How many other Bots one run may address. Default `3`.                                        |
+| `BOT_HANDOFF_MAX_PER_REQUEST` | How many hops everything one request of a person's may cause, however deep or wide. Default `20`. |
 
-Both refuse rather than truncate, and both are refused at start-up if they are not whole numbers of
+All three refuse rather than truncate, and all are refused at start-up if they are not whole numbers of
 zero or more: a deployment that typed `two` and silently got the default would believe it had set a
 cap.
 

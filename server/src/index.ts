@@ -860,11 +860,29 @@ const markAttachmentsSentForActor =
  */
 const signRunForActor =
   (actorId: string, initiator: AuditInitiator = PERSON_INITIATOR) =>
-  (botId: string, runId: string, threadId?: string) =>
-    mintRunAssertion(
-      { botId, actorId, runId, threadId, initiator },
+  (botId: string, runId: string, threadId?: string, handedOn?: unknown) => {
+    // How deep this run is, and which request it descends from, when it was handed work. Only the
+    // deployment's own signed statement for the same person counts; anything else is a run a person
+    // started, which is depth zero.
+    const from = readRunAssertion(handedOn, config.keyEncryptionKey);
+    const inherited = from?.actorId === actorId ? from : undefined;
+    return mintRunAssertion(
+      {
+        botId,
+        actorId,
+        runId,
+        threadId,
+        initiator,
+        ...(inherited
+          ? {
+              depth: inherited.depth ?? 0,
+              ...(inherited.request ? { request: inherited.request } : {}),
+            }
+          : {}),
+      },
       config.keyEncryptionKey,
     );
+  };
 
 /*
  * Which vendors this deployment connects to, held by a Bot or not.
@@ -1153,6 +1171,8 @@ const copilotRuntime = mountCopilotRuntime(
       // Read from the assertion for the reason `depth` is: the run is rebuilt from parts here, and
       // a field left out of this object is a field the desk and the escalation never see.
       initiator: from?.initiator ?? PERSON_INITIATOR,
+      // And the request the chain descends from, for the cap that holds a whole chain to one number.
+      ...(from?.request ? { request: from.request } : {}),
     };
     /*
      * The caps are checked BEFORE the grants query, not inside the tool that would discard it.

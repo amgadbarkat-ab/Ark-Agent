@@ -29,6 +29,8 @@ export type HandoffWork = {
   depth: number;
   /** What started the original run, preserved across queued delivery and relay hops. */
   initiator?: AuditInitiator;
+  /** The person's own request this hop descends from, preserved the same way. See `RunAssertion`. */
+  request?: string;
   task: string;
   constraints?: string;
   expecting?: string;
@@ -177,6 +179,7 @@ export function createHandoffRunner(options: {
         runId: work.runId,
         depth: work.depth,
         ...(work.initiator ? { initiator: work.initiator } : {}),
+        ...(work.request ? { request: work.request } : {}),
         answerIn: work.threadId,
         task: `You asked ${work.toName ?? work.toBotId} to help with this: ${work.task}\n\nIt answered:\n\n${clip(answer)}\n\nGive the person the outcome. Keep what matters, drop the pleasantries, and say it came from ${work.toName ?? work.toBotId}.`,
       } as unknown as Record<string, unknown>,
@@ -208,6 +211,7 @@ export function createHandoffRunner(options: {
         runId: work.runId,
         depth: work.depth,
         ...(work.initiator ? { initiator: work.initiator } : {}),
+        ...(work.request ? { request: work.request } : {}),
         answerIn: work.threadId,
         task: `You asked ${work.toBotId} to help with this and it never answered: ${forThePerson(reason)}. Tell the person plainly that it did not come back, say what you had asked it for, and offer what you can do yourself.`,
       } as unknown as Record<string, unknown>,

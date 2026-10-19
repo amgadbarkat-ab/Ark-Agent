@@ -293,6 +293,18 @@ describe("how deep a run is", () => {
     expect(readRunAssertion(mintRunAssertion(RUN, KEY), KEY)?.depth).toBe(0);
   });
 
+  test("the request a hop descends from travels in the signed statement", () => {
+    const signed = mintRunAssertion(
+      { ...RUN, depth: 2, request: "run-0" },
+      KEY,
+    );
+    expect(readRunAssertion(signed, KEY)?.request).toBe("run-0");
+    // A run a person started names no request, and reads as none.
+    expect(
+      readRunAssertion(mintRunAssertion(RUN, KEY), KEY)?.request,
+    ).toBeUndefined();
+  });
+
   /*
    * Read as zero rather than refused. The signature has already been checked, so this is a field
    * that predates the feature being absent rather than a caller lying, and the cap refuses on the
