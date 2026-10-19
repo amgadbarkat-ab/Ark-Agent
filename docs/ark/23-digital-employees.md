@@ -94,12 +94,19 @@ involves, in the same shape OpenBot describes (instructions, plus the connection
   `team_list` and `team_ask` only. A team of one is offered nothing.
 - **Asking without a grant.** The lead may ask the same person's other employees, and two employees of one person may ask
   each other in a conversation both are members of, without an administrator granting it: the person made one the lead, or
-  put them in the same room. The default chain depth is 1 (`BOT_HANDOFF_MAX_DEPTH`), so a colleague the lead asks cannot ask a
-  third; raise it to 2 to let them.
+  put them in the same room. The default chain depth is 5 (`BOT_HANDOFF_MAX_DEPTH`; it was 1 until release E), one run may
+  ask 3 colleagues (`BOT_HANDOFF_MAX_PER_RUN`), and everything one request of the person's causes, however deep or wide,
+  stops at 20 hops (`BOT_HANDOFF_MAX_PER_REQUEST`). A colleague's answer is relayed into the lead's conversation by running
+  the lead again at the hop's depth, so a lead planning one step after another can take about five steps in a row before the
+  depth limit tells it to answer with what it has. Depth and the request count travel in the signed statement of the run, and
+  from release E a run that was handed work signs its own statement from the one it arrived with, so a digital employee that
+  calls its tools back is counted at its real depth (before, it was counted at zero).
 - **The team channel.** `POST /api/channels/team` finds or makes the person's one channel with every digital employee they
   own, lead first, and keeps its members in step (a new colleague joins, a deleted one leaves). The Agents page has a "Team
-  channel" button for a person with two or more. The person talks to the lead; the lead asks colleagues, and their answers
-  arrive in the same conversation. Writing `@name` tells the lead who the person wants; the composer still sends to the lead.
+  channel" button for a person with two or more (release D left the channel unable to open; release E fixed that). The person
+  talks to the lead; the lead asks colleagues, and their answers arrive in the same conversation, in the lead's voice with the
+  colleague's name on it: a conversation has one speaker, so colleagues' own words come back through the lead, who
+  summarises. Writing `@name` tells the lead who the person wants; the composer still sends to the lead.
 - **Memories.** Each digital employee keeps up to 100 short memories (500 characters each); the newest 30 are in front of it
   at the start of every run. It adds with `memory_remember` and drops its own with `memory_forget`; its owner reads, adds,
   corrects and deletes on its Memories page; the lead can read a colleague's and ask, through Requests, to reword or delete
@@ -110,10 +117,21 @@ What is **not** verified: all of this is tested at the store, route and componen
 against a real model in a signed-in browser, because the build environment has neither. The first thing to do on a
 deployed copy is open the team channel with a lead and two colleagues and ask for something that spans two roles.
 
+## Why the lead said it could not talk to others (found in release E)
+
+A lead on the **Claude agent** framework answered "I don't have the ability to communicate with other bots". The framework's
+adapter (`ag-ui-claude-sdk`) reads only the last message of a run, so the role, the team paragraph and the list of tools never
+reached Claude, and it treated every offered tool, including `team_ask`, as the browser's to run. The Claude harness
+(`agent-claude-sdk/src/deployment.py`) now puts the role and team in the session's system prompt (a changed instruction is sent
+once, in front of the next message) and runs the deployment's tools through the same signed call-back the LangGraph harness
+uses. The default framework (LangGraph) was not affected. Tested at the adapter boundary with a fake Claude process; not run
+against Anthropic.
+
 ## Not done
 
-- A message `@`-mentioned to a colleague is not sent to that colleague directly; it goes to the lead, which asks them.
-- Colleagues talking to each other freely. They can ask each other in the team channel only when the chain depth allows.
+- A message `@`-mentioned to a colleague is not sent to that colleague directly; it goes to the lead, which asks them. A
+  conversation has one speaker, so colleagues post no progress of their own while they work: the lead relays each answer.
+- Colleagues talking to each other freely. They can ask each other in the team channel only within the depth and request limits.
 - Translations. The roles are in English; an employee answers in the language it is written to, but the instruction is English.
 - Anything that moves money, contacts a customer on its own, or reaches outside the building still waits for the owner's
   hand (docs/ark/01-product-decisions.md).
