@@ -1602,6 +1602,7 @@ const app = createApp(
     encryptionKey: config.keyEncryptionKey,
     fetchImpl: agentFetch,
     ...(starterModel ? { starter: starterModel } : {}),
+    ...(config.offlineModel ? { offline: config.offlineModel } : {}),
     // The roster the person talks to is the roster they may choose a model for.
     botVisible: async (actor, botId) =>
       (

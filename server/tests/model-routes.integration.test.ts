@@ -46,7 +46,13 @@ function fakeProvider(status = 200) {
 
 const trail: ModelAuditEvent[] = [];
 
-function appFor(userId: string | null, options: { hosted?: boolean } = {}) {
+function appFor(
+  userId: string | null,
+  options: {
+    hosted?: boolean;
+    offline?: { label: string; baseUrl: string; apiKey: string; model: string };
+  } = {},
+) {
   const allowPrivateHosts = !options.hosted;
   return new Hono().route(
     "/api/models",
@@ -63,6 +69,7 @@ function appFor(userId: string | null, options: { hosted?: boolean } = {}) {
       store,
       fetchImpl: createAgentFetch({ allowPrivateHosts }),
       allowPrivateHosts,
+      ...(options.offline ? { offline: options.offline } : {}),
       audit: async (event) => {
         trail.push(event);
       },
@@ -85,6 +92,75 @@ afterEach(async () => {
 afterAll(async () => {
   for (const server of servers) server.stop(true);
   await database.$client.close();
+});
+
+describe("GET /local", () => {
+  test("says what is actually running on this computer, and lists the model ArkAgent runs itself", async () => {
+    const ann = await person();
+    const up = fakeProvider();
+    const offline = {
+      label: "Gemma 4 12B",
+      baseUrl: `${up.url}/v1`,
+      apiKey: "key-for-the-model-on-this-computer",
+      model: "gemma-4-12b",
+    };
+    const answer = await (
+      await call(appFor(ann, { offline }), "GET", "/local")
+    ).json();
+    expect(answer.offline).toEqual({
+      label: "Gemma 4 12B",
+      model: "gemma-4-12b",
+      state: "running",
+    });
+    // It was asked with its own key, which is not in the answer.
+    expect(up.requests.at(-1)).toEqual({
+      path: "/v1/models",
+      authorization: "Bearer key-for-the-model-on-this-computer",
+    });
+    expect(JSON.stringify(answer)).not.toContain("key-for-the-model");
+    // Each program that can run models on this computer is asked at its usual address and reports
+    // one of two things, never a guess.
+    expect(
+      answer.servers.map((server: { providerId: string }) => server.providerId),
+    ).toEqual(["ollama", "lmstudio", "llamacpp"]);
+    for (const server of answer.servers) {
+      expect(["running", "stopped"]).toContain(server.state);
+    }
+  });
+
+  test("a model that is installed but not answering is said to be stopped", async () => {
+    const ann = await person();
+    const answer = await (
+      await call(
+        appFor(ann, {
+          offline: {
+            label: "Gemma 4 12B",
+            // Nothing listens on port 9, the discard port.
+            baseUrl: "http://127.0.0.1:9/v1",
+            apiKey: "no-key-needed",
+            model: "gemma-4-12b",
+          },
+        }),
+        "GET",
+        "/local",
+      )
+    ).json();
+    expect(answer.offline.state).toBe("stopped");
+  });
+
+  test("with no model of ArkAgent's own, there is none to list", async () => {
+    const ann = await person();
+    const answer = await (await call(appFor(ann), "GET", "/local")).json();
+    expect(answer.offline).toBeNull();
+  });
+
+  test("a hosted deployment has no 'this computer' to ask", async () => {
+    const ann = await person();
+    const answer = await (
+      await call(appFor(ann, { hosted: true }), "GET", "/local")
+    ).json();
+    expect(answer).toEqual({ offline: null, servers: [] });
+  });
 });
 
 describe("GET /providers", () => {

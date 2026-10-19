@@ -339,6 +339,14 @@ export type DeploymentConfig = {
    */
   starterModel?: StarterModelConfig;
   /**
+   * The model ArkAgent Desktop runs on this computer, when the person chose it.
+   *
+   * Only DESCRIBED here, for the Models screen: the run itself is the deployment's own model, which
+   * the desktop points at it with the ordinary `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `BOT_MODEL`.
+   * Absent is the ordinary state, and the only one for a hosted deployment.
+   */
+  offlineModel?: OfflineModelConfig;
+  /**
    * Where this deployment is reached from outside, with no trailing slash.
    *
    * Needed because an OAuth redirect URI has to match what an administrator registered with the
@@ -483,6 +491,44 @@ function handoffCaps(environment: Environment): HandoffCaps {
     maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 5),
     maxPerRun: read("BOT_HANDOFF_MAX_PER_RUN", 3),
     maxPerRequest: read("BOT_HANDOFF_MAX_PER_REQUEST", 20),
+  };
+}
+
+/** What the Models screen is told about the model ArkAgent runs on this computer. */
+export type OfflineModelConfig = {
+  /** What it is called to a person, such as "Gemma 4 12B". */
+  label: string;
+  baseUrl: string;
+  /** Only ever sent to that address, to ask whether it is up. Never to a browser. */
+  apiKey: string;
+  model: string;
+};
+
+/**
+ * The model ArkAgent runs on this computer, from `ARK_OFFLINE_MODEL_LABEL` and the deployment's own
+ * model settings, or nothing when the label is not set.
+ *
+ * Read from the settings the run already uses rather than copied into new ones, so what the screen says
+ * is running is what answers. A label with no address to ask is a mistake worth stopping on, for the
+ * reason the starter model's strays are: the screen would claim a model the deployment cannot reach.
+ */
+function offlineModelConfig(
+  environment: Environment,
+): OfflineModelConfig | undefined {
+  const label = optional(environment, "ARK_OFFLINE_MODEL_LABEL");
+  if (!label) return undefined;
+  const url = optionalHttpUrl(environment, "OPENAI_BASE_URL");
+  const model = optional(environment, "BOT_MODEL");
+  if (!url || !model) {
+    throw new Error(
+      "ARK_OFFLINE_MODEL_LABEL is set but OPENAI_BASE_URL and BOT_MODEL are not: set them, or remove the label.",
+    );
+  }
+  return {
+    label: label.slice(0, 80),
+    baseUrl: url.toString().replace(/\/+$/, ""),
+    apiKey: optional(environment, "OPENAI_API_KEY") ?? "",
+    model,
   };
 }
 
@@ -1712,6 +1758,7 @@ export function loadConfig(
     : undefined;
   const managedAgent = managedAgentConfig(environment);
   const starterModel = starterModelConfig(environment);
+  const offlineModel = offlineModelConfig(environment);
   const workerSharedSecret = optional(environment, "WORKER_SHARED_SECRET");
   const appUrl = (
     optional(environment, "OPENBOT_APP_URL") ??
@@ -1742,6 +1789,7 @@ export function loadConfig(
     deploymentId: optional(environment, "DEPLOYMENT_ID"),
     composioApiKey: optional(environment, "COMPOSIO_API_KEY"),
     ...(starterModel ? { starterModel } : {}),
+    ...(offlineModel ? { offlineModel } : {}),
     publicUrl: (
       optional(environment, "OPENBOT_PUBLIC_URL") ?? auth?.baseUrl
     )?.replace(/\/+$/, ""),
