@@ -44,6 +44,14 @@ const at = (...parts) => join(root, ...parts);
  */
 const ICON_CROP = { x: 240, y: 30, size: 560 };
 
+/**
+ * The same head, framed tighter, for the icons an operating system draws small: the taskbar, the dock, the
+ * tray, a launcher. In the owner's own framing the head fills about 80% of the square and the rest is dark
+ * background, which at 32 pixels is a small head in a large frame. This crop starts a few pixels left of the
+ * head and at its crown, so the head fills about nine tenths of the width.
+ */
+const TIGHT_CROP = { x: 276, y: 50, size: 500 };
+
 /** Where the character's head and shoulders are in the 864 by 1152 poster: a square of this side, from this corner. */
 const PORTRAIT_CROP = { x: 430, y: 74, size: 346 };
 
@@ -178,7 +186,14 @@ async function sourceBackground(page, source) {
 async function character(
   page,
   source,
-  { size, shape = "square", inset = 0, content = 1, background = null },
+  {
+    size,
+    shape = "square",
+    inset = 0,
+    content = 1,
+    background = null,
+    crop = TIGHT_CROP,
+  },
 ) {
   const values = await page.evaluate(
     async ({ encoded, crop, size, shape, inset, content, background }) => {
@@ -224,7 +239,7 @@ async function character(
     },
     {
       encoded: source.toString("base64"),
-      crop: ICON_CROP,
+      crop,
       size,
       shape,
       inset,
@@ -445,7 +460,7 @@ try {
       await character(page, source, {
         size: 1024,
         shape: "rounded",
-        inset: 0.06,
+        inset: 0.02,
       }),
       1024,
       true,
