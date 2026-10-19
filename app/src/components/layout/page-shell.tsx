@@ -110,7 +110,8 @@ export function PageShell({
        * Separate from the centred column below so the scrollbar rides the pane's edge instead of
        * appearing inside a 630px measure with content either side of it.
        */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1 overflow-y-auto">
+        <PageAura />
         <div
           className={cn(
             "mx-auto flex w-full flex-col px-4 pb-12",
@@ -121,8 +122,16 @@ export function PageShell({
           )}
         >
           <header className="flex flex-col gap-2">
+            {/*
+             * The company's ember rule over every page's title: the one mark of the identity that is on
+             * every configuration screen, whatever it is about. Decoration, so it is not announced.
+             */}
+            <span
+              aria-hidden="true"
+              className="mb-1 h-1 w-9 rounded-full bg-[image:var(--ember-gradient)]"
+            />
             <div className="flex flex-row items-center justify-between gap-4">
-              <h1 className="font-bold text-2xl">{title}</h1>
+              <h1 className="font-bold text-2xl tracking-tight">{title}</h1>
               {action}
             </div>
             {description ? (
@@ -135,6 +144,42 @@ export function PageShell({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The company's light behind every configuration page's title: an ember glow from the top right and the
+ * company's three-bar tile, very faint, drawn large in the corner.
+ *
+ * It is the one thing that makes a settings page look like it belongs to this company and not to any
+ * product that happens to be dark. Decoration only: it takes no clicks, is not announced, and sits
+ * behind the content, so no row's contrast depends on it.
+ */
+function PageAura() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-0 top-0 h-72 overflow-hidden"
+    >
+      <div className="absolute -top-24 right-[-6rem] h-72 w-[34rem] rounded-full bg-[radial-gradient(closest-side,rgb(255_122_26/0.2),transparent)]" />
+      <svg
+        className="absolute top-6 right-10 hidden size-40 text-brand opacity-[0.07] md:block"
+        role="presentation"
+        viewBox="0 0 160 160"
+      >
+        <title>BlackArk</title>
+        <rect x="34" y="88" width="26" height="42" rx="6" fill="currentColor" />
+        <rect x="67" y="64" width="26" height="66" rx="6" fill="currentColor" />
+        <rect
+          x="100"
+          y="34"
+          width="26"
+          height="96"
+          rx="6"
+          fill="currentColor"
+        />
+      </svg>
+    </div>
   );
 }
 

@@ -46,6 +46,30 @@ pub enum Credential {
     TheirEndpoint,
 }
 
+/// Why a harness cannot run on the AI that was chosen, or `None` when it can.
+///
+/// Said before anything is downloaded or started, because the alternative is a container that starts and
+/// then stops with "Set ANTHROPIC_API_KEY." in a log nobody reads: the Claude Agent SDK answers only on an
+/// Anthropic API key, and a person who chose the free model on this computer, or another provider, has no
+/// such key to give it.
+pub fn incompatible_with_model(
+    choice: Option<&HarnessChoice>,
+    provider: &str,
+    login: &str,
+) -> Option<String> {
+    let id = choice?.id.trim();
+    let row = catalogue().into_iter().find(|row| row.id == id)?;
+    if row.credential == Credential::Anthropic && !(provider == "anthropic" && login == "api-key") {
+        return Some(format!(
+            "{} runs only on an Anthropic API key, so it cannot use the AI you chose. Choose Anthropic \
+             as the AI and add your key, or choose another agent framework: LangGraph works with every \
+             AI, including the free one on this computer.",
+            row.name
+        ));
+    }
+    None
+}
+
 /// One row.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Harness {
@@ -223,7 +247,8 @@ pub fn catalogue() -> Vec<Harness> {
         Harness {
             id: "claude-agent-sdk".into(),
             name: "Claude Agent SDK".into(),
-            summary: "Anthropic's own. The one that takes a Claude plan instead of a key.".into(),
+            summary: "Anthropic's own agent. It runs on an Anthropic API key, so it needs Claude as the AI."
+                .into(),
             image: Some("agent-claude-sdk".into()),
             port: Some(4212),
             health_path: Some("/health".into()),
@@ -271,7 +296,7 @@ pub fn catalogue() -> Vec<Harness> {
         Harness {
             id: "byo-url".into(),
             name: "An agent you already run".into(),
-            summary: "Give its address. It is proved with a real AG-UI run before it is saved."
+            summary: "For developers: connect an agent you host yourself, by its address. ArkAgent proves it with a real run before saving it."
                 .into(),
             image: None,
             port: None,
@@ -915,5 +940,66 @@ mod tests {
                 harness.id
             );
         }
+    }
+
+    /// The error a person met: they chose the Claude Agent SDK, then the free model on this computer, and the
+    /// container stopped with "Set ANTHROPIC_API_KEY." They are told in a sentence, before anything starts.
+    #[test]
+    fn the_claude_agent_sdk_refuses_any_ai_but_an_anthropic_key_in_a_sentence() {
+        let claude = HarnessChoice {
+            id: "claude-agent-sdk".into(),
+            agent_url: None,
+        };
+        for (provider, login) in [
+            ("local", "managed"),
+            ("openai", "api-key"),
+            ("openai-compatible", "endpoint"),
+            ("google", "oauth"),
+        ] {
+            let said = incompatible_with_model(Some(&claude), provider, login)
+                .unwrap_or_else(|| panic!("{provider} was accepted"));
+            assert!(said.contains("Anthropic API key"), "{said}");
+            assert!(said.contains("LangGraph"), "{said}");
+        }
+        assert_eq!(
+            incompatible_with_model(Some(&claude), "anthropic", "api-key"),
+            None
+        );
+    }
+
+    #[test]
+    fn every_other_harness_takes_any_ai() {
+        for row in catalogue() {
+            if row.credential == Credential::Anthropic {
+                continue;
+            }
+            let choice = HarnessChoice {
+                id: row.id.clone(),
+                agent_url: None,
+            };
+            for (provider, login) in [("local", "managed"), ("anthropic", "api-key")] {
+                assert_eq!(
+                    incompatible_with_model(Some(&choice), provider, login),
+                    None,
+                    "{} refused {provider}",
+                    row.id
+                );
+            }
+        }
+        assert_eq!(incompatible_with_model(None, "local", "managed"), None);
+    }
+
+    #[test]
+    fn nothing_claims_that_no_key_is_needed_where_one_is() {
+        let claude = catalogue()
+            .into_iter()
+            .find(|row| row.id == "claude-agent-sdk")
+            .unwrap();
+        assert!(
+            claude.summary.contains("Anthropic API key"),
+            "{}",
+            claude.summary
+        );
+        assert!(!claude.summary.to_lowercase().contains("instead of a key"));
     }
 }

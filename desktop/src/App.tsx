@@ -6,8 +6,10 @@ import { DatabaseReset } from "./DatabaseReset";
 import { DownloadBar, formatBytes } from "./DownloadProgress";
 import {
   DEFAULT_HARNESS,
+  FrameworkChoice,
+  frameworkReady,
   type HarnessChoice,
-  HarnessPicker,
+  needsAnthropicKey,
 } from "./HarnessPicker";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
 import { asProblem, Failure, type Problem } from "./Problem";
@@ -29,9 +31,10 @@ type EngineStatus = {
 /** Where in setup the person is. */
 type SetupStep =
   | "welcome"
-  | "harness"
-  | "install"
+  // The one page where the AI is chosen: where it comes from, the key, and the agent framework.
   | "model"
+  // Installing, with the model downloading beside it; ArkAgent starts by itself when both are done.
+  | "install"
   | "ask"
   // Where the person lands once ArkAgent is set up: running, or stopped and ready to start again.
   | "home";
@@ -79,7 +82,8 @@ function installationKeyFor(root: string, harness: HarnessChoice | null) {
 const SUGGESTED_QUESTION = "What is 17 times 23?";
 
 export function App() {
-  const [engine, setEngine] = useState<EngineStatus | null>(null);
+  // The engine is looked at so the window knows it is answering; nothing on screen reads the answer now.
+  const [, setEngine] = useState<EngineStatus | null>(null);
   const [blocker, setBlocker] = useState<Blocker | null>(null);
   const [blockerFailure, setBlockerFailure] = useState<Problem | null>(null);
   const [instruction, setInstruction] = useState("");
@@ -128,6 +132,9 @@ export function App() {
     const problem = asProblem(error);
     setSteps((current) => settleProgress(current, problem));
     setRecoveryFailure(problem);
+    // A start that found what it needs missing says the installation cannot be trusted any more, so the
+    // next attempt installs again instead of starting on top of it.
+    if (/Return to Install/i.test(problem.said)) setPreparation(null);
     if (problem.connection === "model") setStep("model");
   }, []);
   const displayedFailure = failure ?? recoveryFailure;
@@ -298,14 +305,53 @@ export function App() {
         return next;
       });
     });
+    // The model on this computer downloads beside the install, so its progress is a row of its own.
+    const stopModel = listen<{
+      stage: "engine" | "model";
+      downloaded: number;
+      total: number;
+    }>("local-model:progress", (event) => {
+      const { stage, downloaded, total } = event.payload;
+      // The engine is a few tens of megabytes; only the model is worth a bar.
+      if (stage !== "model") return;
+      const finished = downloaded >= total;
+      const row: Progress = {
+        step: "model",
+        ok: true,
+        running: !finished,
+        detail: finished
+          ? "The model is on this computer."
+          : "Downloading the model. This happens once.",
+        downloadBytes: downloaded,
+        downloadTotal: total,
+      };
+      setSteps((current) => {
+        const at = current.findIndex((entry) => entry.step === "model");
+        if (at === -1) return [...current, row];
+        const next = [...current];
+        next[at] = row;
+        return next;
+      });
+    });
     return () => {
       active = false;
       stop.then((unlisten) => unlisten());
+      stopModel.then((unlisten) => unlisten());
     };
   }, [loadConfiguredRoot, recoverFromStart]);
 
-  async function install() {
-    if (busy || !root.trim()) return;
+  /**
+   * Install what ArkAgent needs, and, where the AI is the model on this computer, download that model at
+   * the same time: the two take as long as the slower of them, not the sum. True when both are done.
+   */
+  async function install(
+    choice: ModelChoice | null,
+    nextHarness: HarnessChoice | null,
+    // True when a start follows at once, so the screen does not show an idle moment between the two.
+    keepBusyForStart = false,
+  ): Promise<boolean> {
+    if (busy || !root.trim()) return false;
+    const key = installationKeyFor(root, nextHarness);
     setBusy(true);
     setFailure(null);
     setSteps([
@@ -316,26 +362,50 @@ export function App() {
         detail: "Checking the software ArkAgent needs.",
       },
     ]);
-    setPreparation({ key: installationKey, status: "preparing" });
+    setPreparation({ key, status: "preparing" });
+    // Started first and not waited for: a failure here is read after the install has had its turn.
+    const modelDownload: Promise<unknown> =
+      choice?.provider === "local"
+        ? invoke("local_model_prepare", {
+            root: root.trim(),
+            model: choice.model ?? null,
+          }).then(
+            () => null,
+            (error) => error ?? new Error("The model could not be downloaded."),
+          )
+        : Promise.resolve(null);
+    let installed = false;
     try {
-      await invoke("prepare_installation", { root: root.trim(), harness });
+      await invoke("prepare_installation", {
+        root: root.trim(),
+        harness: nextHarness,
+      });
       setSteps((current) => settleProgress(current));
-      setPreparation({ key: installationKey, status: "complete" });
+      setPreparation({ key, status: "complete" });
+      installed = true;
     } catch (error) {
       const problem = asProblem(error);
       setSteps((current) => settleProgress(current, problem));
-      setPreparation({ key: installationKey, status: "failed" });
+      setPreparation({ key, status: "failed" });
       setFailure(problem);
-    } finally {
-      setBusy(false);
     }
+    const modelProblem = await modelDownload;
+    if (!(keepBusyForStart && installed && !modelProblem)) setBusy(false);
+    if (modelProblem) {
+      // The install is kept: only the model is outstanding, and trying again picks it up where it stopped.
+      const problem = asProblem(modelProblem);
+      setSteps((current) => settleProgress(current, problem));
+      setFailure((existing) => existing ?? problem);
+      return false;
+    }
+    return installed;
   }
 
-  async function start(nextModel = model) {
-    if (!installationReady) {
-      setStep("install");
-      return;
-    }
+  /** Raise the stack with the model chosen, once everything it needs is installed. */
+  async function launch(
+    nextModel: ModelChoice | null,
+    nextHarness: HarnessChoice | null,
+  ) {
     setBusy(true);
     setFailure(null);
     setSteps([]);
@@ -348,13 +418,13 @@ export function App() {
         model: nextModel,
         // By id only. The image, the port and how it is dialled are facts about the harness, and
         // the window carrying them would be a second list to keep in step with the catalogue.
-        harness,
+        harness: nextHarness,
       });
       setSteps((current) => settleProgress(current));
       setRunning(true);
       setRecoveryFailure(null);
       // Changing the AI connection does not turn an existing installation into a first run.
-      if (savedLaunch.current === installationKey) {
+      if (savedLaunch.current === installationKeyFor(root, nextHarness)) {
         setStep("home");
         await invoke("show_openbot");
         return;
@@ -377,6 +447,37 @@ export function App() {
         .then(setEngine)
         .catch(() => undefined);
     }
+  }
+
+  /** Try again: start straight away if everything is installed, and install first if it is not. */
+  async function retry(choice: ModelChoice) {
+    if (installationReady) await launch(choice, harness);
+    else await installThenStart(choice, harness);
+  }
+
+  /** Install, then start by itself: the person has already said everything setup needs to know. */
+  async function installThenStart(
+    choice: ModelChoice,
+    nextHarness: HarnessChoice | null,
+  ) {
+    setStep("install");
+    if (await install(choice, nextHarness, true)) {
+      await launch(choice, nextHarness);
+    }
+  }
+
+  /** Run the installation again, to put back whatever a failed start found missing. */
+  async function repair() {
+    await install(model, harness);
+  }
+
+  async function start(nextModel = model) {
+    if (!installationReady) {
+      if (nextModel) await installThenStart(nextModel, harness);
+      else setStep("model");
+      return;
+    }
+    await launch(nextModel, harness);
   }
 
   async function resetLeftoverDatabase(volume: string) {
@@ -490,120 +591,65 @@ export function App() {
    */
   if (!running && step === "welcome") {
     return (
-      <main>
-        <Welcome onStart={() => setStep("harness")} />
+      <main className="welcome-main">
+        <Welcome onStart={() => setStep("model")} />
         {displayedFailure && <Failure problem={displayedFailure} />}
       </main>
     );
   }
 
-  if (!running && step === "harness") {
-    return (
-      <main>
-        <HarnessPicker
-          chosen={harness}
-          onChoose={(choice) => {
-            if (
-              choice.id !== harness?.id ||
-              choice.agentUrl !== harness?.agentUrl
-            ) {
-              setPreparation(null);
-              setSteps([]);
-            }
-            setHarness(choice);
-          }}
-          onContinue={() => {
-            setHarness((choice) =>
-              choice?.id === "byo-url"
-                ? { ...choice, agentUrl: choice.agentUrl?.trim() }
-                : choice,
-            );
-            setStep("install");
-          }}
-          onBack={() => setStep("welcome")}
-        />
-      </main>
-    );
-  }
-
+  /*
+   * Installing, and starting by itself afterwards. Reached from the AI page once everything setup needs to
+   * know has been answered, so there is nothing to press here: a person watches it work, and the only
+   * buttons are for when it did not.
+   */
   if (!running && step === "install") {
     return (
       <main>
         <div className="sheet">
-          <p className="steps-of">Step 2 of 3</p>
+          <p className="steps-of">Step 2 of 2</p>
           <h1>
-            {installationReady ? "Installation complete" : "Install ArkAgent"}
+            {displayedFailure
+              ? "ArkAgent is not ready yet"
+              : installationReady
+                ? "Starting ArkAgent"
+                : "Installing ArkAgent"}
           </h1>
           <p className="lede">
-            {installationReady
-              ? "ArkAgent’s local software is ready. Next, choose the AI it should use."
-              : "Install the software ArkAgent needs on this computer. This can take a few minutes. You’ll choose your AI after installation finishes."}
+            {displayedFailure
+              ? "Nothing you chose is lost. Try again, or go back and change the AI."
+              : model?.provider === "local"
+                ? "ArkAgent is installing what it needs and downloading the model beside it. It starts by itself when both are done."
+                : "ArkAgent is installing what it needs. It starts by itself when that is done."}
           </p>
-          {!installationReady && engine?.responding && (
-            <p className="footnote">
-              Using {engine.engine === "docker" ? "Docker" : "Podman"} for local
-              services.
-            </p>
-          )}
-          <div className="field">
-            <label htmlFor="root">Where ArkAgent lives</label>
-            <input
-              id="root"
-              disabled={busy}
-              value={root}
-              onChange={(event) => {
-                configuredRunRef.current += 1;
-                setRoot(event.target.value);
-                setModel(null);
-                setPreparation(null);
-                setSteps([]);
-                clearRootScopedSavedState();
-              }}
-              onBlur={(event) => loadConfiguredRoot(event.target.value)}
-              spellCheck={false}
-            />
-          </div>
           <SetupProgress steps={steps} />
           {displayedFailure && <Failure problem={displayedFailure} />}
-          {busy && <p role="status">Installing local software…</p>}
-          {installationReady && (
-            <details>
-              <summary>Installation options</summary>
-              <button type="button" className="quiet" onClick={install}>
-                Repair installation
-              </button>
-            </details>
+          {displayedFailure?.database_reset && (
+            <DatabaseReset
+              key={`${root}:${displayedFailure.database_reset}`}
+              busy={busy}
+              volume={displayedFailure.database_reset}
+              onReset={resetLeftoverDatabase}
+            />
           )}
           <div className="row">
             <button
               type="button"
               className="quiet"
               disabled={busy}
-              onClick={() => setStep("harness")}
+              onClick={() => setStep("model")}
             >
-              Back
+              Change the AI
             </button>
-            {installationReady ? (
+            {/* Not while a first attempt is simply in progress, and still there, held, while a recovery
+                is: it is the button that carries on once the recovery is done. */}
+            {model && (!busy || displayedFailure) && (
               <button
                 type="button"
-                onClick={() => {
-                  setSteps([]);
-                  setStep("model");
-                }}
+                disabled={busy}
+                onClick={() => void retry(model)}
               >
-                Continue
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={busy || !root.trim()}
-                onClick={install}
-              >
-                {busy
-                  ? "Installing…"
-                  : preparation?.status === "failed"
-                    ? "Retry installation"
-                    : "Install ArkAgent"}
+                Try again
               </button>
             )}
           </div>
@@ -645,15 +691,74 @@ export function App() {
           chosen={model}
           returning={returningToInstallation}
           busy={busy}
-          // The last answer ArkAgent needs: choosing starts it, so there is nothing left to sign in to.
+          canContinue={frameworkReady(harness)}
+          // The last answer ArkAgent needs: choosing installs and starts it, so there is nothing left to
+          // sign in to and no second page about the framework.
           onChoose={(choice) => {
+            // A framework that can only run on an Anthropic key does not follow somebody to another AI.
+            const kept =
+              harness?.id === "byo-url"
+                ? { ...harness, agentUrl: harness.agentUrl?.trim() }
+                : harness;
+            const nextHarness =
+              needsAnthropicKey(harness?.id) &&
+              !(choice.provider === "anthropic" && choice.login === "api-key")
+                ? { id: DEFAULT_HARNESS }
+                : kept;
+            if (nextHarness !== harness) setHarness(nextHarness);
             setModel(choice);
-            void start(choice);
+            const ready =
+              preparation?.key === installationKeyFor(root, nextHarness) &&
+              preparation.status === "complete";
+            if (ready) void launch(choice, nextHarness);
+            else void installThenStart(choice, nextHarness);
           }}
           onBack={() => {
             setSteps([]);
-            setStep(returningToInstallation ? "home" : "install");
+            setStep(returningToInstallation ? "home" : "welcome");
           }}
+          advanced={(selection) => (
+            <div className="advanced">
+              <FrameworkChoice
+                chosen={harness}
+                anthropicKey={
+                  selection.provider === "anthropic" &&
+                  selection.login === "api-key"
+                }
+                onChoose={(choice) => {
+                  if (
+                    choice.id !== harness?.id ||
+                    choice.agentUrl !== harness?.agentUrl
+                  ) {
+                    setPreparation(null);
+                    setSteps([]);
+                  }
+                  setHarness(choice);
+                }}
+              />
+              <details>
+                <summary>Where ArkAgent is installed</summary>
+                <div className="field" style={{ marginTop: "0.6rem" }}>
+                  <label htmlFor="root">Installation folder</label>
+                  <input
+                    id="root"
+                    disabled={busy}
+                    value={root}
+                    onChange={(event) => {
+                      configuredRunRef.current += 1;
+                      setRoot(event.target.value);
+                      setModel(null);
+                      setPreparation(null);
+                      setSteps([]);
+                      clearRootScopedSavedState();
+                    }}
+                    onBlur={(event) => loadConfiguredRoot(event.target.value)}
+                    spellCheck={false}
+                  />
+                </div>
+              </details>
+            </div>
+          )}
         />
         <SetupProgress steps={steps} />
         {displayedFailure?.database_reset && (
@@ -706,7 +811,7 @@ export function App() {
             type="button"
             className="quiet"
             disabled={busy}
-            onClick={install}
+            onClick={() => void repair()}
           >
             Repair installation
           </button>
@@ -718,9 +823,11 @@ export function App() {
             className="quiet"
             disabled={busy}
             onClick={() => {
+              // Not a refresh of a working connection any more: a new installation is being chosen.
+              savedLaunch.current = null;
               setPreparation(null);
               setSteps([]);
-              setStep("install");
+              setStep("model");
             }}
           >
             Change installation

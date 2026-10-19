@@ -1,40 +1,66 @@
 /*
  * ArkAgent Desktop: the setup window.
  *
- * The world is the one the product sits next to: warm off-white ground, near-black text, almost no
- * chrome, and one rounded focal element per screen. Measured from Grok rather than guessed — the
- * ground is a warm #F9F8F7 and the hairlines are a warm-tinted black at 4-8% rather than a cool
- * gray, which is most of why that interface reads calm instead of clinical.
+ * The company's own world, not a neutral one: BlackArk Visual Identity v3 (Ember), whose tokens are in
+ * brand/brand-tokens.css. Paper-black ground with a warm cast, raised paper for the one surface a
+ * screen puts forward, text in the company's off-white, and Ember (#FF7A1A) for what can be pressed
+ * and for what is chosen. Ember carries the identity; it is never used for body text on a light
+ * ground, because it fails contrast there (see brand/README.md), and nothing here is on a light ground.
  *
- * `universalSans` is deliberately absent: it is xAI's own face and not ours to ship. Inter is the
- * documented fallback and the system stack is what a desktop window can rely on with no network at
- * the moment it draws.
+ * The type is Geist, the company's face, shipped with the app so the window draws in it with no
+ * network at the moment it opens.
  *
- * Light is committed rather than defaulted. The use scene is a corporate laptop in an office in the
- * daytime, and this window is the first thing somebody sees after a download.
+ * This window is the first thing somebody sees after a download, and it is where the product says who
+ * it is. A white page with a moving logo said nothing about the company; this is the company's dark,
+ * its colours, its character and its type, on every step.
  */
-:root {
-  /* Warm, not neutral. Every gray here is tinted from the same 15/13/10 black. */
-  --ground: #f9f8f7;
-  --raised: #ffffff;
-  --ink: #050505;
-  --ink-soft: rgba(15, 13, 10, 0.62);
-  --ink-faint: rgba(15, 13, 10, 0.45);
-  --hair: rgba(15, 13, 10, 0.08);
-  --hair-soft: rgba(15, 13, 10, 0.04);
-  --sunk: rgba(15, 13, 10, 0.04);
-  --accent: #050505;
-  --accent-ink: #ffffff;
-  --bad: #b3261e;
-  --good: #1a7f37;
+@font-face {
+  font-family: "Geist";
+  src: url("./assets/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-  /* One radius family: 12px for rows and controls, 16px for the focal card. */
+:root {
+  color-scheme: dark;
+
+  /* The company's v3 palette. */
+  --ember: #ff7a1a;
+  --ember-deep: #e8650f;
+  --ember-light: #ff9a3c;
+  --apricot: #ffb067;
+  --flame: #f2551b;
+  --on-ember: #1a0b03;
+  --ember-gradient: linear-gradient(
+    105deg,
+    #ffb067 0%,
+    #ff7a1a 38%,
+    #f2551b 78%,
+    #e5481a 100%
+  );
+
+  --ground: #070504;
+  --raised: #110b07;
+  --card: #160f0a;
+  --ink: #f3f2ef;
+  --ink-soft: rgba(243, 242, 239, 0.7);
+  --ink-faint: rgba(243, 242, 239, 0.5);
+  --hair: rgba(255, 255, 255, 0.11);
+  --hair-soft: rgba(255, 255, 255, 0.06);
+  --sunk: rgba(255, 255, 255, 0.05);
+  --accent: var(--ember);
+  --accent-ink: var(--on-ember);
+  --bad: #ff7d6e;
+  --good: #3ecf8e;
+
+  /* One radius family: 12px for rows and controls, 18px for the focal card. */
   --r-row: 12px;
-  --r-card: 16px;
+  --r-card: 18px;
 
   font-family:
-    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, ui-sans-serif,
-    system-ui, sans-serif;
+    Geist, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: var(--ink);
@@ -44,15 +70,10 @@
 }
 
 /*
- * NO DARK VARIANT, DELIBERATELY, and this is the one place in the product where that is right.
- *
- * This window exists for about five minutes, once, before it becomes ArkAgent and hands over to the
- * app — which does follow the system. A first-run screen is the product's handshake, and the look
- * committed here is the warm light one measured from the interface this is meant to sit beside.
- * Following the system instead would mean the first thing half of all installers ever see is a
- * variant nobody composed against a reference.
- *
- * The app this hands over to keeps its own light and dark. Only the setup window is pinned.
+ * ONE LOOK, DARK, PINNED. This window exists for about five minutes, once, before it becomes ArkAgent
+ * and hands over to the app. A first-run screen is the product's handshake and the company's identity
+ * is dark, so it does not follow the system: half of all installers would otherwise meet a variant
+ * nobody composed. The app this hands over to keeps its own light and dark.
  */
 * {
   box-sizing: border-box;
@@ -60,8 +81,21 @@
 
 body {
   margin: 0;
-  background: var(--ground);
   color: var(--ink);
+  /* The company's atmosphere on every step: ember light from two corners on paper black. */
+  background:
+    radial-gradient(
+      70rem 38rem at 88% -12%,
+      rgba(255, 122, 26, 0.2),
+      transparent 62%
+    ),
+    radial-gradient(
+      52rem 34rem at -8% 112%,
+      rgba(242, 85, 27, 0.15),
+      transparent 60%
+    ),
+    var(--ground);
+  background-attachment: fixed;
 }
 
 /*
@@ -78,9 +112,22 @@ main {
 
 .sheet {
   width: 100%;
-  max-width: 30rem;
+  max-width: 32rem;
   display: flex;
   flex-direction: column;
+  padding: 1.75rem 1.85rem 1.6rem;
+  border: 1px solid var(--hair);
+  border-radius: 22px;
+  background: linear-gradient(
+    180deg,
+    rgba(22, 15, 10, 0.88),
+    rgba(14, 9, 6, 0.92)
+  );
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 122, 26, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(14px);
   /* One authored entrance, on the step rather than on every element. */
   animation: settle 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -178,20 +225,26 @@ h2 {
 
 button {
   font: inherit;
-  font-weight: 500;
-  padding: 0.6rem 1.1rem;
+  font-weight: 600;
+  padding: 0.6rem 1.15rem;
   border-radius: var(--r-row);
   border: 1px solid transparent;
-  background: var(--accent);
+  background: var(--ember-gradient);
   color: var(--accent-ink);
   cursor: pointer;
   transition:
-    opacity 0.15s ease,
-    background 0.15s ease;
+    filter 0.15s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
 }
 
 button:hover:not(:disabled) {
-  opacity: 0.88;
+  filter: brightness(1.07);
+  box-shadow: 0 8px 28px -8px rgba(255, 122, 26, 0.7);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 button:disabled {
@@ -203,16 +256,18 @@ button.quiet {
   background: transparent;
   color: var(--ink-soft);
   border-color: var(--hair);
+  font-weight: 500;
 }
 
 button.quiet:hover:not(:disabled) {
   color: var(--ink);
-  border-color: var(--ink-faint);
-  opacity: 1;
+  border-color: rgba(255, 122, 26, 0.55);
+  box-shadow: none;
+  filter: none;
 }
 
 :focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--ember);
   outline-offset: 2px;
 }
 
@@ -243,9 +298,9 @@ button.quiet:hover:not(:disabled) {
 }
 
 .field input:focus-visible {
-  border-color: var(--ink-faint);
+  border-color: var(--ember);
   outline: none;
-  box-shadow: 0 0 0 3px var(--sunk);
+  box-shadow: 0 0 0 3px rgba(255, 122, 26, 0.22);
 }
 
 /* The list of choices. Rows, not a grid of same-size cards. */
@@ -296,7 +351,9 @@ fieldset.picker {
 }
 
 .tile.chosen {
-  border-color: var(--ink);
+  border-color: var(--ember);
+  background: rgba(255, 122, 26, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 122, 26, 0.35);
 }
 
 .mark-tile {
@@ -335,7 +392,7 @@ fieldset.picker {
 .download-progress {
   width: 100%;
   height: 0.5rem;
-  accent-color: var(--ink);
+  accent-color: var(--ember);
 }
 
 /* Under a step's sentence: the bar, then what it means in words. */
@@ -409,7 +466,7 @@ fieldset.picker {
 }
 
 .tile:has(.tile-input:focus-visible) {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--ember);
   outline-offset: 2px;
 }
 
@@ -476,6 +533,7 @@ details > summary:hover {
 
 .segmented button {
   border: 0;
+  box-shadow: none;
   background: transparent;
   color: var(--ink-soft);
   border-radius: 999px;
@@ -485,9 +543,9 @@ details > summary:hover {
 }
 
 .segmented button.on {
-  background: var(--raised);
+  background: rgba(255, 122, 26, 0.16);
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(15, 13, 10, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 122, 26, 0.5);
 }
 
 .caution,
@@ -594,7 +652,7 @@ details > summary:hover {
   height: 0.85rem;
   margin-top: 0.2rem;
   border: 2px solid var(--hair);
-  border-top-color: var(--ink);
+  border-top-color: var(--ember);
   border-radius: 50%;
   animation: step-spin 0.8s linear infinite;
 }
@@ -757,4 +815,395 @@ details > summary:hover {
   line-height: 1.45;
   color: var(--ink);
   white-space: pre-wrap;
+}
+
+/*
+ * The company's side of every step but the first: a panel down the left of the window with its tile,
+ * its character and its three promises. Fixed, so a step's own layout is untouched; the step's
+ * content simply starts to the right of it.
+ */
+.brandside {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 18.5rem;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  border-right: 1px solid var(--hair);
+  background:
+    linear-gradient(180deg, rgba(255, 122, 26, 0.1), transparent 45%),
+    rgba(7, 5, 4, 0.6);
+}
+
+.brandside-top {
+  position: absolute;
+  top: 1.1rem;
+  left: 1.4rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.brandside-top svg {
+  width: 1.6rem;
+  height: 1.6rem;
+  filter: drop-shadow(0 4px 14px rgba(255, 122, 26, 0.45));
+}
+
+.brandside-glow {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  top: 14%;
+  height: 60%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 122, 26, 0.42), transparent 68%);
+  filter: blur(50px);
+  animation: glow-pulse 9s ease-in-out infinite;
+}
+
+.brandside-figure {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  height: 86%;
+  width: auto;
+  max-width: none;
+  transform: translateX(-42%);
+  /* A soft oval, so the picture's own dark has no edge against the panel's. */
+  -webkit-mask-image: radial-gradient(
+    ellipse 62% 56% at 50% 46%,
+    #000 52%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 62% 56% at 50% 46%,
+    #000 52%,
+    transparent 100%
+  );
+}
+
+.brandside-lines {
+  position: absolute;
+  left: 1.4rem;
+  right: 1rem;
+  bottom: 1.2rem;
+  z-index: 3;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  text-shadow: 0 1px 12px #000;
+}
+
+.brandside-lines li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brandside-lines li::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 8px rgba(255, 122, 26, 0.9);
+}
+
+body:has(.welcome) .brandside {
+  display: none;
+}
+
+body:not(:has(.welcome)) main {
+  padding-left: calc(18.5rem + 2rem);
+}
+
+@media (max-width: 760px) {
+  .brandside {
+    display: none;
+  }
+  body:not(:has(.welcome)) main {
+    padding-left: 2rem;
+  }
+}
+
+/*
+ * THE WELCOME SCENE. Full-bleed: the company's character on the right, lit from behind by two ember
+ * glows, with embers rising; the words on the left. All of it is decoration except the words and the
+ * button, so none of it takes a click or a screen reader's attention, and a person who has asked the
+ * system for less motion gets one still frame.
+ */
+main.welcome-main {
+  display: block;
+  padding: 0;
+  /* `main` centres its children for the other steps, and a block child that is centred shrinks to its
+     contents: the scene has to be the whole window. */
+  place-items: stretch;
+}
+
+.welcome {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.welcome-sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  animation: glow-pulse 9s ease-in-out infinite;
+}
+
+.glow-a {
+  width: 36rem;
+  height: 36rem;
+  right: -8rem;
+  top: -10rem;
+  background: radial-gradient(circle, rgba(255, 122, 26, 0.5), transparent 66%);
+}
+
+.glow-b {
+  width: 30rem;
+  height: 30rem;
+  right: 10rem;
+  bottom: -16rem;
+  background: radial-gradient(circle, rgba(242, 85, 27, 0.34), transparent 66%);
+  animation-delay: -4.5s;
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+.ember {
+  position: absolute;
+  bottom: -12px;
+  border-radius: 50%;
+  background: var(--apricot);
+  box-shadow: 0 0 8px 2px rgba(255, 154, 60, 0.7);
+  opacity: 0;
+  animation: ember-rise linear infinite;
+}
+
+@keyframes ember-rise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(2.2rem, -115vh);
+    opacity: 0;
+  }
+}
+
+.welcome-figure {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+  /* Into the dark on the side the words are on and at the foot, so there is no edge to the picture. */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 34%),
+    linear-gradient(to top, transparent 0%, #000 16%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 34%),
+    linear-gradient(to top, transparent 0%, #000 16%);
+  mask-composite: intersect;
+  filter: drop-shadow(0 0 60px rgba(255, 122, 26, 0.25));
+  transform-origin: 70% 40%;
+  animation:
+    figure-in 1.4s cubic-bezier(0.16, 1, 0.3, 1) both,
+    figure-drift 20s ease-in-out 1.4s infinite alternate;
+}
+
+@keyframes figure-in {
+  from {
+    opacity: 0;
+    transform: translateX(2.5rem) scale(1.04);
+  }
+}
+
+@keyframes figure-drift {
+  to {
+    transform: scale(1.035) translateX(-0.5rem);
+  }
+}
+
+.welcome-copy {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 30rem;
+  padding: 2.5rem 1rem 2.5rem 3.25rem;
+}
+
+.welcome-copy > * {
+  animation: copy-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.welcome-copy > :nth-child(2) {
+  animation-delay: 0.08s;
+}
+.welcome-copy > :nth-child(3) {
+  animation-delay: 0.16s;
+}
+.welcome-copy > :nth-child(4) {
+  animation-delay: 0.24s;
+}
+.welcome-copy > :nth-child(5) {
+  animation-delay: 0.32s;
+}
+.welcome-copy > :nth-child(6) {
+  animation-delay: 0.4s;
+}
+
+@keyframes copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.9rem);
+  }
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ember);
+}
+
+.welcome h1 {
+  font-size: 2.45rem;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 650;
+  margin: 0 0 1rem;
+}
+
+.welcome h1 em {
+  font-style: normal;
+  background: var(--ember-gradient);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 7s ease-in-out infinite alternate;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+.welcome .lede.big {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0 0 1.4rem;
+}
+
+.role-strip {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.15rem;
+  align-items: flex-start;
+}
+
+.role-strip li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+.role-strip img {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 122, 26, 0.85),
+    0 0 16px rgba(255, 122, 26, 0.35);
+}
+
+.role-strip .more {
+  align-self: center;
+  margin-bottom: 1rem;
+  color: var(--ink-faint);
+}
+
+.welcome .row {
+  margin-top: 1.6rem;
+}
+
+.cta {
+  font-size: 1rem;
+  padding: 0.85rem 1.8rem;
+  border-radius: 14px;
+  box-shadow: 0 10px 34px -10px rgba(255, 122, 26, 0.75);
+}
+
+.welcome .footnote {
+  margin-top: 1rem;
+  max-width: 24rem;
+}
+
+@media (max-width: 700px) {
+  .welcome-figure {
+    opacity: 0.35;
+  }
+  .welcome-copy {
+    padding-left: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow,
+  .ember,
+  .welcome-figure,
+  .welcome-copy > *,
+  .welcome h1 em {
+    animation: none;
+  }
+  .ember {
+    display: none;
+  }
 }

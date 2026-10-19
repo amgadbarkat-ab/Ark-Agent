@@ -83,17 +83,18 @@ async function renderApp(strictMode = false) {
   return view;
 }
 
+/** The welcome screen's button: the AI page, where everything setup needs to know is asked, is next. */
 async function enterInstallation(view: Awaited<ReturnType<typeof renderApp>>) {
   await userEvent.click(view.getByRole("button", { name: "Set up ArkAgent" }));
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
 }
 
+/**
+ * Nothing to do any more: installing is no longer a step of its own that is walked through, it runs by
+ * itself after the AI page's Continue. Kept so a test can say where in the old order it would have been.
+ */
 async function completeInstallation(
-  view: Awaited<ReturnType<typeof renderApp>>,
-) {
-  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
-}
+  _view: Awaited<ReturnType<typeof renderApp>>,
+) {}
 
 function installationCalls() {
   return invokeCalls.filter((call) =>
@@ -107,21 +108,26 @@ async function beginPendingInstallation() {
   );
   let preparation = deferred<void>();
   const previous = invokeHandler;
+  // The start that follows the install is held too, so the install screen stays up to be read.
+  const starting = deferred<void>();
   invokeHandler = async (command, args) =>
     command === "prepare_installation"
       ? preparation.promise
-      : previous(command, args);
+      : command === "start_stack"
+        ? starting.promise
+        : previous(command, args);
   const view = await renderApp();
   await enterInstallation(view);
-  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
+  await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
+  await userEvent.type(view.getByLabelText("OpenAI API key"), "model-test-key");
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   return {
     view,
     preparation,
+    starting,
     retry: async () => {
       preparation = deferred<void>();
-      await userEvent.click(
-        view.getByRole("button", { name: "Retry installation" }),
-      );
+      await userEvent.click(view.getByRole("button", { name: "Try again" }));
       return preparation;
     },
   };
@@ -273,10 +279,9 @@ test("installation failure stops active indicators and retry begins fresh", asyn
   expect(view.getByText("In progress")).toBeTruthy();
   expect(view.queryByRole("alert")).toBeNull();
   await act(async () => secondAttempt.resolve());
-  expect(view.queryByText("In progress") === null).toBe(true);
-  expect(
-    view.getByRole("heading", { name: "Installation complete" }),
-  ).toBeTruthy();
+  // Installed: the screen says it is starting, by itself, with nothing left to press.
+  expect(view.getByRole("heading", { name: "Starting ArkAgent" })).toBeTruthy();
+  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
 });
 
 test.each([
@@ -322,8 +327,8 @@ test.each([
   },
 );
 
-test("installation completes before the AI can be chosen", async () => {
-  setupRootConfiguration("/tmp/install-before-signin", async () =>
+test("the AI is chosen first, and installing and starting then run by themselves", async () => {
+  setupRootConfiguration("/tmp/ai-before-install", async () =>
     emptyConfiguration(),
   );
   const preparation = deferred<void>();
@@ -334,36 +339,32 @@ test("installation completes before the AI can be chosen", async () => {
   };
   const view = await renderApp();
   await enterInstallation(view);
-  expect(view.getByRole("heading", { name: "Install ArkAgent" })).toBeTruthy();
-  expect(view.getByLabelText("Where ArkAgent lives")).toHaveProperty(
-    "value",
-    "/tmp/install-before-signin",
-  );
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
-  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
+  // One page for the AI: where it comes from, the key, and (behind Advanced) the framework.
+  expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
+  expect(view.getByText("Step 1 of 2")).toBeTruthy();
+  expect(view.getByText(/Agent framework: ArkAgent chooses/)).toBeTruthy();
+  expect(installationCalls()).toEqual([]);
+  await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
+  await userEvent.type(view.getByLabelText("OpenAI API key"), "model-test-key");
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  // Choosing began the install; nothing else is asked, and nothing is started before it is done.
+  expect(view.getByText("Step 2 of 2")).toBeTruthy();
+  expect(
+    view.getByRole("heading", { name: "Installing ArkAgent" }),
+  ).toBeTruthy();
   expect(installationCalls()).toEqual([
     {
       command: "prepare_installation",
-      args: {
-        root: "/tmp/install-before-signin",
-        harness: { id: "langgraph" },
-      },
+      args: { root: "/tmp/ai-before-install", harness: { id: "langgraph" } },
     },
   ]);
-  expect(view.getByLabelText("Where ArkAgent lives")).toHaveProperty(
+  expect(view.getByRole("button", { name: "Change the AI" })).toHaveProperty(
     "disabled",
     true,
   );
-  expect(view.getByRole("button", { name: "Back" })).toHaveProperty(
-    "disabled",
-    true,
+  expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
+    false,
   );
-  expect(view.queryByRole("heading", { name: "Connect your AI" })).toBeNull();
-  expect(
-    invokeCalls.some((call) =>
-      /sign_in|start_stack|^providers$/.test(call.command),
-    ),
-  ).toBe(false);
   await act(async () => {
     for (const listener of progressListeners)
       listener({
@@ -375,22 +376,17 @@ test("installation completes before the AI can be chosen", async () => {
       });
   });
   expect(view.getByText("Local runtime installed.")).toBeTruthy();
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
   await act(async () => preparation.resolve());
-  expect(
-    view.getByRole("heading", { name: "Installation complete" }),
-  ).toBeTruthy();
-  expect(
-    view
-      .getByRole("button", { name: "Repair installation" })
-      .closest("details"),
-  ).toHaveProperty("open", false);
-  expect(view.queryByRole("heading", { name: "Connect your AI" })).toBeNull();
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
-  expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
+  // Installed, so it starts, with the answers given on the first page.
+  await view.findByRole("button", { name: "Ask" });
+  expect(getStartStackPayload()).toEqual({
+    root: "/tmp/ai-before-install",
+    harness: { id: "langgraph" },
+    model: { provider: "openai", login: "api-key", apiKey: "model-test-key" },
+  });
 });
 
-test("a failed start keeps the model screen, what was typed, and a way to try again", async () => {
+test("a failed start keeps the answers, says what failed, and starts again from the same page", async () => {
   setupRootConfiguration("/tmp/failed-start-keeps-answers", async () =>
     emptyConfiguration(),
   );
@@ -403,14 +399,17 @@ test("a failed start keeps the model screen, what was typed, and a way to try ag
   };
   const view = await renderApp();
   await enterInstallation(view);
-  await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
   await userEvent.type(view.getByLabelText("OpenAI API key"), "model-test-key");
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
   expect((await view.findByRole("alert")).textContent).toContain(
     "A container did not start.",
   );
-  // Still the model screen, with the answer still in it: nothing was asked a second time.
+  expect(
+    view.getByRole("heading", { name: "ArkAgent is not ready yet" }),
+  ).toBeTruthy();
+  // Back to the one page: the answer is still in it, so nothing is asked a second time.
+  await userEvent.click(view.getByRole("button", { name: "Change the AI" }));
   expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
   expect(view.getByRole("radio", { name: /OpenAI/ })).toHaveProperty(
     "checked",
@@ -427,10 +426,11 @@ test("a failed start keeps the model screen, what was typed, and a way to try ag
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
   expect(await view.findByRole("button", { name: "Ask" })).toBeTruthy();
   expect(starts).toBe(2);
+  // Installed once: a start that failed on a container does not distrust the installation.
   expect(installationCalls()).toHaveLength(1);
 });
 
-test("failed installation blocks sign-in and retries before reporting completion", async () => {
+test("a failed installation starts nothing, keeps the answers, and retries by itself on Try again", async () => {
   setupRootConfiguration("/tmp/install-retry", async () =>
     emptyConfiguration(),
   );
@@ -449,25 +449,28 @@ test("failed installation blocks sign-in and retries before reporting completion
   };
   const view = await renderApp();
   await enterInstallation(view);
-  await userEvent.click(view.getByRole("button", { name: "Install ArkAgent" }));
+  await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
+  await userEvent.type(view.getByLabelText("OpenAI API key"), "model-test-key");
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   expect((await view.findByRole("alert")).textContent).toContain(
     "The download was interrupted.",
   );
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
   expect(
-    invokeCalls.some((call) => /sign_in|^providers$/.test(call.command)),
-  ).toBe(false);
-  await userEvent.click(
-    view.getByRole("button", { name: "Retry installation" }),
-  );
-  expect(
-    await view.findByRole("heading", { name: "Installation complete" }),
+    view.getByRole("heading", { name: "ArkAgent is not ready yet" }),
   ).toBeTruthy();
-  expect(view.queryByRole("alert")).toBeNull();
+  expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
+    false,
+  );
+  await userEvent.click(view.getByRole("button", { name: "Try again" }));
+  expect(await view.findByRole("button", { name: "Ask" })).toBeTruthy();
   expect(attempts).toBe(2);
+  // The key typed on the first page was not asked for again.
+  expect(getStartStackPayload().model).toMatchObject({
+    apiKey: "model-test-key",
+  });
 });
 
-test("provider sign-in retries and Back reuse the completed local installation", async () => {
+test("provider sign-in can be retried on the page, and nothing is installed until Continue", async () => {
   setupRootConfiguration("/tmp/provider-retry", async () =>
     emptyConfiguration(),
   );
@@ -500,71 +503,64 @@ test("provider sign-in retries and Back reuse the completed local installation",
   };
   const view = await renderApp();
   await enterInstallation(view);
-  await completeInstallation(view);
-  await userEvent.click(view.getByRole("button", { name: "Back" }));
-  expect(
-    view.getByRole("heading", { name: "Installation complete" }),
-  ).toBeTruthy();
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await userEvent.click(await view.findByRole("radio", { name: /xAI/ }));
   await userEvent.click(view.getByRole("button", { name: "Sign in with xAI" }));
   await view.findByText("Sign-in was interrupted.");
   await userEvent.click(view.getByRole("button", { name: "Sign in with xAI" }));
   await view.findByText(/Signed in to xAI/);
   expect(signIns).toBe(2);
-  expect(installationCalls()).toHaveLength(1);
+  // The install waits for the person to finish answering.
+  expect(installationCalls()).toHaveLength(0);
 });
 
-test("a completed installation can be repaired after a provider reports missing assets", async () => {
+test("a start that finds assets missing is repaired by Try again, which installs again and then starts", async () => {
   setupRootConfiguration("/tmp/repair-installation", async () =>
     emptyConfiguration(),
   );
   const previous = invokeHandler;
   const repair = deferred<void>();
   let installations = 0;
+  let starts = 0;
   invokeHandler = async (command, args) => {
     if (command === "prepare_installation")
       return ++installations === 1 ? null : repair.promise;
-    if (command === "providers")
-      return [
-        {
-          id: "xai",
-          name: "xAI",
-          summary: "Use xAI",
-          logins: ["oauth"],
-          mark: null,
-          caution: null,
-        },
-      ];
-    if (command === "begin_model_oauth")
+    if (command === "start_stack" && ++starts === 1)
       throw { said: "Return to Install and try again." };
     return previous(command, args);
   };
   const view = await renderApp();
   await enterInstallation(view);
-  await completeInstallation(view);
-  await userEvent.click(await view.findByRole("radio", { name: /xAI/ }));
-  await userEvent.click(view.getByRole("button", { name: "Sign in with xAI" }));
+  await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
+  await userEvent.type(view.getByLabelText("OpenAI API key"), "model-test-key");
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await view.findByText("Return to Install and try again.");
-  await userEvent.click(view.getByRole("button", { name: "Back" }));
-  await userEvent.click(view.getByText("Installation options"));
-  await userEvent.click(
-    view.getByRole("button", { name: "Repair installation" }),
-  );
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
+  await userEvent.click(view.getByRole("button", { name: "Try again" }));
+  // Held while the repair runs: the start has not been tried again yet.
+  expect(starts).toBe(1);
   await act(async () => repair.resolve());
-  expect(await view.findByRole("button", { name: "Continue" })).toBeTruthy();
+  expect(await view.findByRole("button", { name: "Ask" })).toBeTruthy();
   expect(installations).toBe(2);
+  expect(starts).toBe(2);
 });
 
-test("changing the digital employee invalidates its completed installation", async () => {
+test("changing the framework after an installation installs again for the new one", async () => {
   useBringYourOwnHarnessSetup();
+  const previous = invokeHandler;
+  let starts = 0;
+  invokeHandler = async (command, args) => {
+    if (command === "start_stack" && ++starts === 1)
+      throw { said: "A container did not start." };
+    return previous(command, args);
+  };
   const view = await renderApp();
   await enterInstallation(view);
-  await completeInstallation(view);
-  await userEvent.click(view.getByRole("button", { name: "Back" }));
-  await userEvent.click(view.getByRole("button", { name: "Back" }));
-  await userEvent.click(view.getByText("Choose the agent framework"));
+  await chooseProviderEndpointBesideTheFramework(view);
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  await view.findByText("A container did not start.");
+  await userEvent.click(view.getByRole("button", { name: "Change the AI" }));
+  // Back on the one page, with the AI answers kept; the framework is changed here, not on a page of
+  // its own.
+  await userEvent.click(view.getByText(/Agent framework: ArkAgent chooses/));
   await userEvent.click(
     view.getByRole("radio", { name: /An agent you already run/ }),
   );
@@ -573,8 +569,7 @@ test("changing the digital employee invalidates its completed installation", asy
     "https://agent.example/ag-ui",
   );
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
-  await completeInstallation(view);
+  await view.findByRole("button", { name: "Ask" });
   expect(installationCalls()).toEqual([
     {
       command: "prepare_installation",
@@ -659,14 +654,19 @@ test("a failed automatic reopen offers recovery without retrying or installing",
     invokeCalls.filter((call) => call.command === "start_stack"),
   ).toHaveLength(1);
   expect(installationCalls()).toHaveLength(0);
+  // The start said the installation cannot be trusted, so it is repaired before it is started again.
   expect(view.getByRole("button", { name: "Start ArkAgent" })).toHaveProperty(
     "disabled",
-    false,
+    true,
   );
+  expect(
+    view.getByRole("button", { name: "Repair installation" }),
+  ).toBeTruthy();
   await userEvent.click(
     view.getByRole("button", { name: "Change installation" }),
   );
-  expect(view.getByRole("button", { name: "Install ArkAgent" })).toBeTruthy();
+  // Installing is chosen on the one page, not on a page of its own.
+  expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
 });
 
 test("menu Stop retains the installed root for explicit Start without the wizard", async () => {
@@ -880,11 +880,12 @@ test.each(["model", "root"])(
       await user.click(
         view.getByRole("button", { name: "Change installation" }),
       );
-      const input = view.getByLabelText("Where ArkAgent lives");
+      const input = view.getByLabelText("Installation folder");
       await user.clear(input);
       await user.type(input, "/tmp/changed-recovery-root");
-      await completeInstallation(view);
       await user.click(view.getByRole("button", { name: "Continue" }));
+      // A different folder is installed first, and then it starts.
+      await view.findByRole("button", { name: "Ask" });
     }
 
     expect(getStartStackPayload()).toMatchObject(
@@ -1068,7 +1069,7 @@ test("leftover database recovery requires confirmation and keeps setup ready to 
   expect(
     view.getByRole("button", { name: "Deleting saved data…" }),
   ).toHaveProperty("disabled", true);
-  expect(view.getByRole("button", { name: "Continue" })).toHaveProperty(
+  expect(view.getByRole("button", { name: "Try again" })).toHaveProperty(
     "disabled",
     true,
   );
@@ -1078,7 +1079,7 @@ test("leftover database recovery requires confirmation and keeps setup ready to 
   ).toBeNull();
   expect(view.queryByRole("alert")).toBeNull();
   expect(starts).toBe(1);
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  await userEvent.click(view.getByRole("button", { name: "Try again" }));
   await view.findByRole("button", { name: "Ask" });
   expect(installationCalls()).toHaveLength(1);
 });
@@ -1113,7 +1114,7 @@ test("database recovery failure is shown without restarting services", async () 
   expect(
     invokeCalls.filter((call) => call.command === "start_stack"),
   ).toHaveLength(1);
-  expect(view.getByRole("button", { name: "Continue" })).toHaveProperty(
+  expect(view.getByRole("button", { name: "Try again" })).toHaveProperty(
     "disabled",
     false,
   );
@@ -1356,7 +1357,6 @@ async function enterCompatibleEndpoint(
   await userEvent.click(
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
   await userEvent.click(
     await view.findByRole("radio", { name: /OpenAI-compatible/ }),
@@ -1429,7 +1429,6 @@ test.each([true, false])(
     await userEvent.click(
       view.getByRole("button", { name: "Set up ArkAgent" }),
     );
-    await userEvent.click(view.getByRole("button", { name: "Continue" }));
     await completeInstallation(view);
     expect(view.getByLabelText("Base URL")).toHaveProperty(
       "value",
@@ -1474,7 +1473,6 @@ test.each([
     await userEvent.click(
       view.getByRole("button", { name: "Set up ArkAgent" }),
     );
-    await userEvent.click(view.getByRole("button", { name: "Continue" }));
     await completeInstallation(view);
     expect(view.getByRole("button", { name: "Continue" })).toHaveProperty(
       "disabled",
@@ -1497,7 +1495,6 @@ test("an unsupported saved model kind does not become a startable endpoint", asy
   );
   const view = await renderApp();
   await userEvent.click(view.getByRole("button", { name: "Set up ArkAgent" }));
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await completeInstallation(view);
   expect(view.getByRole("button", { name: "Continue" })).toHaveProperty(
     "disabled",
@@ -1575,7 +1572,6 @@ test("Change the model after an Ask failure stops the stack and reaches the prov
   await userEvent.click(
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
@@ -1720,7 +1716,6 @@ test("saved credentials start ArkAgent without raw protected secrets on mount", 
   await userEvent.click(
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
   await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
@@ -1743,11 +1738,15 @@ async function chooseModelAfterRootEdit(
   apiKey?: string,
 ) {
   expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
-  await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
-  if (apiKey)
-    await userEvent.type(view.getByLabelText("OpenAI API key"), apiKey);
+  const field = view.queryByLabelText(
+    "OpenAI API key",
+  ) as HTMLInputElement | null;
+  // The page is the same one the key was typed on before the folder was edited, so it may be there already.
+  if (apiKey && field && field.value !== apiKey)
+    await userEvent.type(field, apiKey);
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  await view.findByRole("button", { name: "Ask" });
 }
 
 test("root edits reload saved configuration for that root and ignore stale saved responses", async () => {
@@ -1773,13 +1772,11 @@ test("root edits reload saved configuration for that root and ignore stale saved
   await userEvent.click(
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
-  await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
   expect(view.getByText(/A saved OpenAI API key will be used/)).toBeTruthy();
-  // Back to the installation screen, where the folder can be changed, rather than on to starting.
-  await userEvent.click(view.getByRole("button", { name: "Back" }));
-  const rootField = view.getByLabelText("Where ArkAgent lives");
+  // The folder is changed on the same page, under Advanced, and the old folder's saved key stops being
+  // promised the moment it is.
+  const rootField = view.getByLabelText("Installation folder");
   const user = userEvent.setup({
     document: view.container.ownerDocument,
   });
@@ -1794,7 +1791,11 @@ test("root edits reload saved configuration for that root and ignore stale saved
       invokeCalls.filter((call) => call.command === "already_configured"),
     ).toContainEqual({ command: "already_configured", args: { root: rootB } }),
   );
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
+  expect(view.queryByText(/A saved OpenAI API key will be used/)).toBeNull();
+  expect(view.getByRole("button", { name: "Continue" })).toHaveProperty(
+    "disabled",
+    true,
+  );
 
   await user.clear(rootField);
   await user.type(rootField, rootC);
@@ -1810,7 +1811,7 @@ test("root edits reload saved configuration for that root and ignore stale saved
   await act(async () => {
     emptyForRootB.resolve(emptyConfiguration());
   });
-  expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
+  expect(view.queryByText(/A saved OpenAI API key will be used/)).toBeNull();
 
   await act(async () => {
     savedForRootC.resolve(savedOpenAiConfiguration());
@@ -1845,14 +1846,13 @@ test("same-process setup remount prefers the retained selected root", async () =
   await userEvent.click(
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
-  expect(view.getByLabelText("Where ArkAgent lives")).toHaveProperty(
+  expect(view.getByLabelText("Installation folder")).toHaveProperty(
     "value",
     rootB,
   );
-  await completeInstallation(view);
   await userEvent.click(await view.findByRole("radio", { name: /OpenAI/ }));
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  await view.findByRole("button", { name: "Ask" });
 
   expect(
     invokeCalls.filter((call) => call.command === "already_configured"),
@@ -1906,8 +1906,6 @@ test.each([
     await user.click(
       await view.findByRole("button", { name: "Set up ArkAgent" }),
     );
-    await user.click(await view.findByRole("button", { name: "Continue" }));
-    await completeInstallation(view);
     await user.click(await view.findByRole("radio", { name: /OpenAI/ }));
     expect(
       Boolean(view.queryByText(/A saved OpenAI API key will be used/)),
@@ -1918,9 +1916,8 @@ test.each([
         "sk-synthetic-current-model",
       );
     }
-    // Back to the installation screen, where the folder can be changed, rather than on to starting.
-    await user.click(view.getByRole("button", { name: "Back" }));
-    const rootField = view.getByLabelText("Where ArkAgent lives");
+    // The folder is on the same page, under Advanced.
+    const rootField = view.getByLabelText("Installation folder");
 
     if (pendingRoot === "a") {
       await user.click(rootField);
@@ -1945,7 +1942,10 @@ test.each([
       expect(view.container.ownerDocument.activeElement === rootField).toBe(
         true,
       );
-      expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
+      // The saved key of the folder being left is no longer promised while another is being typed.
+      expect(
+        view.queryByText(/A saved OpenAI API key will be used/),
+      ).toBeNull();
       expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
       expect(requests).toHaveLength(requestCountBeforeBlur);
       expect(invokeCalls.some((call) => call.command === "start_stack")).toBe(
@@ -1968,7 +1968,6 @@ test.each([
       await act(async () =>
         requests[requests.length - 1].response.resolve(emptyConfiguration()),
       );
-      await completeInstallation(view);
       await user.click(await view.findByRole("radio", { name: /OpenAI/ }));
       expect(
         view.queryByText(/A saved OpenAI API key will be used/),
@@ -1977,9 +1976,8 @@ test.each([
         "disabled",
         true,
       );
-      await user.click(view.getByRole("button", { name: "Back" }));
-      await user.click(view.getByLabelText("Where ArkAgent lives"));
-      await act(async () => view.getByLabelText("Where ArkAgent lives").blur());
+      await user.click(view.getByLabelText("Installation folder"));
+      await act(async () => view.getByLabelText("Installation folder").blur());
     } else {
       await act(async () => rootField.blur());
     }
@@ -1990,9 +1988,9 @@ test.each([
       ),
     );
     if (savedModel) {
-      await user.click(view.getByRole("button", { name: "Continue" }));
       await user.click(await view.findByRole("radio", { name: /OpenAI/ }));
       await user.click(view.getByRole("button", { name: "Continue" }));
+      await view.findByRole("button", { name: "Ask" });
     } else {
       await chooseModelAfterRootEdit(view, "sk-synthetic-current-model");
     }
@@ -2086,19 +2084,34 @@ async function enterBringYourOwnHarnessEndpoint(agentUrl: string) {
   await userEvent.click(
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
-  await userEvent.click(await view.findByText("Choose the agent framework"));
+  // The framework is chosen on the AI page, behind Advanced, and not on a page of its own.
+  await userEvent.click(
+    await view.findByText(/Agent framework: ArkAgent chooses/),
+  );
   await userEvent.click(
     await view.findByRole("radio", { name: /An agent you already run/ }),
   );
 
-  const continueFromHarness = view.getByRole("button", { name: "Continue" });
-  expect(continueFromHarness).toHaveProperty("disabled", true);
   const agentEndpoint = view.getByLabelText("AG-UI endpoint");
   if (agentUrl) {
     await userEvent.type(agentEndpoint, agentUrl.replaceAll("[", "[["));
   }
   expect(agentEndpoint).toHaveProperty("value", agentUrl);
   return view;
+}
+
+/** The AI half of the same page, for a test about the framework half. */
+async function chooseProviderEndpointBesideTheFramework(
+  view: Awaited<ReturnType<typeof renderApp>>,
+) {
+  await userEvent.click(
+    await view.findByRole("radio", { name: /OpenAI-compatible/ }),
+  );
+  await userEvent.type(
+    view.getByLabelText("Base URL"),
+    "https://provider.example/v1",
+  );
+  await userEvent.type(view.getByLabelText("Model name"), "local-model");
 }
 
 test.each([
@@ -2114,13 +2127,13 @@ test.each([
   useBringYourOwnHarnessSetup();
   const view = await enterBringYourOwnHarnessEndpoint(agentUrl);
 
+  await chooseProviderEndpointBesideTheFramework(view);
+  // The AI is complete and the framework's address is not: Continue is held back, on this one page.
   const continueButton = view.getByRole("button", { name: "Continue" });
   expect(continueButton).toHaveProperty("disabled", true);
   await userEvent.click(continueButton);
-  expect(
-    view.getByRole("heading", { name: "Your first digital employee" }),
-  ).toBeTruthy();
-  expect(view.queryByRole("heading", { name: "Connect your AI" })).toBeNull();
+  expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
+  expect(installationCalls()).toEqual([]);
   expect(view.queryByRole("button", { name: "Start ArkAgent" })).toBeNull();
   expect(invokeCalls.filter((call) => call.command === "start_stack")).toEqual(
     [],
@@ -2140,22 +2153,11 @@ test.each([
     useBringYourOwnHarnessSetup();
     const view = await enterBringYourOwnHarnessEndpoint(agentUrl);
 
-    const continueFromHarness = view.getByRole("button", { name: "Continue" });
-    expect(continueFromHarness).toHaveProperty("disabled", false);
-    await userEvent.click(continueFromHarness);
-    await completeInstallation(view);
-    expect(
-      await view.findByRole("heading", { name: "Connect your AI" }),
-    ).toBeTruthy();
-    await userEvent.click(
-      await view.findByRole("radio", { name: /OpenAI-compatible/ }),
-    );
-    await userEvent.type(
-      view.getByLabelText("Base URL"),
-      "https://provider.example/v1",
-    );
-    await userEvent.type(view.getByLabelText("Model name"), "local-model");
-    await userEvent.click(view.getByRole("button", { name: "Continue" }));
+    await chooseProviderEndpointBesideTheFramework(view);
+    const continueButton = view.getByRole("button", { name: "Continue" });
+    expect(continueButton).toHaveProperty("disabled", false);
+    await userEvent.click(continueButton);
+    await view.findByRole("button", { name: "Ask" });
 
     const payload = getStartStackPayload();
     expect(
@@ -2253,7 +2255,6 @@ test("saved compatible endpoint restores the optional container URL", async () =
 
   const view = await renderApp();
   await userEvent.click(view.getByRole("button", { name: "Set up ArkAgent" }));
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await completeInstallation(view);
 
   expect(
@@ -2321,9 +2322,6 @@ for (const provider of [
       await userEvent.click(
         await view.findByRole("button", { name: "Set up ArkAgent" }),
       );
-      await userEvent.click(
-        await view.findByRole("button", { name: "Continue" }),
-      );
       await completeInstallation(view);
       await userEvent.click(
         await view.findByRole("radio", { name: new RegExp(provider.name) }),
@@ -2346,11 +2344,9 @@ for (const provider of [
       });
       expect(getStartStackPayload().model).not.toHaveProperty("token");
       expect(getStartStackPayload().model).not.toHaveProperty("apiKey");
-      // And the person is still on the screen that can change it, with nothing about anyone else's
-      // account to sign in to.
-      expect(
-        view.getByRole("heading", { name: "Connect your AI" }),
-      ).toBeTruthy();
+      // And the person can change the AI from where they are, with nothing about anyone else's account
+      // to sign in to.
+      expect(view.getByRole("button", { name: "Change the AI" })).toBeTruthy();
       expect(view.queryByText(/CopilotKit/i)).toBeNull();
     });
   }
@@ -2433,14 +2429,6 @@ test("no screen of setup asks for, or mentions, a CopilotKit account, a project 
     await view.findByRole("button", { name: "Set up ArkAgent" }),
   );
   look();
-  await userEvent.click(await view.findByRole("button", { name: "Continue" }));
-  look();
-  await userEvent.click(
-    await view.findByRole("button", { name: "Install ArkAgent" }),
-  );
-  await view.findByRole("heading", { name: "Installation complete" });
-  look();
-  await userEvent.click(view.getByRole("button", { name: "Continue" }));
   await userEvent.click(
     await view.findByRole("radio", { name: /OpenAI-compatible/ }),
   );

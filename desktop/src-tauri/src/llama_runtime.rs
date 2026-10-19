@@ -7,8 +7,11 @@
 //! is the size and SHA-256 recorded, unpacks it without letting the archive choose where anything goes,
 //! and checks the program starts.
 //!
-//! CPU everywhere except Apple silicon, where the one build uses the graphics chip through Metal. A
-//! graphics-card build for Windows is a later option once it has been tried on real machines.
+//! CPU everywhere except Apple silicon, where the one build uses the graphics chip through Metal, and
+//! Windows on a computer with a graphics card, which gets the Vulkan build (it drives NVIDIA, AMD and Intel
+//! Arc cards from the driver alone, so it needs no CUDA toolkit installed). The Vulkan build is tried first
+//! and the CPU build is the fallback if it will not start, so a driver problem costs speed and never the
+//! feature.
 
 use std::fs;
 use std::io::Read;
@@ -18,7 +21,7 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::local_model::{download_verified, Progress};
+use crate::local_model::{download_with_retries, Persistence, Progress};
 use crate::problem::Problem;
 
 /// Compiled in, so a build of the app can only fetch what a person reviewed.
@@ -60,7 +63,7 @@ pub fn asset_for<'a>(manifest: &'a Manifest, os: &str, arch: &str) -> Result<&'a
     manifest
         .assets
         .iter()
-        .find(|asset| asset.os == os && asset.arch == arch)
+        .find(|asset| asset.os == os && asset.arch == arch && asset.backend != "vulkan")
         .ok_or_else(|| {
             Problem::with(
                 "ArkAgent cannot run a model on this kind of computer yet. You can still use your own \
@@ -68,6 +71,36 @@ pub fn asset_for<'a>(manifest: &'a Manifest, os: &str, arch: &str) -> Result<&'a
                 format!("no llama.cpp {} build for {os} on {arch}", manifest.tag),
             )
         })
+}
+
+/// The build for this computer: the graphics-card build where there is a card and one is pinned, and
+/// otherwise the same as [`asset_for`].
+pub fn asset_for_computer<'a>(
+    manifest: &'a Manifest,
+    os: &str,
+    arch: &str,
+    gpu: bool,
+) -> Result<&'a Asset, Problem> {
+    if gpu {
+        if let Some(asset) = manifest
+            .assets
+            .iter()
+            .find(|asset| asset.os == os && asset.arch == arch && asset.backend == "vulkan")
+        {
+            return Ok(asset);
+        }
+    }
+    asset_for(manifest, os, arch)
+}
+
+/// The folder a build is unpacked into. The CPU and Metal builds keep the name earlier versions used, so an
+/// engine already on a computer is found; the graphics-card build sits beside it.
+pub fn engine_folder(tag: &str, backend: &str) -> String {
+    if backend == "vulkan" {
+        format!("llama-{tag}-vulkan")
+    } else {
+        format!("llama-{tag}")
+    }
 }
 
 /// Where the local model's files live: under the same cache as the other pinned downloads.
@@ -107,11 +140,12 @@ pub fn find_server(root: &Path) -> Option<PathBuf> {
 /// Unpacked and ready, or fetched, checked, unpacked and ready. Returns the program to run.
 pub fn install(
     cache: &Path,
+    gpu: bool,
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<PathBuf, Problem> {
     let manifest = manifest();
-    let asset = asset_for(manifest, std::env::consts::OS, std::env::consts::ARCH)?;
+    let asset = asset_for_computer(manifest, std::env::consts::OS, std::env::consts::ARCH, gpu)?;
     install_with(
         cache,
         &manifest.tag,
@@ -132,21 +166,23 @@ fn install_with(
     on_progress: &mut dyn FnMut(Progress),
     verify: impl Fn(&Path) -> Result<(), Problem>,
 ) -> Result<PathBuf, Problem> {
-    let root = dir(cache).join(format!("llama-{tag}"));
+    let folder = engine_folder(tag, &asset.backend);
+    let root = dir(cache).join(&folder);
     if let Some(server) = find_server(&root) {
         verify(&server)?;
         return Ok(server);
     }
-    let archive = download_verified(
+    let archive = download_with_retries(
         url,
         &dir(cache).join("downloads").join(&asset.file),
         asset.size,
         &asset.sha256,
         cancel,
         on_progress,
+        Persistence::PATIENT,
     )?;
 
-    let staging = dir(cache).join(format!("llama-{tag}.partial"));
+    let staging = dir(cache).join(format!("{folder}.partial"));
     let _ = fs::remove_dir_all(&staging);
     fs::create_dir_all(&staging).map_err(|error| unwritable(&staging, &error))?;
     let unpacked = extract(&archive, &staging).and_then(|()| {
@@ -443,6 +479,33 @@ mod tests {
             asset_for(manifest, "macos", "aarch64").unwrap().backend,
             "metal"
         );
+    }
+
+    #[test]
+    fn a_windows_computer_with_a_graphics_card_gets_the_vulkan_build_and_falls_back_to_cpu() {
+        let manifest = manifest();
+        let with_card = asset_for_computer(manifest, "windows", "x86_64", true).unwrap();
+        assert_eq!(with_card.backend, "vulkan");
+        assert!(with_card.file.contains("win-vulkan-x64"), "{with_card:?}");
+        assert!(with_card.file.contains(&manifest.tag), "{with_card:?}");
+        assert_eq!(with_card.sha256.len(), 64);
+        // Without a card, or where no graphics build is pinned, it is the CPU build.
+        assert_eq!(
+            asset_for_computer(manifest, "windows", "x86_64", false)
+                .unwrap()
+                .backend,
+            "cpu"
+        );
+        assert_eq!(
+            asset_for_computer(manifest, "linux", "x86_64", true)
+                .unwrap()
+                .backend,
+            "cpu"
+        );
+        // The two builds are kept apart on disk, and the CPU one keeps the name earlier versions used.
+        assert_eq!(engine_folder("b1", "vulkan"), "llama-b1-vulkan");
+        assert_eq!(engine_folder("b1", "cpu"), "llama-b1");
+        assert_eq!(engine_folder("b1", "metal"), "llama-b1");
     }
 
     #[test]

@@ -58,18 +58,26 @@ describe("choosing the files", () => {
     const chosen = selectAssets(release());
     const byTarget = Object.fromEntries(
       chosen.map(({ target, asset }) => [
-        `${target.os}/${target.arch}`,
+        `${target.os}/${target.arch}/${target.backend}`,
         asset.name,
       ]),
     );
-    expect(byTarget["windows/x86_64"]).toBe("llama-b9628-bin-win-cpu-x64.zip");
-    expect(byTarget["windows/aarch64"]).toBe(
+    expect(byTarget["windows/x86_64/cpu"]).toBe(
+      "llama-b9628-bin-win-cpu-x64.zip",
+    );
+    // The graphics-card build for Windows, beside the CPU one.
+    expect(byTarget["windows/x86_64/vulkan"]).toBe(
+      "llama-b9628-bin-win-vulkan-x64.zip",
+    );
+    expect(byTarget["windows/aarch64/cpu"]).toBe(
       "llama-b9628-bin-win-cpu-arm64.zip",
     );
-    expect(byTarget["macos/aarch64"]).toBe(
+    expect(byTarget["macos/aarch64/metal"]).toBe(
       "llama-b9628-bin-macos-arm64.tar.gz",
     );
-    expect(byTarget["linux/x86_64"]).toBe("llama-b9628-bin-ubuntu-x64.tar.gz");
+    expect(byTarget["linux/x86_64/cpu"]).toBe(
+      "llama-b9628-bin-ubuntu-x64.tar.gz",
+    );
     expect(chosen.length).toBe(TARGETS.length);
   });
 
@@ -121,12 +129,15 @@ describe("pinning", () => {
       expect(asset.sha256).toBe(sha256Hex(bytesFor(asset.file)));
       expect(asset.size).toBe(bytesFor(asset.file).byteLength);
     }
-    // Only the chosen files were fetched; Vulkan, CUDA and cudart were not.
+    // Only the chosen files were fetched: the one Windows graphics-card build, but not Linux's Vulkan,
+    // CUDA or cudart.
     expect(asked.length).toBe(TARGETS.length);
     expect(
       asked.every((url) => url.includes("/releases/download/b9628/")),
     ).toBe(true);
-    expect(asked.some((url) => url.includes("vulkan"))).toBe(false);
+    expect(asked.filter((url) => url.includes("vulkan"))).toEqual([
+      "https://github.com/ggml-org/llama.cpp/releases/download/b9628/llama-b9628-bin-win-vulkan-x64.zip",
+    ]);
   });
 
   test("a file that does not hash to what GitHub reports stops everything", async () => {

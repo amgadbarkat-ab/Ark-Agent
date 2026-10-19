@@ -10,7 +10,6 @@ let invokeCalls: Array<{ command: string; args?: unknown }> = [];
 let invokeHandler: Invoke = async () => {
   throw new Error("invoke handler was not installed");
 };
-let emit: (payload: unknown) => void = () => {};
 
 mock.module("@tauri-apps/api/core", () => ({
   invoke: (command: string, args?: unknown) => {
@@ -20,13 +19,7 @@ mock.module("@tauri-apps/api/core", () => ({
 }));
 
 mock.module("@tauri-apps/api/event", () => ({
-  listen: async (
-    _name: string,
-    callback: (event: { payload: unknown }) => void,
-  ) => {
-    emit = (payload) => callback({ payload });
-    return () => {};
-  },
+  listen: async () => () => {},
 }));
 
 const { LocalModelPanel, gigabytes } = await import("./LocalModelPanel");
@@ -42,26 +35,66 @@ afterEach(() => {
 });
 afterAll(() => GlobalRegistrator.unregister());
 
-const sixteenGigabytes: LocalModelPlan = {
-  ramGib: 15.6,
-  cores: 8,
+const models = [
+  {
+    id: "gemma-4-26b-a4b",
+    label: "Gemma 4 26B A4B",
+    sizeBytes: 14_439_363_584,
+    recommended: true,
+    ready: false,
+  },
+  {
+    id: "gemma-4-12b",
+    label: "Gemma 4 12B",
+    sizeBytes: 6_975_879_296,
+    recommended: false,
+    ready: false,
+  },
+  {
+    id: "gemma-4-e4b",
+    label: "Gemma 4 E4B",
+    sizeBytes: 5_154_941_280,
+    recommended: false,
+    ready: false,
+  },
+];
+
+const thirtyTwoGigabytes: LocalModelPlan = {
+  ramGib: 31.7,
+  cores: 16,
+  gpu: true,
   recommendation: {
     kind: "model",
     model: {
-      id: "gemma-4-e4b",
-      label: "Gemma 4 E4B",
-      sizeBytes: 5_154_941_280,
+      id: "gemma-4-26b-a4b",
+      label: "Gemma 4 26B A4B",
+      sizeBytes: 14_439_363_584,
     },
   },
-  toDownloadBytes: 5_172_000_000,
+  models,
+  chosen: "gemma-4-26b-a4b",
+  toDownloadBytes: 14_460_000_000,
   ready: false,
-  engine: "b11696 (cpu)",
+  engine: "b11696 (vulkan)",
 };
 
-async function renderPanel(onReady: (ready: boolean) => void = () => {}) {
+async function renderPanel(
+  props: Partial<{
+    chosen: string | null;
+    onChoose: (id: string) => void;
+    onReady: (ready: boolean) => void;
+  }> = {},
+) {
   let view!: ReturnType<typeof render>;
   await act(async () => {
-    view = render(<LocalModelPanel root=" /tmp/ark " onReady={onReady} />);
+    view = render(
+      <LocalModelPanel
+        root=" /tmp/ark "
+        chosen={props.chosen ?? null}
+        onChoose={props.onChoose ?? (() => {})}
+        onReady={props.onReady ?? (() => {})}
+      />,
+    );
   });
   return view;
 }
@@ -72,139 +105,138 @@ test("download sizes are quoted the way downloads are", () => {
   expect(gigabytes(14_439_363_584)).toBe("14 GB");
 });
 
-test("it says what it found and what it will download, and is not ready until it has", async () => {
+test("it offers every model this computer can run, with the best chosen for the person", async () => {
   invokeHandler = async (command) => {
-    if (command === "local_model_plan") return sixteenGigabytes;
+    if (command === "local_model_plan") return thirtyTwoGigabytes;
     throw new Error(`unexpected command ${command}`);
   };
-  const states: boolean[] = [];
-  const view = await renderPanel((ready) => states.push(ready));
-  expect(await view.findByText("Gemma 4 E4B")).toBeTruthy();
-  expect(view.getByText(/about 16 GB of memory/)).toBeTruthy();
-  expect(view.getByRole("button", { name: "Download 5.2 GB" })).toBeTruthy();
+  const chosen: string[] = [];
+  const ready: boolean[] = [];
+  const view = await renderPanel({
+    onChoose: (id) => chosen.push(id),
+    onReady: (value) => ready.push(value),
+  });
+  expect(await view.findByText("Gemma 4 26B A4B")).toBeTruthy();
+  expect(view.getByText("Gemma 4 12B")).toBeTruthy();
+  expect(view.getByText("Gemma 4 E4B")).toBeTruthy();
+  expect(
+    view.getByText(/about 32 GB of memory and a graphics card/),
+  ).toBeTruthy();
+  expect(view.getByText("Recommended for this computer")).toBeTruthy();
+  expect(view.getByText(/Best for agents/)).toBeTruthy();
+  // The first look makes the choice for them, and nothing is downloaded from here.
+  expect(chosen).toEqual(["gemma-4-26b-a4b"]);
+  expect(ready.at(-1)).toBe(true);
   expect(invokeCalls[0]).toEqual({
     command: "local_model_plan",
-    args: { root: "/tmp/ark" },
+    args: { root: "/tmp/ark", model: null },
   });
-  expect(states.at(-1)).toBe(false);
+  expect(
+    invokeCalls.some((call) => call.command === "local_model_prepare"),
+  ).toBe(false);
 });
 
-test("it shows the download's progress, can be cancelled, and reports ready when it finishes", async () => {
-  let finish!: () => void;
-  invokeHandler = async (command) => {
-    if (command === "local_model_plan") return sixteenGigabytes;
-    if (command === "local_model_prepare") {
-      return new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-    }
-    if (command === "local_model_cancel") return undefined;
-    throw new Error(`unexpected command ${command}`);
-  };
-  const states: boolean[] = [];
-  const view = await renderPanel((ready) => states.push(ready));
-  await userEvent.click(
-    await view.findByRole("button", { name: "Download 5.2 GB" }),
-  );
-  expect(view.getByText("Starting the download…")).toBeTruthy();
-
-  await act(async () => {
-    emit({ stage: "model", downloaded: 1_300_000_000, total: 5_200_000_000 });
-  });
+test("it says the download happens during setup and how big it is", async () => {
+  invokeHandler = async () => thirtyTwoGigabytes;
+  const view = await renderPanel();
   expect(
-    view.getByText("Downloading the model: 1.3 GB of 5.2 GB"),
+    await view.findByText(/downloads 14 GB while it installs, once/),
+  ).toBeTruthy();
+  expect(view.getByText(/Your graphics card is used/)).toBeTruthy();
+  expect(view.queryByRole("button", { name: /Download/ })).toBeNull();
+});
+
+test("choosing another model reports it, and the figures follow the choice", async () => {
+  invokeHandler = async (_command, args) => {
+    const asked = (args as { model?: string | null }).model;
+    return asked === "gemma-4-e4b"
+      ? {
+          ...thirtyTwoGigabytes,
+          chosen: "gemma-4-e4b",
+          toDownloadBytes: 5_200_000_000,
+        }
+      : thirtyTwoGigabytes;
+  };
+  const picked: string[] = [];
+  const view = await renderPanel({ onChoose: (id) => picked.push(id) });
+  await userEvent.click(
+    await view.findByRole("radio", { name: /Gemma 4 E4B/ }),
+  );
+  expect(picked.at(-1)).toBe("gemma-4-e4b");
+  // The parent holds the choice and gives it back; the panel asks about it.
+  view.rerender(
+    <LocalModelPanel
+      root=" /tmp/ark "
+      chosen="gemma-4-e4b"
+      onChoose={() => {}}
+      onReady={() => {}}
+    />,
+  );
+  expect(
+    await view.findByText(/downloads 5.2 GB while it installs/),
   ).toBeTruthy();
   expect(
-    (view.getByLabelText("Download progress") as HTMLProgressElement).value,
-  ).toBe(25);
-
-  await userEvent.click(view.getByRole("button", { name: "Cancel download" }));
-  expect(
-    invokeCalls.some((call) => call.command === "local_model_cancel"),
+    invokeCalls.some(
+      (call) =>
+        (call.args as { model?: string | null } | undefined)?.model ===
+        "gemma-4-e4b",
+    ),
   ).toBe(true);
+});
 
-  await act(async () => {
-    finish();
+test("a model already on this computer says there is nothing to download", async () => {
+  invokeHandler = async () => ({
+    ...thirtyTwoGigabytes,
+    ready: true,
+    toDownloadBytes: 0,
+    models: models.map((model, index) =>
+      index === 0 ? { ...model, ready: true } : model,
+    ),
   });
+  const view = await renderPanel();
   expect(
-    await view.findByText(/Ready\. Nothing more to download/),
+    await view.findByText(
+      /already on this computer, so there is nothing to download/,
+    ),
   ).toBeTruthy();
-  expect(states.at(-1)).toBe(true);
-});
-
-test("a failed download shows the sentence and offers to try again", async () => {
-  let attempts = 0;
-  invokeHandler = async (command) => {
-    if (command === "local_model_plan") return sixteenGigabytes;
-    if (command === "local_model_prepare") {
-      attempts += 1;
-      throw {
-        said: "ArkAgent could not reach the download. Check the connection.",
-      };
-    }
-    throw new Error(`unexpected command ${command}`);
-  };
-  const states: boolean[] = [];
-  const view = await renderPanel((ready) => states.push(ready));
-  await userEvent.click(
-    await view.findByRole("button", { name: "Download 5.2 GB" }),
+  expect(view.getAllByText("Already on this computer").length).toBeGreaterThan(
+    0,
   );
-  expect(await view.findByText(/could not reach the download/)).toBeTruthy();
-  expect(attempts).toBe(1);
-  expect(states.at(-1)).toBe(false);
-  // The button is back, so the person can try again.
-  expect(view.getByRole("button", { name: "Download 5.2 GB" })).toBeTruthy();
 });
 
-test("a computer with the model already here is ready at once", async () => {
-  invokeHandler = async (command) => {
-    if (command === "local_model_plan") {
-      return { ...sixteenGigabytes, ready: true, toDownloadBytes: 0 };
-    }
-    throw new Error(`unexpected command ${command}`);
-  };
-  const states: boolean[] = [];
-  const view = await renderPanel((ready) => states.push(ready));
-  expect(
-    await view.findByText(/Ready\. Nothing more to download/),
-  ).toBeTruthy();
-  expect(states.at(-1)).toBe(true);
-  expect(view.queryByRole("button", { name: /Download/ })).toBeNull();
+test("a computer too small for any model is told so, and cannot continue", async () => {
+  invokeHandler = async () => ({
+    ramGib: 4,
+    cores: 2,
+    gpu: false,
+    recommendation: {
+      kind: "tooSmall",
+      said: "This computer has about 4 GB of memory, and the smallest model needs about 8 GB. Use ArkAgent's server or your own key instead.",
+      ramGib: 4,
+      needsGib: 7,
+    },
+    models: [],
+    chosen: null,
+    toDownloadBytes: 0,
+    ready: false,
+    engine: "b11696 (cpu)",
+  });
+  const ready: boolean[] = [];
+  const view = await renderPanel({ onReady: (value) => ready.push(value) });
+  expect(await view.findByRole("alert")).toBeTruthy();
+  expect(view.getByText(/smallest model needs about 8 GB/)).toBeTruthy();
+  expect(ready.every((value) => value === false)).toBe(true);
 });
 
-test("a computer that is too small is told so and cannot continue", async () => {
-  invokeHandler = async (command) => {
-    if (command === "local_model_plan") {
-      return {
-        ...sixteenGigabytes,
-        ramGib: 4,
-        recommendation: {
-          kind: "tooSmall",
-          said: "This computer has about 4 GB of memory, and the smallest model needs about 8 GB.",
-          ramGib: 4,
-          needsGib: 7,
-        },
-        toDownloadBytes: 0,
-      };
-    }
-    throw new Error(`unexpected command ${command}`);
-  };
-  const states: boolean[] = [];
-  const view = await renderPanel((ready) => states.push(ready));
-  expect(await view.findByText(/smallest model needs about 8 GB/)).toBeTruthy();
-  expect(view.queryByRole("button", { name: /Download/ })).toBeNull();
-  expect(states.every((ready) => ready === false)).toBe(true);
-});
-
-test("when the computer cannot be read the panel says so", async () => {
-  invokeHandler = async (command) => {
-    if (command === "local_model_plan") {
-      throw {
-        said: "ArkAgent could not read how much memory this computer has.",
-      };
-    }
-    throw new Error(`unexpected command ${command}`);
+test("a computer that cannot be read is a failure the person can see", async () => {
+  invokeHandler = async () => {
+    throw {
+      said: "ArkAgent could not look at this computer.",
+      detail: "no memory figure",
+    };
   };
   const view = await renderPanel();
-  expect(await view.findByText(/could not read how much memory/)).toBeTruthy();
+  expect(
+    await view.findByText("ArkAgent could not look at this computer."),
+  ).toBeTruthy();
 });

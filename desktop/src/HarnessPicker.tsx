@@ -24,34 +24,43 @@ export type HarnessChoice = {
 export const DEFAULT_HARNESS = "langgraph";
 
 /**
- * Which Bot, answered for them.
- *
- * ONE CHOICE IS MADE FOR THE PERSON, and that is the point of this screen rather than a limitation
- * of it. The twelve rows are agent frameworks, and to anybody who is not a developer the difference
- * between them is nil: they all take any model and they all answer the same questions. Asking a
- * non-technical person to pick one is asking them to make a decision they cannot inform, at the
- * start, which is where people leave.
- *
- * So the default is stated in one line and the list moves behind a disclosure. A developer who
- * wants CrewAI opens it and picks CrewAI; everybody else presses Continue and never learns the word
- * "harness". The address-your-own row lives in there too, because pasting a URL is the most
- * developer thing on this screen.
+ * The frameworks that answer only on an Anthropic API key. Mirrors `harness::incompatible_with_model`, which
+ * is what actually refuses; this copy lets the screen say so before anybody presses anything.
  */
-export function HarnessPicker({
+const NEEDS_ANTHROPIC_KEY = new Set(["claude-agent-sdk"]);
+
+export function needsAnthropicKey(id: string | undefined): boolean {
+  return id !== undefined && NEEDS_ANTHROPIC_KEY.has(id);
+}
+
+/**
+ * The agent framework, chosen on the same page as the AI.
+ *
+ * ONE CHOICE IS MADE FOR THE PERSON, and that is the point of this section rather than a limitation of it.
+ * The rows are agent frameworks, and to anybody who is not a developer the difference between them is nil:
+ * they take any model and answer the same questions. Asking a non-technical person to pick one is asking
+ * them to make a decision they cannot inform, so the default is stated in one line and the list stays
+ * behind a disclosure.
+ *
+ * It lives on the AI page, not on a page of its own, because the two answers depend on each other: the
+ * Claude Agent SDK runs only on an Anthropic API key, so which frameworks can be picked follows from which
+ * AI was. A row that cannot work with the AI chosen is shown, disabled, with the reason, and is never
+ * offered as if it would.
+ */
+export function FrameworkChoice({
   chosen,
   onChoose,
-  onContinue,
-  onBack,
+  anthropicKey,
 }: {
   chosen: HarnessChoice | null;
   onChoose: (choice: HarnessChoice) => void;
-  onContinue: () => void;
-  onBack: () => void;
+  /** Whether the AI chosen above is Anthropic, by API key. */
+  anthropicKey: boolean;
 }) {
   const [rows, setRows] = useState<Harness[]>([]);
   const [failure, setFailure] = useState("");
-  // Open when the person has already chosen something other than the default, so coming back does
-  // not hide the choice they made.
+  // Open when the person has already chosen something other than the default, so coming back does not
+  // hide the choice they made.
   const [open, setOpen] = useState(
     chosen !== null && chosen.id !== DEFAULT_HARNESS,
   );
@@ -72,48 +81,33 @@ export function HarnessPicker({
 
   if (failure) {
     return (
-      <div className="sheet">
-        <div className="blocker" role="alert">
-          <h2>The list of digital employees could not be read</h2>
-          <p>{failure}</p>
-        </div>
+      <div className="blocker" role="alert">
+        <h2>The list of agent frameworks could not be read</h2>
+        <p>{failure}</p>
       </div>
     );
   }
 
   return (
-    <div className="sheet">
-      <p className="steps-of">Step 1 of 3</p>
-      <h1>Your first digital employee</h1>
-      {/*
-        Written to the person who has to act, not about the situation.
-
-        An earlier version said the default "makes no difference unless you write code", which
-        describes a state and leaves a non-technical reader wondering what they were told. This
-        gives them the one thing to do — nothing — and puts the conditional where the only person it
-        applies to will read it.
-      */}
-      <p className="lede">
-        ArkAgent sets this up for you. If you write code, you can choose the
-        agent framework below.
+    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        {picked && picked.id !== DEFAULT_HARNESS
+          ? `Agent framework: ${picked.name}`
+          : "Agent framework: ArkAgent chooses (advanced)"}
+      </summary>
+      <p className="footnote" style={{ margin: "0.6rem 0 0" }}>
+        ArkAgent uses LangGraph, which works with every AI, including the one on
+        this computer. Change this only if you write code and need another
+        framework.
       </p>
-
-      <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-        <summary>
-          {picked && picked.id !== DEFAULT_HARNESS
-            ? `Using ${picked.name}`
-            : "Choose the agent framework"}
-        </summary>
-        <p className="footnote" style={{ margin: "0.6rem 0 0" }}>
-          Any of these works with any AI provider. Only the last one asks you
-          for an address.
-        </p>
-        <fieldset className="picker">
-          <legend className="sr-only">Bot</legend>
-          {rows.map((row) => (
+      <fieldset className="picker">
+        <legend className="sr-only">Agent framework</legend>
+        {rows.map((row) => {
+          const blocked = row.credential === "anthropic" && !anthropicKey;
+          return (
             <label
               key={row.id}
-              className={`tile${chosenId === row.id ? " chosen" : ""}`}
+              className={`tile${chosenId === row.id ? " chosen" : ""}${blocked ? " unavailable" : ""}`}
             >
               <input
                 type="radio"
@@ -121,6 +115,7 @@ export function HarnessPicker({
                 className="tile-input"
                 value={row.id}
                 checked={chosenId === row.id}
+                disabled={blocked}
                 onChange={() =>
                   onChoose(
                     row.id === "byo-url"
@@ -134,46 +129,51 @@ export function HarnessPicker({
                   logo can still read it. */}
               <span className="tile-name">{row.name}</span>
               <span className="tile-summary">{row.summary}</span>
+              {row.id === DEFAULT_HARNESS && (
+                <span className="tile-note">Recommended</span>
+              )}
               {row.credential === "anthropic" && (
-                <span className="tile-note">No API key needed</span>
+                <span className="tile-note">
+                  {blocked
+                    ? "Needs Anthropic chosen above, with an API key"
+                    : "Uses your Anthropic API key"}
+                </span>
               )}
               {row.credential === "their-endpoint" && (
-                <span className="tile-note">Uses your running agent</span>
+                <span className="tile-note">For developers</span>
               )}
             </label>
-          ))}
-        </fieldset>
-        {chosenId === "byo-url" && (
-          <div className="field" style={{ marginTop: "0.75rem" }}>
-            <label htmlFor="agent-url">AG-UI endpoint</label>
-            <input
-              id="agent-url"
-              value={byoAgentUrl}
-              onChange={(event) =>
-                onChoose({
-                  id: "byo-url",
-                  agentUrl: event.target.value,
-                })
-              }
-              placeholder="https://your-agent.example/ag-ui"
-              spellCheck={false}
-            />
-          </div>
-        )}
-      </details>
+          );
+        })}
+      </fieldset>
+      {chosenId === "byo-url" && (
+        <div className="field" style={{ marginTop: "0.75rem" }}>
+          <label htmlFor="agent-url">AG-UI endpoint</label>
+          <input
+            id="agent-url"
+            value={byoAgentUrl}
+            onChange={(event) =>
+              onChoose({
+                id: "byo-url",
+                agentUrl: event.target.value,
+              })
+            }
+            placeholder="https://your-agent.example/ag-ui"
+            spellCheck={false}
+            aria-invalid={byoAgentUrl !== "" && !byoReady}
+          />
+        </div>
+      )}
+    </details>
+  );
+}
 
-      <div className="row">
-        <button type="button" className="quiet" onClick={onBack}>
-          Back
-        </button>
-        <button
-          type="button"
-          disabled={chosenId === "byo-url" && !byoReady}
-          onClick={onContinue}
-        >
-          Continue
-        </button>
-      </div>
-    </div>
+/** Whether a framework choice can be started: the address row needs a valid address. */
+export function frameworkReady(choice: HarnessChoice | null): boolean {
+  if (choice?.id !== "byo-url") return true;
+  const url = choice.agentUrl?.trim() ?? "";
+  return (
+    (url.startsWith("http://") || url.startsWith("https://")) &&
+    isHttpEndpointUrl(url)
   );
 }

@@ -16,10 +16,10 @@
  * A pin made without downloading would pin whatever the API said, and the point is to pin what was
  * run. A person reviews the resulting file in a commit before any customer receives it.
  *
- * WHICH FILES. One CPU build for each kind of computer we support. Windows gets the CPU build rather
- * than the Vulkan one on purpose: it runs on every machine, and a graphics-card option can be added
- * once it has been tried on real hardware. macOS on Apple silicon gets the one build that uses the
- * GPU through Metal. An asset that cannot be found fails the script rather than being skipped, so a
+ * WHICH FILES. One CPU build for each kind of computer we support, and for Windows on x86-64 the Vulkan
+ * build as well: it drives NVIDIA, AMD and Intel Arc cards from the driver alone, so it needs no CUDA
+ * toolkit, and the desktop tries it first on a computer with a card and falls back to the CPU build if it
+ * will not start. macOS on Apple silicon gets the one build that uses the GPU through Metal. An asset that cannot be found fails the script rather than being skipped, so a
  * rename upstream is noticed here and not on a customer's computer.
  */
 
@@ -32,8 +32,8 @@ export const REPOSITORY = "ggml-org/llama.cpp";
 export type Target = {
   os: "windows" | "macos" | "linux";
   arch: "x86_64" | "aarch64";
-  /** `cpu` everywhere for now; `metal` is the macOS build, which is the CPU-and-Metal build. */
-  backend: "cpu" | "metal";
+  /** `cpu` by default; `metal` is the macOS build, and `vulkan` the Windows graphics-card build. */
+  backend: "cpu" | "metal" | "vulkan";
   /** Matches the archive's file name. Extension varies between releases, so it is not fixed. */
   pattern: RegExp;
 };
@@ -44,6 +44,12 @@ export const TARGETS: Target[] = [
     arch: "x86_64",
     backend: "cpu",
     pattern: /^llama-[A-Za-z0-9.]+-bin-win-cpu-x64\.(zip|tar\.gz)$/,
+  },
+  {
+    os: "windows",
+    arch: "x86_64",
+    backend: "vulkan",
+    pattern: /^llama-[A-Za-z0-9.]+-bin-win-vulkan-x64\.(zip|tar\.gz)$/,
   },
   {
     os: "windows",
