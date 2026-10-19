@@ -64,7 +64,7 @@ const ITEMS: {
      * The same subject as Admin's Plugins, from the other side: there an administrator decides what
      * this deployment may reach at all, here you decide what it may reach as you.
      */
-    title: "Connected accounts",
+    title: "Connect your Data",
     icon: IconPlug,
     linkOptions: { to: "/settings/connected-accounts" },
   },

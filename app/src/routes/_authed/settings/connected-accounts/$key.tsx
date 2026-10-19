@@ -138,7 +138,7 @@ function RouteComponent() {
   }
 
   const back = {
-    label: "Connected accounts",
+    label: "Connect your Data",
     linkProps: { to: "/settings/connected-accounts" as const },
   };
 

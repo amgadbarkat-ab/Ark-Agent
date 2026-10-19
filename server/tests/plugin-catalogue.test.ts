@@ -132,7 +132,10 @@ describe("whose credential a server uses", () => {
       // person's authorization code and receives their refresh token at.
       expect(entry.auth.authorizationUrl.startsWith("https://")).toBe(true);
       expect(entry.auth.tokenUrl.startsWith("https://")).toBe(true);
-      expect(entry.auth.revokeUrl.startsWith("https://")).toBe(true);
+      // Optional: Microsoft's identity platform has no endpoint to revoke a refresh token.
+      if (entry.auth.revokeUrl !== undefined) {
+        expect(entry.auth.revokeUrl.startsWith("https://")).toBe(true);
+      }
       // No scopes means consent to nothing, which would fail at the vendor with a message that
       // does not name us — except for a vendor whose consent screen itself is the scoping
       // (Notion, with dynamic client registration), where a scope string would assert a control

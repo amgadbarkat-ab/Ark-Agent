@@ -1,6 +1,7 @@
 import {
   IconBrandGoogleDrive,
   IconBrandNotion,
+  IconBrandWindows,
   IconCheck,
   IconPlug,
   IconSearch,
@@ -8,13 +9,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import * as React from "react";
-import {
-  PageEmpty,
-  PageSection,
-  PageShell,
-} from "@/components/layout/page-shell";
+import { PageShell } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { DATA_SERVICES, type DataService } from "@/lib/data-services";
 import {
   InputGroup,
   InputGroupAddon,
@@ -28,13 +27,18 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import {
+  type CatalogueItem,
   connectionsQueryOptions,
   type PluginServer,
   pluginsPageQueryOptions,
 } from "@/lib/plugins/queries";
 
 /**
- * The services a Bot reads as you.
+ * Connect your Data: the places your work lives, which a digital employee reads as you.
+ *
+ * It lists every service ArkAgent knows of, each saying honestly where it stands: connected, ready to
+ * connect, built but waiting for an administrator to set it up, or not built yet. A service is never
+ * offered a Connect button that can only fail.
  *
  * Yours, not the deployment's. An administrator decides which vendors this deployment may reach at
  * all; this is the other half of that decision, and it is one nobody can make for you — there is no
@@ -59,9 +63,8 @@ export const Route = createFileRoute("/_authed/settings/connected-accounts/")({
 const MARKS: Record<string, React.ComponentType<{ className?: string }>> = {
   "google-drive": IconBrandGoogleDrive,
   notion: IconBrandNotion,
+  "microsoft-365": IconBrandWindows,
 };
-
-const markFor = (key: string) => MARKS[key] ?? IconPlug;
 
 /**
  * The brokered apps this page lists, which is not every brokered row.
@@ -79,90 +82,133 @@ export function brokeredAccountsListedOn(
   );
 }
 
+/** Where one service stands for the person looking at it. */
+export type DataServiceState =
+  | { kind: "connected" }
+  | { kind: "ready" }
+  /** Built, and waiting for somebody to set it up once. */
+  | { kind: "needs-setup"; reason: string }
+  | { kind: "not-available" };
+
+/**
+ * Where a service stands, decided from what the deployment says about its connector and nothing else.
+ *
+ * Exported for the reason `brokeredAccountsListedOn` is: the rule is the thing worth pinning, and
+ * pinning it needs no DOM. The order is the point. A service with no connector is never anything but
+ * "not available", whatever else is true; a connected one is connected; and "ready" is reached only
+ * when a person pressing Connect would get to the vendor, which needs the connector turned on AND an
+ * OAuth client behind it.
+ */
+export function dataServiceState(
+  service: DataService,
+  deployment: {
+    catalogue: CatalogueItem[];
+    servers: PluginServer[];
+    connected: ReadonlySet<string>;
+  },
+): DataServiceState {
+  const key = service.connector;
+  if (!key) return { kind: "not-available" };
+  const entry = deployment.catalogue.find((item) => item.key === key);
+  if (!entry) return { kind: "not-available" };
+  if (deployment.connected.has(key)) return { kind: "connected" };
+  const server = deployment.servers.find((candidate) => candidate.id === key);
+  if (!server) {
+    return {
+      kind: "needs-setup",
+      reason: service.setup
+        ? `Not turned on yet. It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
+        : "Not turned on yet. An administrator turns it on.",
+    };
+  }
+  if (
+    entry.auth === "user-oauth" &&
+    !server.dynamicClient &&
+    !server.hasCredential
+  ) {
+    return {
+      kind: "needs-setup",
+      reason: service.setup
+        ? `It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
+        : "An administrator has to add the app's client id and secret.",
+    };
+  }
+  return { kind: "ready" };
+}
+
 function RouteComponent() {
   const { connected: outcome } = Route.useSearch();
   const [search, setSearch] = React.useState("");
   const plugins = useQuery(pluginsPageQueryOptions());
   const connections = useQuery(connectionsQueryOptions());
+  const { data: currentUser } = useQuery(currentUserQueryOptions());
+  const isAdmin = currentUser?.role === "admin";
 
   const connected = new Set(
     (connections.data?.connections ?? []).map((row) => row.serverId),
   );
-  const added = new Set((plugins.data?.servers ?? []).map((s) => s.id));
+  const deployment = {
+    catalogue: plugins.data?.catalogue ?? [],
+    servers: plugins.data?.servers ?? [],
+    connected,
+  };
 
   /*
-   * Only vendors reached as a person, and only ones an administrator has enabled.
-   *
-   * A vendor with a shared token has nothing for you to decide: it answers the same for everybody,
-   * so listing it here would offer a choice you do not have. And a vendor nobody has enabled cannot
-   * be connected at all, because there is no OAuth client to consent against.
-   */
-  const yours = (plugins.data?.catalogue ?? []).filter(
-    (entry) => entry.auth === "user-oauth" && added.has(entry.key),
-  );
-
-  /*
-   * Brokered apps belong here for the same reason the OAuth ones do: they answer as you.
-   *
-   * The filter above names the catalogue's `user-oauth` kind, which a brokered row cannot have
-   * because it has no catalogue entry at all — so the one connector that is nothing but per-person
-   * accounts was the one this page never listed.
-   *
-   * EXCEPT THE ONES THAT NEED NO ACCOUNT, WHICH IS THE SAME RULE THE `user-oauth` FILTER ABOVE IS.
-   * That one keeps out a vendor with a shared token because it "has nothing for you to decide"; a
-   * Composio `NO_AUTH` app has exactly as little, one layer further in. There is no account to make:
-   * `/servers/:id/connect` refuses to create one and the call gate lets it through with no row, so
-   * a row for it here can never turn green. What an admin enabling Hacker News put on every
-   * person's page was a permanently grey "Not connected" that reads as an unfinished task, opening
-   * a page that says the app needs no account and draws no button — the list and the page it opens
-   * contradicting each other, with the list the more believable of the two.
-   *
-   * ASKED OF THE RECORDED SCHEME, which this read already carries and the detail route already
-   * consumes. Anything that is not the vendor's `NO_AUTH` is an app somebody connects, an
-   * unrecorded scheme included: a row whose column was never written is far likelier to be a key or
-   * consent app, and dropping it here would hide a connection somebody does have.
+   * Brokered apps belong here for the same reason the OAuth ones do: they answer as you. EXCEPT THE
+   * ONES THAT NEED NO ACCOUNT, which `brokeredAccountsListedOn` leaves out: there is nothing to
+   * connect, so a row for one would be a permanently grey "Not connected" that reads as an unfinished
+   * task.
    */
   const brokered = brokeredAccountsListedOn(plugins.data?.servers ?? []);
-  const accounts = [
-    ...yours.map((entry) => {
-      const Mark = markFor(entry.key);
-      return {
-        key: entry.key,
-        title: entry.title,
-        summary: entry.summary,
-        mark: <Mark className="size-4" />,
-      };
-    }),
-    ...brokered.map((server) => ({
-      key: server.id,
-      title: server.title,
-      summary: server.summary || `Connect your ${server.title} account.`,
-      mark: <PluginLogo logo={server.logo} />,
-    })),
-  ];
+
   const query = search.trim().toLocaleLowerCase();
-  const matching = accounts.filter((account) =>
-    `${account.title} ${account.summary}`.toLocaleLowerCase().includes(query),
+  const matches = (name: string, summary: string) =>
+    `${name} ${summary}`.toLocaleLowerCase().includes(query);
+  const services = DATA_SERVICES.filter((service) =>
+    matches(service.name, service.summary),
+  ).map((service) => ({
+    service,
+    state: dataServiceState(service, deployment),
+  }));
+  const brokeredMatching = brokered.filter((server) =>
+    matches(server.title, server.summary),
   );
-  const connectedCount = accounts.filter((account) =>
-    connected.has(account.key),
-  ).length;
-  const sections = [
+
+  const sections: Array<{
+    title: string;
+    note?: string;
+    rows: typeof services;
+  }> = [
     {
       title: "Connected",
-      accounts: matching.filter((account) => connected.has(account.key)),
+      rows: services.filter(({ state }) => state.kind === "connected"),
     },
     {
-      title: "Not connected",
-      accounts: matching.filter((account) => !connected.has(account.key)),
+      title: "Ready to connect",
+      rows: services.filter(({ state }) => state.kind === "ready"),
+    },
+    {
+      title: "Needs setup",
+      note: isAdmin
+        ? "You run this deployment, so you can set these up."
+        : "An administrator sets these up once, and then you can connect.",
+      rows: services.filter(({ state }) => state.kind === "needs-setup"),
+    },
+    {
+      title: "Not available yet",
+      note: "On the list because people ask for them. They are not built, so there is nothing to connect.",
+      rows: services.filter(({ state }) => state.kind === "not-available"),
     },
   ];
+  const connectedCount = DATA_SERVICES.filter(
+    (service) => dataServiceState(service, deployment).kind === "connected",
+  ).length;
 
   return (
     <PageShell
       className="max-w-4xl @container"
-      description="Connect your apps so your digital employees can work with them."
-      title="Connected accounts"
+      description="Connect the places your work lives, so your digital employees can read them as you. They only ever see what your own account can see."
+      title="Connect your Data"
     >
       {/*
        * Only the failure is worth saying. A success needs no sentence: the row it came back to now
@@ -174,113 +220,269 @@ function RouteComponent() {
         </p>
       ) : null}
       {/*
-       * BOTH READS DECIDE THIS, AND ONLY ONE OF THEM USED TO. The waits were already paired here;
-       * the errors were not — this branch tested `plugins.error` alone, so a `/api/plugins` that
-       * succeeded beside a `/api/plugins/connections` that failed left the `connected` set empty and
-       * every row below asserting "Not connected", with no error text anywhere on the page. Somebody
-       * holding Gmail through Composio and Drive through OAuth was shown both as unconnected and
-       * clicked through to reconnect accounts they already had. The brokered rows make it worse than
-       * it was before they existed, because a brokered row's entire content is the connection state.
-       *
-       * ONE SENTENCE FOR BOTH, because the two failures are one fact from where the reader stands:
-       * this page could not be loaded, and what it would otherwise draw is not shown rather than
-       * drawn wrong.
+       * BOTH READS DECIDE THIS. A `/api/plugins` that succeeded beside a `/api/plugins/connections` that
+       * failed left the connected set empty and every row asserting "not connected", with no error text
+       * anywhere. One sentence for both: this page could not be loaded, and what it would otherwise
+       * draw is not shown rather than drawn wrong.
        */}
       {plugins.isPending || connections.isPending ? null : plugins.error ||
         connections.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Your connected accounts could not be loaded, so nothing is listed here
-          rather than a list that may be wrong. Reload the page, and tell an
+          Your connections could not be loaded, so nothing is listed here rather
+          than a list that may be wrong. Reload the page, and tell an
           administrator if it persists.
         </p>
-      ) : accounts.length === 0 ? (
-        <PageSection>
-          <PageEmpty>
-            Nothing to connect yet. These appear once an administrator enables a
-            connector that reads as the person asking.
-          </PageEmpty>
-        </PageSection>
       ) : (
         <>
           <p className="mt-5 text-xs text-muted-foreground">
-            {connectedCount} connected · {accounts.length} available
+            {connectedCount} connected · {DATA_SERVICES.length} on the list
           </p>
           <InputGroup className="mt-3 h-9 border-transparent bg-muted/60 shadow-none dark:bg-muted/60">
             <InputGroupAddon>
               <IconSearch aria-hidden="true" className="size-4" />
             </InputGroupAddon>
             <InputGroupInput
-              aria-label="Search apps"
-              placeholder="Search apps"
+              aria-label="Search services"
+              placeholder="Search services"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
-          {matching.length === 0 ? (
+          {services.length === 0 && brokeredMatching.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground" role="status">
-              No apps match “{search.trim()}”.
+              No services match “{search.trim()}”.
             </p>
           ) : (
-            sections
-              .filter((section) => section.accounts.length > 0)
-              .map((section) => (
-                <section
-                  className="mt-8"
-                  key={section.title}
-                  aria-label={section.title}
-                >
+            <>
+              {sections
+                .filter((section) => section.rows.length > 0)
+                .map((section) => (
+                  <section
+                    className="mt-8"
+                    key={section.title}
+                    aria-label={section.title}
+                  >
+                    <h2 className="px-2 text-xs font-medium text-muted-foreground">
+                      {section.title}
+                    </h2>
+                    {section.note ? (
+                      <p className="mt-1 mb-3 px-2 text-xs text-muted-foreground">
+                        {section.note}
+                      </p>
+                    ) : (
+                      <div className="mb-3" />
+                    )}
+                    <div className="grid grid-cols-1 gap-x-6 gap-y-2 @min-[36rem]:grid-cols-2">
+                      {section.rows.map(({ service, state }) => (
+                        <ServiceRow
+                          isAdmin={isAdmin}
+                          key={service.id}
+                          service={service}
+                          state={state}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              {brokeredMatching.length > 0 ? (
+                <section className="mt-8" aria-label="More apps">
                   <h2 className="mb-3 px-2 text-xs font-medium text-muted-foreground">
-                    {section.title}
+                    More apps
                   </h2>
                   <div className="grid grid-cols-1 gap-x-6 gap-y-2 @min-[36rem]:grid-cols-2">
-                    {section.accounts.map((account) => (
-                      <Item
-                        key={account.key}
-                        className="min-w-0 flex-nowrap gap-3 px-2 py-3"
-                        data-testid={`account-${account.key}`}
-                        render={
-                          <Link
-                            params={{ key: account.key }}
-                            to="/settings/connected-accounts/$key"
-                          />
+                    {brokeredMatching.map((server) => (
+                      <AccountLink
+                        connected={connected.has(server.id)}
+                        id={server.id}
+                        key={server.id}
+                        mark={<PluginLogo logo={server.logo} />}
+                        summary={
+                          server.summary ||
+                          `Connect your ${server.title} account.`
                         }
-                        size="sm"
-                      >
-                        <RowMark className="size-9">{account.mark}</RowMark>
-                        <ItemContent className="min-w-0 gap-0.5">
-                          <ItemTitle className="block w-auto truncate">
-                            {account.title}
-                          </ItemTitle>
-                          <ItemDescription
-                            className="line-clamp-1 break-all text-xs"
-                            title={account.summary}
-                          >
-                            {account.summary}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions className="shrink-0">
-                          {connected.has(account.key) ? (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <IconCheck
-                                aria-hidden="true"
-                                className="size-3.5 text-emerald-600 dark:text-emerald-400"
-                              />
-                              Connected
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-                              Connect
-                            </span>
-                          )}
-                        </ItemActions>
-                      </Item>
+                        title={server.title}
+                      />
                     ))}
                   </div>
                 </section>
-              ))
+              ) : null}
+              {query === "" ? <YourOwnTools isAdmin={isAdmin} /> : null}
+            </>
           )}
         </>
       )}
     </PageShell>
+  );
+}
+
+/** One service, in whichever of its four states. Only the first two lead anywhere a person can act. */
+function ServiceRow({
+  isAdmin,
+  service,
+  state,
+}: {
+  isAdmin: boolean;
+  service: DataService;
+  state: DataServiceState;
+}) {
+  const Mark = service.connector
+    ? (MARKS[service.connector] ?? IconPlug)
+    : IconPlug;
+  const mark = <Mark className="size-4" />;
+  if (state.kind === "connected" || state.kind === "ready") {
+    return (
+      <AccountLink
+        connected={state.kind === "connected"}
+        id={service.connector as string}
+        mark={mark}
+        note={service.untested ? UNTESTED : undefined}
+        summary={service.summary}
+        title={service.name}
+      />
+    );
+  }
+  const body = (
+    <>
+      <RowMark className="size-9">{mark}</RowMark>
+      <ItemContent className="min-w-0 gap-0.5">
+        <ItemTitle className="block w-auto truncate">{service.name}</ItemTitle>
+        <ItemDescription
+          className="line-clamp-2 text-xs"
+          title={service.summary}
+        >
+          {service.summary}
+          {state.kind === "needs-setup" ? ` ${state.reason}` : ""}
+          {service.untested ? ` ${UNTESTED}` : ""}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className="shrink-0">
+        {state.kind === "needs-setup" ? (
+          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+            {isAdmin ? "Set up" : "Needs setup"}
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+            Not yet
+          </span>
+        )}
+      </ItemActions>
+    </>
+  );
+  return state.kind === "needs-setup" && isAdmin && service.connector ? (
+    <Item
+      className="min-w-0 flex-nowrap gap-3 px-2 py-3"
+      data-testid={`service-${service.id}`}
+      render={
+        <Link params={{ key: service.connector }} to="/admin/plugins/$key" />
+      }
+      size="sm"
+    >
+      {body}
+    </Item>
+  ) : (
+    <Item
+      className="min-w-0 flex-nowrap gap-3 px-2 py-3"
+      data-testid={`service-${service.id}`}
+      size="sm"
+    >
+      {body}
+    </Item>
+  );
+}
+
+/** Said on a connector that has been written but never tried against a real account. */
+const UNTESTED = "Built, but not yet tried with a real account.";
+
+function AccountLink({
+  connected,
+  id,
+  mark,
+  note,
+  summary,
+  title,
+}: {
+  connected: boolean;
+  id: string;
+  mark: React.ReactNode;
+  note?: string;
+  summary: string;
+  title: string;
+}) {
+  return (
+    <Item
+      className="min-w-0 flex-nowrap gap-3 px-2 py-3"
+      data-testid={`account-${id}`}
+      render={
+        <Link params={{ key: id }} to="/settings/connected-accounts/$key" />
+      }
+      size="sm"
+    >
+      <RowMark className="size-9">{mark}</RowMark>
+      <ItemContent className="min-w-0 gap-0.5">
+        <ItemTitle className="block w-auto truncate">{title}</ItemTitle>
+        <ItemDescription
+          className="line-clamp-2 text-xs"
+          title={`${summary}${note ? ` ${note}` : ""}`}
+        >
+          {summary}
+          {note ? ` ${note}` : ""}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className="shrink-0">
+        {connected ? (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <IconCheck
+              aria-hidden="true"
+              className="size-3.5 text-emerald-600 dark:text-emerald-400"
+            />
+            Connected
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
+            Connect
+          </span>
+        )}
+      </ItemActions>
+    </Item>
+  );
+}
+
+/** Where a tool that speaks MCP is added. It is an administrator's decision, so it says whose. */
+function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <section className="mt-8" aria-label="Your own tools">
+      <h2 className="mb-3 px-2 text-xs font-medium text-muted-foreground">
+        Your own tools
+      </h2>
+      <Item
+        className="min-w-0 flex-nowrap gap-3 px-2 py-3"
+        data-testid="own-mcp"
+        render={isAdmin ? <Link to="/admin/plugins" /> : undefined}
+        size="sm"
+      >
+        <RowMark className="size-9">
+          <IconPlug className="size-4" />
+        </RowMark>
+        <ItemContent className="min-w-0 gap-0.5">
+          <ItemTitle className="block w-auto truncate">
+            Add your own MCP server
+          </ItemTitle>
+          <ItemDescription className="line-clamp-2 text-xs">
+            Anything that speaks MCP can be connected, so your digital employees
+            can use a tool nobody on this list has built.
+            {isAdmin
+              ? ""
+              : " An administrator adds it, and decides who may use it."}
+          </ItemDescription>
+        </ItemContent>
+        {isAdmin ? (
+          <ItemActions className="shrink-0">
+            <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
+              Add
+            </span>
+          </ItemActions>
+        ) : null}
+      </Item>
+    </section>
   );
 }
