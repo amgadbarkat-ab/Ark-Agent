@@ -2446,7 +2446,7 @@ mod model_tests {
             assert_eq!(local.get(key), compatible.get(key), "{key}");
         }
         // Only the choice of the model on this computer says which one it is, so the Models screen can list it.
-        assert_eq!(local["ARK_OFFLINE_MODEL_LABEL"], "Offline model");
+        assert_eq!(local["ARK_OFFLINE_MODEL_LABEL"], "Gemma 4 E4B");
         assert_eq!(compatible["ARK_OFFLINE_MODEL_LABEL"], "");
         assert_eq!(local["OPENAI_BASE_URL"], fields.0);
         assert_eq!(local["OPENAI_CONTAINER_BASE_URL"], fields.1);
