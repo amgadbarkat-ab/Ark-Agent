@@ -24,12 +24,18 @@ export const ChannelAvatar = memo(function ChannelAvatar({
   participantIds,
   size = 32,
   typing = false,
+  lookup = true,
 }: {
   participantIds: string[];
   size?: number;
   typing?: boolean;
+  /** False for a sample that stands for nobody, such as a preview: it shows the default picture and asks for nothing. */
+  lookup?: boolean;
 }) {
-  const { data: agents } = useQuery(agentListQueryOptions());
+  const { data: agents } = useQuery({
+    ...agentListQueryOptions(),
+    enabled: lookup,
+  });
   const channelSize = participantIds?.length;
   const faceOf = (id: string) => {
     const agent = agents?.find((candidate) => candidate.id === id);
