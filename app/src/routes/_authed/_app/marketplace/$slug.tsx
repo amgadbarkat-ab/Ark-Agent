@@ -13,8 +13,8 @@ function ListingPage() {
   const listing = useQuery(listingQueryOptions(slug));
 
   const back = {
-    label: "Marketplace",
-    linkProps: { to: "/marketplace" } as const,
+    label: "Digital Team",
+    linkProps: { to: "/agents" } as const,
   };
 
   if (listing.isPending) return null;

@@ -19,8 +19,8 @@ function PublisherPage() {
   const { id } = Route.useParams();
   const page = useQuery(publisherQueryOptions(id));
   const back = {
-    label: "Marketplace",
-    linkProps: { to: "/marketplace" } as const,
+    label: "Digital Team",
+    linkProps: { to: "/agents" } as const,
   };
 
   if (page.isPending) {

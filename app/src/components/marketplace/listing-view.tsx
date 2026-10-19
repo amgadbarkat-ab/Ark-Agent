@@ -55,7 +55,7 @@ export function ListingView({
   backButton,
   listing,
 }: {
-  backButton: { label: string; linkProps: { to: "/marketplace" } };
+  backButton: { label: string; linkProps: { to: "/agents" } };
   listing: ListingDetail;
 }) {
   const content = listing.content;
