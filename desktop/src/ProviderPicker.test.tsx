@@ -920,14 +920,32 @@ const freeProviders: Provider[] = [
 const readyPlan = {
   ramGib: 15.6,
   cores: 8,
+  gpu: false,
   recommendation: {
     kind: "model",
     model: {
+      id: "gemma-4-12b",
+      label: "Gemma 4 12B",
+      sizeBytes: 6_975_879_296,
+    },
+  },
+  models: [
+    {
+      id: "gemma-4-12b",
+      label: "Gemma 4 12B",
+      sizeBytes: 6_975_879_296,
+      recommended: true,
+      ready: true,
+    },
+    {
       id: "gemma-4-e4b",
       label: "Gemma 4 E4B",
       sizeBytes: 5_154_941_280,
+      recommended: false,
+      ready: false,
     },
-  },
+  ],
+  chosen: "gemma-4-12b",
   toDownloadBytes: 0,
   ready: true,
   engine: "b11696 (cpu)",
@@ -951,35 +969,32 @@ test("ArkAgent's server is shown with its reason and cannot be chosen", async ()
   expect(local.disabled).toBe(false);
 });
 
-test("On this computer cannot continue until the model is ready, and then continues with no key or address", async () => {
+test("On this computer continues at once, with the best model chosen and no key or address, because the download happens during setup", async () => {
   const choices: unknown[] = [];
-  let plan = { ...readyPlan, ready: false, toDownloadBytes: 5_172_000_000 };
+  const plan = { ...readyPlan, ready: false, toDownloadBytes: 7_000_000_000 };
   invokeHandler = async (command) => {
     if (command === "providers") return freeProviders;
     if (command === "local_model_plan") return plan;
-    if (command === "local_model_prepare") {
-      plan = { ...plan, ready: true };
-      return undefined;
-    }
     throw new Error(`unexpected command ${command}`);
   };
   const view = await renderPicker((choice) => choices.push(choice));
   await userEvent.click(
     await view.findByRole("radio", { name: /On this computer/ }),
   );
-  const next = await view.findByRole("button", { name: "Continue" });
-  expect((next as HTMLButtonElement).disabled).toBe(true);
-
-  await userEvent.click(
-    await view.findByRole("button", { name: "Download 5.2 GB" }),
-  );
-  await view.findByText(/Ready\. Nothing more to download/);
+  await view.findByText(/downloads 7.0 GB while it installs/);
+  const next = view.getByRole("button", { name: "Continue" });
   expect((next as HTMLButtonElement).disabled).toBe(false);
   await userEvent.click(next);
-  expect(choices).toEqual([{ provider: "local", login: "managed" }]);
+  expect(choices).toEqual([
+    { provider: "local", login: "managed", model: "gemma-4-12b" },
+  ]);
+  // Nothing was fetched from this page: the install does that, alongside everything else.
+  expect(
+    invokeCalls.some((call) => call.command === "local_model_prepare"),
+  ).toBe(false);
 });
 
-test("a model already ready on this computer lets Continue light up straight away", async () => {
+test("a model already on this computer says so and continues", async () => {
   const choices: unknown[] = [];
   invokeHandler = async (command) => {
     if (command === "providers") return freeProviders;
@@ -990,9 +1005,79 @@ test("a model already ready on this computer lets Continue light up straight awa
   await userEvent.click(
     await view.findByRole("radio", { name: /On this computer/ }),
   );
-  await view.findByText(/Ready\. Nothing more to download/);
+  await view.findByText(/nothing to download/);
   await userEvent.click(view.getByRole("button", { name: "Continue" }));
-  expect(choices).toEqual([{ provider: "local", login: "managed" }]);
+  expect(choices).toEqual([
+    { provider: "local", login: "managed", model: "gemma-4-12b" },
+  ]);
+});
+
+test("a smaller local model can be chosen instead of the recommended one", async () => {
+  const choices: unknown[] = [];
+  invokeHandler = async (command, args) => {
+    if (command === "providers") return freeProviders;
+    if (command === "local_model_plan") {
+      const asked = (args as { model?: string | null }).model;
+      return asked === "gemma-4-e4b"
+        ? {
+            ...readyPlan,
+            chosen: "gemma-4-e4b",
+            ready: false,
+            toDownloadBytes: 5_200_000_000,
+          }
+        : readyPlan;
+    }
+    throw new Error(`unexpected command ${command}`);
+  };
+  const view = await renderPicker((choice) => choices.push(choice));
+  await userEvent.click(
+    await view.findByRole("radio", { name: /On this computer/ }),
+  );
+  await userEvent.click(
+    await view.findByRole("radio", { name: /Gemma 4 E4B/ }),
+  );
+  await view.findByText(/downloads 5.2 GB while it installs/);
+  await userEvent.click(view.getByRole("button", { name: "Continue" }));
+  expect(choices).toEqual([
+    { provider: "local", login: "managed", model: "gemma-4-e4b" },
+  ]);
+});
+
+test("what is under Advanced appears on the same page and can hold Continue back", async () => {
+  invokeHandler = async (command) => {
+    if (command === "providers") return freeProviders;
+    if (command === "local_model_plan") return readyPlan;
+    throw new Error(`unexpected command ${command}`);
+  };
+  const seen: Array<{ provider: string | null; login: string | null }> = [];
+  let view!: ReturnType<typeof render>;
+  await act(async () => {
+    view = render(
+      <ProviderPicker
+        held={{}}
+        root="/tmp/ark"
+        chosen={null}
+        onChoose={() => {}}
+        onBack={() => {}}
+        canContinue={false}
+        advanced={(selection) => {
+          seen.push(selection);
+          return <p>The framework choice lives here.</p>;
+        }}
+      />,
+    );
+  });
+  await view.findByText("The framework choice lives here.");
+  await userEvent.click(
+    await view.findByRole("radio", { name: /On this computer/ }),
+  );
+  await view.findByText(/nothing to download/);
+  // The framework section is told what was chosen, because which frameworks work follows from it.
+  expect(seen.at(-1)).toEqual({ provider: "local", login: "managed" });
+  expect(
+    (view.getByRole("button", { name: "Continue" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
 });
 
 test("the choice is remembered, and comes back selected", async () => {

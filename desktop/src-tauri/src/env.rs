@@ -401,6 +401,8 @@ pub fn compose(
             "ANTHROPIC_API_KEY",
             "OPENBOT_MODEL_OAUTH_FILE",
             "BOT_PROVIDER",
+            // The name of the model ArkAgent runs itself, which only the choice of it implies.
+            "ARK_OFFLINE_MODEL_LABEL",
         ] {
             env.insert(key.into(), String::new());
         }
@@ -435,6 +437,14 @@ pub fn compose(
                 env.remove(key);
             }
         }
+    }
+    // What the Models screen calls the model ArkAgent runs on this computer. The deployment's own model
+    // settings below are what answer; this only says which one it is, so the screen can list it.
+    if let ModelCredential::Local { model: served, .. } = &model.credential {
+        let label = crate::local_model::by_id(served)
+            .map(|known| known.label)
+            .unwrap_or("Offline model");
+        env.insert("ARK_OFFLINE_MODEL_LABEL".into(), label.into());
     }
     match &model.credential {
         /*
@@ -2435,6 +2445,9 @@ mod model_tests {
         ] {
             assert_eq!(local.get(key), compatible.get(key), "{key}");
         }
+        // Only the choice of the model on this computer says which one it is, so the Models screen can list it.
+        assert_eq!(local["ARK_OFFLINE_MODEL_LABEL"], "Gemma 4 E4B");
+        assert_eq!(compatible["ARK_OFFLINE_MODEL_LABEL"], "");
         assert_eq!(local["OPENAI_BASE_URL"], fields.0);
         assert_eq!(local["OPENAI_CONTAINER_BASE_URL"], fields.1);
         assert_eq!(local["OPENAI_API_KEY"], fields.2);
@@ -2443,6 +2456,35 @@ mod model_tests {
     }
 
     /// Nothing chosen writes no model keys at all, rather than empty ones.
+    #[test]
+    fn the_model_on_this_computer_is_named_for_the_models_screen() {
+        let compose_local = |model: &str| {
+            compose(
+                &Model {
+                    credential: ModelCredential::Local {
+                        base_url: "http://127.0.0.1:5000/v1".into(),
+                        container_base_url: None,
+                        api_key: "k".into(),
+                        model: model.into(),
+                    },
+                },
+                &engine(),
+                &Ports::default(),
+                &pinned(),
+                None,
+                &BTreeMap::new(),
+            )
+        };
+        assert_eq!(
+            compose_local("gemma-4-12b")["ARK_OFFLINE_MODEL_LABEL"],
+            "Gemma 4 12B"
+        );
+        assert_eq!(
+            compose_local("something-else")["ARK_OFFLINE_MODEL_LABEL"],
+            "Offline model"
+        );
+    }
+
     #[test]
     fn no_choice_writes_no_model_keys() {
         let env = compose(

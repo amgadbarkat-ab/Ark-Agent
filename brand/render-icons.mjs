@@ -25,6 +25,9 @@
 //   app/public/brand/,           the ArkAgent character's head and shoulders, cropped from the poster the owner
 //   desktop/src/assets/,         supplied (brand/arkagent/arkagent-poster.webp): the product's face on the
 //   brand/arkagent/              first screens each app shows
+//   brand/arkagent/scene.jpg     the whole figure, cropped from the same poster for the welcome screens (also
+//   app/public/brand/,           copied to app/public/brand/ and desktop/src/assets/), and four role faces for
+//   desktop/src/assets/roles/    the desktop's welcome. `--scene-only` writes just these and nothing else.
 //   brand/arkteam/,              the Ark Team roster the owner supplied (brand/arkteam/arkteam-roster.webp), cut into its
 //   app/public/brand/team/       eight characters and a four-face picture for the plan screen
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -41,8 +44,26 @@ const at = (...parts) => join(root, ...parts);
  */
 const ICON_CROP = { x: 240, y: 30, size: 560 };
 
+/**
+ * The same head, framed tighter, for the icons an operating system draws small: the taskbar, the dock, the
+ * tray, a launcher. In the owner's own framing the head fills about 80% of the square and the rest is dark
+ * background, which at 32 pixels is a small head in a large frame. This crop starts a few pixels left of the
+ * head and at its crown, so the head fills about nine tenths of the width.
+ */
+const TIGHT_CROP = { x: 276, y: 50, size: 500 };
+
 /** Where the character's head and shoulders are in the 864 by 1152 poster: a square of this side, from this corner. */
 const PORTRAIT_CROP = { x: 430, y: 74, size: 346 };
+
+/**
+ * The whole figure, without the poster's own wording: the strip of the 864 by 1152 poster to the right of
+ * where its text ends. Drawn at its own size and faded into the dark by the screen that shows it, which is
+ * the picture the desktop's welcome and the app's empty states stand the character in.
+ */
+const SCENE_CROP = { x: 420, y: 0, w: 444, h: 1152 };
+
+/** The characters shown on the desktop's welcome screen, to say a digital employee comes in a role. */
+const WELCOME_ROLES = ["sales", "accounting", "finance", "front-desk"];
 
 /**
  * Where each character's head and shoulders are in the 1280 by 720 Ark Team roster: a square of
@@ -165,7 +186,14 @@ async function sourceBackground(page, source) {
 async function character(
   page,
   source,
-  { size, shape = "square", inset = 0, content = 1, background = null },
+  {
+    size,
+    shape = "square",
+    inset = 0,
+    content = 1,
+    background = null,
+    crop = TIGHT_CROP,
+  },
 ) {
   const values = await page.evaluate(
     async ({ encoded, crop, size, shape, inset, content, background }) => {
@@ -211,7 +239,7 @@ async function character(
     },
     {
       encoded: source.toString("base64"),
-      crop: ICON_CROP,
+      crop,
       size,
       shape,
       inset,
@@ -282,9 +310,62 @@ async function cut(page, source, mime, pieces, size) {
   return Buffer.from(encoded, "base64");
 }
 
+/** The cinematic figure and the role faces, written alone when `--scene-only` is given. */
+async function writeScene(page) {
+  const poster = readFileSync(at("brand/arkagent/arkagent-poster.webp"));
+  const scene = await cut(
+    page,
+    poster,
+    "image/webp",
+    [
+      {
+        sx: SCENE_CROP.x,
+        sy: SCENE_CROP.y,
+        sw: SCENE_CROP.w,
+        sh: SCENE_CROP.h,
+        dx: 0,
+        dy: 0,
+        dw: SCENE_CROP.w,
+        dh: SCENE_CROP.h,
+      },
+    ],
+    { w: SCENE_CROP.w, h: SCENE_CROP.h },
+  );
+  write(at("brand/arkagent/scene.jpg"), scene);
+  write(at("app/public/brand/arkagent-scene.jpg"), scene);
+  write(at("desktop/src/assets/arkagent-scene.jpg"), scene);
+  const roster = readFileSync(at("brand/arkteam/arkteam-roster.webp"));
+  for (const slug of WELCOME_ROLES) {
+    const role = ROLES.find((entry) => entry.slug === slug);
+    const face = await cut(
+      page,
+      roster,
+      "image/webp",
+      [
+        {
+          sx: role.x,
+          sy: role.y,
+          sw: ROLE_SIZE,
+          sh: ROLE_SIZE,
+          dx: 0,
+          dy: 0,
+          dw: ROLE_SIZE,
+          dh: ROLE_SIZE,
+        },
+      ],
+      { w: ROLE_SIZE, h: ROLE_SIZE },
+    );
+    write(at(`desktop/src/assets/roles/${slug}.jpg`), face);
+  }
+}
+
 const browser = await loadChromium();
 try {
   const page = await browser.newPage();
+  if (process.argv.includes("--scene-only")) {
+    await writeScene(page);
+    process.exit(0);
+  }
   const source = readFileSync(at("brand/arkagent/icon-source.webp"));
   const dark = await sourceBackground(page, source);
 
@@ -379,7 +460,7 @@ try {
       await character(page, source, {
         size: 1024,
         shape: "rounded",
-        inset: 0.06,
+        inset: 0.02,
       }),
       1024,
       true,
@@ -444,6 +525,7 @@ try {
   );
   write(at("brand/arkteam/team-faces.jpg"), faces);
   write(at("app/public/brand/team/faces.jpg"), faces);
+  await writeScene(page);
 } finally {
   await browser.close();
 }

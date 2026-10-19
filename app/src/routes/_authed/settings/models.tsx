@@ -37,8 +37,10 @@ import { setBotModelMutationOptions } from "@/lib/models/mutations";
 import {
   botModelChoicesQueryOptions,
   type ModelCatalogue,
+  type LocalModels,
   type ModelConnection,
   type ModelProviderTier,
+  localModelsQueryOptions,
   modelCatalogueQueryOptions,
   modelConnectionsQueryOptions,
 } from "@/lib/models/queries";
@@ -51,7 +53,7 @@ export const Route = createFileRoute("/_authed/settings/models")({
   component: ModelsPage,
 });
 
-/** How a provider's tier reads on a row. */
+/** How a provider's tier reads on a row. A model on this computer says whether it is running instead. */
 const TIER_LABEL: Record<ModelProviderTier, string> = {
   local: "On this computer",
   free: "Free",
@@ -71,6 +73,8 @@ function ModelsPage() {
   const connections = useQuery(modelConnectionsQueryOptions());
   const coworkers = useQuery(agentListQueryOptions());
   const choices = useQuery(botModelChoicesQueryOptions());
+  const local = useQuery(localModelsQueryOptions());
+  const offline = local.data?.offline ?? null;
   const [editing, setEditing] = useState<Editing>({ kind: "none" });
 
   const editedConnection =
@@ -122,13 +126,19 @@ function ModelsPage() {
           <p className="mt-4 text-destructive text-sm" role="alert">
             Could not load your models.
           </p>
-        ) : connections.data?.length === 0 ? (
+        ) : connections.data?.length === 0 && !offline ? (
           <PageEmpty>
             No model is connected. Your digital employees use this deployment's
             own model, if it has one. Add one to choose for yourself.
           </PageEmpty>
         ) : (
           <PageRows>
+            {offline ? (
+              <>
+                <OfflineModelRow offline={offline} />
+                {(connections.data?.length ?? 0) > 0 && <Separator />}
+              </>
+            ) : null}
             {connections.data?.map((connection, index) => (
               <React.Fragment key={connection.id}>
                 <ConnectionRow
@@ -144,49 +154,74 @@ function ModelsPage() {
       </PageSection>
 
       <PageSection
-        description="Add any of these. A model on this computer needs its program installed and running first: ArkAgent does not install Ollama, LM Studio or llama.cpp."
+        description="Add any of these. A model on this computer is marked running only when it answered just now. ArkAgent does not install Ollama, LM Studio or llama.cpp: install and start one first, and this page notices."
         title="Available models"
       >
         {catalogue.data ? (
           <PageRows>
             {catalogue.data.providers
               .filter((provider) => !provider.unavailable)
-              .map((provider, index, all) => (
-                <React.Fragment key={provider.id}>
-                  <Item size="sm">
-                    <ItemMedia variant="icon">
-                      {provider.tier === "local" ? <IconCpu /> : <IconCloud />}
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>
-                        {provider.name}
-                        <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
-                          {TIER_LABEL[provider.tier]}
-                        </span>
-                      </ItemTitle>
-                      <ItemDescription className="line-clamp-none">
-                        {provider.summary}
-                        {provider.suggestedModels.length > 0
-                          ? ` Such as ${provider.suggestedModels.slice(0, 3).join(", ")}.`
-                          : ""}
-                      </ItemDescription>
-                    </ItemContent>
-                    <ItemActions>
-                      <Button
-                        onClick={() =>
-                          setEditing({ kind: "new", providerId: provider.id })
-                        }
-                        size="sm"
-                        variant="ghost"
-                      >
-                        <IconPlus />
-                        Add
-                      </Button>
-                    </ItemActions>
-                  </Item>
-                  {index !== all.length - 1 && <Separator />}
-                </React.Fragment>
-              ))}
+              .map((provider, index, all) => {
+                const status = local.data?.servers.find(
+                  (server) => server.providerId === provider.id,
+                );
+                const isLocal = provider.tier === "local";
+                const running = isLocal && status?.state === "running";
+                return (
+                  <React.Fragment key={provider.id}>
+                    <Item size="sm">
+                      <ItemMedia variant="icon">
+                        {isLocal ? <IconCpu /> : <IconCloud />}
+                      </ItemMedia>
+                      <ItemContent>
+                        <ItemTitle>
+                          {provider.name}
+                          <span
+                            className={`rounded-md px-1.5 py-0.5 font-normal text-xs ${
+                              running
+                                ? "bg-primary/15 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {isLocal
+                              ? running
+                                ? "Running on this computer"
+                                : status
+                                  ? "Not running"
+                                  : "On this computer"
+                              : TIER_LABEL[provider.tier]}
+                          </span>
+                        </ItemTitle>
+                        <ItemDescription className="line-clamp-none">
+                          {provider.summary}
+                          {running && status?.models?.length
+                            ? ` Found ${status.models.slice(0, 3).join(", ")}${status.models.length > 3 ? ` and ${status.models.length - 3} more` : ""}.`
+                            : isLocal && status
+                              ? ` Nothing answered at ${provider.baseUrl}. Install and start ${provider.name}, or add it with a different address.`
+                              : provider.suggestedModels.length > 0
+                                ? ` Such as ${provider.suggestedModels.slice(0, 3).join(", ")}.`
+                                : ""}
+                        </ItemDescription>
+                      </ItemContent>
+                      <ItemActions>
+                        <Button
+                          onClick={() =>
+                            setEditing({ kind: "new", providerId: provider.id })
+                          }
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <IconPlus />
+                          {isLocal && status && !running
+                            ? "Set address"
+                            : "Add"}
+                        </Button>
+                      </ItemActions>
+                    </Item>
+                    {index !== all.length - 1 && <Separator />}
+                  </React.Fragment>
+                );
+              })}
           </PageRows>
         ) : null}
       </PageSection>
@@ -243,6 +278,45 @@ function ModelsPage() {
         </PageSection>
       ) : null}
     </PageShell>
+  );
+}
+
+/**
+ * The model ArkAgent runs on this computer, listed first because it is the one that was downloaded for
+ * this person. It is the deployment's own model, so it is not edited here: it is what answers unless a
+ * model of their own is chosen below.
+ */
+function OfflineModelRow({
+  offline,
+}: {
+  offline: NonNullable<LocalModels["offline"]>;
+}) {
+  const running = offline.state === "running";
+  return (
+    <Item size="sm">
+      <ItemMedia variant="icon">
+        <IconCpu />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>
+          ArkAgent offline model · {offline.label}
+          <span
+            className={`rounded-md px-1.5 py-0.5 font-normal text-xs ${
+              running
+                ? "bg-primary/15 text-primary"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {running ? "Running on this computer" : "Not running"}
+          </span>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none">
+          {running
+            ? "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model."
+            : "It is installed, but it is not answering right now. Open ArkAgent from its window to start it again."}
+        </ItemDescription>
+      </ItemContent>
+    </Item>
   );
 }
 

@@ -1,6 +1,7 @@
 import * as builtinRoutines from "./builtin-routines";
 import * as composio from "./composio";
 import * as driveRest from "./google-drive-rest";
+import * as graphRest from "./microsoft-graph-rest";
 import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
 
@@ -118,6 +119,7 @@ export type VendorTransport = {
 export type TransportKind =
   | "mcp"
   | "google-drive-rest"
+  | "microsoft-graph-rest"
   | "builtin-routines"
   | "composio";
 
@@ -143,6 +145,7 @@ export type CuratedTransportKind = Exclude<TransportKind, "composio">;
 const TRANSPORTS: Record<TransportKind, VendorTransport> = {
   mcp,
   "google-drive-rest": driveRest,
+  "microsoft-graph-rest": graphRest,
   "builtin-routines": builtinRoutines,
   composio,
 };

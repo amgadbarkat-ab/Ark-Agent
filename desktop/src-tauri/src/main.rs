@@ -388,6 +388,108 @@ async fn prepare_engine(app: tauri::AppHandle) -> Result<engine::EngineStatus, P
     Ok(engine::detect())
 }
 
+/// How many container images are fetched at once. Each is its own connection to the registry, and a
+/// home connection that cannot be filled by one of them can by four.
+const PULLS_AT_ONCE: usize = 4;
+
+/// The app's packages and every container image, fetched at the same time.
+///
+/// The packages are one job, run on its own thread beside the image workers. The images are pulled by a
+/// few workers taking the next one off a shared list, so the total time is the slowest share of the
+/// work and not the sum of all of it. The first failure stops the others from starting anything new,
+/// and is the one reported; a pull already running is let finish, because stopping one half-way only
+/// leaves a partial layer behind.
+fn install_in_parallel(
+    attempt: &StartAttempt<'_>,
+    handle: &tauri::AppHandle,
+    root: &Path,
+    address: &engine::Address,
+    images: &[String],
+) -> Result<(), Problem> {
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst};
+    let next = AtomicUsize::new(0);
+    let finished = AtomicUsize::new(0);
+    let fetched: Vec<AtomicU64> = images.iter().map(|_| AtomicU64::new(0)).collect();
+    let failure: std::sync::Mutex<Option<Problem>> = std::sync::Mutex::new(None);
+    let fail = |problem: Problem| {
+        let mut slot = failure.lock().unwrap();
+        if slot.is_none() {
+            *slot = Some(problem);
+        }
+    };
+    let stopped = || failure.lock().unwrap().is_some();
+
+    std::thread::scope(|scope| {
+        let packages = scope.spawn(|| {
+            let result = preparation::install_dependencies_if_needed(root, || {
+                report_running(handle, "dependencies", "Preparing the local runtime.", None);
+                let bun = install::ensure_bun(root, which_bun())?;
+                report_running(
+                    handle,
+                    "dependencies",
+                    "Installing the app's packages.",
+                    None,
+                );
+                Ok(bun)
+            });
+            if let Err(problem) = result {
+                fail(problem);
+            }
+        });
+        let workers: Vec<_> = (0..PULLS_AT_ONCE.min(images.len()))
+            .map(|_| {
+                scope.spawn(|| loop {
+                    if stopped() {
+                        break;
+                    }
+                    if let Err(problem) = attempt.require_current() {
+                        fail(problem);
+                        break;
+                    }
+                    let index = next.fetch_add(1, SeqCst);
+                    let Some(image) = images.get(index) else {
+                        break;
+                    };
+                    let said = || {
+                        format!(
+                            "Downloading local software ({} of {} done).",
+                            finished.load(SeqCst),
+                            images.len()
+                        )
+                    };
+                    let outcome = pull_metrics::pull_image(
+                        address,
+                        image,
+                        |bytes| {
+                            fetched[index].store(bytes, SeqCst);
+                            let total: u64 = fetched.iter().map(|part| part.load(SeqCst)).sum();
+                            report_running(handle, "images", said(), Some(total));
+                        },
+                        |_| {},
+                    );
+                    match outcome {
+                        Ok(()) => {
+                            finished.fetch_add(1, SeqCst);
+                        }
+                        Err(problem) => {
+                            fail(problem);
+                            break;
+                        }
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            let _ = worker.join();
+        }
+        let _ = packages.join();
+    });
+    match failure.into_inner().unwrap() {
+        Some(problem) => Err(problem),
+        None => Ok(()),
+    }
+}
+
 /// Complete all local software acquisition before either authentication screen is available.
 #[tauri::command]
 async fn prepare_installation(
@@ -434,34 +536,9 @@ async fn prepare_installation(
         if let Some(problem) = stack::deployment_problem(&root) {
             return Err(Problem::from(problem));
         }
-        report_running(
-            &handle,
-            "dependencies",
-            "Preparing the app's dependencies.",
-            None,
-        );
-        preparation::install_dependencies_if_needed(&root, || {
-            report_running(
-                &handle,
-                "dependencies",
-                "Preparing the local runtime.",
-                None,
-            );
-            let bun = install::ensure_bun(&root, which_bun())?;
-            report_running(
-                &handle,
-                "dependencies",
-                "Installing the app's packages.",
-                None,
-            );
-            Ok(bun)
-        })?;
-        report(
-            &handle,
-            "dependencies",
-            true,
-            "The app's dependencies are installed.",
-        );
+        // The images to fetch are worked out first, so the two long jobs below can run side by side:
+        // the app's packages come from one place and the container images from another, and waiting for
+        // one before starting the other is most of why a first install took half an hour.
         report_running(
             &handle,
             "images",
@@ -476,21 +553,19 @@ async fn prepare_installation(
         let mut images = stack::installation_images(&address, &root, installed, &settings)?;
         images.sort();
         images.dedup();
-        for (index, image) in images.iter().enumerate() {
-            attempt.require_current()?;
-            let detail = format!(
-                "Downloading local software ({}/{}).",
-                index + 1,
-                images.len()
-            );
-            report_running(&handle, "images", &detail, None);
-            pull_metrics::pull_image(
-                &address,
-                image,
-                |bytes| report_running(&handle, "images", &detail, Some(bytes)),
-                |_| {},
-            )?;
-        }
+        report_running(
+            &handle,
+            "dependencies",
+            "Preparing the app's dependencies.",
+            None,
+        );
+        install_in_parallel(&attempt, &handle, &root, &address, &images)?;
+        report(
+            &handle,
+            "dependencies",
+            true,
+            "The app's dependencies are installed.",
+        );
         report(
             &handle,
             "images",
@@ -911,16 +986,19 @@ fn local_model_progress_sink<R: tauri::Runtime>(
 #[tauri::command]
 async fn local_model_plan(
     root: String,
+    model: Option<String>,
 ) -> Result<openbot_desktop_lib::local_setup::Plan, openbot_desktop_lib::problem::Problem> {
     let root = stack::root_from(&root);
-    tauri::async_runtime::spawn_blocking(move || openbot_desktop_lib::local_setup::plan(&root))
-        .await
-        .map_err(|error| {
-            Problem::with(
-                "ArkAgent could not look at this computer.",
-                error.to_string(),
-            )
-        })?
+    tauri::async_runtime::spawn_blocking(move || {
+        openbot_desktop_lib::local_setup::plan(&root, model.as_deref())
+    })
+    .await
+    .map_err(|error| {
+        Problem::with(
+            "ArkAgent could not look at this computer.",
+            error.to_string(),
+        )
+    })?
 }
 
 /// Download what the model needs, with progress, so the person watches it on the model screen and
@@ -929,6 +1007,7 @@ async fn local_model_plan(
 async fn local_model_prepare<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     root: String,
+    model: Option<String>,
 ) -> Result<(), openbot_desktop_lib::problem::Problem> {
     let root = stack::root_from(&root);
     let cancel = app.state::<Shell>().local_cancel.clone();
@@ -936,7 +1015,14 @@ async fn local_model_prepare<R: tauri::Runtime>(
     let mut sink = local_model_progress_sink(&app);
     tauri::async_runtime::spawn_blocking(move || {
         let machine = openbot_desktop_lib::local_model::detect()?;
-        openbot_desktop_lib::local_setup::prepare(&root, &machine, &cancel, &mut sink).map(|_| ())
+        openbot_desktop_lib::local_setup::prepare(
+            &root,
+            &machine,
+            model.as_deref(),
+            &cancel,
+            &mut sink,
+        )
+        .map(|_| ())
     })
     .await
     .map_err(|error| Problem::with("ArkAgent could not get the model ready.", error.to_string()))?
@@ -954,6 +1040,7 @@ fn local_model_cancel<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
 async fn start_local_model<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     root: &Path,
+    requested: Option<String>,
 ) -> Result<ChosenModel, Problem> {
     let shell = app.state::<Shell>();
     let cancel = shell.local_cancel.clone();
@@ -970,6 +1057,7 @@ async fn start_local_model<R: tauri::Runtime>(
         let prepared = openbot_desktop_lib::local_setup::prepare(
             &work_root,
             &machine,
+            requested.as_deref(),
             &cancel,
             &mut |stage, progress| {
                 if progress.downloaded < progress.total {
@@ -1275,8 +1363,15 @@ async fn start_stack_inner<R: tauri::Runtime>(
     // list to keep in step. See `harness::picked` for what each refusal is for.
     // Named rather than inlined: the Bot choice below reads it, the store file is written from it,
     // and reading the model screen twice could not be relied on to give the same answer.
+    // Before anything is downloaded or started: a framework that cannot run on this AI is a sentence now,
+    // and not a container that stops a few minutes later with a message about a key.
+    if let Some(said) =
+        harness::incompatible_with_model(harness.as_ref(), &model.provider, &model.login)
+    {
+        return Err(Problem::plain(said));
+    }
     let model = if model.is_local() {
-        start_local_model(&app, &root).await?
+        start_local_model(&app, &root, model.model.clone()).await?
     } else {
         model
     };

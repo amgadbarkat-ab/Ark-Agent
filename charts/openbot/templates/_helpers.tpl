@@ -319,14 +319,18 @@ and in whatever holds the release, which is not where `KEY_ENCRYPTION_KEY` belon
   feature, it does not install at all.
 */}}
 {{- $handoff := .Values.config.handoff | default dict -}}
-{{- $maxDepth := 1 -}}
+{{- $maxDepth := 5 -}}
 {{- if not (kindIs "invalid" $handoff.maxDepth) -}}{{- $maxDepth = $handoff.maxDepth -}}{{- end -}}
 {{- $maxPerRun := 3 -}}
-{{- if not (kindIs "invalid" $handoff.maxPerRun) -}}{{- $maxPerRun = $handoff.maxPerRun -}}{{- end }}
+{{- if not (kindIs "invalid" $handoff.maxPerRun) -}}{{- $maxPerRun = $handoff.maxPerRun -}}{{- end -}}
+{{- $maxPerRequest := 20 -}}
+{{- if not (kindIs "invalid" $handoff.maxPerRequest) -}}{{- $maxPerRequest = $handoff.maxPerRequest -}}{{- end }}
 - name: BOT_HANDOFF_MAX_DEPTH
   value: {{ $maxDepth | quote }}
 - name: BOT_HANDOFF_MAX_PER_RUN
   value: {{ $maxPerRun | quote }}
+- name: BOT_HANDOFF_MAX_PER_REQUEST
+  value: {{ $maxPerRequest | quote }}
 {{- /*
   The conversation service. With `hub.enabled` it is Ark Hub, in this release: the API reaches it
   inside the cluster, and a browser reaches it at `hub.publicUrl`. Otherwise it is whatever

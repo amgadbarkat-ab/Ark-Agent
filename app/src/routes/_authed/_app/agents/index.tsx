@@ -6,16 +6,21 @@ import { AgentCard } from "@/components/agents/agent-card";
 import { AgentDialog } from "@/components/agents/agent-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { OpenTeamChannelButton } from "@/components/agents/open-team-channel-button";
-import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
+import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
+import { HireSection } from "@/components/marketplace/hire-section";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { agentListQueryOptions, isSharedWithYou } from "@/lib/agents/queries";
+import {
+  type AgentProfile,
+  agentListQueryOptions,
+  isSharedWithYou,
+} from "@/lib/agents/queries";
 
 /**
- * Creating and inspecting a coworker are search-parameter states so the roster remains mounted and
- * Back closes the dialog.
+ * Creating and inspecting a digital employee are search-parameter states so the page remains mounted
+ * and Back closes the dialog.
  */
 const agentsSearchSchema = z.object({
   new: z.boolean().optional(),
@@ -24,23 +29,27 @@ const agentsSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authed/_app/agents/")({
   validateSearch: agentsSearchSchema,
-  component: AgentsScreen,
+  component: DigitalTeamScreen,
 });
 
-// Two equal columns let cards fill the available width at a consistent height.
-function AgentsScreen() {
+/**
+ * Everything about who works for you, on one page: the team you have, the ready-made digital employees
+ * you can hire, the ones shared with you, and where you make your own or share one.
+ *
+ * It used to be two pages, Agents and Marketplace, and a person had to know that a digital employee they
+ * had hired would appear on the other one. One page means hiring, creating and sharing all end in the
+ * same place: the team at the top.
+ */
+function DigitalTeamScreen() {
   const { new: isCreating, agent: selectedAgentId } = Route.useSearch();
   const navigate = Route.useNavigate();
   /*
-   * The two empty states below must not fire while the list is still arriving. `skills.tsx` learned
-   * this first: an empty state standing there saying somebody has created nothing is a claim the
-   * screen has not yet earned, and on a slow connection it is the first thing they read.
+   * The empty states below must not fire while the list is still arriving: an empty state standing
+   * there saying somebody has nobody on their team is a claim the screen has not yet earned.
    *
-   * `isPending` rather than `agents === undefined`, and the difference is the whole point on a
-   * screen whose job is to say when there is nothing. `data` is also undefined when the query
-   * FAILED, so deriving the flag from it holds the screen in its loading branch forever on an
-   * error — two headings over nothing, which is the exact shape this task exists to remove.
-   * `isPending` goes false either way, so a failure falls through to the empty state.
+   * `isPending` rather than `agents === undefined`, because `data` is also undefined when the query
+   * FAILED, so deriving the flag from it would hold the screen in its loading branch for ever on an
+   * error. `isPending` goes false either way, so a failure falls through to its own message.
    */
   const {
     data: agents,
@@ -48,7 +57,7 @@ function AgentsScreen() {
     isError: failed,
   } = useQuery(agentListQueryOptions());
   const mine = agents?.filter((a) => a.mine);
-  const explore = agents?.filter(isSharedWithYou);
+  const shared = agents?.filter(isSharedWithYou);
 
   // Creating wins if both are somehow set: it is the more recent intent.
   const showCreate = isCreating === true;
@@ -57,133 +66,46 @@ function AgentsScreen() {
 
   return (
     <>
-      <SidebarToggleBar />
-      {/* The shell around this never scrolls, so the page scrolls itself (see PageShell). */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="max-w-2xl px-4 pb-12 w-full mx-auto">
-          <div className="mt-12 w-full max-w-2xl">
-            <div className="flex flex-row w-full items-center justify-between">
-              <h2 className="font-bold text-lg">Your agents</h2>
-              <div className="flex items-start gap-1">
-                {/* A team needs somebody besides the lead. */}
-                {(mine?.length ?? 0) >= 2 ? <OpenTeamChannelButton /> : null}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  render={(props) => (
-                    <Link to="/agents" search={{ new: true }} {...props} />
-                  )}
-                >
-                  <IconPlus />
-                  New agent
-                </Button>
-              </div>
-            </div>
-            {loading ? (
-              // Approximate one row of cards while the roster loads.
-              <Skeleton className="mt-4 h-[180px]" />
-            ) : mine?.length ? (
-              // Wins over `failed`: TanStack Query keeps the last good `data` across a failed
-              // background refetch (see query-core's error action — it spreads `...state` and
-              // never clears `data`), so `isError` and a still-populated roster are an ordinary
-              // combination, not a contradiction. A stale roster beats an error card claiming
-              // there is nothing, which would be false here.
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                {mine.map((agent, index) => {
-                  return (
-                    <StaggerItem
-                      className="min-w-0"
-                      index={index}
-                      key={agent.id}
-                    >
-                      <AgentCard agent={agent} />
-                    </StaggerItem>
-                  );
-                })}
-              </div>
-            ) : failed && agents === undefined ? (
-              // `agents === undefined` narrows this to "the query has never once returned
-              // successfully" — not merely "the last request errored". `?.length` alone can't
-              // tell that apart from a slice that loaded and is genuinely empty: TanStack Query
-              // never clears `data` on a failed background refetch, so once the query has
-              // resolved even one response, `agents` stays defined and `mine`'s emptiness is a
-              // fact about that response, not a symptom of the failure. Rendering the destructive
-              // card there would say the opposite of what "Explore agents" beside it (or this
-              // section itself, on a different roster) proves by rendering real cards from the
-              // same query.
-              <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
-                <EmptyHeader>
-                  <EmptyTitle className="text-destructive">
-                    Your agents couldn't be loaded.
-                  </EmptyTitle>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              // Reached both when the query never failed and `mine` is genuinely empty, and when
-              // it failed but `agents` is defined — a loaded, empty slice either way. Same plain
-              // copy for both: an empty roster is a fact, not an error.
-              <Empty className="mt-4 h-[180px] border border-dashed">
-                <EmptyHeader>
-                  <EmptyTitle className="text-muted-foreground">
-                    You don't have any agents created.
-                  </EmptyTitle>
-                </EmptyHeader>
-              </Empty>
-            )}
+      <PageShell
+        action={
+          <div className="flex items-center gap-1">
+            {/* A team needs somebody besides the lead. */}
+            {(mine?.length ?? 0) >= 2 ? <OpenTeamChannelButton /> : null}
+            <Button
+              render={(props) => (
+                <Link search={{ new: true }} to="/agents" {...props} />
+              )}
+              size="sm"
+              variant="ghost"
+            >
+              <IconPlus />
+              Create your own
+            </Button>
           </div>
-          <div className="mt-8 w-full max-w-2xl">
-            <h2 className="font-bold text-lg">Explore agents</h2>
-            {loading ? (
-              // Approximate one row of cards while the roster loads.
-              <Skeleton className="mt-4 h-[180px]" />
-            ) : explore?.length ? (
-              // Wins over `failed` for the same reason the "Your agents" section above does: a
-              // failed background refetch does not clear TanStack Query's cached `data`.
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                {explore.map((agent, index) => {
-                  return (
-                    <StaggerItem
-                      className="min-w-0"
-                      index={index}
-                      key={agent.id}
-                    >
-                      <AgentCard agent={agent} />
-                    </StaggerItem>
-                  );
-                })}
-              </div>
-            ) : failed && agents === undefined ? (
-              // `agents === undefined` narrows this to "the query has never once returned
-              // successfully" — not merely "the last request errored". `?.length` alone can't
-              // tell that apart from a slice that loaded and is genuinely empty: TanStack Query
-              // never clears `data` on a failed background refetch, so once the query has
-              // resolved even one response, `agents` stays defined and `explore`'s emptiness is a
-              // fact about that response, not a symptom of the failure. Rendering the destructive
-              // card there would say the opposite of what "Your agents" beside it (or this
-              // section itself, on a different roster) proves by rendering real cards from the
-              // same query.
-              <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
-                <EmptyHeader>
-                  <EmptyTitle className="text-destructive">
-                    Agents shared with you couldn't be loaded.
-                  </EmptyTitle>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              // Reached both when the query never failed and `explore` is genuinely empty, and
-              // when it failed but `agents` is defined — a loaded, empty slice either way. Same
-              // plain copy for both: an empty roster is a fact, not an error.
-              <Empty className="mt-4 h-[180px] border border-dashed">
-                <EmptyHeader>
-                  <EmptyTitle className="text-muted-foreground">
-                    Nobody has shared an agent with you yet.
-                  </EmptyTitle>
-                </EmptyHeader>
-              </Empty>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+        description="Everyone who works for you. Look after your team, hire a ready-made digital employee for a role, create your own, or share one with others."
+        title="Digital Team"
+      >
+        <PageSection title="Your digital team">
+          <Roster
+            agents={mine}
+            emptyText="You don't have any digital employees yet. Hire one below, or create your own."
+            failed={failed}
+            failedText="Your digital team couldn't be loaded."
+            loading={loading}
+          />
+        </PageSection>
+        <HireSection />
+        <PageSection title="Shared with you">
+          <Roster
+            agents={shared}
+            emptyText="Nobody has shared a digital employee with you yet."
+            failed={failed}
+            failedText="Digital employees shared with you couldn't be loaded."
+            loading={loading}
+          />
+        </PageSection>
+      </PageShell>
       <CreateAgentDialog
         onClose={close}
         onCreated={(agentId) => navigate({ search: { agent: agentId } })}
@@ -195,5 +117,62 @@ function AgentsScreen() {
         open={showProfile}
       />
     </>
+  );
+}
+
+/** A grid of digital employees, or the one sentence that says why there is none. */
+function Roster({
+  agents,
+  emptyText,
+  failed,
+  failedText,
+  loading,
+}: {
+  agents: AgentProfile[] | undefined;
+  emptyText: string;
+  failed: boolean;
+  failedText: string;
+  loading: boolean;
+}) {
+  if (loading) {
+    // Approximate one row of cards while the roster loads.
+    return <Skeleton className="mt-4 h-[180px]" />;
+  }
+  /*
+   * A roster that has loaded wins over `failed`: TanStack Query keeps the last good `data` across a
+   * failed background refetch, so `isError` and a populated list are an ordinary combination, and a
+   * stale roster beats an error card claiming there is nobody.
+   */
+  if (agents?.length) {
+    return (
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        {agents.map((agent, index) => (
+          <StaggerItem className="min-w-0" index={index} key={agent.id}>
+            <AgentCard agent={agent} />
+          </StaggerItem>
+        ))}
+      </div>
+    );
+  }
+  /*
+   * `agents === undefined` narrows this to "the query has never once returned": an empty list that
+   * loaded is a fact about the roster, not a symptom of the failure, and the destructive card would
+   * say the opposite of what the other roster on this page proves with real cards.
+   */
+  if (failed && agents === undefined) {
+    return (
+      <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
+        <EmptyHeader>
+          <EmptyTitle className="text-destructive">{failedText}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+  return (
+    <Empty className="mt-4 h-[180px] border border-dashed">
+      <EmptyHeader>
+        <EmptyTitle className="text-muted-foreground">{emptyText}</EmptyTitle>
+      </EmptyHeader>
+    </Empty>
   );
 }

@@ -97,6 +97,7 @@ export function MessageListPreference() {
             className="flex h-16 w-full max-w-xs items-center rounded-lg border border-border bg-sidebar px-3"
           >
             <ChannelItemContent
+              lookup={false}
               participantIds={["message-list-preview"]}
               name="General Assistant"
               title="Plan next week"

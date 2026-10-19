@@ -273,16 +273,24 @@ function renderAgents(queryClient: QueryClient) {
 test("a failed roster on /agents reports the failure, not an empty roster", async () => {
   const view = renderAgents(failingQueryClient());
 
-  expect(await view.findByText("Your agents couldn't be loaded.")).toBeTruthy();
   expect(
-    await view.findByText("Agents shared with you couldn't be loaded."),
+    await view.findByText("Your digital team couldn't be loaded."),
+  ).toBeTruthy();
+  expect(
+    await view.findByText(
+      "Digital employees shared with you couldn't be loaded.",
+    ),
   ).toBeTruthy();
 
   // The whole point: a person with agents must never be told they have none because the request
   // that would have proven otherwise never came back.
-  expect(view.queryByText("You don't have any agents created.")).toBeNull();
   expect(
-    view.queryByText("Nobody has shared an agent with you yet."),
+    view.queryByText(
+      "You don't have any digital employees yet. Hire one below, or create your own.",
+    ),
+  ).toBeNull();
+  expect(
+    view.queryByText("Nobody has shared a digital employee with you yet."),
   ).toBeNull();
 });
 
@@ -330,13 +338,17 @@ test("both /agents sections hold a skeleton while the roster is pending, not an 
   // A skeleton sitting beside a premature empty or error sentence would be no fix at all: the
   // point is that loading reserves the section's height instead of claiming an answer it doesn't
   // have yet.
-  expect(view.queryByText("You don't have any agents created.")).toBeNull();
   expect(
-    view.queryByText("Nobody has shared an agent with you yet."),
+    view.queryByText(
+      "You don't have any digital employees yet. Hire one below, or create your own.",
+    ),
   ).toBeNull();
-  expect(view.queryByText("Your agents couldn't be loaded.")).toBeNull();
   expect(
-    view.queryByText("Agents shared with you couldn't be loaded."),
+    view.queryByText("Nobody has shared a digital employee with you yet."),
+  ).toBeNull();
+  expect(view.queryByText("Your digital team couldn't be loaded.")).toBeNull();
+  expect(
+    view.queryByText("Digital employees shared with you couldn't be loaded."),
   ).toBeNull();
 });
 
@@ -365,9 +377,9 @@ test("a failed REFETCH on /agents keeps the roster it already had, not the error
 
   expect(await view.findByText("Mine Agent")).toBeTruthy();
   expect(await view.findByText("Shared Agent")).toBeTruthy();
-  expect(view.queryByText("Your agents couldn't be loaded.")).toBeNull();
+  expect(view.queryByText("Your digital team couldn't be loaded.")).toBeNull();
   expect(
-    view.queryByText("Agents shared with you couldn't be loaded."),
+    view.queryByText("Digital employees shared with you couldn't be loaded."),
   ).toBeNull();
 });
 
@@ -422,10 +434,10 @@ test("a failed REFETCH on /agents with one empty slice shows it as empty, not br
 
   expect(await view.findByText("Mine Agent")).toBeTruthy();
   expect(
-    await view.findByText("Nobody has shared an agent with you yet."),
+    await view.findByText("Nobody has shared a digital employee with you yet."),
   ).toBeTruthy();
   expect(
-    view.queryByText("Agents shared with you couldn't be loaded."),
+    view.queryByText("Digital employees shared with you couldn't be loaded."),
   ).toBeNull();
 });
 
@@ -443,9 +455,11 @@ test("a failed REFETCH on /agents with the other slice empty also shows it as em
 
   expect(await view.findByText("Shared Agent")).toBeTruthy();
   expect(
-    await view.findByText("You don't have any agents created."),
+    await view.findByText(
+      "You don't have any digital employees yet. Hire one below, or create your own.",
+    ),
   ).toBeTruthy();
-  expect(view.queryByText("Your agents couldn't be loaded.")).toBeNull();
+  expect(view.queryByText("Your digital team couldn't be loaded.")).toBeNull();
 });
 
 test("a failed REFETCH on / with explore empty shows it as empty, not broken", async () => {

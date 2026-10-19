@@ -58,8 +58,25 @@ export type BotModelChoice = {
   connectionId: string;
 };
 
+/** What is actually running on this computer, asked rather than assumed. See `GET /api/models/local`. */
+export type LocalModels = {
+  /** The model ArkAgent runs itself, when the person chose it. */
+  offline: {
+    label: string;
+    model: string;
+    state: "running" | "stopped";
+  } | null;
+  /** Ollama, LM Studio and llama.cpp at their usual addresses. Empty on a hosted deployment. */
+  servers: Array<{
+    providerId: string;
+    state: "running" | "stopped";
+    models?: string[];
+  }>;
+};
+
 export const modelKeys = {
   all: ["models"] as const,
+  local: () => [...modelKeys.all, "local"] as const,
   catalogue: () => [...modelKeys.all, "catalogue"] as const,
   connections: () => [...modelKeys.all, "connections"] as const,
   bots: () => [...modelKeys.all, "bots"] as const,
@@ -74,6 +91,24 @@ export function modelCatalogueQueryOptions() {
           fallback: "Could not load the list of model providers",
         })
       ).json(),
+  });
+}
+
+/**
+ * Polled while the Models screen is open, because the answer is a fact about programs the person can
+ * start and stop in another window: they start Ollama, come back, and expect the screen to know.
+ */
+export function localModelsQueryOptions() {
+  return queryOptions({
+    queryKey: modelKeys.local(),
+    queryFn: async (): Promise<LocalModels> =>
+      (
+        await client("/api/models/local", {
+          fallback: "Could not check the models on this computer",
+        })
+      ).json(),
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -114,6 +114,16 @@ export type RunAssertion = {
    * person, which is what those runs were.
    */
   initiator?: AuditInitiator;
+  /**
+   * The run of the person's own request that started this chain of hops, when this is a hop.
+   *
+   * IT TRAVELS HERE FOR THE REASON `depth` DOES, and for the one `depth` cannot cover. Every hop is a
+   * new run with a new id, so a cap that counts a run's own hops stops nothing that is spread across
+   * several runs: three asks that each ask three more are nine. Counting from the request that began
+   * it all is what holds a whole chain, wide or deep, to one number. Absent means this run IS that
+   * request.
+   */
+  request?: string;
 };
 
 type SignedRun = RunAssertion & { exp: number };
@@ -191,6 +201,9 @@ export function readRunAssertion(
       // Read as a person on anything unclear, for the reason depth reads as zero: an assertion
       // minted before this existed carries none, and a person is what those runs were.
       initiator: readInitiator(payload.initiator),
+      ...(typeof payload.request === "string" && payload.request
+        ? { request: payload.request }
+        : {}),
     };
   } catch {
     return null;

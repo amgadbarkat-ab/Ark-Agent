@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AgentCard } from "@/components/agents/agent-card";
 import { Composer, toAgentOptions } from "@/components/channels/composer";
+import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
 import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
 import {
   Carousel,
@@ -44,7 +45,11 @@ function RouteComponent() {
       <SidebarToggleBar />
       <div className="flex-1 flex flex-col items-center justify-center w-full p-4 mt-8">
         <div className="flex flex-col items-center">
-          <h2 className="text-sm uppercase text-muted-foreground font-medium tracking-tight text-center">
+          {/* The company's character over the one prompt that starts everything, in its own light. */}
+          <span className="mb-4 rounded-full shadow-[0_0_44px_-6px_rgb(255_122_26/0.55)] ring-2 ring-brand/70">
+            <ArkAgentPortrait size={76} />
+          </span>
+          <h2 className="text-sm uppercase font-semibold tracking-[0.18em] text-center bg-[image:var(--ember-gradient)] bg-clip-text text-transparent">
             {appConfig.brand.productName}
           </h2>
           <h1 className="text-2xl font-bold tracking-tight mt-1.5 text-center">

@@ -87,6 +87,9 @@ export type WorkItem = {
  */
 export const DEFAULT_MAX_ATTEMPTS = 5;
 
+/** A ceiling on how many items one kind may have under a key prefix. */
+export type PrefixCap = { keyPrefix: string; max: number };
+
 export type WorkQueue = {
   /**
    * Put work on the queue, or leave what is there. Idempotent on (kind, key).
@@ -105,7 +108,9 @@ export type WorkQueue = {
     payload?: Record<string, unknown>;
     runAt?: Date;
     /**
-     * Refuse this if the prefix is already that full.
+     * Refuse this if the prefix is already that full. Several at once are all held to, so one offer
+     * can sit under a cap of its own run and a cap of the whole request without either being counted
+     * before the other has been written.
      *
      * COUNTED AND WRITTEN AS ONE STEP, which is the whole reason it lives here rather than in the
      * caller. Counting first and offering second is a cap that holds only while nothing else is
@@ -114,7 +119,7 @@ export type WorkQueue = {
      * failure needs no cluster and no unusual timing; it is what asking for several things at once
      * looks like.
      */
-    atMost?: { keyPrefix: string; max: number };
+    atMost?: PrefixCap | PrefixCap[];
   }) => Promise<"queued" | "already" | "refused">;
   /** Take up to `limit` due items, leased to `owner`. */
   claim: (input: {
@@ -226,9 +231,17 @@ export function createWorkQueue(database: Database): WorkQueue {
         return written ? "queued" : "already";
       }
 
+      /*
+       * In a fixed order, so two offers that share two prefixes take the locks the same way round and
+       * cannot wait on each other for ever.
+       */
+      const caps = [...(Array.isArray(atMost) ? atMost : [atMost])].sort(
+        (a, b) => a.keyPrefix.localeCompare(b.keyPrefix),
+      );
+
       return database.transaction(async (transaction) => {
         /*
-         * Everything offered under this prefix, one at a time, across every replica.
+         * Everything offered under each prefix, one at a time, across every replica.
          *
          * An advisory lock rather than a stricter isolation level, because the thing being counted
          * is rows another transaction has not committed yet: under `read committed` two concurrent
@@ -236,18 +249,11 @@ export function createWorkQueue(database: Database): WorkQueue {
          * the transaction and taken on the prefix, so it serialises one run's own hops and nothing
          * else on the queue waits behind them.
          */
-        await transaction.execute(
-          sql`select pg_advisory_xact_lock(hashtext(${`${kind}:${atMost.keyPrefix}`}))`,
-        );
-        const [row] = await transaction
-          .select({ total: sql<number>`count(*)::int` })
-          .from(workItems)
-          .where(
-            and(
-              eq(workItems.kind, kind),
-              like(workItems.key, `${escapeLike(atMost.keyPrefix)}%`),
-            ),
+        for (const cap of caps) {
+          await transaction.execute(
+            sql`select pg_advisory_xact_lock(hashtext(${`${kind}:${cap.keyPrefix}`}))`,
           );
+        }
         /*
          * The same key again is not a new one. Counted as already there rather than refused, or a
          * retried offer of work that is on the queue would report the cap as the reason it is not.
@@ -258,7 +264,18 @@ export function createWorkQueue(database: Database): WorkQueue {
           .where(and(eq(workItems.kind, kind), eq(workItems.key, key)))
           .limit(1);
         if (already.length > 0) return "already";
-        if ((row?.total ?? 0) >= atMost.max) return "refused";
+        for (const cap of caps) {
+          const [row] = await transaction
+            .select({ total: sql<number>`count(*)::int` })
+            .from(workItems)
+            .where(
+              and(
+                eq(workItems.kind, kind),
+                like(workItems.key, `${escapeLike(cap.keyPrefix)}%`),
+              ),
+            );
+          if ((row?.total ?? 0) >= cap.max) return "refused";
+        }
         const [written] = await write(transaction as unknown as Database);
         if (written) await announceOffered(transaction, kind);
         return written ? "queued" : "already";

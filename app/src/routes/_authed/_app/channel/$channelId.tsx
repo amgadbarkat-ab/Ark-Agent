@@ -84,7 +84,11 @@ function RouteComponent() {
   const isSettingsOpen = settings === true;
   const prefersReducedMotion = useReducedMotion();
   const isWatching = watch === true;
-  /** Channel routing currently supports one coworker. */
+  /**
+   * The digital employee the conversation runs on: the only one in a one-to-one channel, and in the
+   * team channel the lead, which the server lists first. The lead answers the person and brings the
+   * others in, so its screen is the one to watch and its profile the one the settings button opens.
+   */
   const agentId = channel.data?.agentIds[0];
   /** Only polled while the screen is closed; the screen panel polls control itself. */
   const needsYou = useNeedsYou(agentId, !isWatching);
@@ -259,8 +263,11 @@ function RouteComponent() {
 }
 
 /**
- * A channel holds exactly one coworker. More than one is not supported yet, and rendering a shared
- * transcript for several agents before the runtime can route between them would look like it works.
+ * A channel runs on one digital employee: its only one, or in the team channel the lead.
+ *
+ * A thread has exactly one agent speaking in it, so in the team channel the lead is who answers. It
+ * brings the others in with `team_ask`, and what they say comes back into this conversation in the
+ * lead's voice with their name on it. Naming a colleague with `@` is how the person asks for that one.
  */
 function ChannelBody({
   channel,
@@ -281,13 +288,11 @@ function ChannelBody({
     );
   }
 
-  const runtimeAgentId =
-    channel.agentIds.length === 1 ? channel.agentIds[0] : undefined;
+  const runtimeAgentId = channel.agentIds[0];
   if (!runtimeAgentId) {
     return (
-      <p className="p-8 text-sm text-muted-foreground">
-        This channel has more than one digital employee, which is not supported
-        yet.
+      <p className="p-8 text-sm text-destructive" role="alert">
+        This channel has no digital employee left in it.
       </p>
     );
   }

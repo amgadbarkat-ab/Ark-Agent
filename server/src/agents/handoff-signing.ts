@@ -20,6 +20,7 @@ export function handoffDeliveryRunAssertion(
     threadId: work.threadId,
     depth: work.depth,
     ...(work.initiator ? { initiator: work.initiator } : {}),
+    ...(work.request ? { request: work.request } : {}),
   };
 }
 

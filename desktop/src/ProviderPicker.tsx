@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ExternalLink } from "./ExternalLink";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
 import { LocalModelPanel } from "./LocalModelPanel";
@@ -140,6 +140,8 @@ export function ProviderPicker({
   onBack,
   returning = false,
   busy: starting = false,
+  advanced,
+  canContinue = true,
 }: {
   chosen: ModelChoice | null;
   /**
@@ -154,6 +156,16 @@ export function ProviderPicker({
   onBack: () => void;
   returning?: boolean;
   busy?: boolean;
+  /**
+   * What goes under the AI choice on this same page: the agent framework and where ArkAgent is kept. Given
+   * what is chosen so far, because which frameworks can work depends on it.
+   */
+  advanced?: (selection: {
+    provider: string | null;
+    login: Login | null;
+  }) => ReactNode;
+  /** False while something on this page, outside the AI choice, is not filled in yet. */
+  canContinue?: boolean;
 }) {
   const initialChoice = chosen ?? recordedModel(held);
   const [reuse, setReuse] = useState(
@@ -190,8 +202,11 @@ export function ProviderPicker({
    */
   const [signInUrl, setSignInUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // The model on this computer has been downloaded and checked, so Start has nothing long to do.
+  // There is a model this computer can run, and which one. The download itself happens during setup.
   const [localReady, setLocalReady] = useState(false);
+  const [localModel, setLocalModel] = useState<string | null>(
+    initialChoice?.provider === "local" ? (initialChoice.model ?? null) : null,
+  );
   // A problem, not a string: a sign-in failure carries the underlying output, and
   // stringifying it printed "[object Object]" where the diagnosis should have been.
   const [failure, setFailure] = useState<Problem | null>(null);
@@ -356,17 +371,19 @@ export function ProviderPicker({
       ...(login !== "oauth" && trimmedContainerBaseUrl
         ? { containerBaseUrl: trimmedContainerBaseUrl }
         : {}),
-      ...(trimmedModel ? { model: trimmedModel } : {}),
+      ...(login === "managed" && localModel ? { model: localModel } : {}),
+      ...(login !== "managed" && trimmedModel ? { model: trimmedModel } : {}),
     });
   }
 
   return (
     <div className="sheet">
-      {!returning && <p className="steps-of">Step 3 of 3</p>}
+      {!returning && <p className="steps-of">Step 1 of 2</p>}
       <h1>{returning ? "Refresh your AI connection" : "Connect your AI"}</h1>
       <p className="lede">
-        Choose how ArkAgent gets its AI: a free model on this computer, or your
-        own key or server.
+        Everything about the AI is on this page: where it comes from (a free
+        model on this computer, ArkAgent's server, or your own key), and, under
+        Advanced, which agent framework runs it.
       </p>
 
       <fieldset className="picker providers">
@@ -456,7 +473,12 @@ export function ProviderPicker({
           )}
 
           {login === "managed" && (
-            <LocalModelPanel root={root} onReady={setLocalReady} />
+            <LocalModelPanel
+              root={root}
+              chosen={localModel}
+              onChoose={setLocalModel}
+              onReady={setLocalReady}
+            />
           )}
 
           {login === "oauth" && (
@@ -650,6 +672,8 @@ export function ProviderPicker({
         </div>
       )}
 
+      {advanced?.({ provider: row?.id ?? null, login })}
+
       <div className="row">
         <button
           type="button"
@@ -661,7 +685,7 @@ export function ProviderPicker({
         </button>
         <button
           type="button"
-          disabled={starting || !row || !login || !ready}
+          disabled={starting || !row || !login || !ready || !canContinue}
           onClick={continueWithChoice}
         >
           Continue

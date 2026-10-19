@@ -1117,9 +1117,13 @@ describe("AGENT_ENDPOINT_ALLOWED_HOSTS", () => {
  * cap, and find out at the first loop.
  */
 describe("how far a Bot may hand work on", () => {
-  test("defaults to one level and three per run", () => {
+  test("defaults to five levels, three per run and twenty per request", () => {
     const config = loadConfig({ ...baseEnvironment });
-    expect(config.handoff).toEqual({ maxDepth: 1, maxPerRun: 3 });
+    expect(config.handoff).toEqual({
+      maxDepth: 5,
+      maxPerRun: 3,
+      maxPerRequest: 20,
+    });
   });
 
   test("a deployment can widen or switch it off", () => {
@@ -1129,7 +1133,7 @@ describe("how far a Bot may hand work on", () => {
         BOT_HANDOFF_MAX_DEPTH: "0",
         BOT_HANDOFF_MAX_PER_RUN: "10",
       }).handoff,
-    ).toEqual({ maxDepth: 0, maxPerRun: 10 });
+    ).toEqual({ maxDepth: 0, maxPerRun: 10, maxPerRequest: 20 });
   });
 
   test("refuses a cap that is not a whole number", () => {
@@ -1255,5 +1259,41 @@ describe("the starter model", () => {
         loadConfig({ ...starterEnvironment, [name]: value }),
       ).toThrow(name);
     }
+  });
+});
+
+describe("the model ArkAgent runs on this computer", () => {
+  const offline = {
+    ...baseEnvironment,
+    ARK_OFFLINE_MODEL_LABEL: "Gemma 4 12B",
+    OPENAI_BASE_URL: "http://127.0.0.1:5000/v1/",
+    OPENAI_API_KEY: "secret-for-the-local-server",
+    BOT_MODEL: "gemma-4-12b",
+  };
+
+  test("is absent unless the desktop says it chose one", () => {
+    expect(loadConfig({ ...baseEnvironment }).offlineModel).toBeUndefined();
+    expect(
+      loadConfig({ ...baseEnvironment, ARK_OFFLINE_MODEL_LABEL: "" })
+        .offlineModel,
+    ).toBeUndefined();
+  });
+
+  test("is read from the model settings the run already uses", () => {
+    expect(loadConfig(offline).offlineModel).toEqual({
+      label: "Gemma 4 12B",
+      baseUrl: "http://127.0.0.1:5000/v1",
+      apiKey: "secret-for-the-local-server",
+      model: "gemma-4-12b",
+    });
+  });
+
+  test("a label with nothing to ask is a mistake worth stopping on", () => {
+    expect(() =>
+      loadConfig({ ...offline, OPENAI_BASE_URL: undefined }),
+    ).toThrow("ARK_OFFLINE_MODEL_LABEL");
+    expect(() => loadConfig({ ...offline, BOT_MODEL: undefined })).toThrow(
+      "ARK_OFFLINE_MODEL_LABEL",
+    );
   });
 });

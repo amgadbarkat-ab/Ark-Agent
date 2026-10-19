@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
 import { ChatTranscript } from "@/components/channels/chat-transcript";
 import {
   type AgentOption,
@@ -411,7 +412,29 @@ export function ConversationView({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex flex-1 min-h-0">
+      <div className="relative flex flex-1 min-h-0">
+        {/*
+         * A conversation with nothing in it yet is the company's face and one line, not a black page. It
+         * is a backdrop that takes no clicks and leaves as soon as there is a message, a held-back
+         * message or a turn running, so it is never beside a transcript.
+         */}
+        {messages.length === 0 && !restoring && !busy && queued.length === 0 ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
+          >
+            <span className="rounded-full p-1 ring-2 ring-primary/60 shadow-[0_0_48px_rgb(255_122_26/0.25)]">
+              <ArkAgentPortrait size={72} />
+            </span>
+            <p className="font-semibold text-lg tracking-tight">
+              What should we work on?
+            </p>
+            <p className="max-w-sm text-muted-foreground text-sm">
+              Say what you need. Your digital employee plans the work, takes the
+              steps and checks with you before anything important.
+            </p>
+          </div>
+        ) : null}
         {/*
          * The command NAMES, joined, rather than the option objects.
          *

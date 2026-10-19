@@ -137,8 +137,8 @@ function inRouter(node: React.ReactNode, initial = "/") {
 }
 
 const back = {
-  label: "Marketplace",
-  linkProps: { to: "/marketplace" },
+  label: "Digital Team",
+  linkProps: { to: "/agents" },
 } as const;
 
 test("an official digital employee shows what it starts with and can be installed", async () => {

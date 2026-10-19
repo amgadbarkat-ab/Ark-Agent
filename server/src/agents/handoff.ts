@@ -53,6 +53,11 @@ export type HandoffCaps = {
   maxDepth: number;
   /** How many other Bots one run may address. */
   maxPerRun: number;
+  /**
+   * How many hops everything that starts from one request of a person's may make, however deep or
+   * wide. Absent means no ceiling beyond the other two.
+   */
+  maxPerRequest?: number;
 };
 
 export type HandoffOutcome =
@@ -170,7 +175,7 @@ export function createHandoffDesk(options: {
           "depth_cap",
           caps.maxDepth === 0
             ? "This deployment does not let one digital employee hand work to another."
-            : `This is already ${depth} ${depth === 1 ? "Bot" : "Bots"} deep, which is as far as this deployment allows. Answer with what you have, or ask the person.`,
+            : `Work has already been handed on ${depth} ${depth === 1 ? "time" : "times"} in a row, which is as far as this deployment allows. Answer with what you have, or ask the person.`,
         );
       }
 
@@ -234,7 +239,7 @@ export function createHandoffDesk(options: {
           from,
           target,
           "ambiguous_bot",
-          `More than one Bot is called "${target.trim().slice(0, 60)}": ${reachable
+          `More than one digital employee is called "${target.trim().slice(0, 60)}": ${reachable
             .map((candidate) => candidate.id)
             .join(", ")}. Ask again using the one you mean.`,
         );
@@ -295,8 +300,19 @@ export function createHandoffDesk(options: {
        * people's dead hops. Hashing removes every character a caller chooses from the prefix while
        * keeping it stable for the run, which is all the cap needs.
        */
-      const runPrefix = `hop:${createHash("sha256")
-        .update(`${from.actorId}\u0000${from.runId}`)
+      /*
+       * Two ceilings under one key. The request prefix is the whole chain: every hop a person's own
+       * request causes, however many runs it is spread over, because a hop is a new run and a cap that
+       * counts only a run's own hops lets three asks that each ask three be nine. The run prefix sits
+       * inside it and is the fan-out of this one run. `request` is the run a person started, carried
+       * in the signed statement, and is this run when nobody handed it on.
+       */
+      const requestPrefix = `hop:${createHash("sha256")
+        .update(`${from.actorId}\u0000${from.request ?? from.runId}`)
+        .digest("hex")
+        .slice(0, 32)}:`;
+      const runPrefix = `${requestPrefix}${createHash("sha256")
+        .update(from.runId)
         .digest("hex")
         .slice(0, 32)}:`;
       const key = `${runPrefix}${createHash("sha256")
@@ -319,7 +335,12 @@ export function createHandoffDesk(options: {
          * several pods is exactly what this exists to bound: every hop this run has offered is a row
          * under its own prefix, so the rows are the count.
          */
-        atMost: { keyPrefix: runPrefix, max: caps.maxPerRun },
+        atMost: [
+          { keyPrefix: runPrefix, max: caps.maxPerRun },
+          ...(caps.maxPerRequest !== undefined
+            ? [{ keyPrefix: requestPrefix, max: caps.maxPerRequest }]
+            : []),
+        ],
         payload: {
           fromBotId: from.botId,
           toBotId: found.id,
@@ -332,6 +353,8 @@ export function createHandoffDesk(options: {
            */
           depth: depth + 1,
           ...(from.initiator ? { initiator: from.initiator } : {}),
+          // The request this descends from, so the next hop is counted against the same one.
+          request: from.request ?? from.runId,
           /*
            * The asking Bot's display name, resolved here against the same roster the target was.
            *
@@ -360,7 +383,7 @@ export function createHandoffDesk(options: {
           from,
           target,
           "fanout_cap",
-          `This turn has already asked ${caps.maxPerRun} ${caps.maxPerRun === 1 ? "Bot" : "Bots"}, which is as many as this deployment allows. Answer with what you have, or ask the person.`,
+          `This request has already handed work to as many digital employees as this deployment allows. Answer with what you have, or ask the person.`,
         );
       }
 

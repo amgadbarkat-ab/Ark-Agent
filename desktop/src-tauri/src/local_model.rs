@@ -43,6 +43,10 @@ pub struct Machine {
     pub ram_bytes: u64,
     /// Logical processors.
     pub cores: usize,
+    /// A graphics card the model program can use (an NVIDIA, AMD or Intel Arc card on Windows). Read
+    /// from the operating system's own list of video controllers; where it cannot be read this is false,
+    /// which is the safe answer, because the CPU build runs on every machine.
+    pub gpu: bool,
 }
 
 impl Machine {
@@ -84,7 +88,7 @@ impl LocalModel {
     }
 }
 
-/// Gemma 4 E4B: the better of the two, for a computer with 12 GB or more.
+/// Gemma 4 E4B: the first of the small pair, for a computer with 12 GB or more.
 pub const E4B: LocalModel = LocalModel {
     id: "gemma-4-e4b",
     label: "Gemma 4 E4B",
@@ -106,8 +110,48 @@ pub const E2B: LocalModel = LocalModel {
     min_ram_gib: 7.0,
 };
 
+/// Gemma 4 12B: the first size that does tool use and long tasks well, for a computer with 16 GB or more.
+pub const G12B: LocalModel = LocalModel {
+    id: "gemma-4-12b",
+    label: "Gemma 4 12B",
+    repo: "google/gemma-4-12B-it-qat-q4_0-gguf",
+    file: "gemma-4-12b-it-qat-q4_0.gguf",
+    size_bytes: 6_975_879_296,
+    sha256: "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b",
+    min_ram_gib: 15.0,
+};
+
+/// Gemma 4 26B A4B: a mixture of experts, 26 billion parameters of which about 4 billion work on any one word,
+/// so it answers about as fast as the small models while being far more capable. It is the best a computer
+/// with 28 GB or more can run, and the one to use for an agent that has to plan and use tools.
+pub const G26B: LocalModel = LocalModel {
+    id: "gemma-4-26b-a4b",
+    label: "Gemma 4 26B A4B",
+    repo: "google/gemma-4-26B-A4B-it-qat-q4_0-gguf",
+    file: "gemma-4-26B_q4_0-it.gguf",
+    size_bytes: 14_439_363_584,
+    sha256: "3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d",
+    min_ram_gib: 27.0,
+};
+
 /// Best first.
-pub const MODELS: [&LocalModel; 2] = [&E4B, &E2B];
+pub const MODELS: [&LocalModel; 4] = [&G26B, &G12B, &E4B, &E2B];
+
+/// Every model this computer can run, best first: what the setup screen offers, with the first one
+/// recommended.
+pub fn fitting(machine: &Machine) -> Vec<&'static LocalModel> {
+    let ram = machine.ram_gib();
+    MODELS
+        .iter()
+        .copied()
+        .filter(|model| ram >= model.min_ram_gib)
+        .collect()
+}
+
+/// A model by the name the setup screen sends.
+pub fn by_id(id: &str) -> Option<&'static LocalModel> {
+    MODELS.iter().copied().find(|model| model.id == id)
+}
 
 /// What the setup screen is told about this computer.
 #[derive(Debug, PartialEq, Serialize)]
@@ -158,7 +202,48 @@ pub fn detect() -> Result<Machine, Problem> {
         .map(|n| n.get())
         .unwrap_or(1);
     let ram_bytes = physical_memory_bytes()?;
-    Ok(Machine { ram_bytes, cores })
+    Ok(Machine {
+        ram_bytes,
+        cores,
+        gpu: has_graphics_card(),
+    })
+}
+
+/// Whether this computer has a graphics card worth handing the model to.
+///
+/// Only Windows is asked, because it is the one place the choice of program depends on it (macOS on Apple
+/// silicon always uses its graphics chip, and the other builds are CPU). A card is recognised by its maker's
+/// name in the list of video controllers; Microsoft's basic display adapter and a virtual machine's
+/// adapter are not cards.
+fn has_graphics_card() -> bool {
+    if std::env::consts::OS != "windows" {
+        return false;
+    }
+    crate::quiet::command("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "(Get-CimInstance Win32_VideoController).Name",
+        ])
+        .output()
+        .map(|output| names_a_graphics_card(&String::from_utf8_lossy(&output.stdout)))
+        .unwrap_or(false)
+}
+
+/// Whether a list of video controller names, one per line, includes a card.
+pub fn names_a_graphics_card(names: &str) -> bool {
+    names.lines().any(|line| {
+        let name = line.to_ascii_lowercase();
+        name.contains("nvidia")
+            || name.contains("geforce")
+            || name.contains("quadro")
+            || name.contains("radeon")
+            || name.contains("amd ")
+            || name.contains("arc(tm)")
+            || name.contains("intel arc")
+            || name.contains("intel(r) arc")
+    })
 }
 
 fn physical_memory_bytes() -> Result<u64, Problem> {
@@ -237,6 +322,12 @@ pub struct Progress {
 
 const CHUNK: usize = 256 * 1024;
 
+/// The sentence for a download that lost its connection. A constant, because the retrying wrapper recognises a
+/// connection problem by it and a permanent one (a wrong digest, a full disk) by its absence.
+const CONNECTION_LOST: &str =
+    "ArkAgent could not download the model. Check the internet connection and try \
+     again; what has been downloaded is kept.";
+
 /// Fetch `url` into `dest`, resumably, and refuse it unless it is `expected_size` bytes with this
 /// SHA-256.
 ///
@@ -309,6 +400,104 @@ pub fn download_verified(
     Ok(dest.to_path_buf())
 }
 
+/// How hard to try before telling a person a download has paused.
+#[derive(Clone, Copy, Debug)]
+pub struct Persistence {
+    /// Attempts in a row that moved the download on by not one byte, before giving up. An attempt that
+    /// made progress resets the count, so a poor connection that keeps advancing is never abandoned.
+    pub fruitless: u32,
+    /// The wait after the first failure; it doubles up to `longest_pause`.
+    pub first_pause: Duration,
+    pub longest_pause: Duration,
+}
+
+impl Persistence {
+    /// A home connection: a file of five or fifteen gigabytes is not fetched in one unbroken stream by
+    /// every router and every provider, and the person is not there to press the button each time.
+    pub const PATIENT: Self = Self {
+        fruitless: 6,
+        first_pause: Duration::from_secs(2),
+        longest_pause: Duration::from_secs(30),
+    };
+}
+
+/// Whether a failure is one more attempt could cure: the connection, and not the file or the disk.
+fn is_transient(problem: &Problem) -> bool {
+    if problem.said != CONNECTION_LOST {
+        return false;
+    }
+    // A server that says the file is not there, or that we may not have it, will say so again.
+    let detail = problem.detail.as_deref().unwrap_or("");
+    let refused = detail.contains(": HTTP 4")
+        && !detail.contains(": HTTP 408")
+        && !detail.contains(": HTTP 429");
+    !refused
+}
+
+fn pause_unless_cancelled(wait: Duration, cancel: &AtomicBool) {
+    let step = Duration::from_millis(100);
+    let mut left = wait;
+    while !left.is_zero() && !cancel.load(Ordering::Relaxed) {
+        let now = left.min(step);
+        std::thread::sleep(now);
+        left -= now;
+    }
+}
+
+fn bytes_on_disk(dest: &Path) -> u64 {
+    fs::metadata(part_path(dest))
+        .map(|meta| meta.len())
+        .unwrap_or(0)
+}
+
+/// `download_verified`, trying again by itself when the connection drops.
+///
+/// Every attempt resumes from the bytes already on disk, so a drop at 4.3 GB of 5.2 costs a pause and not a
+/// restart, and costs the person nothing: they are told only if it has stopped moving altogether, in a
+/// sentence that says how far it got and that pressing Continue picks it up again.
+pub fn download_with_retries(
+    url: &str,
+    dest: &Path,
+    expected_size: u64,
+    sha256: &str,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Progress),
+    persistence: Persistence,
+) -> Result<PathBuf, Problem> {
+    let mut fruitless = 0u32;
+    let mut pause = persistence.first_pause;
+    loop {
+        let before = bytes_on_disk(dest);
+        let problem = match download_verified(url, dest, expected_size, sha256, cancel, on_progress)
+        {
+            Ok(path) => return Ok(path),
+            Err(problem) => problem,
+        };
+        if !is_transient(&problem) || cancel.load(Ordering::Relaxed) {
+            return Err(problem);
+        }
+        let after = bytes_on_disk(dest);
+        if after > before {
+            fruitless = 0;
+            pause = persistence.first_pause;
+        } else {
+            fruitless += 1;
+        }
+        if fruitless >= persistence.fruitless {
+            let (got, of) = (after as f64 / 1e9, expected_size as f64 / 1e9);
+            return Err(Problem::with(
+                format!(
+                    "The download paused at {got:.1} GB of {of:.1} GB because the connection kept dropping. \
+                     Press Continue and it picks up where it stopped."
+                ),
+                problem.detail.unwrap_or_default(),
+            ));
+        }
+        pause_unless_cancelled(pause, cancel);
+        pause = (pause * 2).min(persistence.longest_pause);
+    }
+}
+
 fn part_path(dest: &Path) -> PathBuf {
     let mut name = dest.as_os_str().to_os_string();
     name.push(".part");
@@ -323,13 +512,7 @@ fn stream_into(
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<(), Problem> {
-    let offline = |detail: String| {
-        Problem::with(
-            "ArkAgent could not download the model. Check the internet connection and try again; \
-             what has been downloaded is kept.",
-            detail,
-        )
-    };
+    let offline = |detail: String| Problem::with(CONNECTION_LOST, detail);
     // No overall timeout: a 5 GB file takes as long as it takes. A stalled connection is caught by
     // the read timeout instead.
     let client = reqwest::blocking::Client::builder()
@@ -441,20 +624,73 @@ mod tests {
         Machine {
             ram_bytes: (gib * GIB as f64) as u64,
             cores: 8,
+            gpu: false,
         }
     }
 
     // ---- the recommendation -------------------------------------------------------------------
 
     #[test]
-    fn a_big_computer_gets_the_better_model() {
-        for gib in [11.0, 15.8, 31.9, 63.0] {
+    fn a_bigger_computer_gets_the_bigger_model() {
+        for gib in [11.0, 12.0, 14.9] {
             assert_eq!(
                 recommend(&machine(gib)),
                 Recommendation::Model { model: &E4B },
                 "{gib} GiB"
             );
         }
+        for gib in [15.0, 16.0, 26.9] {
+            assert_eq!(
+                recommend(&machine(gib)),
+                Recommendation::Model { model: &G12B },
+                "{gib} GiB"
+            );
+        }
+        // A computer sold as 32 GB reports about 31.7.
+        for gib in [27.0, 31.7, 63.0] {
+            assert_eq!(
+                recommend(&machine(gib)),
+                Recommendation::Model { model: &G26B },
+                "{gib} GiB"
+            );
+        }
+    }
+
+    #[test]
+    fn every_model_that_fits_is_offered_best_first() {
+        let ids = |gib: f64| {
+            fitting(&machine(gib))
+                .iter()
+                .map(|model| model.id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            ids(31.7),
+            [
+                "gemma-4-26b-a4b",
+                "gemma-4-12b",
+                "gemma-4-e4b",
+                "gemma-4-e2b"
+            ]
+        );
+        assert_eq!(ids(16.0), ["gemma-4-12b", "gemma-4-e4b", "gemma-4-e2b"]);
+        assert_eq!(ids(7.7), ["gemma-4-e2b"]);
+        assert!(ids(4.0).is_empty());
+        assert_eq!(by_id("gemma-4-12b"), Some(&G12B));
+        assert_eq!(by_id("gemma-9"), None);
+    }
+
+    #[test]
+    fn graphics_cards_are_told_from_the_rest() {
+        assert!(names_a_graphics_card(
+            "NVIDIA GeForce RTX 4070 Laptop GPU\r\nIntel(R) UHD Graphics\r\n"
+        ));
+        assert!(names_a_graphics_card("AMD Radeon RX 7800 XT\n"));
+        assert!(names_a_graphics_card("Intel(R) Arc(TM) A770 Graphics\n"));
+        assert!(!names_a_graphics_card("Microsoft Basic Display Adapter\n"));
+        assert!(!names_a_graphics_card("Intel(R) UHD Graphics 620\r\n"));
+        assert!(!names_a_graphics_card("Microsoft Hyper-V Video\n"));
+        assert!(!names_a_graphics_card(""));
     }
 
     #[test]
@@ -494,8 +730,9 @@ mod tests {
     #[test]
     fn the_recommendation_reaches_the_window_in_camel_case() {
         let value = serde_json::to_value(recommend(&Machine {
-            ram_bytes: 16 * GIB,
+            ram_bytes: 12 * GIB,
             cores: 8,
+            gpu: false,
         }))
         .unwrap();
         assert_eq!(value["kind"], "model");
@@ -504,6 +741,7 @@ mod tests {
         let small = serde_json::to_value(recommend(&Machine {
             ram_bytes: 4 * GIB,
             cores: 2,
+            gpu: false,
         }))
         .unwrap();
         assert_eq!(small["kind"], "tooSmall");
@@ -514,8 +752,16 @@ mod tests {
 
     #[test]
     fn the_models_are_pinned_and_best_first() {
-        assert_eq!(MODELS[0].id, "gemma-4-e4b");
-        assert_eq!(MODELS[1].id, "gemma-4-e2b");
+        let ids: Vec<_> = MODELS.iter().map(|model| model.id).collect();
+        assert_eq!(
+            ids,
+            [
+                "gemma-4-26b-a4b",
+                "gemma-4-12b",
+                "gemma-4-e4b",
+                "gemma-4-e2b"
+            ]
+        );
         for model in MODELS {
             assert_eq!(model.sha256.len(), 64, "{}", model.id);
             assert!(model.sha256.chars().all(|c| c.is_ascii_hexdigit()));
@@ -524,10 +770,12 @@ mod tests {
             // Google's own repositories, never a third party's repackaging.
             assert!(model.repo.starts_with("google/"), "{}", model.id);
         }
-        // The better model needs more memory, or the order would be a lie.
-        let (better, smaller) = (MODELS[0], MODELS[1]);
-        assert!(better.min_ram_gib > smaller.min_ram_gib);
-        assert!(better.size_bytes > smaller.size_bytes);
+        // Each better model needs more memory and is a bigger file, or the order would be a lie.
+        for pair in MODELS.windows(2) {
+            let (better, smaller) = (pair[0], pair[1]);
+            assert!(better.min_ram_gib > smaller.min_ram_gib, "{}", better.id);
+            assert!(better.size_bytes > smaller.size_bytes, "{}", better.id);
+        }
     }
 
     // ---- reading the machine ------------------------------------------------------------------
@@ -891,5 +1139,118 @@ mod tests {
         assert!(error.said.contains("internet connection"));
         assert!(error.said.contains("kept"));
         let _ = fs::remove_dir_all(dir);
+    }
+
+    // ---- trying again by itself ---------------------------------------------------------------
+
+    const QUICK: Persistence = Persistence {
+        fruitless: 3,
+        first_pause: Duration::from_millis(1),
+        longest_pause: Duration::from_millis(2),
+    };
+
+    fn fetch_patiently(
+        url: &str,
+        dest: &Path,
+        body: &[u8],
+        persistence: Persistence,
+    ) -> Result<PathBuf, Problem> {
+        download_with_retries(
+            url,
+            dest,
+            body.len() as u64,
+            &sha(body),
+            &AtomicBool::new(false),
+            &mut |_| {},
+            persistence,
+        )
+    }
+
+    #[test]
+    fn a_dropped_connection_is_retried_without_anybody_pressing_anything() {
+        let body = sample(2_000_000);
+        let behaviour = Arc::new(Behaviour::default());
+        *behaviour.drop_after.lock().unwrap() = Some(700_000);
+        let url = serve(body.clone(), behaviour.clone());
+        let dir = scratch("auto-resume");
+        let dest = dir.join("m.gguf");
+        let path = fetch_patiently(&url, &dest, &body, QUICK).expect("finishes on its own");
+        assert_eq!(fs::read(path).unwrap(), body);
+        // The second request asked only for the rest.
+        let ranges = behaviour.ranges_seen.lock().unwrap().clone();
+        assert_eq!(ranges.len(), 1, "{ranges:?}");
+        assert!(ranges[0].trim_end_matches('-').parse::<u64>().unwrap() > 0);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_connection_that_never_comes_back_is_reported_as_paused_with_how_far_it_got() {
+        let dir = scratch("paused");
+        let dest = dir.join("m.gguf");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(part_path(&dest), vec![1u8; 4_300_000]).unwrap();
+        let error = download_with_retries(
+            "http://127.0.0.1:1/model.gguf",
+            &dest,
+            5_200_000,
+            &sha(b"x"),
+            &AtomicBool::new(false),
+            &mut |_| {},
+            QUICK,
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .said
+                .starts_with("The download paused at 0.0 GB of 0.0 GB"),
+            "{}",
+            error.said
+        );
+        assert!(error.said.contains("Press Continue"));
+        assert!(part_path(&dest).exists(), "what was downloaded is kept");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_wrong_file_is_not_retried() {
+        let body = sample(120_000);
+        let behaviour = Arc::new(Behaviour::default());
+        let url = serve(body.clone(), behaviour.clone());
+        let dir = scratch("no-retry");
+        let dest = dir.join("m.gguf");
+        let error = download_with_retries(
+            &url,
+            &dest,
+            body.len() as u64,
+            &"0".repeat(64),
+            &AtomicBool::new(false),
+            &mut |_| {},
+            QUICK,
+        )
+        .unwrap_err();
+        assert!(
+            error.said.contains("not what it was expecting"),
+            "{}",
+            error.said
+        );
+        assert_eq!(behaviour.requests.load(Ordering::SeqCst), 1);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn only_the_connection_is_worth_another_attempt() {
+        let lost = |detail: &str| Problem::with(CONNECTION_LOST, detail);
+        assert!(is_transient(&lost(
+            "https://h/f: error sending request for url"
+        )));
+        assert!(is_transient(&lost(
+            "https://h/f: HTTP 503 Service Unavailable"
+        )));
+        assert!(is_transient(&lost(
+            "https://h/f: HTTP 429 Too Many Requests"
+        )));
+        assert!(!is_transient(&lost("https://h/f: HTTP 404 Not Found")));
+        assert!(!is_transient(&lost("https://h/f: HTTP 403 Forbidden")));
+        assert!(!is_transient(&Problem::plain("The download was stopped.")));
     }
 }

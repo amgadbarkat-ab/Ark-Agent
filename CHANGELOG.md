@@ -8,6 +8,55 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Setup: one page for the AI, a faster first run, and a model that works offline
+
+- **One page.** The agent framework, the AI (on this computer, ArkAgent's server, or a provider and key) and the key are chosen on
+  one page instead of two. The framework is behind "advanced" and defaults to LangGraph, which works with every AI. A framework
+  that cannot work with the AI chosen (the Claude agent runs only on an Anthropic key) is shown disabled with the reason, and is
+  refused before anything is downloaded; the old "No API key needed" wording was wrong and is gone.
+- **Faster first run.** The container images are pulled four at a time, the dependency install runs beside them, and the
+  offline model downloads while ArkAgent installs. Not measured on a real PC; a 5 to 15 GB model still depends on the internet.
+- **A downloaded model keeps going.** An interrupted download pauses and resumes by itself and says so in words instead of
+  stopping on "error sending request".
+- **Offline model with the full agent.** It uses the same framework, tools and browser as any other AI (the failure
+  "agent-harness stopped: Set ANTHROPIC_API_KEY" came from choosing the Claude agent). Larger models (12B, 26B A4B) are offered
+  for computers with 15 GB or 27 GB of memory, and a computer with a graphics card uses the Vulkan build, falling back to the
+  processor if it does not start.
+- **Look.** The welcome, every setup step, the app's shell, every settings and admin page and an empty conversation carry the
+  company's colours, typeface and the ArkAgent character. The desktop and app icons fill the square (the head is about nine tenths
+  of its width; the desktop icon's margin is 2%, was 6%).
+
+### The team
+
+- **The team channel opens.** It was refused with "more than one digital employee, which is not supported yet". It runs on the
+  lead, which answers and brings colleagues in; their answers come back in the lead's voice with their name on it.
+- **A lead on the Claude agent can use its team.** That framework's adapter dropped the employee's role, team and tool list and
+  treated every server-side tool as the browser's; both are now delivered (docs/ark/23-digital-employees.md).
+- **Hand-offs go deeper, with a ceiling.** `BOT_HANDOFF_MAX_DEPTH` now defaults to 5 (was 1) and the new
+  `BOT_HANDOFF_MAX_PER_REQUEST` (default 20) caps every hop one request causes, across runs. A run that was handed work now
+  carries its depth on, which it did not for employees that call their tools back. **Upgrade note:** a Helm release sets these
+  from `config.handoff`; `values.yaml` has the new defaults and a new `maxPerRequest` key.
+- Conversations, the sidebar, the header and pickers show the digital employee's own picture instead of a generated pattern.
+- The model-facing wording says "digital employee" rather than "bot".
+
+### Digital Team
+
+Marketplace and Agents are one page, **Digital Team**: your employees, ready-made ones to hire, those shared with you, creating
+your own and sharing one. `/marketplace` redirects to it; listing pages and admin review are where they were.
+
+### Models and links
+
+Settings, Models marks Ollama, LM Studio and llama.cpp "Running" or "Not running" by asking them (`GET /api/models/local`), and
+lists the model ArkAgent downloaded as "ArkAgent offline model" (the desktop writes `ARK_OFFLINE_MODEL_LABEL`). Links to other
+websites, such as "Get a key", open in the browser from the desktop window; a new `app-links` capability allows only that.
+
+### Connect your Data
+
+"Connected accounts" is **Connect your Data**: every service on the list says whether it is connected, ready, needs setup, or is
+not built yet. New read-only **Microsoft 365** connector (Outlook mail, Calendar, Teams chats, SharePoint and OneDrive files) over
+Microsoft Graph: **not yet tried with a real Microsoft account**, and it needs an app registered in Microsoft Entra
+(docs/ark/24-connect-your-data.md). `revokeUrl` is optional on a catalogue entry (Microsoft has none).
+
 ## 0.1.9
 
 ### Requests: a digital employee asks before it changes a colleague's work

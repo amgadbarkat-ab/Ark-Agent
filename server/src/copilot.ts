@@ -1225,7 +1225,14 @@ function remoteAgentWithStandingRole(
   ) => {
     const holdingsMessage = holdingsMessageFor(tools);
     const runAssertion = signRun
-      ? signRun(agent.id, input.runId, input.threadId)
+      ? signRun(
+          agent.id,
+          input.runId,
+          input.threadId,
+          isPlainObject(input.forwardedProps)
+            ? input.forwardedProps.openbotRun
+            : undefined,
+        )
       : undefined;
     const deploymentTools = tools.map((tool) => tool.name);
     const forwardedProps = {
@@ -1816,6 +1823,15 @@ export type SignRun = (
   runId: string,
   /** Which conversation, so a Bot handing work on cannot choose where the answer lands. */
   threadId: string,
+  /**
+   * The statement this run arrived with, when another digital employee handed it work.
+   *
+   * What a hop knows about how deep it is and which request it belongs to is in that statement, and
+   * the fresh one this run signs has to carry it on: a run that came in at depth three and went out at
+   * depth zero is a loop that no cap sees, which is what happened to every employee that calls its
+   * tools back rather than running them in this process.
+   */
+  handedOn?: unknown,
 ) => string;
 
 /**

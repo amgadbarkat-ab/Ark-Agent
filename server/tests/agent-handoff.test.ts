@@ -62,14 +62,27 @@ function desk(options?: {
       kind: string;
       key: string;
       payload?: unknown;
-      atMost?: { keyPrefix: string; max: number };
+      atMost?:
+        | { keyPrefix: string; max: number }
+        | Array<{ keyPrefix: string; max: number }>;
     }) => {
       // Idempotent on the key, exactly as the real one is — and it says so, because "already
       // there" and "just queued" are different answers to the caller.
       if (rows.some((row) => row.key === item.key)) return "already";
-      // And the cap, counted and written as one step, exactly as the real one is.
-      if (item.atMost && (options?.offered ?? rows.length) >= item.atMost.max) {
-        return "refused";
+      // And the caps, counted and written as one step, exactly as the real one is. The first is the
+      // run's own; `offered` stands in for how many it has already asked.
+      const caps =
+        item.atMost === undefined
+          ? []
+          : Array.isArray(item.atMost)
+            ? item.atMost
+            : [item.atMost];
+      for (const [index, cap] of caps.entries()) {
+        const used =
+          index === 0 && options?.offered !== undefined
+            ? options.offered
+            : rows.filter((row) => row.key.startsWith(cap.keyPrefix)).length;
+        if (used >= cap.max) return "refused";
       }
       rows.push({ kind: item.kind, key: item.key, payload: item.payload });
       return "queued";
@@ -217,6 +230,76 @@ describe("handing work to another Bot", () => {
 
     expect(outcome.ok).toBe(false);
     expect(rows).toEqual([]);
+  });
+
+  /*
+   * Hops are new runs, so a cap on a run's own hops lets a chain multiply: three asks that each ask
+   * three are nine. The request they all descend from is counted instead, and is carried with every
+   * hop so the next one is counted against the same number.
+   */
+  test("every hop a request causes counts against one ceiling, across runs", async () => {
+    const wide = desk({
+      caps: { maxDepth: 5, maxPerRun: 3, maxPerRequest: 3 },
+      roster: [
+        profile({ id: "researcher", name: "Researcher" }),
+        profile({ id: "analyst", name: "Analyst" }),
+        profile({ id: "writer", name: "Writer" }),
+      ],
+    });
+    const first = await wide.desk.send({
+      from: FROM,
+      target: "researcher",
+      envelope: { task: "dig" },
+    });
+    expect(first.ok).toBe(true);
+    // The hop remembers the request it descends from.
+    expect(wide.rows[0]?.payload).toMatchObject({ request: "run-1" });
+
+    // The researcher's own run is a new run on the same request, and its asks count against it.
+    const downstream = {
+      botId: "researcher",
+      actorId: "user-1",
+      runId: "run-2",
+      threadId: "thread-1",
+      depth: 1,
+      request: "run-1",
+    };
+    expect(
+      (
+        await wide.desk.send({
+          from: downstream,
+          target: "analyst",
+          envelope: { task: "number-crunch" },
+        })
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await wide.desk.send({
+          from: { ...downstream, runId: "run-3", botId: "analyst" },
+          target: "writer",
+          envelope: { task: "write it up" },
+        })
+      ).ok,
+    ).toBe(true);
+
+    // A fourth, from yet another run of the same request, is over the ceiling.
+    const over = await wide.desk.send({
+      from: { ...downstream, runId: "run-4", botId: "writer" },
+      target: "researcher",
+      envelope: { task: "and again" },
+    });
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(over.refusal).toContain("This request has already");
+    expect(wide.rows).toHaveLength(3);
+
+    // A different request of the same person has its own ceiling.
+    const other = await wide.desk.send({
+      from: { ...FROM, runId: "run-9" },
+      target: "researcher",
+      envelope: { task: "something else" },
+    });
+    expect(other.ok).toBe(true);
   });
 
   /*

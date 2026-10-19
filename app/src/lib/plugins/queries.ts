@@ -286,7 +286,7 @@ export function connectionsQueryOptions() {
     queryKey: pluginKeys.connections(),
     queryFn: async (): Promise<PluginConnections> => {
       const response = await client("/api/plugins/connections", {
-        fallback: "Your connected accounts could not be loaded.",
+        fallback: "Your connections could not be loaded.",
       });
       return response.json();
     },

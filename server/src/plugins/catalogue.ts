@@ -50,8 +50,12 @@ export type CatalogueAuth =
       kind: "user-oauth";
       authorizationUrl: string;
       tokenUrl: string;
-      /** Where a disconnect is sent, so revocation happens at the vendor and not just here. */
-      revokeUrl: string;
+      /**
+       * Where a disconnect is sent, so revocation happens at the vendor and not just here. Absent for
+       * a vendor that has no such endpoint (Microsoft's identity platform has none for a refresh token),
+       * where a person removes the app from their own account page instead.
+       */
+      revokeUrl?: string;
       /**
        * What to ask a person to consent to. Narrow on purpose: a scope granted by everybody who
        * connects and used by nothing is a permission nobody remembers agreeing to. Empty for a
@@ -276,6 +280,59 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
       "notion-update-view",
     ]),
     docsUrl: "https://developers.notion.com/guides/mcp/build-mcp-client",
+  },
+  {
+    key: "microsoft-365",
+    title: "Microsoft 365",
+    vendor: "Microsoft",
+    summary:
+      "Outlook mail, the calendar, Teams chats and SharePoint and OneDrive files of whoever is asking.",
+    /*
+     * Microsoft Graph, the one API under all four. Microsoft's hosted MCP servers for mail, calendar and
+     * Teams need an extra licence a small business does not have, and Graph does not.
+     *
+     * One entry, not four, on purpose: they share one registration in Microsoft Entra and one consent
+     * screen, so four entries would mean pasting the same client in four times and four consent
+     * screens for what the person sees as one account.
+     */
+    host: "https://graph.microsoft.com",
+    path: "/v1.0",
+    transport: "microsoft-graph-rest",
+    /*
+     * The person's own grant, from an app an administrator registers in Microsoft Entra. `common`
+     * accepts work and school accounts and personal ones; Teams chats and SharePoint answer only for
+     * the first, and Graph says so in its own words when a personal account asks.
+     *
+     * Every scope is a `.Read` one, because nothing in this slice writes to anybody's mailbox, calendar
+     * or files. `offline_access` is what makes Microsoft return a refresh token at all, so it is asked
+     * for by name rather than left to be discovered by a connection that dies after an hour.
+     */
+    auth: {
+      kind: "user-oauth",
+      authorizationUrl:
+        "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+      tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      scopes: Object.freeze([
+        "offline_access",
+        "User.Read",
+        "Mail.Read",
+        "Calendars.Read",
+        "Chat.Read",
+        "Files.Read.All",
+        "Sites.Read.All",
+      ]),
+    },
+    // Named although the scopes above make Microsoft refuse them, for the reason Drive's list is.
+    writeTools: Object.freeze([
+      "outlook_send_mail",
+      "outlook_create_draft",
+      "calendar_create_event",
+      "calendar_update_event",
+      "calendar_delete_event",
+      "teams_send_message",
+      "sharepoint_upload_file",
+    ]),
+    docsUrl: "https://learn.microsoft.com/graph/auth-v2-user",
   },
   {
     key: "routines",

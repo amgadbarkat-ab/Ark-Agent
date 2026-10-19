@@ -70,6 +70,9 @@ const probeBody = z.strictObject({
   apiKey: key.nullish(),
 });
 
+/** Long enough for a program on this computer to answer, short enough that a page never waits on one. */
+const LOCAL_PROBE_MS = 2_500;
+
 const LOCAL_ON_HOSTED =
   "This server cannot reach models on your own computer. Use the Ark desktop app for local models, or choose a hosted provider.";
 
@@ -96,6 +99,11 @@ export function modelConnectionRoutes(options: {
   audit?: (event: ModelAuditEvent) => Promise<void>;
   /** The deployment's free starter model, when it has one. Only described here; it is used elsewhere. */
   starter?: StarterModel;
+  /**
+   * The model ArkAgent runs on this computer, when the person chose it. Only asked whether it is up;
+   * the run uses the deployment's own model settings, which are the same address.
+   */
+  offline?: { label: string; baseUrl: string; apiKey: string; model: string };
 }) {
   const {
     requireUser,
@@ -105,6 +113,7 @@ export function modelConnectionRoutes(options: {
     allowedHosts,
     botVisible,
     starter,
+    offline,
   } = options;
   const record = async (event: ModelAuditEvent) => {
     try {
@@ -168,6 +177,72 @@ export function modelConnectionRoutes(options: {
       ...starter.status(),
       maxWaitSeconds: Math.round(starter.config.maxWaitMs / 1000),
     });
+  });
+
+  /**
+   * What is actually running on this computer, asked rather than assumed.
+   *
+   * The Models screen used to list Ollama, LM Studio and llama.cpp as "on this computer" whether or not
+   * anything was running there, so choosing one was a way to meet "could not reach" for the first time.
+   * Each is asked at its usual address, quickly, and the answer is what the screen shows. The model
+   * ArkAgent runs itself is asked the same way and listed first, because it is the one that was
+   * downloaded for this person.
+   *
+   * A hosted deployment has no "this computer", so it answers that nothing can be asked.
+   */
+  app.get("/local", async (context) => {
+    if (!mayProbe(context.var.actor.id)) {
+      return context.json(
+        { error: "Too many tests. Wait a minute and try again." },
+        429,
+      );
+    }
+    if (!allowPrivateHosts) {
+      return context.json({ offline: null, servers: [] });
+    }
+    const ask = (
+      provider: NonNullable<ReturnType<typeof providerById>>,
+      baseUrl: string,
+      apiKey: string | null,
+    ) =>
+      probeConnection({
+        provider,
+        baseUrl,
+        apiKey,
+        fetchImpl,
+        timeoutMs: LOCAL_PROBE_MS,
+      });
+    const [servers, own] = await Promise.all([
+      Promise.all(
+        PROVIDERS.filter((provider) => provider.local).map(async (provider) => {
+          const result = await ask(provider, provider.baseUrl, null);
+          return result.ok
+            ? {
+                providerId: provider.id,
+                state: "running" as const,
+                models: result.models.slice(0, 20),
+              }
+            : { providerId: provider.id, state: "stopped" as const };
+        }),
+      ),
+      (async () => {
+        const provider = providerById("llamacpp");
+        if (!offline || !provider) return null;
+        const result = await ask(
+          provider,
+          offline.baseUrl,
+          offline.apiKey.trim() && offline.apiKey !== "no-key-needed"
+            ? offline.apiKey
+            : null,
+        );
+        return {
+          label: offline.label,
+          model: offline.model,
+          state: result.ok ? ("running" as const) : ("stopped" as const),
+        };
+      })(),
+    ]);
+    return context.json({ offline: own, servers });
   });
 
   app.get("/connections", async (context) => {

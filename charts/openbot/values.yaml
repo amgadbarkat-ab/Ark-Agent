@@ -242,8 +242,10 @@ config:
   # `maxDepth: 0` switches the capability off entirely: no Bot is offered the tool and the delivery
   # loop does not run.
   handoff:
-    maxDepth: 1
+    maxDepth: 5
     maxPerRun: 3
+    # Every hop one request of a person's may cause, however deep or wide it goes.
+    maxPerRequest: 20
   # Your own Bot, over AG-UI.
   #
   # OpenBot is a shell for somebody else's agent, so this is the seam that matters: point it at a

@@ -68,8 +68,8 @@ function MinePage() {
         </Button>
       }
       backButton={{
-        label: "Marketplace",
-        linkProps: { to: "/marketplace" },
+        label: "Digital Team",
+        linkProps: { to: "/agents" },
       }}
       description="Digital employees you have shared as guides. Our team reads each one before anyone else can see it."
       title="Shared by you"

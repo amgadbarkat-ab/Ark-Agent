@@ -14,6 +14,7 @@ export function ChannelItemContent({
   unread = false,
   pinned = false,
   revealing = false,
+  lookup = true,
 }: {
   participantIds: string[];
   name: string;
@@ -25,6 +26,8 @@ export function ChannelItemContent({
   unread?: boolean;
   pinned?: boolean;
   revealing?: boolean;
+  /** False in a preview, whose conversations are samples and have no digital employee to look up. */
+  lookup?: boolean;
 }) {
   const primaryText = `text-[0.9rem] leading-5 tracking-[-1%] ${unread ? "font-semibold" : "font-medium"}`;
   const secondaryText = "text-[12px] leading-4 text-muted-foreground";
@@ -33,6 +36,7 @@ export function ChannelItemContent({
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <div className="shrink-0">
         <ChannelAvatar
+          lookup={lookup}
           participantIds={participantIds}
           size={32}
           typing={busy}

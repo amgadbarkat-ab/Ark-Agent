@@ -308,13 +308,17 @@ function mastraAgent(): RegisteredAgent {
  * copies a fixed list of its own fields onto a bare object — it knows nothing about a subclass. A
  * wrapper that did not carry its own state across would fail here and nowhere else.
  */
-async function ask(agent: { clone: () => unknown }, text: string) {
+async function ask(
+  agent: { clone: () => unknown },
+  text: string,
+  forwardedProps?: Record<string, unknown>,
+) {
   const running = (agent.clone as () => never)() as unknown as {
     addMessage: (message: unknown) => void;
-    runAgent: () => Promise<unknown>;
+    runAgent: (parameters?: unknown) => Promise<unknown>;
   };
   running.addMessage({ id: `m-${text.length}`, role: "user", content: text });
-  await running.runAgent();
+  await running.runAgent(forwardedProps ? { forwardedProps } : undefined);
 }
 
 /** The tool names in the last request the model actually received for a run (not for pass one). */
@@ -539,6 +543,35 @@ describe("a remote Bot", () => {
     expect(offered).not.toContain("mcp__drive__tool_0");
     // Undeclared, so it rides along on the remote path exactly as on the built-in one.
     expect(offered).toContain("mcp__drive__tool_7");
+  });
+
+  test("a run that was handed work signs its own statement from the one it arrived with", async () => {
+    /*
+     * The statement a hop arrives with says how deep it is and which request it belongs to. The fresh
+     * one this run signs replaces it for every tool call back to the deployment, so it has to be made
+     * FROM it. Signed from nothing, an employee that was handed work at depth three called `team_ask`
+     * at depth zero, and no cap anywhere saw the chain.
+     */
+    answerWith(["slack-digest"]);
+    const arrivedWith: unknown[] = [];
+    const agents = await buildAgents(
+      [remoteAgent()],
+      model,
+      "test-key",
+      undefined,
+      async () => granted,
+      (_botId, _runId, _threadId, handedOn) => {
+        arrivedWith.push(handedOn);
+        return "signed-assertion";
+      },
+      undefined,
+      undefined,
+      selection(),
+    );
+    await ask(agents.risk as never, "summarise the Slack channel", {
+      openbotRun: "handed-on-statement",
+    });
+    expect(arrivedWith).toEqual(["handed-on-statement"]);
   });
 
   test("still gets its standing role, its holdings and its signed run", async () => {

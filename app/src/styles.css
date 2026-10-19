@@ -14,6 +14,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * The company's face, Geist (SIL Open Font License; brand/fonts/LICENSE.txt), served from this origin so
+ * the content-security policy's `font-src 'self'` allows it. Inter stays behind it as the fallback for the
+ * moment before the file arrives.
+ */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 html {
   font-size: 15px;
 }
@@ -26,8 +39,9 @@ html {
   --card-foreground: #141312;
   --popover: #ffffff;
   --popover-foreground: #141312;
-  --primary: #141312;
-  --primary-foreground: #f9f8f7;
+  /* Ember fills, dark text on them: the pairing the company's brand rules give (brand/README.md). */
+  --primary: #ff7a1a;
+  --primary-foreground: #1a0b03;
   --secondary: #f1efec;
   --secondary-foreground: #141312;
   --muted: #f1efec;
@@ -59,19 +73,20 @@ html {
 
 .dark {
   color-scheme: dark;
-  --background: #1a1918;
+  /* BlackArk v3 (Ember): paper black with a warm cast, raised paper for what sits on it. */
+  --background: #0a0705;
   --foreground: #f3f2ef;
-  --card: #232220;
+  --card: #130d09;
   --card-foreground: #f3f2ef;
-  --popover: #232220;
+  --popover: #170f0a;
   --popover-foreground: #f3f2ef;
-  --primary: #f3f2ef;
-  --primary-foreground: #141312;
-  --secondary: #2b2a27;
+  --primary: #ff7a1a;
+  --primary-foreground: #1a0b03;
+  --secondary: #1e1610;
   --secondary-foreground: #f3f2ef;
-  --muted: #2b2a27;
-  --muted-foreground: #a19e98;
-  --accent: #2b2a27;
+  --muted: #1e1610;
+  --muted-foreground: #a9a49d;
+  --accent: #26190f;
   --accent-foreground: #f3f2ef;
   --destructive: oklch(0.704 0.191 22.216);
   --success: oklch(0.704 0.14 182.503);
@@ -83,20 +98,40 @@ html {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: #131211;
+  --sidebar: #080504;
   --sidebar-foreground: #f3f2ef;
   --sidebar-primary: #ff7a1a;
   --sidebar-primary-foreground: #1a0b03;
-  --sidebar-accent: #232220;
-  --sidebar-accent-foreground: #f3f2ef;
+  --sidebar-accent: #24170e;
+  --sidebar-accent-foreground: #ffb067;
   --sidebar-border: rgb(255 255 255 / 7%);
   --sidebar-ring: #ff7a1a;
   --brand: #ff7a1a;
   --brand-foreground: #1a0b03;
 }
 
+/* The company's ember gradient, for the few things that carry the identity: a rule, a word. */
+:root {
+  --ember-gradient: linear-gradient(
+    105deg,
+    #ffb067 0%,
+    #ff7a1a 38%,
+    #f2551b 78%,
+    #e5481a 100%
+  );
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* The sidebar's own ember light, from the top: where the company's name is. */
+[data-slot="sidebar-inner"] {
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 122 26 / 0.08),
+    transparent 260px
+  );
 }
 
 /* The company's Ember, as a light touch: selected text, focus, the send button, switches. */
@@ -109,9 +144,25 @@ body {
   position: relative;
   min-width: 20rem;
   min-height: 100vh;
-  background: var(--background);
+  /*
+   * The company's atmosphere under every screen: ember light from two corners. Fixed to the window, so
+   * it does not scroll with a page and cannot make one look longer than it is.
+   */
+  background:
+    radial-gradient(
+      64rem 34rem at 92% -14%,
+      rgb(255 122 26 / 0.13),
+      transparent 62%
+    ),
+    radial-gradient(
+      48rem 30rem at -10% 112%,
+      rgb(242 85 27 / 0.09),
+      transparent 60%
+    ),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: Geist, Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 /*
@@ -130,7 +181,7 @@ body {
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: "Inter Variable", sans-serif;
+  --font-sans: "Geist", "Inter Variable", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
