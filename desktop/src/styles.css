@@ -861,7 +861,11 @@ details > summary:hover {
   top: 14%;
   height: 60%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 122, 26, 0.42), transparent 68%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 122, 26, 0.42),
+    transparent 68%
+  );
   filter: blur(50px);
   animation: glow-pulse 9s ease-in-out infinite;
 }
