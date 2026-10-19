@@ -8,12 +8,24 @@ segments of the same running SDK query, resolving hooks by tool-use ID.
 
 import asyncio
 from contextlib import suppress
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
+import ag_ui_claude_sdk.adapter as upstream
 from ag_ui.core import EventType, RunErrorEvent, RunFinishedEvent, RunStartedEvent
 from ag_ui_claude_sdk import ClaudeAgentAdapter
-from claude_agent_sdk import AssistantMessage, HookMatcher
+from ag_ui_claude_sdk.utils import convert_agui_tool_to_claude_sdk as client_tool
+from claude_agent_sdk import AssistantMessage, HookMatcher, tool as sdk_tool
 from claude_agent_sdk.types import StreamEvent
+
+from .deployment import (
+    call_deployment_tool,
+    client_tool_names,
+    deployment_tool_names,
+    instructions,
+    run_statement,
+    with_instructions,
+)
 
 
 class ModelAuthenticationError(Exception):
@@ -44,15 +56,95 @@ class _Turn:
         return self.results[tool_id]
 
 
+@dataclass
+class _Building:
+    """Whose tools are being built, so a tool of the deployment's can find its way back to it."""
+
+    adapter: "OpenBotClaudeAgentAdapter"
+    thread_id: str
+    deployment: frozenset[str]
+
+
+_building: ContextVar[_Building | None] = ContextVar("openbot_building", default=None)
+
+
+def _convert_tool(tool_def):
+    """The upstream conversion makes every offered tool a stub for the browser to run.
+
+    A tool the deployment runs is made real instead: calling it asks the deployment, with the signed
+    statement of the run that is happening NOW. The statement is read when the tool is called and not
+    when it is built, because a session lives across many runs and each carries a fresh one.
+    """
+    name = (
+        tool_def.get("name")
+        if isinstance(tool_def, dict)
+        else getattr(tool_def, "name", "")
+    )
+    building = _building.get()
+    if building is None or name not in building.deployment:
+        return client_tool(tool_def)
+    description = (
+        tool_def.get("description", "")
+        if isinstance(tool_def, dict)
+        else getattr(tool_def, "description", "")
+    )
+    parameters = (
+        tool_def.get("parameters")
+        if isinstance(tool_def, dict)
+        else getattr(tool_def, "parameters", None)
+    )
+
+    @sdk_tool(name, description or "", parameters or {})
+    async def deployment_tool(args):
+        text, failed = await call_deployment_tool(
+            name,
+            args if isinstance(args, dict) else {},
+            building.adapter.statement_for(building.thread_id),
+        )
+        return {"content": [{"type": "text", "text": text}], "is_error": failed}
+
+    return deployment_tool
+
+
+# `ag-ui-claude-sdk` 0.1.5 looks the conversion up by name in its own module, so this is the one place
+# that can change it. The version is pinned in requirements.txt, and a test builds a tool through it.
+upstream.convert_agui_tool_to_claude_sdk = _convert_tool
+
+
 class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._turns: dict[str, _Turn] = {}
         self._segment_locks: dict[str, asyncio.Lock] = {}
+        # The signed statement of each thread's current run, for the deployment's tools to hand back.
+        self._statements: dict[str, str] = {}
+        # What each thread's session has already been told, so a changed instruction is sent once.
+        self._told: dict[str, set[tuple[str, str]]] = {}
+
+    def statement_for(self, thread_id):
+        return self._statements.get(thread_id, "")
 
     def build_options(self, input_data=None, thread_id=None):
-        options = super().build_options(input_data, thread_id)
-        tool_names = {tool.name for tool in input_data.tools} if input_data else set()
+        token = _building.set(
+            _Building(
+                adapter=self,
+                thread_id=thread_id,
+                deployment=deployment_tool_names(input_data),
+            )
+            if input_data
+            else None
+        )
+        try:
+            options = super().build_options(input_data, thread_id)
+        finally:
+            _building.reset(token)
+        if input_data:
+            # The role, the team and what it keeps in mind: see deployment.py for why they are not sent.
+            options.system_prompt = with_instructions(options.system_prompt, input_data)
+            self._told[thread_id] = {
+                (entry[0], entry[1]) for entry in instructions(input_data)
+            }
+        tool_names = client_tool_names(input_data)
 
         async def client_result(input_data, tool_use_id, context):
             turn = self._turns.get(thread_id)
@@ -186,6 +278,8 @@ class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
         thread_id, run_id = input_data.thread_id, input_data.run_id
         lock = self._segment_locks.setdefault(thread_id, asyncio.Lock())
         async with lock:
+            self._statements[thread_id] = run_statement(input_data)
+            input_data = self._with_new_instructions(input_data)
             turn = self._turns.get(thread_id)
             if turn is not None and turn.task.done():
                 self._turns.pop(thread_id)
@@ -217,7 +311,7 @@ class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
                         message="The Claude query for this tool result is no longer running. Start a new message."
                     )
                     return
-                turn = _Turn(tool_names={tool.name for tool in input_data.tools})
+                turn = _Turn(tool_names=client_tool_names(input_data))
                 self._turns[thread_id] = turn
                 turn.task = asyncio.create_task(self._pump(input_data, turn))
 
@@ -249,6 +343,34 @@ class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
                 if not released:
                     await self.interrupt(thread_id)
 
+    def _with_new_instructions(self, input_data):
+        """Put an instruction the session has not heard in front of this run's message.
+
+        The session's system prompt is fixed when it starts, but the deployment's instructions are not:
+        somebody picks a skill, or a memory is kept, and a new system turn arrives in the middle of the
+        conversation. Claude is told only the last message of a run, so one that is not repeated there is
+        never heard. It rides in front of the person's message, once, the first time it appears.
+        """
+        told = self._told.get(input_data.thread_id)
+        messages = input_data.messages or []
+        if told is None or not messages or messages[-1].role != "user":
+            return input_data
+        last = messages[-1]
+        if not isinstance(last.content, str):
+            return input_data
+        fresh = [entry for entry in instructions(input_data) if entry[:2] not in told]
+        if not fresh:
+            return input_data
+        told.update(entry[:2] for entry in fresh)
+        said = "\n\n".join(entry[2] for entry in fresh)
+        content = (
+            "Your instructions have changed. From now on, also follow this:\n\n"
+            f"{said}\n\n---\n\n{last.content}"
+        )
+        return input_data.model_copy(
+            update={"messages": [*messages[:-1], last.model_copy(update={"content": content})]}
+        )
+
     async def interrupt(self, thread_id=None):
         threads = [thread_id] if thread_id else list(self._turns)
         for current in threads:
@@ -271,3 +393,5 @@ class OpenBotClaudeAgentAdapter(ClaudeAgentAdapter):
         await self.interrupt()
         await super().shutdown()
         self._segment_locks.clear()
+        self._statements.clear()
+        self._told.clear()
