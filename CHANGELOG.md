@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.10
+
 ### Setup: one page for the AI, a faster first run, and a model that works offline
 
 - **One page.** The agent framework, the AI (on this computer, ArkAgent's server, or a provider and key) and the key are chosen on
