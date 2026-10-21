@@ -62,7 +62,7 @@ function runLangGraphAguiModelProbe(
         // Real tool execution is covered by the Python protocol regressions.
         "tools = ModuleType('src.tool_runtime')",
         "tools.ToolAwareAgent = LangGraphAgent",
-        "tools.bind_tools = tools.execute_tools = tools.next_step = lambda *args: None",
+        "tools.bind_tools = tools.execute_tools = tools.next_step = tools.lean_tools = lambda *args: None",
         "tools.model_messages = lambda messages: messages",
         "sys.modules['src.tool_runtime'] = tools",
         "from src import main",
