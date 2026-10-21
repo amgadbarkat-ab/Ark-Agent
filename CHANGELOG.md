@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.11
+
 ### A digital employee knows who it is, and its team
 
 - **The role reached nobody.** On the default agent framework (LangGraph) the integration threw away the first system message of
