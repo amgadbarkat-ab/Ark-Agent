@@ -8,6 +8,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A digital employee knows who it is
+
+- **The role reached nobody.** On the default agent framework (LangGraph) the integration threw away the first system message of
+  every run, and that is where the server puts a digital employee's standing role: its name, title, instructions, team and the
+  rule about saying where an answer came from. Every employee on that framework answered as a generic assistant ("I have no
+  title", "I have no tool for messaging other agents", "I'm not the Chief of Operations"), whichever model it ran on, and the
+  lead never learned it had a team. The role now reaches the model on every run, for a hosted model and for the model on this
+  computer alike. Employees you already hired need no change.
+
 ## 0.1.10
 
 ### Setup: one page for the AI, a faster first run, and a model that works offline
