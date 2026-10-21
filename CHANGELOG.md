@@ -8,6 +8,50 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A digital employee knows who it is, and its team
+
+- **The role reached nobody.** On the default agent framework (LangGraph) the integration threw away the first system message of
+  every run, and that is where the server puts a digital employee's standing role: its name, title, instructions, team and the
+  rule about saying where an answer came from. Every employee on that framework answered as a generic assistant ("I have no
+  title", "I have no tool for messaging other agents", "I'm not the Chief of Operations"), whichever model it ran on, and the
+  lead never learned it had a team. The role now reaches the model on every run, for a hosted model and for the model on this
+  computer alike. Employees you already hired need no change to benefit.
+- **"What can you do?" answers from the role.** An employee asked who it is or what it can do answers as its role, by name and
+  title: its duties, the skills it holds, what it is connected to, who it hands work to and that it remembers. The first line of
+  the computer guidance no longer reads like an identity ("a digital employee with a computer").
+- **A lead on its own says so.** The lead of a team of one used to be told nothing about a team, so asked whether it could work
+  with the others it answered that it had no tool for it. It now has `team_list`, says plainly that nobody else is on the team
+  yet, names the roles it would bring in and can propose them with `save_bot`.
+- **The team channel names who answers.** Each reply in a team channel carries the speaking employee's name and picture.
+
+### Cost and size
+
+- **A model on this computer fits its window.** A "hi" was a request of about 21,000 tokens against a window of 16,384, which the
+  model refused. The largest offline model (Gemma 4 26B A4B, offered from 27 GB of memory) now starts with a window of 32,768, and
+  when the window is known the Bot sends only the tools a turn needs: the browser, asking the person and the employee's own team,
+  grant and memory tools always; charts and forms, the file and command tools and the tools that make new employees when the
+  person's message, or the thread so far, is about them (English, Greek and Arabic words). The model is told what was left out.
+  The desktop app writes the window as `BOT_CONTEXT_TOKENS`; unset, every tool is sent as before.
+- **Anthropic prompt caching.** Every step of a run re-sent the whole role, guidance and tool list, which on a browser task is
+  ten or twenty times twenty thousand tokens at full price. The end of the system prompt is now marked cacheable, so Anthropic
+  reads it back at a fraction of the price. Not measured against a real Anthropic account.
+
+### Models page
+
+- Only what can be used now is listed: the "Not available" section is gone, and Ollama, LM Studio and llama.cpp appear only while
+  they are running.
+- Adding a model lists every model the provider returned in a dropdown (it counted 14 and offered 3); a model name can still be
+  typed.
+
+### The digital employees
+
+- Every role now works in Greek, English and Arabic and keeps names, numbers, dates and legal terms exact.
+- Sales and Marketing draft only and end every message to somebody outside the company with the approved opt-out line (Greek and
+  English; no Arabic wording is approved, so they ask for it).
+- New skills: Sales (Objection handling, Discovery questions), Marketing (Consent and unsubscribe check), Front Desk (Complaint
+  handling), Inventory and Logistics (Supplier scorecard). Employees you already hired keep the text they were hired with: hire
+  the role again to get the new text.
+
 ## 0.1.10
 
 ### Setup: one page for the AI, a faster first run, and a model that works offline

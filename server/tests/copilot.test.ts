@@ -6,7 +6,10 @@ import { HttpAgent } from "@ag-ui/client";
 import { LLMock } from "@copilotkit/aimock";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { EMPTY } from "rxjs";
-import { PROVENANCE_GUIDANCE } from "../../shared/bot-prompt";
+import {
+  PROVENANCE_GUIDANCE,
+  SELF_DESCRIPTION_GUIDANCE,
+} from "../../shared/bot-prompt";
 import { MAX_INLINED_BYTES_PER_RUN } from "../src/channels/attachment-parts";
 import { loadConfig } from "../src/config";
 import type { LoadAttachment } from "../src/copilot";
@@ -565,6 +568,7 @@ describe("standing agent roles", () => {
         "You are Expense Manager, Finance Operations.",
         "Review receipts, categorize expenses, and prepare reimbursement reports.",
         "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
+        SELF_DESCRIPTION_GUIDANCE,
         // For a remote Bot this message is the whole instruction, so the provenance rule has to
         // travel in it or the Bot never hears it. Referenced rather than restated, so the assertion
         // stays exact without pinning the wording twice.
@@ -769,6 +773,7 @@ describe("standing agent roles", () => {
         "You are Expense Manager, Finance Operations.",
         "Reconcile corporate card statements.",
         "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
+        SELF_DESCRIPTION_GUIDANCE,
         PROVENANCE_GUIDANCE,
       ].join("\n\n"),
     );

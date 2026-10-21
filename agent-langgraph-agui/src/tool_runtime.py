@@ -18,6 +18,7 @@ from langchain_core.messages import SystemMessage, ToolMessage
 from langgraph.graph import END
 
 from .parallel_tools import ParallelToolAgent
+from .prompt_budget import left_out_note, narrow
 
 
 @dataclass(frozen=True)
@@ -40,14 +41,43 @@ class UnofferedToolError(ValueError):
     pass
 
 
+def lift_leading_system_turns(
+    messages: list,
+) -> tuple[list, tuple[Context, ...]]:
+    """Take the system turns at the head of a run out of its messages, as context.
+
+    THE INTEGRATION THROWS THE FIRST SYSTEM MESSAGE AWAY. `ag_ui_langgraph` drops `messages[0]`
+    when it is a system message (`langgraph_default_merge_state`), on the assumption that the graph
+    brings its own prompt. OpenBot's server sends the coworker's standing role there: who it is, its
+    title, its instructions, its team and the rule about naming where an answer came from. Left in
+    the messages, every coworker on this harness was told nothing about itself, said it had no title
+    and no colleagues, and answered as a generic assistant, whatever model it ran on.
+
+    Context is the one channel the integration does not touch and the answer node already reads
+    (`model_messages`), and it stays outside graph state, so a role edited between two runs is the
+    role the next run carries instead of a copy a checkpoint remembered.
+    """
+    lifted: list[Context] = []
+    index = 0
+    while index < len(messages) and getattr(messages[index], "role", None) == "system":
+        content = getattr(messages[index], "content", "")
+        if isinstance(content, str) and content.strip():
+            lifted.append(Context(description="", value=content))
+        index += 1
+    return messages[index:], tuple(lifted)
+
+
 class ToolAwareAgent(ParallelToolAgent):
     async def run(self, input: RunAgentInput):
         props = input.forwarded_props if isinstance(input.forwarded_props, dict) else {}
         names = props.get("openbotDeploymentTools", [])
         assertion = props.get("openbotRun", "")
+        messages, standing = lift_leading_system_turns(list(input.messages or []))
         context = RunTools(
             tools=tuple(input.tools or []),
-            context=tuple(input.context or []),
+            # The standing role first: it is who the coworker is, and what the surface adds is about
+            # the screen it is on.
+            context=(*standing, *tuple(input.context or [])),
             deployment=frozenset(name for name in names if isinstance(name, str))
             if isinstance(names, list)
             else frozenset(),
@@ -71,7 +101,11 @@ class ToolAwareAgent(ParallelToolAgent):
                 }
             }
             async with aclosing(
-                super().run(input.model_copy(update={"forwarded_props": clean_props}))
+                super().run(
+                    input.model_copy(
+                        update={"forwarded_props": clean_props, "messages": messages}
+                    )
+                )
             ) as stream:
                 async for event in stream:
                     if event.type == EventType.RUN_ERROR and context.connection.get(
@@ -98,7 +132,7 @@ class ToolAwareAgent(ParallelToolAgent):
             _current.reset(token)
 
 
-def model_messages(messages):
+def model_messages(messages, left_out=()):
     """Pass AG-UI application context to the model without checkpointing it.
 
     The maintained integration carries context separately from messages. Our
@@ -107,15 +141,26 @@ def model_messages(messages):
     """
     return [
         *[
-            SystemMessage(content=f"{entry.description}\n{entry.value}")
+            SystemMessage(
+                content=f"{entry.description}\n{entry.value}"
+                if entry.description
+                else entry.value
+            )
             for entry in current_tools().context
         ],
+        *([SystemMessage(content=left_out_note(left_out))] if left_out else []),
         *messages,
     ]
 
 
-def bind_tools(model):
-    tools = current_tools().tools
+def lean_tools(messages):
+    """The tools to offer on this turn and the names left out; see `prompt_budget`."""
+    run = current_tools()
+    return narrow(run.tools, run.deployment, messages)
+
+
+def bind_tools(model, tools=None):
+    tools = current_tools().tools if tools is None else tools
     if not tools:
         return model
     return model.bind_tools(

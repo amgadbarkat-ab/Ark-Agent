@@ -143,11 +143,21 @@ describe("who is offered the team tools", () => {
     ]);
   });
 
-  test("nobody on a team of one is offered anything", async () => {
-    const { tools } = harness({
+  test("the lead of a team of one is offered the roster and nothing else", async () => {
+    // So asked whether it can work with its team it looks, finds nobody and says so, rather than
+    // reporting that it has no tool for it.
+    const { tools, call } = harness({
       roster: [profile("ana", "Ana", { primary: true })],
     });
-    expect(await tools()).toEqual([]);
+    expect((await tools()).map((t) => t.name)).toEqual(["team_list"]);
+    expect(await call("team_list", {})).toContain("no colleagues yet");
+  });
+
+  test("a colleague alone on somebody else's team is offered nothing", async () => {
+    const { tools } = harness({
+      roster: [profile("ben", "Ben", { primary: false })],
+    });
+    expect(await tools("ben")).toEqual([]);
   });
 
   test("not the lead when somebody else is using it", async () => {

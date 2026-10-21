@@ -137,6 +137,23 @@ pub const G26B: LocalModel = LocalModel {
 /// Best first.
 pub const MODELS: [&LocalModel; 4] = [&G26B, &G12B, &E4B, &E2B];
 
+/// Words of conversation the server holds in memory for this model, which is also the most one request
+/// may be.
+///
+/// The employee's role, its instructions and its tools come to well over ten thousand words before
+/// anyone has said anything, and a window too small for them refuses the first message outright
+/// ("request (21097 tokens) exceeds the available context size (16384 tokens)"). The largest model is
+/// offered only to a computer with 28 GB or more, so it can afford a window twice the size; the others
+/// sit on computers with little to spare once the stack's own machine has taken its share, so they stay
+/// where they were and are sent fewer tools instead (see `BOT_CONTEXT_TOKENS`).
+pub fn context_for(model: &LocalModel) -> u32 {
+    if model.min_ram_gib >= G26B.min_ram_gib {
+        32768
+    } else {
+        crate::local_server::DEFAULT_CONTEXT
+    }
+}
+
 /// Every model this computer can run, best first: what the setup screen offers, with the first one
 /// recommended.
 pub fn fitting(machine: &Machine) -> Vec<&'static LocalModel> {
@@ -614,6 +631,15 @@ fn unwritable(path: &Path, error: &dyn std::fmt::Display) -> Problem {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_the_largest_model_is_given_the_larger_window() {
+        use super::*;
+        assert_eq!(context_for(&G26B), 32768);
+        for small in [&G12B, &E4B, &E2B] {
+            assert_eq!(context_for(small), crate::local_server::DEFAULT_CONTEXT);
+        }
+    }
+
     use super::*;
     use std::io::{BufRead, BufReader};
     use std::net::TcpListener;

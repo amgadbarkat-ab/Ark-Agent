@@ -46,6 +46,11 @@ export type RoleSpec = {
   worksWith: string[];
   supportedBy: string[];
   canDo: string[];
+  /**
+   * Whether this role writes to people outside the company on its person's behalf. Such a role is told
+   * to draft only and to end every message with the approved opt-out line (`OUTREACH`).
+   */
+  outreach?: boolean;
   skills: RoleSkill[];
   connections: ConnectionRequest[];
   mcpServers: McpRequest[];
@@ -54,7 +59,7 @@ export type RoleSpec = {
 export const ROLES: RoleSpec[] = [
   {
     slug: "sales",
-    version: 1,
+    version: 2,
     title: "Sales",
     category: "sales",
     tags: ["sales", "pipeline", "outreach", "quotes"],
@@ -92,6 +97,7 @@ export const ROLES: RoleSpec[] = [
       "summarise a pipeline from a list or a connected CRM",
       "schedule a regular pipeline review with Routines, once you allow it",
     ],
+    outreach: true,
     skills: [
       {
         slug: "sales-prospect-brief",
@@ -125,6 +131,22 @@ export const ROLES: RoleSpec[] = [
         instructions:
           "Use when the user wants to review their deals. Take the list the user pastes or a connected CRM returns. For each deal state the stage, the last contact, and the next step with an owner and a date. Group them as moving, stuck and at risk. Lead with the three deals that need a decision this week and say why. Do not invent stages, values or dates; mark missing information as missing and ask for it.",
       },
+      {
+        slug: "sales-objection-handling",
+        title: "Objection handling",
+        summary:
+          "A calm, honest answer to a price, timing or trust objection, with a question back.",
+        instructions:
+          "Use when a prospect pushes back on price, timing, risk or trust. Ask what exactly was said and what the user knows about the prospect's situation. Write: (1) what the objection is really about, in one line, (2) a short reply that acknowledges it without arguing, (3) one question that finds the real concern, (4) a proof point only if the user gave you one. Never invent a discount, a guarantee, a reference customer or a competitor's weakness. If the honest answer is that we are not a fit, say so and offer to stop.",
+      },
+      {
+        slug: "sales-discovery-questions",
+        title: "Discovery questions",
+        summary:
+          "The questions for a first call, ordered, with what each one is meant to find out.",
+        instructions:
+          "Use before a first call or meeting with a prospect. From what the user gives you, write eight to ten open questions in the order to ask them: situation, the problem and its cost, who decides and how, timing and budget, and what happens if nothing changes. After each question say in a few words what it is meant to find out. Add two questions to avoid and why. Mark any assumption about the prospect as an assumption. Write them in the language the call will be held in.",
+      },
     ],
     connections: [
       { app: "Gmail", why: "to read replies and prepare drafts of outreach" },
@@ -147,7 +169,7 @@ export const ROLES: RoleSpec[] = [
   },
   {
     slug: "front-desk",
-    version: 1,
+    version: 2,
     title: "Front Desk",
     category: "support",
     tags: ["front desk", "reception", "visitors", "enquiries"],
@@ -209,6 +231,14 @@ export const ROLES: RoleSpec[] = [
         instructions:
           "Use when an enquiry is not for the front desk to answer. Decide the category: new sale, problem with an order, appointment, invoice, complaint or other. Name the person or digital employee who should handle it, say why in one line, and write the handover: the enquirer's details, what they asked, what has already been said to them, and the urgency. If it is a complaint or mentions safety, legal or money owed, mark it urgent and recommend a human sees it first.",
       },
+      {
+        slug: "front-desk-complaint",
+        title: "Complaint handling",
+        summary:
+          "A calm first reply to an unhappy person, and what to pass on and to whom.",
+        instructions:
+          "Use when someone writes or calls unhappy. Ask for what happened, when, and what they want. Write a first reply that thanks them, says in one sentence what you understood, and says what happens next and by when only if the user told you. Do not admit fault, promise a refund or blame anyone. Then write a short handover note for the right person: the facts, the person's words, what they asked for and how urgent it is. If anyone is at risk or a legal threat is made, say so at the top.",
+      },
     ],
     connections: [
       {
@@ -234,7 +264,7 @@ export const ROLES: RoleSpec[] = [
   },
   {
     slug: "marketing",
-    version: 1,
+    version: 2,
     title: "Marketing",
     category: "marketing",
     tags: ["marketing", "campaigns", "content", "research"],
@@ -272,6 +302,7 @@ export const ROLES: RoleSpec[] = [
       "set up a campaign calendar and a measurement sheet",
       "summarise results from figures you give it or a connected analytics tool",
     ],
+    outreach: true,
     skills: [
       {
         slug: "marketing-plan",
@@ -304,6 +335,14 @@ export const ROLES: RoleSpec[] = [
           "What the campaign achieved against its goal, what to repeat and what to stop.",
         instructions:
           "Use when the user wants to know how marketing performed. Take the figures the user pastes or a connected analytics tool returns. Compare them with the goal and the previous period. Report in plain words: what changed, what probably caused it, what to repeat, what to stop, and what to test next. Show every calculation and label every figure with its period and source. Say clearly when the data is too thin to conclude anything.",
+      },
+      {
+        slug: "marketing-consent-check",
+        title: "Consent and unsubscribe check",
+        summary:
+          "A checklist run on a campaign or list before anything is sent.",
+        instructions:
+          "Use before any message goes to a list of people. Ask who is on the list, where their addresses came from, what they agreed to and when, and what the message is about. Check and report yes, no or unknown for each: a lawful reason to contact each person, the sender named, a working one-line way to opt out in the language of the message, opt-outs removed from the list, and no claim that cannot be backed up. Say plainly what must be fixed before sending. You only prepare the check; a named person decides to send.",
       },
     ],
     connections: [
@@ -512,7 +551,7 @@ export const ROLES: RoleSpec[] = [
   },
   {
     slug: "inventory-logistics",
-    version: 1,
+    version: 2,
     title: "Inventory and Logistics",
     category: "operations",
     tags: ["inventory", "logistics", "stock", "shipping", "suppliers"],
@@ -582,6 +621,14 @@ export const ROLES: RoleSpec[] = [
           "A clear message to a supplier or carrier: order, chase or problem.",
         instructions:
           "Use when the user needs to write to a supplier or carrier. Ask what it is for: a request for a quote, an order, a chase for a late delivery, or a problem with goods received. State the reference numbers, dates and quantities from the data the user gave, the problem or request in one sentence, what you need back and by when. Keep it courteous and exact. Never commit the business to a price, a quantity or a date that the user has not approved.",
+      },
+      {
+        slug: "inventory-supplier-scorecard",
+        title: "Supplier scorecard",
+        summary:
+          "A fair comparison of suppliers on price, delivery, quality and responsiveness.",
+        instructions:
+          "Use when the user wants to compare or review suppliers. Take the orders, delivery dates, defects and prices they paste or a connected system returns. For each supplier score on-time delivery, quality, price against the others, and how quickly they answer, showing the numbers behind every score. Say which scores rest on few orders. End with a recommendation per supplier: keep, watch or review, and the first question to put to each. Never invent figures; mark missing data as missing.",
       },
     ],
     connections: [

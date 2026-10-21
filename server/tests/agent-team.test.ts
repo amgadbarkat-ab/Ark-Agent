@@ -9,10 +9,17 @@ const member = (
 ): TeamMember => ({ id, name, title, primary });
 
 describe("teamGuidance", () => {
-  test("says nothing to an employee with no colleagues", () => {
-    expect(teamGuidance({ id: "a" }, [member("a", "Ana", "Sales", true)])).toBe(
-      null,
-    );
+  test("says nothing to an employee with no colleagues that does not lead", () => {
+    expect(teamGuidance({ id: "a" }, [member("a", "Ana", "Sales")])).toBe(null);
+  });
+
+  test("tells the lead of a team of one that it is alone, and why that is the reason", () => {
+    const text = teamGuidance({ id: "a" }, [member("a", "Ana", "Sales", true)]);
+    expect(text).toContain("only digital employee");
+    expect(text).toContain("you are its lead");
+    // Not a claim that it cannot work with others, which would be false once somebody is hired.
+    expect(text).toContain("Do not say that digital employees cannot work");
+    expect(text).toContain("save_bot");
   });
 
   test("names the colleagues and not the employee itself", () => {

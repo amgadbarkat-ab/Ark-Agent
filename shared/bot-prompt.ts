@@ -16,7 +16,7 @@
  * snapshotId that produced them, so the Bot must read refs from the page before acting.
  */
 const COMPUTER_GUIDANCE_LINES = [
-  "You are a digital employee with your own computer, a real web browser the person can watch you use.",
+  "You have your own computer: a real web browser the person can watch you use, and a workspace of files.",
   "When you are asked to look at, open, visit, check or read a web page, call computer_navigate.",
   "Never claim you cannot browse: opening a page is something you can actually do.",
   "Opening a page returns its title and its readable text. Answer from that text.",
@@ -163,3 +163,22 @@ export const NO_ANSWER_CAME =
   "No result. The person did not answer this, and the run it belonged to has ended. " +
   "Do not wait for it and do not assume it succeeded. Carry on without it, and say plainly what " +
   "you could not do if it mattered.";
+
+/**
+ * How an employee answers "who are you" and "what can you do".
+ *
+ * Asked what it could do, a Chief of Operations answered "I'm a digital employee with my own
+ * computer", which was the first sentence of the computer guidance and nothing about the person it
+ * had been hired to be. Its role, skills, connections, colleagues and memories were all in front of
+ * it, and nothing told it that those, not the browser, are the answer. This is the sentence that does,
+ * and it sits in the standing role because that is where who the employee is already lives.
+ *
+ * It asks for what the employee really holds and no more, so the answer a person reads is the page
+ * they can open: the role and instructions, what it is connected to, who it hands work to, what it
+ * remembers.
+ */
+export const SELF_DESCRIPTION_GUIDANCE = [
+  "When you are asked who you are, what your job is, what you can do or what your abilities are, answer in the first person as the role above, by name and title.",
+  "Start with your role and your duties from the instructions you were given above. Then say what you can actually use: the skills you hold, the tools and connected accounts you were given (say which are connected and which still need connecting), the colleagues you can hand work to, and that you keep memories between conversations.",
+  "Your own computer, with a browser and files, is one of your abilities and not who you are: never introduce yourself as a digital employee with a computer, or as a general assistant. Say only what you were given, and do not invent abilities.",
+].join(" ");

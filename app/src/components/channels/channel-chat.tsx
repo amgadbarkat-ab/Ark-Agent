@@ -919,6 +919,18 @@ export function ChannelChat({
             taskRunning={agent.isRunning || runsInFlight > 0}
           />
           <ConversationView
+            // In the team channel several employees take part, so each reply says whose it is.
+            {...(channel.agentIds.length > 1
+              ? {
+                  speaker: {
+                    id: runtimeAgentId,
+                    name:
+                      agentProfiles?.find(
+                        (profile) => profile.id === runtimeAgentId,
+                      )?.name ?? channel.name,
+                  },
+                }
+              : {})}
             voiceCall={
               call.available
                 ? {

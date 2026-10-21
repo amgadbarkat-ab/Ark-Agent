@@ -57,6 +57,7 @@ at `agent-langgraph` on a laptop.
 | `GOOGLE_API_KEY`     | unset                              | Google key when `BOT_PROVIDER=google`.                              |
 | `GOOGLE_GENERATIVE_AI_BASE_URL` | unset                   | Google-compatible endpoint that key is spent against.               |
 | `BOT_MODEL`          | provider default from Bot code/env | Model for the framework Bot (`agent-langgraph`). Provider defaults are `gpt-5.5`, `claude-sonnet-4-5`, and `gemini-2.5-flash`. |
+| `BOT_CONTEXT_TOKENS` | unset                              | The window, in tokens, of the model on this computer. The desktop app writes it for the model it runs. Set, the default harness (`agent-langgraph-agui`) sends the model only the tools a turn needs; unset, every tool is sent with every message. |
 | `AGENT_BOT_MODEL`    | `gpt-5.5`                          | Model for the proof-of-concept Bot (`agent-bot`), kept separate because it speaks `/v1/chat/completions` directly and refuses a model it cannot use. |
 | `BOT_HISTORY_TURNS`  | `12`                               | How many of the person's latest messages the built-in agent (`agent-bot`) shows the model each turn. `0` shows all of them. |
 | `BOT_HISTORY_CHARACTERS` | `60000`                        | Over this many characters (about four to a token) of conversation, the oldest turns are left out until it fits, keeping at least the latest. `0` turns the limit off. |

@@ -34,6 +34,7 @@ export type OfficialRole = Pick<
   | "worksWith"
   | "supportedBy"
   | "canDo"
+  | "outreach"
   | "skills"
   | "connections"
   | "mcpServers"
@@ -59,6 +60,25 @@ export type OfficialListing = {
   suggestedTools: string[];
   role: OfficialRole;
 };
+
+/**
+ * How an employee chooses its words. Every role works in the three languages its people use.
+ *
+ * The roles never mentioned Greek or Arabic, so a Greek-speaking owner got English back until they
+ * asked twice. Names, figures and legal terms are named as the things a translation must not change.
+ */
+export const LANGUAGE =
+  "Language: reply in the language the person writes to you in. You work in Greek, English and Arabic; when you translate or write in one of them, keep names, numbers, dates and legal terms exact. If you cannot tell which language to use, ask in one short line.";
+
+/**
+ * What a role that writes to people outside the company must do. Only for roles flagged `outreach`.
+ *
+ * Draft only, because a message sent in the owner's name is theirs to send, and the opt-out line
+ * because an unsolicited message without one is the owner's legal problem. The Greek and English
+ * lines are the approved wording; there is no approved Arabic one, so it is asked for and never made up.
+ */
+export const OUTREACH =
+  'Outreach rules: you only write drafts. A named person approves every message before it is sent, and you never send, pay or submit anything yourself. End every message to a person outside the company with the approved opt-out line, in the language of the message. Greek: «Αν δεν επιθυμείτε να λαμβάνετε άλλα μηνύματα, απαντήστε «ΔΙΑΓΡΑΦΗ».» English: "If you\'d rather not hear from us again, just reply "unsubscribe"." There is no approved Arabic line: ask the person for it instead of translating one.';
 
 export const HONESTY =
   "If you are not sure, say so and say what you would need to find out. Never invent facts, figures, quotes or sources. Ask before doing anything that changes something outside this conversation.";
@@ -101,6 +121,8 @@ export function composeInstruction(
     `What I can do:\n${bullets(role.canDo)}`,
     `Skills I use, which are on your Skills page: ${skills}.`,
     `To do this work well I will ask you to connect these accounts: ${connections}. And these servers: ${servers}. They only work once you connect them. If something I need is not connected, I say so plainly and ask you to connect it in Settings; I never pretend I used it.`,
+    LANGUAGE,
+    ...(role.outreach ? [OUTREACH] : []),
     "Teamwork: I am one digital employee among others and I cannot do every task alone. When a task needs someone else, such as a colleague, a manager, an expert or a reference, I say who and what I would ask them, and I ask you to bring them in. I never claim to have contacted anyone unless a tool shows that I did.",
     HONESTY,
   ].join("\n\n");
@@ -135,6 +157,7 @@ export const OFFICIAL_LISTINGS: OfficialListing[] = ROLES.map((spec) => ({
     worksWith: spec.worksWith,
     supportedBy: spec.supportedBy,
     canDo: spec.canDo,
+    ...(spec.outreach ? { outreach: true } : {}),
     skills: spec.skills,
     connections: spec.connections,
     mcpServers: spec.mcpServers,

@@ -403,6 +403,8 @@ pub fn compose(
             "BOT_PROVIDER",
             // The name of the model ArkAgent runs itself, which only the choice of it implies.
             "ARK_OFFLINE_MODEL_LABEL",
+            // And how big its window is, which the Bot uses to send it only the tools a turn needs.
+            "BOT_CONTEXT_TOKENS",
         ] {
             env.insert(key.into(), String::new());
         }
@@ -445,6 +447,12 @@ pub fn compose(
             .map(|known| known.label)
             .unwrap_or("Offline model");
         env.insert("ARK_OFFLINE_MODEL_LABEL".into(), label.into());
+        // The window the model on this computer was started with, so the Bot can keep what it sends
+        // inside it. A model this app did not start (`Compatible`) says nothing: its window is its own.
+        let window = crate::local_model::by_id(served)
+            .map(crate::local_model::context_for)
+            .unwrap_or(crate::local_server::DEFAULT_CONTEXT);
+        env.insert("BOT_CONTEXT_TOKENS".into(), window.to_string());
     }
     match &model.credential {
         /*
@@ -2448,6 +2456,9 @@ mod model_tests {
         // Only the choice of the model on this computer says which one it is, so the Models screen can list it.
         assert_eq!(local["ARK_OFFLINE_MODEL_LABEL"], "Gemma 4 E4B");
         assert_eq!(compatible["ARK_OFFLINE_MODEL_LABEL"], "");
+        // And only it says how big its window is, so the Bot sends it only the tools a turn needs.
+        assert_eq!(local["BOT_CONTEXT_TOKENS"], "16384");
+        assert_eq!(compatible["BOT_CONTEXT_TOKENS"], "");
         assert_eq!(local["OPENAI_BASE_URL"], fields.0);
         assert_eq!(local["OPENAI_CONTAINER_BASE_URL"], fields.1);
         assert_eq!(local["OPENAI_API_KEY"], fields.2);
@@ -2483,6 +2494,34 @@ mod model_tests {
             compose_local("something-else")["ARK_OFFLINE_MODEL_LABEL"],
             "Offline model"
         );
+    }
+
+    /// The Bot is told the window of the model it talks to, which is larger for the largest model.
+    #[test]
+    fn the_window_of_the_model_on_this_computer_reaches_the_bot() {
+        let window = |model: &str| {
+            compose(
+                &Model {
+                    credential: ModelCredential::Local {
+                        base_url: "http://127.0.0.1:5000/v1".into(),
+                        container_base_url: None,
+                        api_key: "k".into(),
+                        model: model.into(),
+                    },
+                },
+                &engine(),
+                &Ports::default(),
+                &pinned(),
+                None,
+                &BTreeMap::new(),
+            )["BOT_CONTEXT_TOKENS"]
+                .clone()
+        };
+        assert_eq!(window("gemma-4-26b-a4b"), "32768");
+        assert_eq!(window("gemma-4-12b"), "16384");
+        assert_eq!(window("gemma-4-e4b"), "16384");
+        // One this app did not name gets the default, never nothing.
+        assert_eq!(window("something-else"), "16384");
     }
 
     #[test]

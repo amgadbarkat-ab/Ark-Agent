@@ -127,6 +127,18 @@ once, in front of the next message) and runs the deployment's tools through the 
 uses. The default framework (LangGraph) was not affected. Tested at the adapter boundary with a fake Claude process; not run
 against Anthropic.
 
+## Why the Chief of Operations said it had no title (found after release E)
+
+On the default framework the integration discards the first system message of a run, and that message is the standing role.
+Nothing said so: the model simply never saw its name, title, instructions, team or the provenance rule, and answered as an
+assistant with a computer. The tests that covered system turns called the answer step directly, below the integration, so they
+could not see it. `agent-langgraph-agui/tests/test_standing_role.py` now drives the whole endpoint against a fake model and reads
+what it was sent. The fix lifts the leading system turns into the run's context, which the integration leaves alone.
+
+Two related behaviours: the lead of a team of one is offered `team_list` and told it is alone (it used to be told nothing, and
+said it had no tool for reaching colleagues), and "what can you do" is answered from the role by an instruction that sits in the
+standing role (`SELF_DESCRIPTION_GUIDANCE`).
+
 ## Not done
 
 - A message `@`-mentioned to a colleague is not sent to that colleague directly; it goes to the lead, which asks them. A

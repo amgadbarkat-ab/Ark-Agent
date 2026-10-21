@@ -8,6 +8,7 @@ import { createRuntimeAgentLoader } from "../src/agents/runtime-agents";
 import { createChannelStore } from "../src/channels/routes";
 import { createMemoryStore } from "../src/memories/store";
 import { createThreadIdentity } from "../src/channels/thread-identity";
+import { teamGuidance } from "../src/agents/team";
 import { standingRoleMessage } from "../src/copilot";
 import { type CredentialSecretReader, encryptSecret } from "../src/credentials";
 import { createDatabase } from "../src/db/client";
@@ -111,6 +112,13 @@ async function setAgentRun(
   await database.update(agents).set(run).where(eq(agents.id, id));
 }
 
+/** What the lead of a team of one is told about it. */
+function aloneAsLead(id: string) {
+  return teamGuidance({ id }, [
+    { id, name: "Expense Manager", title: "Finance Operations", primary: true },
+  ]);
+}
+
 function idsOf(loaded: Awaited<ReturnType<typeof loadAgents>>) {
   return loaded.map((agent) => agent.id);
 }
@@ -139,6 +147,8 @@ describe("runtime agent loading", () => {
         title: "Finance Operations",
         roleDescription:
           "Review receipts, categorize expenses, and prepare reimbursement reports.",
+        // Alone on its team, so the lead is told so.
+        team: aloneAsLead(profile.id),
       }),
     });
   });
@@ -163,7 +173,7 @@ describe("runtime agent loading", () => {
     expect(said(other.id)).not.toContain("Ben (Finance Operations)");
   });
 
-  test("says nothing of a team to one that works alone, or to somebody else's shared employee", async () => {
+  test("tells the lead of a team of one that it is alone, and says nothing of a team to somebody else's shared employee", async () => {
     const owner = await createUser();
     const colleague = await createUser();
     const alone = await createCoworker(owner, { name: "Solo" });
@@ -181,7 +191,7 @@ describe("runtime agent loading", () => {
         : "";
     };
 
-    expect(said(alone.id)).not.toContain("Your team");
+    expect(said(alone.id)).toContain("only digital employee on this team");
     // The shared one belongs to somebody else's team, so what it is told is not this person's business.
     expect(said(theirs.id)).not.toContain("Your team");
     expect(said(alone.id)).not.toContain("Shared");
@@ -258,6 +268,8 @@ describe("runtime agent loading", () => {
         title: "Finance Operations",
         roleDescription:
           "Review receipts, categorize expenses, and prepare reimbursement reports.",
+        // Alone on its team, so the lead is told so.
+        team: aloneAsLead(profile.id),
       }),
     });
   });
@@ -313,6 +325,8 @@ describe("runtime agent loading", () => {
         title: "Finance Operations",
         roleDescription:
           "Review receipts, categorize expenses, and prepare reimbursement reports.",
+        // Alone on its team, so the lead is told so.
+        team: aloneAsLead(profile.id),
       }),
     });
   });
