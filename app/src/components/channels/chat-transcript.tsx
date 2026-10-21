@@ -64,6 +64,7 @@ import {
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
 import { ToolRenderBoundary } from "./tool-boundary";
+import { ChannelAvatar } from "@/components/channels/avatar";
 import { ToolLine } from "./tool-line";
 import { VoiceChatCard } from "./voice-chat-card";
 
@@ -81,6 +82,12 @@ type ChatTranscriptProps = {
   onRemoveQueued?: (id: string) => void;
   /** History has been asked for and has not arrived. Drawn only when there is nothing else to draw. */
   restoring?: boolean;
+  /**
+   * Who is answering, drawn above each of its replies. Given in a team channel, where several
+   * digital employees take part and a reply with no name on it could be anybody's; a conversation
+   * with one employee already says who it is in its header and passes nothing.
+   */
+  speaker?: { id: string; name: string };
   /**
    * Why the last turn ended without an answer, if it did.
    *
@@ -560,11 +567,16 @@ const TranscriptMessage = memo(function TranscriptMessage({
   commandNames = "",
   delay,
   role,
+  speakerId = "",
+  speakerName = "",
   text,
 }: {
   commandNames?: string;
   delay: number;
   role: "user" | "assistant";
+  /** Primitives, not an object, so an untouched message still compares equal and is skipped. */
+  speakerId?: string;
+  speakerName?: string;
   text: string;
 }) {
   const isUser = role === "user";
@@ -592,6 +604,12 @@ const TranscriptMessage = memo(function TranscriptMessage({
     <MessageRow align={align}>
       <MessageContent>
         <Arriving delay={delay}>
+          {!isUser && speakerName ? (
+            <div className="mb-1 flex items-center gap-2 text-muted-foreground text-xs">
+              <ChannelAvatar participantIds={[speakerId]} size={18} />
+              <span className="font-medium">{speakerName}</span>
+            </div>
+          ) : null}
           {/*
             A digital employee's message takes the whole column, not the width of its words: block content
             inside it — a fenced code block, a table — should span the transcript rather than
@@ -1439,6 +1457,7 @@ export function ChatTranscript({
   onRemoveQueued,
   queued = EMPTY_QUEUE,
   restoring = false,
+  speaker,
   stopped,
 }: ChatTranscriptProps) {
   /*
@@ -1632,6 +1651,8 @@ export function ChatTranscript({
                     commandNames={commandNames}
                     delay={delays.delayFor(item.id, index, items.length)}
                     role={item.role}
+                    speakerId={speaker?.id}
+                    speakerName={speaker?.name}
                     text={item.text}
                   />
                 </MessageScrollerItem>

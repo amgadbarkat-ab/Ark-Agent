@@ -304,7 +304,7 @@ fn settings_for(prepared: &Prepared) -> Settings {
         server: prepared.server.clone(),
         model_file: prepared.model_file.clone(),
         alias: prepared.model.id.to_string(),
-        context: local_server::DEFAULT_CONTEXT,
+        context: crate::local_model::context_for(prepared.model),
         threads: None,
     }
 }

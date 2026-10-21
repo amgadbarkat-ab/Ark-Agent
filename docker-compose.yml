@@ -355,6 +355,9 @@ services:
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
       BOT_PROVIDER: ${BOT_PROVIDER:-openai}
       BOT_MODEL: ${BOT_MODEL:-gpt-5.5}
+      # The window of the model on this computer, when ArkAgent runs one. Set, the Bot sends it only the
+      # tools a turn needs; empty, every tool goes with every message.
+      BOT_CONTEXT_TOKENS: ${BOT_CONTEXT_TOKENS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

@@ -18,6 +18,7 @@ from langchain_core.messages import SystemMessage, ToolMessage
 from langgraph.graph import END
 
 from .parallel_tools import ParallelToolAgent
+from .prompt_budget import left_out_note, narrow
 
 
 @dataclass(frozen=True)
@@ -131,7 +132,7 @@ class ToolAwareAgent(ParallelToolAgent):
             _current.reset(token)
 
 
-def model_messages(messages):
+def model_messages(messages, left_out=()):
     """Pass AG-UI application context to the model without checkpointing it.
 
     The maintained integration carries context separately from messages. Our
@@ -147,12 +148,19 @@ def model_messages(messages):
             )
             for entry in current_tools().context
         ],
+        *([SystemMessage(content=left_out_note(left_out))] if left_out else []),
         *messages,
     ]
 
 
-def bind_tools(model):
-    tools = current_tools().tools
+def lean_tools(messages):
+    """The tools to offer on this turn and the names left out; see `prompt_budget`."""
+    run = current_tools()
+    return narrow(run.tools, run.deployment, messages)
+
+
+def bind_tools(model, tools=None):
+    tools = current_tools().tools if tools is None else tools
     if not tools:
         return model
     return model.bind_tools(

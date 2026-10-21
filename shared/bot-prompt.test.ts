@@ -16,7 +16,7 @@ describe("COMPUTER_GUIDANCE", () => {
 
   test("still contains the full instruction text, unchanged in wording", () => {
     expect(COMPUTER_GUIDANCE).toContain(
-      "You are a digital employee with your own computer, a real web browser the person can watch you use.",
+      "You have your own computer: a real web browser the person can watch you use, and a workspace of files.",
     );
     expect(COMPUTER_GUIDANCE).toContain(
       "Say what you found or did in plain language, briefly.",

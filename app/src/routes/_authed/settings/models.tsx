@@ -81,8 +81,18 @@ function ModelsPage() {
     editing.kind === "edit"
       ? connections.data?.find((c) => c.id === editing.id)
       : undefined;
-  const unavailable =
-    catalogue.data?.providers.filter((p) => p.unavailable) ?? [];
+
+  // Only what can be used now. A provider that is not offered here, or a model on this computer that
+  // is not running, is not listed at all: a row that says "not available" is a row that has nothing
+  // to do, and it appears again by itself when the model starts.
+  const offered = (catalogue.data?.providers ?? []).filter((provider) => {
+    if (provider.unavailable) return false;
+    if (provider.tier !== "local") return true;
+    return (
+      local.data?.servers.find((server) => server.providerId === provider.id)
+        ?.state === "running"
+    );
+  });
 
   return (
     <PageShell
@@ -154,19 +164,21 @@ function ModelsPage() {
       </PageSection>
 
       <PageSection
-        description="Add any of these. A model on this computer is marked running only when it answered just now. ArkAgent does not install Ollama, LM Studio or llama.cpp: install and start one first, and this page notices."
+        description="Models you can add right now. A model on this computer appears here only while it is running, and this page notices when one starts."
         title="Available models"
       >
         {catalogue.data ? (
           <PageRows>
-            {catalogue.data.providers
-              .filter((provider) => !provider.unavailable)
-              .map((provider, index, all) => {
+            {offered
+              .map((provider) => {
                 const status = local.data?.servers.find(
                   (server) => server.providerId === provider.id,
                 );
                 const isLocal = provider.tier === "local";
                 const running = isLocal && status?.state === "running";
+                return { provider, status, isLocal, running };
+              })
+              .map(({ provider, status, isLocal, running }, index, all) => {
                 return (
                   <React.Fragment key={provider.id}>
                     <Item size="sm">
@@ -246,32 +258,6 @@ function ModelsPage() {
                   coworker={coworker}
                 />
                 {index !== (coworkers.data?.length ?? 0) - 1 && <Separator />}
-              </React.Fragment>
-            ))}
-          </PageRows>
-        </PageSection>
-      ) : null}
-
-      {unavailable.length > 0 ? (
-        <PageSection
-          description="These are not offered here, and why."
-          title="Not available"
-        >
-          <PageRows>
-            {unavailable.map((provider, index) => (
-              <React.Fragment key={provider.id}>
-                <Item size="sm">
-                  <ItemMedia variant="icon">
-                    <IconCloud />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{provider.name}</ItemTitle>
-                    <ItemDescription className="line-clamp-none">
-                      {provider.unavailable}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-                {index !== unavailable.length - 1 && <Separator />}
               </React.Fragment>
             ))}
           </PageRows>

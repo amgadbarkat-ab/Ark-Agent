@@ -12,6 +12,7 @@ import { defer, finalize, from, fromEvent, switchMap, takeUntil } from "rxjs";
 import { z } from "zod";
 import {
   COMPUTER_GUIDANCE,
+  SELF_DESCRIPTION_GUIDANCE,
   PROVENANCE_GUIDANCE,
 } from "../../shared/bot-prompt";
 import { sanitizeSeededHistory } from "./agents/history-sanitize";
@@ -150,6 +151,7 @@ export function standingRoleMessage(
       ...(profile.team ? [profile.team] : []),
       ...(profile.memory ? [profile.memory] : []),
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
+      SELF_DESCRIPTION_GUIDANCE,
       /*
        * Here rather than in the package, because for a remote Bot the standing role is the only
        * instruction there is: `role_description` is one sentence somebody wrote about what it is

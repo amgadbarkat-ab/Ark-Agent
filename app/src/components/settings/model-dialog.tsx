@@ -345,26 +345,54 @@ function ModelForm({
               return (
                 <Field data-invalid={invalid}>
                   <FieldLabel htmlFor={field.name}>Model</FieldLabel>
+                  {suggestions.length > 0 ? (
+                    <Select
+                      onValueChange={(value) =>
+                        field.handleChange(String(value))
+                      }
+                      value={
+                        suggestions.includes(field.state.value)
+                          ? field.state.value
+                          : ""
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label={`Choose one of ${suggestions.length} models`}
+                        className="w-full"
+                      >
+                        <SelectValue>
+                          {suggestions.includes(field.state.value)
+                            ? field.state.value
+                            : `Choose from ${suggestions.length} models`}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suggestions.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
                   <Input
                     aria-invalid={invalid}
                     autoComplete="off"
                     id={field.name}
-                    list="model-suggestions"
                     name={field.name}
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}
                     placeholder={
-                      provider?.tier === "local" ? "qwen3:8b" : "Model name"
+                      provider?.tier === "local"
+                        ? "qwen3:8b"
+                        : "Or type a model name"
                     }
                     value={field.state.value}
                   />
-                  <datalist id="model-suggestions">
-                    {suggestions.map((name) => (
-                      <option key={name} value={name} />
-                    ))}
-                  </datalist>
                   <FieldDescription>
-                    Press Test to see what this provider offers.
+                    {probe?.ok
+                      ? "Every model this provider offers is in the list above."
+                      : "Press Test to see what this provider offers."}
                   </FieldDescription>
                   {invalid ? (
                     <FieldError errors={field.state.meta.errors} />

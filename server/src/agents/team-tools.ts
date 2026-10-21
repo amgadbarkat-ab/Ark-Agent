@@ -219,8 +219,11 @@ export async function teamTools(context: Context): Promise<GrantedTool[]> {
     context.botId,
   );
   if (!me || me.ownerUserId !== context.actorId) return [];
-  // A team of one has nobody to look after or ask, and the tools would only be noise in its prompt.
-  if ((await colleaguesOf(context)).length === 0) return [];
+  // A team of one has nobody to look after or ask, so only the lead is offered the roster: asked
+  // whether it can work with its team it then looks, finds nobody, and says so, instead of reporting
+  // that it has no tool for it. The rest of the tools would only be noise in its prompt.
+  const alone = (await colleaguesOf(context)).length === 0;
+  if (alone && !me.primary) return [];
 
   const everyone: GrantedTool[] = [
     {
@@ -521,6 +524,7 @@ export async function teamTools(context: Context): Promise<GrantedTool[]> {
     "team_pause_routine",
     "team_request_change",
   ]);
+  if (alone) return everyone.filter((tool) => tool.name === "team_list");
   return me.primary
     ? everyone
     : everyone.filter((tool) => !LEAD_ONLY.has(tool.name));

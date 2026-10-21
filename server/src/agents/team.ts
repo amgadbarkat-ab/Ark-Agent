@@ -27,6 +27,9 @@ export type TeamMember = {
 /** More than this and the list itself is the cost; the rest are counted, not named. */
 const MAX_COLLEAGUES = 12;
 
+const ALONE =
+  "Your team: for now you are the only digital employee on this team, and you are its lead. If you are asked whether you can work with other digital employees, say so plainly: you can once your person has more of them, and right now there is nobody to ask. Do not say that digital employees cannot work together, and do not say you have no tool for it as if that were a limit of yours: it is because nobody else is on the team yet. They can hire ready-made digital employees on the Digital Team page, or you can propose a new one with save_bot, which they approve before anything is created. When a task would suit another role, name the role you would bring in and offer to propose it. Never say a colleague did something.";
+
 function line(value: string, limit: number): string {
   const flat = value
     .replace(/\p{Cc}+/gu, " ")
@@ -42,9 +45,15 @@ function describe(member: TeamMember): string {
 }
 
 /**
- * The team paragraph for one employee, or null when there is nobody else on the team.
+ * The team paragraph for one employee, or null when it has no colleagues and does not lead.
  *
  * `team` is everyone the person owns, this employee included.
+ *
+ * THE LEAD OF A TEAM OF ONE IS TOLD SO. Said nothing, it answered "can you cooperate with the other
+ * agents in my team?" with "I have no tool for messaging other agents": true of the team it was
+ * given and no help to a person who had not yet hired anyone, or who did not know that was the
+ * reason. It now says there is nobody to ask yet, what would change that, and which role it would
+ * bring in.
  */
 export function teamGuidance(
   self: { id: string },
@@ -52,7 +61,7 @@ export function teamGuidance(
 ): string | null {
   const me = team.find((member) => member.id === self.id);
   const colleagues = team.filter((member) => member.id !== self.id);
-  if (colleagues.length === 0) return null;
+  if (colleagues.length === 0) return me?.primary ? ALONE : null;
 
   const named = colleagues.slice(0, MAX_COLLEAGUES).map(describe);
   const more = colleagues.length - named.length;

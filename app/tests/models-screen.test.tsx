@@ -99,6 +99,8 @@ function serve(options: {
   coworkers?: Array<{ id: string; name: string }>;
   choices?: Array<{ botId: string; connectionId: string }>;
   puts?: Array<{ url: string; body: unknown }>;
+  /** What answered on this computer. Absent means nothing did. */
+  running?: Array<{ providerId: string; models?: string[] }>;
 }) {
   global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -111,6 +113,15 @@ function serve(options: {
         return Response.json({});
       }
       return Response.json({ choices: options.choices ?? [] });
+    }
+    if (url.endsWith("/api/models/local")) {
+      return Response.json({
+        offline: null,
+        servers: (options.running ?? []).map((server) => ({
+          ...server,
+          state: "running",
+        })),
+      });
     }
     if (url.endsWith("/api/models/providers")) {
       return Response.json(options.providers);
@@ -193,14 +204,16 @@ test("a failed load is an error, not an empty list", async () => {
   expect(screen.queryByText(/No model is connected/)).toBeNull();
 });
 
-test("explains a provider that is not offered instead of hiding it", async () => {
+test("lists only what can be used now: a provider that is not offered is not shown at all", async () => {
   serve({
-    providers: catalogue([ollama, subscription]),
+    providers: catalogue([ollama, subscription, anthropic]),
     connections: [],
   });
   const screen = renderModels();
-  expect(await screen.findByText("Not available", {}, SLOW)).toBeTruthy();
-  expect(screen.getByText(subscription.unavailable as string)).toBeTruthy();
+  expect(await screen.findByText("Available models", {}, SLOW)).toBeTruthy();
+  expect(screen.queryByText("Not available")).toBeNull();
+  expect(screen.queryByText(subscription.unavailable as string)).toBeNull();
+  expect(screen.queryByText("ChatGPT plan")).toBeNull();
 });
 
 test("Add model opens the form once the providers have loaded", async () => {
@@ -254,5 +267,23 @@ test("lists the models that can be added, so the page is never only an Add butto
   serve({ providers: catalogue([ollama, anthropic]), connections: [] });
   const screen = renderModels();
   expect(await screen.findByText("Available models", {}, SLOW)).toBeTruthy();
+  // Ollama is not running, so it is not listed; the hosted provider is.
+  expect(await screen.findByText("Anthropic (Claude)", {}, SLOW)).toBeTruthy();
+  expect(screen.getAllByRole("button", { name: /^Add$/ }).length).toBe(1);
+  expect(screen.queryByText("Ollama")).toBeNull();
+  expect(screen.queryByText("Not running")).toBeNull();
+});
+
+test("a model on this computer is listed while it is running, and only then", async () => {
+  serve({
+    providers: catalogue([ollama, anthropic]),
+    connections: [],
+    running: [{ providerId: "ollama", models: ["llama3.2"] }],
+  });
+  const screen = renderModels();
+  expect(await screen.findByText("Ollama", {}, SLOW)).toBeTruthy();
+  expect(
+    await screen.findByText("Running on this computer", {}, SLOW),
+  ).toBeTruthy();
   expect(screen.getAllByRole("button", { name: /^Add$/ }).length).toBe(2);
 });

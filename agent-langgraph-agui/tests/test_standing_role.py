@@ -230,3 +230,72 @@ async def test_every_leading_system_turn_survives_not_only_the_first(
     assert ROLE in system
     assert holdings in system
     assert system.index(ROLE) < system.index(holdings)
+
+
+@pytest.mark.asyncio
+async def test_anthropic_is_asked_to_cache_the_prompt_it_will_see_again(
+    monkeypatch, model_server
+):
+    # Every step of a run sends the same role, guidance and tools; a marked prefix is read back at a
+    # fraction of the price instead of being billed in full each time.
+    base_url, captured = model_server
+    monkeypatch.setenv("MANAGED_AGENT_TOKEN", "ci-token")
+    monkeypatch.setenv("BOT_PROVIDER", "anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-openbot-ci")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", base_url)
+
+    await _post(_run_input(MESSAGES))
+
+    system = captured[0]["system"]
+    assert system[-1]["cache_control"] == {"type": "ephemeral"}
+    assert all("cache_control" not in block for block in system[:-1])
+
+
+@pytest.mark.asyncio
+async def test_a_small_window_is_offered_only_the_tools_a_greeting_needs(
+    monkeypatch, model_server
+):
+    base_url, captured = model_server
+    monkeypatch.setenv("MANAGED_AGENT_TOKEN", "ci-token")
+    monkeypatch.setenv("BOT_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openbot-ci")
+    monkeypatch.setenv("OPENAI_BASE_URL", f"{base_url}/v1")
+    monkeypatch.setenv("BOT_CONTEXT_TOKENS", "1500")
+
+    def tool(name: str):
+        return {
+            "name": name,
+            "description": "d" * 500,
+            "parameters": {"type": "object", "properties": {}},
+        }
+
+    payload = _run_input(
+        [
+            MESSAGES[0],
+            {"id": "user-1", "role": "user", "content": "hi"},
+        ]
+    )
+    payload["tools"] = [
+        tool(name)
+        for name in (
+            "computer_navigate",
+            "computer_read",
+            "computer_write_file",
+            "showBarChart",
+            "showTable",
+            "save_bot",
+            "team_ask",
+        )
+    ]
+    await _post(payload)
+
+    sent = [t["function"]["name"] for t in captured[0]["tools"]]
+    assert "computer_navigate" in sent
+    assert "team_ask" in sent
+    assert "showBarChart" not in sent
+    assert "save_bot" not in sent
+    assert "computer_write_file" not in sent
+    # The model is told what it was not given, so it does not reach for it.
+    system = _system_text(captured[0])
+    assert "not offered on this turn" in system
+    assert "showBarChart" in system

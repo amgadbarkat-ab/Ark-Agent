@@ -39,7 +39,10 @@ export function ConversationView({
   onSubmit,
   onStop,
   voiceCall,
+  speaker,
 }: {
+  /** Who answers, named above each reply. See `ChatTranscript`. */
+  speaker?: { id: string; name: string };
   messages: readonly Message[];
   busy?: boolean;
   /** Shown above the composer. An error, or why this conversation is read-only. */
@@ -454,6 +457,7 @@ export function ConversationView({
           }}
           queued={queued}
           restoring={restoring}
+          {...(speaker ? { speaker } : {})}
           {...(stopped ? { stopped } : {})}
         />
       </div>

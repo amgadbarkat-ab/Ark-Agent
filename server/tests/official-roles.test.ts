@@ -83,4 +83,35 @@ describe("Ark's digital employees", () => {
       expect(composeInstruction(listing, null)).not.toContain(" at null");
     }
   });
+
+  test("every role works in Greek, English and Arabic and keeps names and figures exact", () => {
+    for (const listing of OFFICIAL_LISTINGS) {
+      const text = composeInstruction(listing, null);
+      expect(text, listing.slug).toContain("Greek, English and Arabic");
+      expect(text, listing.slug).toContain(
+        "names, numbers, dates and legal terms",
+      );
+    }
+  });
+
+  test("a role that writes to people outside the company drafts only and ends with the approved opt-out line", () => {
+    const outreach = OFFICIAL_LISTINGS.filter((l) => l.role.outreach).map(
+      (l) => l.slug,
+    );
+    expect(outreach.sort()).toEqual(["marketing", "sales"]);
+    for (const listing of OFFICIAL_LISTINGS) {
+      const text = composeInstruction(listing, null);
+      if (listing.role.outreach) {
+        expect(text).toContain("you only write drafts");
+        expect(text).toContain(
+          "Αν δεν επιθυμείτε να λαμβάνετε άλλα μηνύματα, απαντήστε «ΔΙΑΓΡΑΦΗ».",
+        );
+        expect(text).toContain("If you'd rather not hear from us again");
+        // No Arabic wording has been approved, so the instruction says to ask for it.
+        expect(text).toContain("no approved Arabic line");
+      } else {
+        expect(text).not.toContain("Outreach rules");
+      }
+    }
+  });
 });

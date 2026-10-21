@@ -224,3 +224,12 @@ What that means:
   (decided 2026-10-16: the desktop asks for an Ark account), after the first Azure deployment.
 - **Per-bot choice of the starter model** (`bot_model_choices` holds connection rows only).
 - **Usage metering** of it, which is deliberately absent.
+
+## The window and what is sent into it (added after release E)
+
+The server starts with a window of 16,384 tokens, and 32,768 for the 26B model (`local_model::context_for`). A request larger than
+the window is refused ("request (21097 tokens) exceeds the available context size"), and a "hi" was 21,097 tokens: the role and
+about forty tool definitions, sent whole with every message. So the desktop writes the window as `BOT_CONTEXT_TOKENS` and the
+default harness narrows the tools to a turn's needs when they would take more than 40% of it (`agent-langgraph-agui/src/prompt_budget.py`).
+Reading a long prompt is also what a first message waits for on a processor; the shorter prompt is the speed-up, and the server
+reuses a prompt it has already read for the messages after it. Not measured on a real computer.

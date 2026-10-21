@@ -18,6 +18,7 @@ from .tool_runtime import (
     ToolAwareAgent,
     bind_tools,
     execute_tools,
+    lean_tools,
     model_messages,
     next_step,
 )
@@ -155,6 +156,36 @@ def _system_turns_first(messages):
     ]
 
 
+def _cache_the_prefix(messages):
+    """Mark the end of the system prompt as cacheable, for Anthropic.
+
+    EVERY STEP OF A RUN SENDS THE SAME PROMPT AGAIN. The role, the guidance and about forty tool
+    definitions come to twenty thousand tokens or more, and a browser task is ten or twenty model calls,
+    each billed for all of it. Anthropic reads a marked prefix back at a tenth of the price when it is
+    byte-for-byte what it saw a moment ago, and the tools and the system prompt are exactly that. The
+    marker goes on the last system block, which covers the tools before it too.
+    """
+    from langchain_core.messages import SystemMessage
+
+    last = max(
+        (i for i, message in enumerate(messages) if isinstance(message, SystemMessage)),
+        default=None,
+    )
+    if last is None:
+        return messages
+    original = messages[last]
+    content = original.content
+    blocks = [{"type": "text", "text": content}] if isinstance(content, str) else list(content)
+    if not blocks or not isinstance(blocks[-1], dict):
+        return messages
+    blocks[-1] = {**blocks[-1], "cache_control": {"type": "ephemeral"}}
+    return [
+        *messages[:last],
+        SystemMessage(content=blocks, id=original.id),
+        *messages[last + 1 :],
+    ]
+
+
 def _wants_system_turns_first(model) -> bool:
     """
     Anthropic is the provider that refuses non-consecutive system turns, and it is asked for by
@@ -177,10 +208,11 @@ async def answer(state: MessagesState):
 
     try:
         model = _model()
-        messages = model_messages(state["messages"])
+        tools, left_out = lean_tools(state["messages"])
+        messages = model_messages(state["messages"], left_out)
         if _wants_system_turns_first(model):
-            messages = _system_turns_first(messages)
-        return {"messages": [await bind_tools(model).ainvoke(messages)]}
+            messages = _cache_the_prefix(_system_turns_first(messages))
+        return {"messages": [await bind_tools(model, tools).ainvoke(messages)]}
     except (AuthenticationError, PermissionDeniedError):
         # Typed provider boundary only. A callback or harness 401 is a different credential.
         current_tools().connection["authentication_failed"] = True
