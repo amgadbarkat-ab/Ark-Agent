@@ -8,6 +8,7 @@
 import type { RunAgentInput } from "@ag-ui/core";
 import type OpenAI from "openai";
 import { COMPUTER_GUIDANCE, NO_ANSWER_CAME } from "../../shared/bot-prompt";
+import { leftOutNote } from "../../shared/prompt-budget";
 import { userContent } from "../../shared/user-content";
 import {
   budgetFromEnvironment,
@@ -26,16 +27,51 @@ export { NO_ANSWER_CAME };
 export function toProviderMessages(
   input: RunAgentInput,
   budget: HistoryBudget = budgetFromEnvironment(),
+  /** Tools this run was not offered, so the model is told rather than left to guess. */
+  leftOut: string[] = [],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
-  const history = economise(input.messages, budget).messages;
+  const economised = economise(input.messages, budget).messages;
+  /*
+   * The system turns at the head of the run: the employee's standing role (who it is, its title, its
+   * instructions, its team) and what it holds. Everything after the first turn that is not a system
+   * one is the conversation, and a system turn found there is a skill picked for the message beside it.
+   */
+  const standing: string[] = [];
+  let lead = 0;
+  while (
+    lead < economised.length &&
+    (economised[lead]?.role === "system" ||
+      economised[lead]?.role === "developer")
+  ) {
+    const text = String(economised[lead]?.content ?? "").trim();
+    if (text) standing.push(text);
+    lead += 1;
+  }
+  const history = economised.slice(lead);
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: COMPUTER_GUIDANCE },
-    // AG-UI application context is separate from history. The A2UI catalog and tool instructions
-    // arrive here; omitting them leaves the model guessing component names and action schemas.
-    ...(input.context ?? []).map(({ description, value }) => ({
-      role: "system" as const,
-      content: `${description}\n${value}`,
-    })),
+    /*
+     * ONE SYSTEM MESSAGE, AND THE EMPLOYEE'S OWN ROLE IN IT FIRST.
+     *
+     * Some OpenAI-compatible providers read only the first of several system messages, and a small
+     * model that reads them all gives most weight to what comes first. This used to open with the
+     * computer guidance and the whole A2UI catalog and send the role third, so a model on a free
+     * plan answered as the provider's own assistant and described the catalog when asked what it
+     * could do. Who the employee is goes first, then the computer, then the screen's catalogs.
+     */
+    {
+      role: "system",
+      content: [
+        ...standing,
+        COMPUTER_GUIDANCE,
+        // AG-UI application context is separate from history. The A2UI catalog and tool
+        // instructions arrive here; omitting them leaves the model guessing component names and
+        // action schemas.
+        ...(input.context ?? []).map(
+          ({ description, value }) => `${description}\n${value}`,
+        ),
+        ...(leftOut.length > 0 ? [leftOutNote(leftOut)] : []),
+      ].join("\n\n"),
+    },
   ];
 
   /*

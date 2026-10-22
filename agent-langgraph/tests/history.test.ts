@@ -59,10 +59,11 @@ test("passes the caller's A2UI catalog and tool instructions to the model", () =
   ];
   const messages = toLangChainMessages(run);
   const system = messages.filter((message) => message instanceof SystemMessage);
-  expect(system.map((message) => message.content)).toContain(
+  expect(system).toHaveLength(1);
+  expect(String(system[0]?.content)).toContain(
     `A2UI Component Schema\n${catalog}`,
   );
-  expect(system.map((message) => message.content)).toContain(
+  expect(String(system[0]?.content)).toContain(
     `A2UI render tool usage guide\n${instructions}`,
   );
   expect(messages.at(-1)?.content).toBe("Show a Trip preferences card.");
@@ -227,10 +228,11 @@ describe("a provider that takes one system prompt", () => {
     shaped.context = [{ description: "A2UI Component Schema", value: "{}" }];
     return shaped;
   };
-  // In the order the model is given them: the context beside the run, then the turns.
+  // In the order the model is given them: who it is, the computer and the screen, then the skill.
   const instructions = [
-    "A2UI Component Schema\n{}",
     "You are Ada, Analyst.",
+    COMPUTER_GUIDANCE,
+    "A2UI Component Schema\n{}",
     "Answer in bullet points.",
   ];
 
@@ -242,9 +244,9 @@ describe("a provider that takes one system prompt", () => {
       expect(system).toHaveLength(1);
       expect(messages[0]).toBe(system[0] as SystemMessage);
       const prompt = String(system[0]?.content);
-      expect(prompt.startsWith(COMPUTER_GUIDANCE)).toBe(true);
+      expect(prompt.startsWith("You are Ada, Analyst.")).toBe(true);
       const at = instructions.map((text) => prompt.indexOf(text));
-      expect(at.every((index) => index > 0)).toBe(true);
+      expect(at.every((index) => index >= 0)).toBe(true);
       expect(at).toEqual([...at].sort((a, b) => a - b));
       expect(messages.slice(1).map((m) => String(m.content))).toEqual([
         "Summarise the Q3 filing.",
@@ -341,6 +343,78 @@ describe("a provider that takes one system prompt", () => {
         .map((m) => (m instanceof SystemMessage ? "system" : String(m.content)))
         .slice(-3),
     ).toEqual(["Revenue rose 4%.", "system", "Again, shorter."]);
-    expect(messages.filter((m) => m instanceof SystemMessage)).toHaveLength(4);
+    expect(messages.filter((m) => m instanceof SystemMessage)).toHaveLength(2);
   });
+});
+
+/**
+ * The role is the first thing a model reads, in a message of its own at the top, whatever the model.
+ *
+ * A model on a free OpenRouter plan was told who it was and answered as the provider's own assistant,
+ * described a screen catalog when asked what it could do, and said it had no way to reach a
+ * colleague. The role had been sent third, after a page about the browser and the whole catalog, and
+ * some providers read only the first system message of several.
+ */
+describe("the employee's role", () => {
+  const ROLE = "You are Ada, Chief of Operations. You lead this team.";
+  const shaped = () => {
+    const run = input([
+      { id: "standing-role:ada", role: "system", content: ROLE },
+      { id: "holdings:ada", role: "system", content: "You hold Google Drive." },
+      { id: "u1", role: "user", content: "Who are you?" },
+    ]);
+    run.context = [{ description: "A2UI Component Schema", value: "{}" }];
+    return run;
+  };
+
+  test.each(["openai", "anthropic", "google"])(
+    "leads the only system message for %s",
+    (provider) => {
+      const messages = toLangChainMessages(shaped(), provider);
+      const system = messages.filter((m) => m instanceof SystemMessage);
+      expect(system).toHaveLength(1);
+      expect(messages[0]).toBe(system[0] as SystemMessage);
+      const prompt = String(system[0]?.content);
+      expect(prompt.startsWith(ROLE)).toBe(true);
+      expect(prompt.indexOf("You hold Google Drive.")).toBeGreaterThan(
+        prompt.indexOf(ROLE),
+      );
+      expect(prompt.indexOf(COMPUTER_GUIDANCE)).toBeGreaterThan(
+        prompt.indexOf("You hold Google Drive."),
+      );
+      expect(prompt.indexOf("A2UI Component Schema")).toBeGreaterThan(
+        prompt.indexOf(COMPUTER_GUIDANCE),
+      );
+      expect(messages.slice(1).map((m) => String(m.content))).toEqual([
+        "Who are you?",
+      ]);
+    },
+  );
+
+  test("a run with no role still opens on the computer guidance", () => {
+    const messages = toLangChainMessages(
+      input([{ id: "u1", role: "user", content: "hi" }]),
+    );
+    expect(messages[0]).toBeInstanceOf(SystemMessage);
+    expect(String(messages[0]?.content).startsWith(COMPUTER_GUIDANCE)).toBe(
+      true,
+    );
+  });
+});
+
+test("tells the model which tools were left out of this turn", () => {
+  const messages = toLangChainMessages(
+    input([{ role: "user", content: "hi" }]),
+    "openai",
+    ["showBarChart", "save_bot"],
+  );
+  const system = messages.filter((m) => m instanceof SystemMessage);
+  expect(system).toHaveLength(1);
+  expect(String(system[0]?.content)).toContain("not offered on this turn");
+  expect(String(system[0]?.content)).toContain("showBarChart, save_bot");
+  expect(
+    String(
+      toLangChainMessages(input([{ role: "user", content: "hi" }]))[0]?.content,
+    ),
+  ).not.toContain("not offered on this turn");
 });

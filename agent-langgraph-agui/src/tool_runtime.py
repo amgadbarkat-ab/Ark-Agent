@@ -17,6 +17,7 @@ from ag_ui.core import Context, EventType, RunAgentInput, RunErrorEvent, Tool
 from langchain_core.messages import SystemMessage, ToolMessage
 from langgraph.graph import END
 
+from .model_override import UnreadableSelectionError
 from .parallel_tools import ParallelToolAgent
 from .prompt_budget import left_out_note, narrow
 
@@ -120,6 +121,8 @@ class ToolAwareAgent(ParallelToolAgent):
                 type=EventType.RUN_ERROR,
                 message="The model requested a tool that was not offered for this run.",
             )
+        except UnreadableSelectionError as error:
+            yield RunErrorEvent(type=EventType.RUN_ERROR, message=str(error))
         except Exception:
             if not context.connection.get("authentication_failed"):
                 raise
@@ -138,17 +141,22 @@ def model_messages(messages, left_out=()):
     The maintained integration carries context separately from messages. Our
     graph uses MessagesState, so its answer node must explicitly include the
     current catalog/guidelines instead of silently discarding them.
+
+    ONE SYSTEM MESSAGE, THE COWORKER'S OWN ROLE FIRST. This used to be one message per entry, so a
+    model was sent the role, what the coworker holds and the screen's catalogs as separate system
+    turns. Some OpenAI-compatible providers read only the first of several, and a small model gives
+    most weight to whatever comes first; a free-plan model answered as the provider's own assistant,
+    with the role it had been sent somewhere behind a catalog. The standing role is first in
+    `current_tools().context` (`ToolAwareAgent.run`), so joining in order keeps it first.
     """
+    parts = [
+        f"{entry.description}\n{entry.value}" if entry.description else entry.value
+        for entry in current_tools().context
+    ]
+    if left_out:
+        parts.append(left_out_note(left_out))
     return [
-        *[
-            SystemMessage(
-                content=f"{entry.description}\n{entry.value}"
-                if entry.description
-                else entry.value
-            )
-            for entry in current_tools().context
-        ],
-        *([SystemMessage(content=left_out_note(left_out))] if left_out else []),
+        *([SystemMessage(content="\n\n".join(parts))] if parts else []),
         *messages,
     ]
 

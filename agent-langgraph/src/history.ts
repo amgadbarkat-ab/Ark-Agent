@@ -14,6 +14,7 @@ import {
   ToolMessage,
 } from "@langchain/core/messages";
 import { COMPUTER_GUIDANCE, NO_ANSWER_CAME } from "../../shared/bot-prompt";
+import { leftOutNote } from "../../shared/prompt-budget";
 import { userContent } from "../../shared/user-content";
 
 /*
@@ -33,18 +34,63 @@ export { NO_ANSWER_CAME };
  */
 const ONE_SYSTEM_PROMPT = new Set(["anthropic", "google"]);
 
+/**
+ * The system turns at the head of a run, and the rest of the conversation after them.
+ *
+ * The server puts a coworker's standing role there (who it is, its title, its instructions, its
+ * team) and then what it holds. Everything after the first turn that is not a system one is the
+ * conversation, and a system turn found there is a skill somebody picked for the message beside it.
+ */
+function splitLeadingSystemTurns(messages: RunAgentInput["messages"]): {
+  standing: string[];
+  rest: RunAgentInput["messages"];
+} {
+  const standing: string[] = [];
+  let index = 0;
+  while (index < messages.length) {
+    const message = messages[index];
+    if (message?.role !== "system" && message?.role !== "developer") break;
+    const text = String(message.content ?? "").trim();
+    if (text) standing.push(text);
+    index += 1;
+  }
+  return { standing, rest: messages.slice(index) };
+}
+
 /** Translate the conversation AG-UI carries into LangChain's message classes. */
 export function toLangChainMessages(
   input: RunAgentInput,
   provider = "openai",
+  /** Tools this run was not offered, so the model is told rather than left to guess. */
+  leftOut: string[] = [],
 ): BaseMessage[] {
+  const { standing, rest } = splitLeadingSystemTurns(input.messages ?? []);
   const messages: BaseMessage[] = [
-    new SystemMessage(COMPUTER_GUIDANCE),
-    // AG-UI carries application context separately from conversation history. CopilotKit puts
-    // the A2UI catalog and tool instructions here; dropping it leaves the model guessing the
-    // component schema and can strand the renderer on an invalid, never-painted surface.
-    ...(input.context ?? []).map(
-      ({ description, value }) => new SystemMessage(`${description}\n${value}`),
+    /*
+     * ONE SYSTEM MESSAGE, AND THE EMPLOYEE'S OWN ROLE IN IT FIRST.
+     *
+     * This used to be three or four: the computer guidance, then the caller's context (the whole
+     * A2UI catalog among it), and the role only after those as the head of the conversation. A model
+     * on a free OpenRouter plan answered "I'm Command, an AI assistant", described A2UI when asked
+     * what it could do, and said it saw no marketing agent, with the role it had been sent sitting
+     * third in a list of system messages. Some OpenAI-compatible providers read only the first of
+     * several system messages, and a small model that reads them all gives most weight to what
+     * comes first, which was a page about the browser.
+     *
+     * Who the employee is goes first, then the computer, then the catalogs that describe the screen.
+     */
+    new SystemMessage(
+      [
+        ...standing,
+        COMPUTER_GUIDANCE,
+        // AG-UI carries application context separately from conversation history. CopilotKit puts
+        // the A2UI catalog and tool instructions here; dropping it leaves the model guessing the
+        // component schema and can strand the renderer on an invalid, never-painted surface.
+        ...(input.context ?? []).map(
+          ({ description, value }) => `${description}\n${value}`,
+        ),
+        ...(leftOut.length > 0 ? [leftOutNote(leftOut)] : []),
+      ].join("\n\n"),
     ),
   ];
 
@@ -64,13 +110,13 @@ export function toLangChainMessages(
    * Collected up front because an answer arrives as a later message than the call it answers.
    */
   const answered = new Set(
-    input.messages
+    rest
       .filter((message) => message.role === "tool")
       .map((message) => (message as { toolCallId?: string }).toolCallId)
       .filter((id): id is string => Boolean(id)),
   );
 
-  for (const message of input.messages) {
+  for (const message of rest) {
     if (message.role === "user") {
       messages.push(
         new HumanMessage({ content: userContent(message.content) }),
@@ -149,16 +195,14 @@ export function toLangChainMessages(
   }
 
   /*
-   * Every run holds more than one system message, so on those providers every run failed.
+   * A skill somebody picks is a second system message, and these providers refuse a second.
    *
-   * The computer guidance opens this list and the caller's context follows it, and the server puts a
-   * coworker's standing role at the head of `input.messages` on every run it sends a remote Bot. A
-   * skill somebody picks arrives as a system turn ahead of their message, too. So a Bot set to
-   * `BOT_PROVIDER=anthropic` or `google` answered nothing at all: each run ended in the integration's
-   * refusal, before the model was asked.
+   * The head of the run is already one message (see above). A skill arrives as a system turn ahead
+   * of the message it was picked for, and a Bot set to `BOT_PROVIDER=anthropic` or `google` answered
+   * nothing at all when it met one: the integration refused before the model was asked.
    *
-   * Folded into one, in the order given, and only for those providers. On OpenAI a skill's
-   * instruction stays beside the message it was picked for.
+   * Folded into the one at the top, in the order given, and only for those providers. On OpenAI a
+   * skill's instruction stays beside the message it was picked for.
    */
   return ONE_SYSTEM_PROMPT.has(provider)
     ? withOneSystemPrompt(messages)

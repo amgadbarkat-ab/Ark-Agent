@@ -28,7 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { modelFormSchema } from "@/lib/models/form";
+import {
+  FREE_MODEL_NOTE,
+  isFreeModel,
+  modelFormSchema,
+} from "@/lib/models/form";
 import {
   createModelConnectionMutationOptions,
   type ModelProbe,
@@ -394,6 +398,11 @@ function ModelForm({
                       ? "Every model this provider offers is in the list above."
                       : "Press Test to see what this provider offers."}
                   </FieldDescription>
+                  {isFreeModel(field.state.value) ? (
+                    <FieldDescription role="note">
+                      {FREE_MODEL_NOTE}
+                    </FieldDescription>
+                  ) : null}
                   {invalid ? (
                     <FieldError errors={field.state.meta.errors} />
                   ) : null}

@@ -9,6 +9,7 @@ none of them could see it. These go through the endpoint and read what the model
 
 import json
 import threading
+import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import httpx
@@ -117,9 +118,11 @@ def model_server():
 
 
 def _run_input(messages, **extra):
+    # A thread of its own: the harness remembers a thread in memory, so a run that shared an id with
+    # an earlier test would be sent that test's conversation as well.
     return {
-        "threadId": "thread-openbot-ci",
-        "runId": "run-openbot-ci",
+        "threadId": f"thread-openbot-ci-{uuid.uuid4().hex}",
+        "runId": f"run-openbot-ci-{uuid.uuid4().hex}",
         "state": {},
         "messages": messages,
         "tools": [
@@ -299,3 +302,54 @@ async def test_a_small_window_is_offered_only_the_tools_a_greeting_needs(
     system = _system_text(captured[0])
     assert "not offered on this turn" in system
     assert "showBarChart" in system
+
+
+@pytest.mark.asyncio
+async def test_an_openai_compatible_model_gets_one_system_message_with_the_role_first(
+    monkeypatch, model_server
+):
+    # Some providers read only the first of several system messages, and a small model gives most
+    # weight to whatever it reads first. A free-plan model answered as the provider's own assistant
+    # while the role sat behind a screen catalog.
+    base_url, captured = model_server
+    monkeypatch.setenv("MANAGED_AGENT_TOKEN", "ci-token")
+    monkeypatch.setenv("BOT_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openbot-ci")
+    monkeypatch.setenv("OPENAI_BASE_URL", f"{base_url}/v1")
+    holdings = "You hold: Google Drive (read)."
+
+    payload = _run_input(
+        [
+            MESSAGES[0],
+            {"id": "holdings:ada", "role": "system", "content": holdings},
+            MESSAGES[1],
+        ]
+    )
+    payload["context"] = [{"description": "A2UI Component Schema", "value": "{}"}]
+    await _post(payload)
+
+    sent = captured[0]["messages"]
+    assert [message["role"] for message in sent] == ["system", "user"]
+    prompt = sent[0]["content"]
+    assert prompt.startswith(ROLE)
+    assert prompt.index(holdings) > prompt.index(ROLE)
+    assert prompt.index("A2UI Component Schema") > prompt.index(holdings)
+
+
+@pytest.mark.asyncio
+async def test_a_run_writes_one_line_saying_what_reached_the_model(
+    monkeypatch, model_server, capsys
+):
+    base_url, _ = model_server
+    monkeypatch.setenv("MANAGED_AGENT_TOKEN", "ci-token")
+    monkeypatch.setenv("BOT_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-never-printed")
+    monkeypatch.setenv("OPENAI_BASE_URL", f"{base_url}/v1")
+
+    await _post(_run_input(MESSAGES))
+
+    out = capsys.readouterr().out
+    line = next(line for line in out.splitlines() if line.startswith("run: model="))
+    assert 'role_opening="You are Ada, Chief of Operations.' in line
+    assert "tools=1 [team_ask]" in line
+    assert "sk-secret-never-printed" not in out
