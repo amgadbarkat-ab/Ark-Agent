@@ -759,6 +759,11 @@ pub fn compose(
     // reason to compile Chromium.
     env.insert("IMAGE_PULL_POLICY".into(), "missing".into());
 
+    // How long, in seconds, the server and worker (Bun processes) wait on a silent connection.
+    // Bun's default is five minutes, and the model on this computer can read its prompt for longer
+    // than that before it writes a word. The Bots' images carry the same setting.
+    env.insert("BUN_CONFIG_HTTP_IDLE_TIMEOUT".into(), "1800".into());
+
     // Which images, by digest, from the release's own manifest. Compose's defaults are local build
     // names, so leaving these unset does not fall back to something workable: it asks a registry
     // for `openbot-supervisor:latest`, which nobody publishes, and the denial that comes back
@@ -1546,6 +1551,22 @@ HTTPS_PROXY=http://proxy:8080
             with.get("ENGINE_SOCKET").map(String::as_str),
             Some("/run/user/501/podman/podman.sock")
         );
+    }
+
+    #[test]
+    fn a_silent_model_is_waited_for_longer_than_buns_five_minutes() {
+        // The model on this computer can read its prompt for longer than Bun's default idle limit,
+        // and a call cut there came back as no answer at all.
+        let env = compose(
+            &Model::default(),
+            &engine_status(None),
+            &Ports::default(),
+            &pinned(),
+            None,
+            &BTreeMap::new(),
+        );
+        let seconds: u64 = env["BUN_CONFIG_HTTP_IDLE_TIMEOUT"].parse().unwrap();
+        assert!(seconds > 300, "{seconds}");
     }
 
     #[test]

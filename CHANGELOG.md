@@ -8,6 +8,29 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### An updated desktop app now updates what it runs
+
+- **Updating the app changed only the window.** The desktop app kept the deployment it first downloaded (the server, the web
+  app and the digital employees' images) for good, so installing a newer ArkAgent replaced the window and nothing behind it.
+  None of the fixes to what an employee is told in 0.1.11 and 0.1.12 reached a computer that had installed an earlier version,
+  which is why the Chief of Operations still said it had no title and no way to reach Marketing. When the app is newer than the
+  deployment, Start now says so and offers **Update and start**, which downloads the matching version once and starts it. Digital
+  employees, conversations, settings and keys stay as they are; an older app leaves a newer deployment alone.
+
+### The offline model's first answer, the second half
+
+- **The Bots' own call to the model gave up after five minutes.** 0.1.12 kept the connection from the Bot to the server alive,
+  but the Bot's call to the model on this computer is silent too while the model reads its prompt, and Bun gives up on a silent
+  connection after five minutes: the run retried, and ended with no answer at all. The Bot images and the desktop's server now
+  wait up to 30 minutes (`BUN_CONFIG_HTTP_IDLE_TIMEOUT=1800`). Measured with a model that stays silent: the same call fails with
+  Bun's limit lowered and completes with it raised, on both `agent-bot` and `agent-langgraph`.
+
+### Team channels
+
+- **`@` a colleague and the lead passes it on.** A team channel runs on its lead, so `@Marketing` reached the Chief of Operations,
+  who answered as itself. The lead is now told, beside the message, who it was for and to ask them with `team_ask`, and it replies
+  with their answer under their name. The colleague still does not post in the channel directly.
+
 ## 0.1.12
 
 ### A first answer on this computer is no longer cut off

@@ -669,6 +669,38 @@ test("a failed automatic reopen offers recovery without retrying or installing",
   expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
 });
 
+test("an updated app downloads its new software with one press, then starts", async () => {
+  setupRootConfiguration("/tmp/updated-app", async () => ({
+    ...savedOpenAiConfiguration(),
+    saved: { ...savedOpenAiConfiguration().saved, model: "open-ai-api-key" },
+    launch: { harness: { id: "langgraph" } },
+  }));
+  const previous = invokeHandler;
+  let starts = 0;
+  invokeHandler = async (command, args) => {
+    if (command === "start_stack" && ++starts === 1)
+      throw {
+        said: "ArkAgent was updated to v0.1.13. Choose Update and start to download its new software, once; your digital employees, conversations and keys stay as they are.",
+      };
+    return previous(command, args);
+  };
+  const view = await renderApp();
+  expect((await view.findByRole("alert")).textContent).toContain(
+    "was updated to v0.1.13",
+  );
+  expect(installationCalls()).toHaveLength(0);
+  const update = view.getByRole("button", { name: "Update and start" });
+  expect(update).toHaveProperty("disabled", false);
+  await userEvent.click(update);
+  await waitFor(() => expect(starts).toBe(2));
+  // Installed again first, which is what fetches the new version, and then started.
+  const commands = invokeCalls.map((call) => call.command);
+  expect(commands).toContain("prepare_installation");
+  expect(commands.lastIndexOf("prepare_installation")).toBeLessThan(
+    commands.lastIndexOf("start_stack"),
+  );
+});
+
 test("menu Stop retains the installed root for explicit Start without the wizard", async () => {
   const root = "/tmp/menu-stopped-installation";
   setupRootConfiguration(root, async () => ({

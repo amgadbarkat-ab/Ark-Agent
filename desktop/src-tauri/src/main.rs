@@ -4037,9 +4037,11 @@ mod tests {
 
     #[test]
     fn deployment_ready_preserves_the_installed_release() {
+        // Newer than this app, which is the one case an installed release is never replaced in: an
+        // older app does not take a deployment back, because its database has already moved on.
         let root = temp_root("deployment-ready-pinned");
         write_installed_deployment(&root);
-        deployment::record(&root, "v0.0.7").unwrap();
+        deployment::record(&root, "v99.0.7").unwrap();
         let app = tauri::test::mock_builder()
             .manage(Shell::default())
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -4047,7 +4049,7 @@ mod tests {
 
         tauri::async_runtime::block_on(deployment_ready(app.handle(), &root)).unwrap();
 
-        assert_eq!(deployment::installed(&root).unwrap().version, "v0.0.7");
+        assert_eq!(deployment::installed(&root).unwrap().version, "v99.0.7");
         assert_eq!(
             std::fs::read_to_string(root.join("docker-compose.yml")).unwrap(),
             "services: {}\n"
@@ -7692,7 +7694,10 @@ fn main() {
     }
 
     fn write_installed_deployment(root: &Path) {
-        const DEPLOYMENT_VERSION: &str = "v0.0.8";
+        // The version this app was cut from: a deployment older than the app is refused at Start
+        // until it is updated (see `deployment_release::behind_app`).
+        let deployment_version = format!("v{}", deployment_release::APP_VERSION);
+        let deployment_version = deployment_version.as_str();
         std::fs::create_dir_all(root.join("server")).unwrap();
         std::fs::create_dir_all(root.join("app")).unwrap();
         std::fs::create_dir_all(root.join("worker")).unwrap();
@@ -7707,11 +7712,11 @@ fn main() {
         std::fs::write(root.join("app/dist/index.html"), "<html>").unwrap();
         std::fs::write(
             root.join("app/dist").join(deployment::PREBUILT_MARKER),
-            format!("{DEPLOYMENT_VERSION}\n"),
+            format!("{deployment_version}\n"),
         )
         .unwrap();
         let images = deployment::Images {
-            version: DEPLOYMENT_VERSION.into(),
+            version: deployment_version.into(),
             images: std::collections::BTreeMap::from([
                 (
                     "server".into(),
@@ -7756,7 +7761,7 @@ fn main() {
             serde_json::to_string(&images).unwrap(),
         )
         .unwrap();
-        deployment::record(root, DEPLOYMENT_VERSION).unwrap();
+        deployment::record(root, deployment_version).unwrap();
         for package in ["", "server", "worker"] {
             std::fs::write(root.join(package).join("package.json"), "{}").unwrap();
         }
