@@ -15,6 +15,10 @@ RUN cd agent-langgraph && bun install --frozen-lockfile
 COPY shared ./shared
 COPY agent-langgraph/src ./agent-langgraph/src
 
+# How long a call to the model may stay silent before Bun gives up on it, in seconds. Bun's own
+# default is five minutes, and a model on a laptop can read its prompt for longer than that before it
+# writes a word: the first message to the largest offline model ended with no answer at all.
+ENV BUN_CONFIG_HTTP_IDLE_TIMEOUT=1800
 ENV PORT=4201
 EXPOSE 4201
 CMD ["bun", "agent-langgraph/src/index.ts"]

@@ -64,6 +64,16 @@ type AlreadyConfigured = {
   autoStart?: boolean;
 };
 
+/**
+ * Whether a start was refused because this app is newer than the software it would run.
+ *
+ * An update used to replace this window and nothing behind it, so every fix in a new version was
+ * missing from the server and the digital employees until somebody reinstalled from nothing.
+ */
+function updateNeeded(problem: Problem): boolean {
+  return /was updated to/i.test(problem.said);
+}
+
 function installationKeyFor(root: string, harness: HarnessChoice | null) {
   return JSON.stringify([
     root.trim(),
@@ -134,10 +144,13 @@ export function App() {
     setRecoveryFailure(problem);
     // A start that found what it needs missing says the installation cannot be trusted any more, so the
     // next attempt installs again instead of starting on top of it.
-    if (/Return to Install/i.test(problem.said)) setPreparation(null);
+    if (/Return to Install/i.test(problem.said) || updateNeeded(problem))
+      setPreparation(null);
     if (problem.connection === "model") setStep("model");
   }, []);
   const displayedFailure = failure ?? recoveryFailure;
+  // The app is newer than the software it runs: one press downloads that and starts.
+  const updating = !!displayedFailure && updateNeeded(displayedFailure);
   const credentialContext = useRef([root, model, harness, step]);
   useEffect(() => {
     const next = [root, model, harness, step];
@@ -793,10 +806,16 @@ export function App() {
         {displayedFailure && <Failure problem={displayedFailure} />}
         <button
           type="button"
-          disabled={busy || !installationReady || !modelCanStart()}
+          disabled={
+            busy || (!installationReady && !updating) || !modelCanStart()
+          }
           onClick={() => start()}
         >
-          {busy ? "Starting…" : "Start ArkAgent"}
+          {busy
+            ? "Starting…"
+            : updating
+              ? "Update and start"
+              : "Start ArkAgent"}
         </button>
         <button
           type="button"

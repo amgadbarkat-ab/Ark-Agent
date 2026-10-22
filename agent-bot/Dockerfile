@@ -14,6 +14,10 @@ RUN cd agent-bot && bun install --frozen-lockfile
 COPY --chown=bun:bun shared ./shared
 COPY --chown=bun:bun agent-bot/src ./agent-bot/src
 
+# How long a call to the model may stay silent before Bun gives up on it, in seconds. Bun's own
+# default is five minutes, and a model on a laptop can read its prompt for longer than that before it
+# writes a word: the first message to the largest offline model ended with no answer at all.
+ENV BUN_CONFIG_HTTP_IDLE_TIMEOUT=1800
 ENV PORT=4200
 EXPOSE 4200
 CMD ["bun", "agent-bot/src/index.ts"]

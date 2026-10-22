@@ -10,6 +10,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
+import {
+  handoffInstruction,
+  mentionedColleague,
+} from "@/components/channels/mention-handoff";
 import { ConversationView } from "@/components/channels/conversation-view";
 import {
   seedMessage,
@@ -995,9 +999,9 @@ export function ChannelChat({
               </>
             }
             onSubmit={async (draft) => {
-              // `draft.agentId` carries the @mentioned coworker, but nothing routes on it yet: this
-              // channel is pinned to one `runtimeAgentId` for the life of its thread, so honouring a
-              // per-message mention is a change to that binding, not to the composer.
+              // `draft.agentId` carries the @mentioned coworker. The channel stays pinned to one
+              // `runtimeAgentId` for the life of its thread, so the lead is told who the message was
+              // for and passes it on with team_ask; see `mention-handoff.ts`.
               //
               // `commandIds` are the `/` chips that survived into the send, in the order they were
               // typed. Resolved against the same list the menu was built from, so a chip left over from
@@ -1011,6 +1015,13 @@ export function ChannelChat({
                 .filter((instruction): instruction is string =>
                   Boolean(instruction),
                 );
+              const colleague = mentionedColleague(
+                draft,
+                toAgentOptions(agentProfiles, channel.agentIds),
+                runtimeAgentId,
+              );
+              if (colleague)
+                skillInstructions.push(handoffInstruction(colleague));
 
               await say(draft.text, skillInstructions, draft.attachments);
             }}

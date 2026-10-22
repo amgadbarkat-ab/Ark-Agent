@@ -101,6 +101,18 @@ pub fn required(detail: impl Into<String>) -> Problem {
     Problem::with(REQUIRED, detail)
 }
 
+/// The start refused because this app is newer than the software it would run. The setup window
+/// offers "Update and start" for this one; see `deployment_release::resolve_version`.
+pub fn update_required(tag: &str) -> Problem {
+    Problem::with(
+        format!(
+            "ArkAgent was updated to {tag}. Choose Update and start to download its new software, \
+             once; your digital employees, conversations and keys stay as they are."
+        ),
+        "The software in the deployment folder is from an older version of ArkAgent.",
+    )
+}
+
 fn hash_files(root: &Path, files: impl IntoIterator<Item = PathBuf>) -> Result<String, Problem> {
     let mut hash = Sha256::new();
     hash.update(b"openbot-preparation-v1\0");
@@ -324,6 +336,11 @@ fn require_with(
     selection: Option<&Option<HarnessChoice>>,
     verify: impl FnOnce(&[String]) -> Result<(), Problem>,
 ) -> Result<PathBuf, Problem> {
+    // Before anything else: starting would run the old server and the old digital employees under a
+    // window that says it is the new version.
+    if let Some(tag) = crate::deployment_release::behind_app(root) {
+        return Err(update_required(&tag));
+    }
     let record: Prepared = serde_json::from_slice(
         &std::fs::read(root.join(FILE)).map_err(|e| required(e.to_string()))?,
     )
@@ -557,6 +574,28 @@ fn main() {
             .detail
             .unwrap_or_default()
             .contains(crate::install::BUN));
+    }
+
+    #[test]
+    fn an_app_newer_than_its_deployment_asks_to_update_before_it_starts() {
+        let f = Fixture::new();
+        f.prepared(None);
+        // Prepared and complete, as it would be after the previous version's installation.
+        assert!(require_with(&f.root, Some(&None), |_| Ok(())).is_ok());
+        deployment::record(&f.root, "v0.0.1").unwrap();
+        let problem = require_with(&f.root, Some(&None), |_| Ok(()))
+            .expect_err("the old software must not start under the new app");
+        let tag = format!("v{}", crate::deployment_release::APP_VERSION);
+        assert!(
+            problem.said.contains(&format!("updated to {tag}")),
+            "{}",
+            problem.said
+        );
+        assert!(
+            problem.said.contains("Update and start"),
+            "{}",
+            problem.said
+        );
     }
 
     #[test]
