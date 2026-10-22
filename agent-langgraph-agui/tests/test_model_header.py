@@ -11,7 +11,7 @@ import json
 import httpx
 import pytest
 
-from tests.test_standing_role import MESSAGES, _run_input, model_server  # noqa: F401
+from harness_support import MESSAGES, _run_input
 
 
 def _header(**fields) -> str:
@@ -47,7 +47,7 @@ def deployment_model(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_an_openai_compatible_choice_is_the_model_that_answers(
-    deployment_model, model_server  # noqa: F811
+    deployment_model, model_server
 ):
     base_url, captured = model_server
     response = await _run(
@@ -63,7 +63,7 @@ async def test_an_openai_compatible_choice_is_the_model_that_answers(
 
 @pytest.mark.asyncio
 async def test_an_anthropic_choice_goes_to_the_messages_api(
-    deployment_model, model_server  # noqa: F811
+    deployment_model, model_server
 ):
     base_url, captured = model_server
     response = await _run(
@@ -78,7 +78,7 @@ async def test_an_anthropic_choice_goes_to_the_messages_api(
 
 @pytest.mark.asyncio
 async def test_a_gateway_choice_is_resolved_against_the_deployment(
-    deployment_model, model_server, monkeypatch  # noqa: F811
+    deployment_model, model_server, monkeypatch
 ):
     base_url, captured = model_server
     monkeypatch.setenv("OPENBOT_TOOL_URL", f"{base_url}/api/agent-tools/call")
@@ -93,7 +93,7 @@ async def test_a_gateway_choice_is_resolved_against_the_deployment(
 
 @pytest.mark.asyncio
 async def test_an_unreadable_choice_is_refused_not_answered_with_another_model(
-    deployment_model, model_server  # noqa: F811
+    deployment_model, model_server
 ):
     _, captured = model_server
     response = await _run(_run_input(MESSAGES), "not-a-model-selection")
