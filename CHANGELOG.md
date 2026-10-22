@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.12
+
 ### A first answer on this computer is no longer cut off
 
 - **Five minutes of silence ended the run.** A model on a laptop can spend minutes reading its prompt before it writes a word,
