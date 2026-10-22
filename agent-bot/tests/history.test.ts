@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RunAgentInput } from "@ag-ui/core";
+import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { NO_ANSWER_CAME, toProviderMessages } from "../src/history";
 
 /**
@@ -48,15 +49,15 @@ test("passes AG-UI catalog context to the model while preserving prompt and hist
     },
   ];
 
-  expect(toProviderMessages(run)).toEqual([
-    withoutContext[0],
-    { role: "system", content: `A2UI Component Schema\n${catalog}` },
-    {
-      role: "system",
-      content: "A2UI render tool usage guide\nActions use event.name.",
-    },
-    ...withoutContext.slice(1),
-  ]);
+  const withContext = toProviderMessages(run);
+  expect(withContext).toHaveLength(withoutContext.length);
+  const prompt = String(withContext[0]?.content);
+  expect(prompt.startsWith("Help with travel planning.")).toBe(true);
+  expect(prompt).toContain(`A2UI Component Schema\n${catalog}`);
+  expect(prompt).toContain(
+    "A2UI render tool usage guide\nActions use event.name.",
+  );
+  expect(withContext.slice(1)).toEqual(withoutContext.slice(1));
   expect(run.messages).toHaveLength(2);
   run.context = [];
   expect(toProviderMessages(run)).toEqual(withoutContext);
@@ -341,4 +342,62 @@ describe("a message with a file attached", () => {
     // Nearly every message. Unchanged by this, and pinned so it stays that way.
     expect(userContent("What is 17 times 3?")).toBe("What is 17 times 3?");
   });
+});
+
+describe("the employee's role", () => {
+  const ROLE = "You are Ada, Chief of Operations. You lead this team.";
+
+  test("leads the only system message, ahead of the computer guidance and the screen's catalog", () => {
+    const run = input([
+      { id: "standing-role:ada", role: "system", content: ROLE },
+      { id: "holdings:ada", role: "system", content: "You hold Google Drive." },
+      { id: "u1", role: "user", content: "Who are you?" } as Message,
+    ]);
+    run.context = [{ description: "A2UI Component Schema", value: "{}" }];
+
+    const messages = toProviderMessages(run);
+
+    expect(messages.filter((m) => m.role === "system")).toHaveLength(1);
+    const prompt = String(messages[0]?.content);
+    expect(prompt.startsWith(ROLE)).toBe(true);
+    expect(prompt.indexOf("You hold Google Drive.")).toBeGreaterThan(0);
+    expect(prompt.indexOf(COMPUTER_GUIDANCE)).toBeGreaterThan(
+      prompt.indexOf("You hold Google Drive."),
+    );
+    expect(prompt.indexOf("A2UI Component Schema")).toBeGreaterThan(
+      prompt.indexOf(COMPUTER_GUIDANCE),
+    );
+    expect(messages.slice(1)).toEqual([
+      { role: "user", content: "Who are you?" },
+    ]);
+  });
+
+  test("a skill picked for a message stays beside that message", () => {
+    const messages = toProviderMessages(
+      input([
+        { id: "standing-role:ada", role: "system", content: ROLE },
+        { id: "u1", role: "user", content: "Summarise." } as Message,
+        { id: "a1", role: "assistant", content: "Done." } as Message,
+        { id: "s1", role: "system", content: "Answer in bullets." },
+        { id: "u2", role: "user", content: "Again." } as Message,
+      ]),
+    );
+    expect(messages.map((m) => m.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+      "system",
+      "user",
+    ]);
+  });
+});
+
+test("tells the model which tools were left out of this turn", () => {
+  const run = input([{ id: "u1", role: "user", content: "hi" } as Message]);
+  const told = toProviderMessages(run, undefined, ["showBarChart", "save_bot"]);
+  expect(String(told[0]?.content)).toContain("not offered on this turn");
+  expect(String(told[0]?.content)).toContain("showBarChart, save_bot");
+  expect(String(toProviderMessages(run)[0]?.content)).not.toContain(
+    "not offered on this turn",
+  );
 });

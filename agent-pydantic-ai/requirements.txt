@@ -1,4 +1,6 @@
 pydantic-ai-slim[openai,anthropic,google,ag-ui]
+# anthropic 2.x breaks building the Anthropic model: "Cannot instantiate typing.Union".
+anthropic<2
 fastapi
 python-multipart
 uvicorn[standard]

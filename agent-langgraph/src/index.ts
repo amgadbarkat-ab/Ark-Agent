@@ -12,6 +12,9 @@ import {
 import { ChatOpenAI } from "@langchain/openai";
 import { serve } from "bun";
 import { hasManagedAgentToken } from "../../shared/agent-authorisation";
+import { keepAlive } from "../../shared/keep-alive";
+import { narrowTools } from "../../shared/prompt-budget";
+import { describeRun, hostOf, openingOf } from "../../shared/run-summary";
 import {
   decodeModelOverride,
   MODEL_HEADER,
@@ -420,6 +423,17 @@ async function runAgent(
   override?: ModelOverride,
 ): Promise<Response> {
   const encoder = new EventEncoder();
+  /*
+   * A model with a small window is not shown every tool on every turn; see `prompt-budget.ts`.
+   * Decided once here so the tools bound to the model and the note telling it what is missing agree.
+   */
+  const { offered, leftOut } = narrowTools(
+    input.tools ?? [],
+    deploymentToolsOf(input),
+    input.messages ?? [],
+  );
+  const lean = offered === input.tools ? input : { ...input, tools: offered };
+  let stopBeating = () => {};
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const utf8 = new TextEncoder();
@@ -432,24 +446,57 @@ async function runAgent(
         runId: input.runId,
       } as BaseEvent);
 
-      // The graph is built and its event stream opened inside `streamRun`, so a failure doing either
-      // is reported as RUN_ERROR through the same path as a failure mid-stream.
-      await streamRun(
-        async () =>
-          buildGraph(input, override).streamEvents(
-            {
-              messages: toLangChainMessages(
-                input,
-                messageProviderFor(override, PROVIDER),
-              ),
-            },
-            { version: "v2" },
-          ),
-        input,
-        send,
+      // A model on this computer can take minutes to read its prompt, and says nothing meanwhile.
+      stopBeating = keepAlive((frame) =>
+        controller.enqueue(utf8.encode(frame)),
       );
+      try {
+        // The graph is built and its event stream opened inside `streamRun`, so a failure doing
+        // either is reported as RUN_ERROR through the same path as a failure mid-stream.
+        await streamRun(
+          async () => {
+            const messages = toLangChainMessages(
+              lean,
+              messageProviderFor(override, PROVIDER),
+              leftOut,
+            );
+            // What actually reached the model, so a report of "it does not know its role" can be
+            // told apart from "it was never sent".
+            const role = String(
+              (input.messages ?? []).find(
+                (message) =>
+                  message.role === "system" || message.role === "developer",
+              )?.content ?? "",
+            );
+            console.info(
+              describeRun({
+                runId: input.runId,
+                model: override?.model ?? MODEL,
+                host: hostOf(override?.baseUrl ?? OPENAI_BASE_URL),
+                chosen: override !== undefined,
+                systemCharacters: String(messages[0]?.content ?? "").length,
+                roleOpening: openingOf(role),
+                roleCharacters: role.length,
+                toolsOffered: offered.map((tool) => tool.name),
+                toolsLeftOut: leftOut,
+              }),
+            );
+            return buildGraph(lean, override).streamEvents(
+              { messages },
+              { version: "v2" },
+            );
+          },
+          input,
+          send,
+        );
+      } finally {
+        stopBeating();
+      }
 
       controller.close();
+    },
+    cancel() {
+      stopBeating();
     },
   });
 
@@ -465,7 +512,7 @@ async function runAgent(
 serve({
   port: PORT,
   idleTimeout: 120,
-  async fetch(request) {
+  async fetch(request, server) {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
@@ -482,6 +529,10 @@ serve({
       if (!hasManagedAgentToken(request, MANAGED_AGENT_TOKEN)) {
         return Response.json({ error: "Unauthorized." }, { status: 401 });
       }
+      // A run is as slow as the model: the first message to one on this computer is silent for
+      // minutes. Bun would close a connection quiet for `idleTimeout`; the run ends when the model
+      // does, or when the server stops waiting for it.
+      server.timeout(request, 0);
       const input = (await request.json()) as RunAgentInput;
       const selection = request.headers.get(MODEL_HEADER);
       const override = decodeModelOverride(selection);

@@ -8,6 +8,37 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A first answer on this computer is no longer cut off
+
+- **Five minutes of silence ended the run.** A model on a laptop can spend minutes reading its prompt before it writes a word,
+  and nothing travelled between the Bot and the server meanwhile. Bun's own `fetch` gives up on a response that stays silent for
+  300 seconds, and the Bots closed a quiet connection after 120, so the first message after installing ended with "The socket
+  connection was closed unexpectedly" after five or six minutes. All three Bots (`agent-bot`, `agent-langgraph` and the default
+  harness `agent-langgraph-agui`) now send a comment line every 8 seconds while a run is quiet, which every reader of the stream
+  ignores, and the two Bots no longer close a run for being quiet. Measured: the same call that fails at 300 s with silence
+  completes at 330 s with the comment lines. The first message on the largest offline model can still take minutes; the answer
+  now arrives.
+- **Smaller prompts on this computer, in every Bot.** The tool trimming added in 0.1.11 ran only in the default harness. It now
+  runs in `agent-bot` and `agent-langgraph` too, and `docker-compose.yml` passes `BOT_CONTEXT_TOKENS` to both.
+
+### A digital employee knows who it is, on any model
+
+- **One system message, the role first.** The role used to arrive third, after the computer guidance and the whole screen
+  catalog, and as separate system messages. A model on a free OpenRouter plan answered "I'm Command, an AI assistant", described
+  the screen catalog when asked what it could do, and said it saw no marketing agent. Some OpenAI-compatible providers read only
+  the first of several system messages, and a small model gives most weight to what comes first. Every Bot now sends one system
+  message that opens with the employee's own role, then what it holds, then the computer guidance and the catalogs.
+- **The Models-page choice reaches every Bot.** The model chosen on the Models page was sent to every employee but read only by
+  `agent-langgraph`; an employee on the default harness answered with the model its container was started with and nothing said
+  so. The harness now reads the same header, with the same refusals, and a header it cannot read is a run error rather than an
+  answer from another model.
+- **What reached the model is written down.** Each run writes one line to the Bot's log: the model and the host it was reached at,
+  the size of the system message and of the role, the opening of the role, and the tools offered and left out. No key and no
+  conversation. If an employee ever answers as a stranger again, the line says whether the role was never sent or was sent and
+  ignored.
+- **Free models are labelled.** The model form says so when the model is a `:free` one: they are shared and small, and often
+  ignore a role or cannot use tools such as asking a colleague.
+
 ## 0.1.11
 
 ### A digital employee knows who it is, and its team

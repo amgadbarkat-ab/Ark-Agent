@@ -15,3 +15,17 @@ export const modelFormSchema = z.object({
 });
 
 export type ModelFormValues = z.infer<typeof modelFormSchema>;
+
+/**
+ * Whether a model name is one a provider offers for nothing.
+ *
+ * OpenRouter marks them with a `:free` suffix. They are shared and small, and they are the models
+ * most likely to ignore a digital employee's role and instructions or to be unable to call a tool at
+ * all, so the person is told before they judge ArkAgent by one.
+ */
+export function isFreeModel(model: string): boolean {
+  return /:free$/i.test(model.trim());
+}
+
+export const FREE_MODEL_NOTE =
+  "Free models are shared and small. They often ignore a digital employee's role and instructions, or cannot use tools such as asking a colleague. For a demo or real work, choose a paid model.";

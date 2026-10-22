@@ -139,6 +139,35 @@ Two related behaviours: the lead of a team of one is offered `team_list` and tol
 said it had no tool for reaching colleagues), and "what can you do" is answered from the role by an instruction that sits in the
 standing role (`SELF_DESCRIPTION_GUIDANCE`).
 
+## Why a free model on OpenRouter answered "I'm Command" (found after 0.1.11)
+
+With the role now reaching the Bots, an employee on a free OpenRouter model still answered as the provider's own assistant,
+described the screen catalog (A2UI) when asked what it could do, and said it saw no marketing agent. What it was sent was
+three or four separate system messages, with the employee's role third behind the computer guidance and the whole screen
+catalog. Some OpenAI-compatible providers read only the first of several system messages, and a small model gives most weight
+to what comes first. Every Bot now sends one system message that opens with the role, then what the employee holds, then the
+computer guidance and the catalogs (`agent-langgraph/src/history.ts`, `agent-bot/src/history.ts`, `model_messages` in the
+default harness). A skill picked for one message stays beside that message on providers that allow it.
+
+A free model can still fail on a role it is given: they are small, shared and often unable to call tools at all, which is what
+asking a colleague needs. The model form now says so for `:free` models. For a demo, use a paid model.
+
+Related, same release: the model chosen on the Models page was read only by `agent-langgraph`; the default harness answered with
+the model its container was started with. It now reads the same `x-ark-model` header (`agent-langgraph-agui/src/model_override.py`).
+Each Bot also writes one line per run saying what reached the model: the model and host, the sizes, the opening of the role and
+the tools offered and left out. If an employee answers as a stranger again, that line says whether the role was sent.
+
+## Why the first message on the offline model failed after five minutes (found after 0.1.11)
+
+The model on this computer reads its whole prompt before it writes a word, and for the largest offline model on a laptop that is
+minutes. Nothing travelled between the Bot and the server meanwhile. Measured with Bun, the runtime of both: its own `fetch`
+gives up on a response that stays silent for 300 seconds ("The operation timed out"), and a Bot that closes a quiet connection
+after its `idleTimeout` (120 seconds) ends the run sooner, with "The socket connection was closed unexpectedly". With a comment
+line every 8 seconds the same 330-second call completes. All three Bots now send it (`shared/keep-alive.ts`,
+`agent-langgraph-agui/src/keep_alive.py`); the AG-UI client ignores it. The first message on the offline model can still take
+minutes, and the prompt is smaller than before because the tool trimming now runs in every Bot; later messages in the same
+conversation reuse what the model already read.
+
 ## Not done
 
 - A message `@`-mentioned to a colleague is not sent to that colleague directly; it goes to the lead, which asks them. A

@@ -3,6 +3,9 @@ import { EventEncoder } from "@ag-ui/encoder";
 import { serve } from "bun";
 import OpenAI from "openai";
 import { hasManagedAgentToken } from "../../shared/agent-authorisation";
+import { keepAlive } from "../../shared/keep-alive";
+import { deploymentToolsOf, narrowTools } from "../../shared/prompt-budget";
+import { describeRun, hostOf, openingOf } from "../../shared/run-summary";
 import { listenPort } from "../../shared/listen-port";
 import { toProviderMessages } from "./history";
 import {
@@ -110,9 +113,9 @@ const openai = new OpenAI({
 });
 
 /** Every tool comes from the caller. This service publishes none of its own, on purpose. */
-function toProviderTools(input: RunAgentInput) {
-  if (!input.tools?.length) return undefined;
-  return input.tools.map((tool) => ({
+function toProviderTools(tools: RunAgentInput["tools"] | undefined) {
+  if (!tools?.length) return undefined;
+  return tools.map((tool) => ({
     type: "function" as const,
     function: {
       name: tool.name,
@@ -124,6 +127,13 @@ function toProviderTools(input: RunAgentInput) {
 
 async function runAgent(input: RunAgentInput): Promise<Response> {
   const encoder = new EventEncoder();
+  // A model with a small window is not shown every tool on every turn; see `prompt-budget.ts`.
+  const { offered, leftOut } = narrowTools(
+    input.tools ?? [],
+    deploymentToolsOf(input.forwardedProps),
+    input.messages ?? [],
+  );
+  let stopBeating = () => {};
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const utf8 = new TextEncoder();
@@ -136,11 +146,37 @@ async function runAgent(input: RunAgentInput): Promise<Response> {
         runId: input.runId,
       } as BaseEvent);
 
+      // A model on this computer can take minutes to read its prompt, and says nothing meanwhile.
+      stopBeating = keepAlive((frame) =>
+        controller.enqueue(utf8.encode(frame)),
+      );
       try {
+        const messages = toProviderMessages(input, undefined, leftOut);
+        // What actually reached the model, so a report of "it does not know its role" can be told
+        // apart from "it was never sent".
+        const role = String(
+          (input.messages ?? []).find(
+            (message) =>
+              message.role === "system" || message.role === "developer",
+          )?.content ?? "",
+        );
+        console.info(
+          describeRun({
+            runId: input.runId,
+            model: MODEL,
+            host: hostOf(BASE_URL),
+            chosen: false,
+            systemCharacters: String(messages[0]?.content ?? "").length,
+            roleOpening: openingOf(role),
+            roleCharacters: role.length,
+            toolsOffered: offered.map((tool) => tool.name),
+            toolsLeftOut: leftOut,
+          }),
+        );
         const completion = await openai.chat.completions.create({
           model: MODEL,
-          messages: toProviderMessages(input),
-          tools: toProviderTools(input),
+          messages,
+          tools: toProviderTools(offered),
           stream: true,
         });
 
@@ -222,8 +258,12 @@ async function runAgent(input: RunAgentInput): Promise<Response> {
               : "The Bot could not answer.",
         } as BaseEvent);
       } finally {
+        stopBeating();
         controller.close();
       }
+    },
+    cancel() {
+      stopBeating();
     },
   });
 
@@ -239,7 +279,7 @@ async function runAgent(input: RunAgentInput): Promise<Response> {
 serve({
   port: PORT,
   idleTimeout: 120,
-  async fetch(request) {
+  async fetch(request, server) {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
@@ -250,6 +290,10 @@ serve({
       if (!hasManagedAgentToken(request, MANAGED_AGENT_TOKEN)) {
         return Response.json({ error: "Unauthorized." }, { status: 401 });
       }
+      // A run is as slow as the model: the first message to one on this computer is silent for
+      // minutes. Bun would close a connection quiet for `idleTimeout`; the run ends when the model
+      // does, or when the server stops waiting for it.
+      server.timeout(request, 0);
       const input = (await request.json()) as RunAgentInput;
       return runAgent(input);
     }

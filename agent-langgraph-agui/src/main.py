@@ -14,6 +14,9 @@ from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, MessagesState, StateGraph
 
+from . import model_override
+from .keep_alive import KeepAlive
+from .run_summary import describe_run, host_of
 from .tool_runtime import (
     ToolAwareAgent,
     bind_tools,
@@ -112,6 +115,13 @@ def _model():
     A recognized `provider:model` choice keeps its provider. Otherwise the model is an opaque ID
     and the selected provider is passed separately, including when that ID contains a colon.
     """
+    chosen = model_override.current()
+    if chosen is model_override.UNREADABLE:
+        # Answering with the deployment's own model would spend somebody else's key.
+        raise model_override.UnreadableSelectionError()
+    if chosen is not None:
+        return model_override.build_model(chosen)
+
     configured_model = os.environ.get("BOT_MODEL")
     model = (configured_model or "gpt-4o-mini").strip()
 
@@ -202,6 +212,37 @@ def _wants_system_turns_first(model) -> bool:
     return isinstance(model, ChatAnthropic)
 
 
+def _say_what_reached_the_model(model, messages, tools, left_out) -> None:
+    """The per-run line; see `run_summary`. Never allowed to stop a run."""
+    try:
+        from langchain_core.messages import SystemMessage
+
+        from .tool_runtime import current_tools
+
+        standing = current_tools().context
+        role = standing[0].value if standing else ""
+        first = messages[0] if messages and isinstance(messages[0], SystemMessage) else None
+        address = (
+            getattr(model, "openai_api_base", None)
+            or getattr(model, "anthropic_api_url", None)
+            or os.environ.get("OPENAI_BASE_URL")
+        )
+        print(
+            describe_run(
+                model=str(getattr(model, "model_name", None) or getattr(model, "model", "")),
+                host=host_of(address),
+                chosen=isinstance(model_override.current(), model_override.ModelSelection),
+                system_characters=len(str(first.content)) if first is not None else 0,
+                role=role,
+                offered=[tool.name for tool in tools],
+                left_out=list(left_out),
+            ),
+            flush=True,
+        )
+    except Exception:  # a diagnostic line is never a reason to fail a run
+        pass
+
+
 async def answer(state: MessagesState):
     from openai import AuthenticationError, PermissionDeniedError
     from .tool_runtime import current_tools
@@ -210,6 +251,7 @@ async def answer(state: MessagesState):
         model = _model()
         tools, left_out = lean_tools(state["messages"])
         messages = model_messages(state["messages"], left_out)
+        _say_what_reached_the_model(model, messages, tools, left_out)
         if _wants_system_turns_first(model):
             messages = _cache_the_prefix(_system_turns_first(messages))
         return {"messages": [await bind_tools(model, tools).ainvoke(messages)]}
@@ -231,6 +273,8 @@ builder.add_edge("tools", "answer")
 graph = builder.compile(checkpointer=MemorySaver())
 
 app = FastAPI()
+app.add_middleware(model_override.ModelSelectionMiddleware)
+app.add_middleware(KeepAlive)
 
 
 @app.middleware("http")

@@ -312,6 +312,9 @@ services:
       # gpt-5.6-* rejects function tools there unless reasoning is turned off. Its own variable, so
       # a BOT_MODEL set for the framework Bot cannot silently take its tools away.
       BOT_MODEL: ${AGENT_BOT_MODEL:-gpt-5.5}
+      # The window of the model on this computer, when ArkAgent runs one. Set, the Bot sends it only
+      # the tools a turn needs; empty, every tool goes with every message.
+      BOT_CONTEXT_TOKENS: ${BOT_CONTEXT_TOKENS:-}
     healthcheck:
       test: ["CMD-SHELL", "bun -e \"await fetch('http://localhost:4200/health')\""]
       interval: 10s
@@ -395,6 +398,8 @@ services:
       # `host.docker.internal` because the API server runs on the host, not in this network.
       OPENBOT_TOOL_URL: ${OPENBOT_TOOL_URL:-http://host.docker.internal:3001/api/agent-tools/call}
       AGENT_TOOL_TOKEN: ${AGENT_TOOL_TOKEN:-}
+      # The window of the model on this computer, when ArkAgent runs one. See agent-bot above.
+      BOT_CONTEXT_TOKENS: ${BOT_CONTEXT_TOKENS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
