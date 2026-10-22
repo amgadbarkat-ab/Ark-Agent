@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.13
+
 ### An updated desktop app now updates what it runs
 
 - **Updating the app changed only the window.** The desktop app kept the deployment it first downloaded (the server, the web
