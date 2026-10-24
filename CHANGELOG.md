@@ -8,8 +8,6 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
-## 0.1.14
-
 Fixes from the DT Lab's test of 0.1.13 on a 16 GB Debian box with the model on this computer.
 
 ### The model on this computer answers built-in employees again
