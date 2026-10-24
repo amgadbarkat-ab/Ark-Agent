@@ -190,3 +190,28 @@ async def test_a_run_writes_one_line_saying_what_reached_the_model(
     assert 'role_opening="You are Ada, Chief of Operations.' in line
     assert "tools=1 [team_ask]" in line
     assert "sk-secret-never-printed" not in out
+
+
+@pytest.mark.asyncio
+async def test_the_model_on_this_computer_is_sent_single_types(monkeypatch, model_server):
+    # Gemma 4's template cannot read a list of types: one such parameter failed every request.
+    base_url, captured = model_server
+    monkeypatch.setenv("MANAGED_AGENT_TOKEN", "ci-token")
+    monkeypatch.setenv("BOT_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openbot-ci")
+    monkeypatch.setenv("OPENAI_BASE_URL", f"{base_url}/v1")
+    monkeypatch.setenv("BOT_CONTEXT_TOKENS", "32768")
+    payload = _run_input(MESSAGES)
+    payload["tools"] = [
+        {
+            "name": "pick",
+            "description": "Pick some.",
+            "parameters": {
+                "type": "object",
+                "properties": {"ids": {"type": "array", "items": {"type": ["string", "null"]}}},
+            },
+        }
+    ]
+    await _post(payload)
+    sent = captured[0]["tools"][0]["function"]["parameters"]
+    assert sent["properties"]["ids"]["items"] == {"type": "string"}

@@ -381,7 +381,8 @@ mod tests {
     #[test]
     fn a_new_computer_is_told_what_it_will_download() {
         let dir = root("plan-new");
-        let plan = plan_for(&dir, &machine(16), None);
+        // 24 GB: the smallest computer 12B is offered on (see `local_model::G12B`).
+        let plan = plan_for(&dir, &machine(24), None);
         match &plan.recommendation {
             Recommendation::Model { model } => assert_eq!(model.id, "gemma-4-12b"),
             other => panic!("{other:?}"),
@@ -392,7 +393,7 @@ mod tests {
         assert!(plan.to_download_bytes > G12B.size_bytes, "{plan:?}");
         assert!(plan.engine.starts_with('b'), "{}", plan.engine);
         assert_eq!(plan.cores, 8);
-        assert!((plan.ram_gib - 16.0).abs() < 0.01);
+        assert!((plan.ram_gib - 24.0).abs() < 0.01);
         // What else it could run, best first, with the best marked.
         let offered: Vec<_> = plan
             .models

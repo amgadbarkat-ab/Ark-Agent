@@ -1,4 +1,6 @@
-agent-framework-ag-ui
+# 1.7.0 refuses an endpoint whose authorization mode is not declared. Held below it until the
+# harness chooses that mode on purpose, rather than by whatever install it gets.
+agent-framework-ag-ui<1.7
 agent-framework-anthropic
 agent-framework-openai
 fastapi

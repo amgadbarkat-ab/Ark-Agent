@@ -107,6 +107,59 @@ describe("languageModelFor", () => {
     expect(server.seen[0]?.path).toBe("/v1/chat/completions");
   });
 
+  test("a model on this computer gets tool schemas its chat template can read; a hosted one is untouched", async () => {
+    // Gemma 4's template cannot read a list of types, and a screen tool has one: HTTP 500 for every chat.
+    const tools = [
+      {
+        type: "function" as const,
+        name: "pick",
+        description: "Pick some.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            ids: {
+              type: "array" as const,
+              items: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    ];
+    const items = (seen: { body: Record<string, unknown> }) =>
+      (
+        seen.body.tools as Array<{
+          function: { parameters: { properties: { ids: { items: unknown } } } };
+        }>
+      )[0]?.function.parameters.properties.ids.items;
+    const local = serve(() => chatReply);
+    await languageModelFor(
+      {
+        providerId: "llamacpp",
+        protocol: "openai",
+        baseUrl: `${local.url}/v1`,
+        apiKey: null,
+        model: "gemma",
+      },
+      lenient,
+    ).doGenerate({ prompt, tools } as never);
+    expect(items(local.seen[0] as never)).toEqual({ type: "string" });
+
+    const hosted = serve(() => chatReply);
+    await languageModelFor(
+      {
+        providerId: "groq",
+        protocol: "openai",
+        baseUrl: `${hosted.url}/v1`,
+        apiKey: "k",
+        model: "llama",
+      },
+      lenient,
+    ).doGenerate({ prompt, tools } as never);
+    expect(items(hosted.seen[0] as never)).toEqual({
+      type: ["string", "null"],
+    });
+  });
+
   test("talks to Anthropic in its own dialect, with the version added to a bare address", async () => {
     const server = serve(() => messagesReply);
     const choice: ModelChoice = {

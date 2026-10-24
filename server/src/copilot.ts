@@ -28,7 +28,10 @@ import type { AgentFetch, StallGuard } from "./channels/stall-guard";
 import type { DeploymentConfig } from "./config";
 import { observeModelConnection } from "./desktop-connection-failure";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
-import type { ConnectionLanguageModel } from "./models/language-model";
+import {
+  type ConnectionLanguageModel,
+  deploymentChatModel,
+} from "./models/language-model";
 import type { SelectableSkill, Selection } from "./plugins/selection";
 import {
   latestUserText,
@@ -393,7 +396,10 @@ export function builtInAgentConfiguration(
   const standing = standingInstructionsGuidance(standingInstructions);
 
   return {
-    model: model.connection ?? `${model.provider}/${model.defaultModel}`,
+    model:
+      model.connection ??
+      deploymentChatModel(model.provider, model.defaultModel) ??
+      `${model.provider}/${model.defaultModel}`,
     /*
      * The package's role, then the person's own standing instructions, then what this Bot actually
      * holds, then the computer.

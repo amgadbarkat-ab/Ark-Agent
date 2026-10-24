@@ -1305,6 +1305,22 @@ fn configure_host_process_env(command: &mut Command, name: &str, secrets: &Secre
     }
 }
 
+/// What every host process is started with, beside its settings.
+fn configure_host_process_runtime(command: &mut Command, name: &str) {
+    // Read by Bun when the process starts, before `--env-file` is applied, so it has to be in the
+    // process environment: written only to `.env`, the server still gave up on a silent model at
+    // five minutes.
+    command.env("BUN_CONFIG_HTTP_IDLE_TIMEOUT", HTTP_IDLE_SECONDS);
+    // Only this computer's own window opens the web app, so it never listens beyond loopback.
+    if name == "app" {
+        command.env("LISTEN_HOSTS", "127.0.0.1,::1");
+    }
+}
+
+/// How long, in seconds, a host process waits on a silent connection. Bun's default is five minutes,
+/// and the model on this computer can read its prompt for longer than that before it writes a word.
+pub const HTTP_IDLE_SECONDS: &str = "1800";
+
 pub fn spawn_host_process(
     process: &HostProcess,
     root: &Path,
@@ -1331,6 +1347,7 @@ pub fn spawn_host_process(
     if process.name == "server" {
         command.env("PORT", ports.server.to_string());
     }
+    configure_host_process_runtime(&mut command, process.name);
     if process.script.is_empty() {
         command.args(["run", process.package_script]);
     } else {
@@ -3623,6 +3640,28 @@ mod tests {
             if let Some(marker) = marker {
                 std::fs::remove_file(root.join(marker)).unwrap();
             }
+        }
+    }
+
+    #[test]
+    fn host_processes_wait_for_a_slow_model_and_the_web_app_stays_on_loopback() {
+        for name in ["server", "app", "worker"] {
+            let mut command = Command::new("unused");
+            configure_host_process_runtime(&mut command, name);
+            let vars: std::collections::BTreeMap<_, _> = command.get_envs().collect();
+            assert_eq!(
+                vars.get(std::ffi::OsStr::new("BUN_CONFIG_HTTP_IDLE_TIMEOUT"))
+                    .and_then(|value| *value),
+                Some(std::ffi::OsStr::new("1800")),
+                "{name}"
+            );
+            assert_eq!(
+                vars.get(std::ffi::OsStr::new("LISTEN_HOSTS"))
+                    .and_then(|value| *value)
+                    .is_some(),
+                name == "app",
+                "{name}"
+            );
         }
     }
 

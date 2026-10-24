@@ -17,6 +17,7 @@ import { join, normalize, sep } from "node:path";
 import { file, type ServerWebSocket } from "bun";
 import { listenPort } from "../shared/listen-port";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../shared/dictation";
+import { listenHosts } from "../shared/listen-hosts";
 
 const DIST = join(import.meta.dir, "dist");
 const appPort = listenPort(process.env.APP_PORT, 3010);
@@ -192,11 +193,8 @@ function prepareWebSocketBridge(upstream: BunWebSocket, signal: AbortSignal) {
 }
 
 if (import.meta.main) {
-  Bun.serve<WebSocketBridge>({
+  const options = {
     port: PORT,
-    // Both loopbacks, which is what `::` gets you: a dual-stack socket answers on 127.0.0.1 and
-    // ::1 alike. Bound to one, whoever is told the URL has no way to know which they were given.
-    hostname: "::",
     // `ws: true` on the old proxy was required for the live screen, so the upgrade is forwarded
     // rather than answered with the app's HTML, which failed with an opaque socket error.
     websocket: {
@@ -270,7 +268,16 @@ if (import.meta.main) {
       }
       return new Response("not found", { status: 404 });
     },
-  });
+  } satisfies Parameters<typeof Bun.serve<WebSocketBridge>>[0];
+  /*
+   * Where it listens. Unset, `::`: a dual-stack socket that answers on 127.0.0.1 and ::1 alike, and on
+   * every other interface too. The desktop names both loopbacks instead (LISTEN_HOSTS), because only
+   * this computer's own window opens the app, and in single-user mode it is an administrator's.
+   */
+  const hosts = listenHosts(process.env.LISTEN_HOSTS);
+  for (const hostname of hosts.length > 0 ? hosts : ["::"]) {
+    Bun.serve<WebSocketBridge>({ ...options, hostname });
+  }
 
   console.log(
     `OpenBot app on http://127.0.0.1:${PORT} and http://[::1]:${PORT}`,

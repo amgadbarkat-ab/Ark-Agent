@@ -110,7 +110,12 @@ pub const E2B: LocalModel = LocalModel {
     min_ram_gib: 7.0,
 };
 
-/// Gemma 4 12B: the first size that does tool use and long tasks well, for a computer with 16 GB or more.
+/// Gemma 4 12B: the first size that does tool use and long tasks well, for a computer with 24 GB or more.
+///
+/// Not 16: measured on a 16 GB Linux box by the DT Lab (2026-10-24), the containers, the server and
+/// the desktop take about 1.2 GB beside the operating system, and the model's own working memory is
+/// about half again its file (the 3.3 GB E2B ran at 4.8 GB). With E2B loaded the box already used
+/// 9.5 GB, so the 7 GB 12B file did not fit beside the stack, and a 16 GB computer is offered E4B.
 pub const G12B: LocalModel = LocalModel {
     id: "gemma-4-12b",
     label: "Gemma 4 12B",
@@ -118,7 +123,7 @@ pub const G12B: LocalModel = LocalModel {
     file: "gemma-4-12b-it-qat-q4_0.gguf",
     size_bytes: 6_975_879_296,
     sha256: "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b",
-    min_ram_gib: 15.0,
+    min_ram_gib: 20.0,
 };
 
 /// Gemma 4 26B A4B: a mixture of experts, 26 billion parameters of which about 4 billion work on any one word,
@@ -658,14 +663,15 @@ mod tests {
 
     #[test]
     fn a_bigger_computer_gets_the_bigger_model() {
-        for gib in [11.0, 12.0, 14.9] {
+        // A computer sold as 16 GB reports about 15.6, and is the DT Lab's box: E4B, not 12B.
+        for gib in [11.0, 12.0, 14.9, 15.6, 16.0, 19.9] {
             assert_eq!(
                 recommend(&machine(gib)),
                 Recommendation::Model { model: &E4B },
                 "{gib} GiB"
             );
         }
-        for gib in [15.0, 16.0, 26.9] {
+        for gib in [20.0, 23.4, 26.9] {
             assert_eq!(
                 recommend(&machine(gib)),
                 Recommendation::Model { model: &G12B },
@@ -699,7 +705,8 @@ mod tests {
                 "gemma-4-e2b"
             ]
         );
-        assert_eq!(ids(16.0), ["gemma-4-12b", "gemma-4-e4b", "gemma-4-e2b"]);
+        assert_eq!(ids(16.0), ["gemma-4-e4b", "gemma-4-e2b"]);
+        assert_eq!(ids(23.4), ["gemma-4-12b", "gemma-4-e4b", "gemma-4-e2b"]);
         assert_eq!(ids(7.7), ["gemma-4-e2b"]);
         assert!(ids(4.0).is_empty());
         assert_eq!(by_id("gemma-4-12b"), Some(&G12B));

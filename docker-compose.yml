@@ -315,6 +315,10 @@ services:
       # The window of the model on this computer, when ArkAgent runs one. Set, the Bot sends it only
       # the tools a turn needs; empty, every tool goes with every message.
       BOT_CONTEXT_TOKENS: ${BOT_CONTEXT_TOKENS:-}
+    # The model on this computer is reached as `host.docker.internal`, which Docker Engine on Linux
+    # only resolves when it is mapped here, as it is for the other Bots.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "bun -e \"await fetch('http://localhost:4200/health')\""]
       interval: 10s

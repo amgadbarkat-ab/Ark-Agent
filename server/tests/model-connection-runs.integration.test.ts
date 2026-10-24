@@ -199,6 +199,95 @@ describe("a run on the person's own connection", () => {
   });
 });
 
+describe("the deployment's own model on a server that is not OpenAI", () => {
+  /*
+   * The desktop's model on this computer is llama.cpp, named by OPENAI_BASE_URL. Handed to the
+   * runtime as `openai/<model>`, it was driven through the Responses API, whose llama.cpp stream the
+   * SDK cannot read: every built-in employee's chat failed. It goes to chat completions now.
+   */
+  test("a built-in employee is answered through chat completions, with the deployment's key", async () => {
+    await withProvider(async ({ url, mock, seen }) => {
+      mock.on({ hasToolResult: true }, { content: "The balance is 42." });
+      mock.onMessage(/balance/, {
+        toolCalls: [
+          { id: "c1", name: "read_balance", arguments: { account: "demo" } },
+        ],
+      });
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      try {
+        const executed: unknown[] = [];
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "assistant",
+              name: "assistant",
+              type: "built_in" as const,
+              systemPrompt: "Answer using the granted balance tool.",
+            },
+          ],
+          deploymentModel,
+          async () => "local-model-key",
+          undefined,
+          balanceTool(executed),
+        );
+        const agent = built.assistant?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({
+          id: "q",
+          role: "user",
+          content: "Read my balance.",
+        });
+        await agent.runAgent();
+        expect(agent.messages.at(-1)).toMatchObject({
+          role: "assistant",
+          content: "The balance is 42.",
+        });
+        expect(executed).toEqual([{ account: "demo" }]);
+        expect(seen.map((s) => s.path)).toEqual([
+          "/v1/chat/completions",
+          "/v1/chat/completions",
+        ]);
+        expect(seen.every((s) => s.model === "deployment-model")).toBe(true);
+        expect(
+          seen.every((s) => s.authorization === "Bearer local-model-key"),
+        ).toBe(true);
+      } finally {
+        if (previous.base === undefined) delete process.env.OPENAI_BASE_URL;
+        else process.env.OPENAI_BASE_URL = previous.base;
+        if (previous.key === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = previous.key;
+      }
+    });
+  });
+
+  test("OpenAI itself, and a deployment with no base URL, keep the runtime's own route", async () => {
+    const { deploymentChatModel } = await import(
+      "../src/models/language-model"
+    );
+    expect(deploymentChatModel("openai", "gpt-5.5", {})).toBeUndefined();
+    expect(
+      deploymentChatModel("openai", "gpt-5.5", {
+        OPENAI_BASE_URL: "https://api.openai.com/v1",
+      }),
+    ).toBeUndefined();
+    expect(
+      deploymentChatModel("anthropic", "claude", {
+        OPENAI_BASE_URL: "http://127.0.0.1:8080/v1",
+      }),
+    ).toBeUndefined();
+    expect(
+      deploymentChatModel("openai", "gemma", {
+        OPENAI_BASE_URL: "http://127.0.0.1:8080/v1",
+      }),
+    ).toBeDefined();
+  });
+});
+
 describe("createModelForActor", () => {
   test("answers nothing for a person who has chosen nothing, so the deployment's model stands", async () => {
     const ann = await person();
