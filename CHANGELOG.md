@@ -37,6 +37,8 @@ Fixes from the DT Lab's test of 0.1.13 on a 16 GB Debian box with the model on t
   addresses for any deployment; unset, nothing changes.
 - **The local model's key was on its command line**, readable by every account on the computer. It is now passed as
   `LLAMA_API_KEY`, which llama-server reads in its place (checked in llama.cpp b11696's own source).
+- **DOMPurify 3.4.17**, for GHSA-cg2g-xh64-v4q7 (a `SAFE_FOR_TEMPLATES` bypass), which the release image scan rated
+  critical.
 
 ### Smaller
 
