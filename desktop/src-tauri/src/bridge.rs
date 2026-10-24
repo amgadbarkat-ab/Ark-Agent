@@ -144,6 +144,9 @@ mod tests {
         assert_eq!(parse_gateway("127.0.0.1 0.0.0.0"), None);
     }
 
+    // Linux only, where the relay is used: macOS has 127.0.0.1 alone on its loopback, so binding
+    // the stand-in address there fails with "Can't assign requested address".
+    #[cfg(target_os = "linux")]
     #[test]
     fn traffic_to_the_relay_reaches_the_loopback_service_and_back() {
         // A service on loopback, as the model and the desktop server are.
