@@ -18,6 +18,7 @@ import { serve } from "bun";
 import { eq, sql } from "drizzle-orm";
 import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
+import { listenHosts } from "../../shared/listen-hosts";
 import { workOwner } from "../../shared/work-owner";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
 import { createAgentFetch } from "./agents/endpoint";
@@ -1755,7 +1756,7 @@ const readiness = createReadiness({
   draining: () => lifecycle.draining,
 });
 
-const server = serve<SocketData>({
+const serverOptions = {
   port,
   // The largest thing legitimately sent here is a conversation with attachments inlined (up to 32 MB
   // of files, a third more as base64). Bun's own ceiling is 128 MB, which is a reason for nobody;
@@ -1878,7 +1879,18 @@ const server = serve<SocketData>({
       ws.data.inward?.close();
     },
   },
-});
+} satisfies Parameters<typeof serve<SocketData>>[0];
+
+/*
+ * One listener per address in LISTEN_HOSTS, or one on every interface when it is unset. The desktop
+ * sets loopback: in single-user mode every request is the computer's one administrator, and this
+ * listened on every interface, so anyone on the same network reached an administrator's API.
+ */
+const hosts = listenHosts(process.env.LISTEN_HOSTS);
+const servers =
+  hosts.length > 0
+    ? hosts.map((hostname) => serve<SocketData>({ ...serverOptions, hostname }))
+    : [serve<SocketData>(serverOptions)];
 
 // Writes down every route this process registered, for the security tests (server/tests/security), which
 // need the real inventory: `createApp` registers a route only when the store behind it was given, so an
@@ -1917,9 +1929,14 @@ if (config.singleUser) {
 // Each listener holds a connection of its own for the life of the process. Released on the way out, so
 // a watch-mode restart does not leave two behind on every reload.
 const drain = createDrain({
-  pending: () => server.pendingRequests,
-  stopListening: () => void server.stop(),
-  closeAll: () => void server.stop(true),
+  pending: () =>
+    servers.reduce((sum, listening) => sum + listening.pendingRequests, 0),
+  stopListening: () => {
+    for (const listening of servers) void listening.stop();
+  },
+  closeAll: () => {
+    for (const listening of servers) void listening.stop(true);
+  },
   cleanup: () =>
     Promise.allSettled([
       channelActivityListener.stop(),

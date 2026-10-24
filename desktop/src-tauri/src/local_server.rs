@@ -2,7 +2,7 @@
 //!
 //! WHO CAN TALK TO IT. Nobody but this computer, and nobody on it without the key. It listens on
 //! `127.0.0.1` (never the network), on a port picked fresh each time, and refuses any request that does
-//! not carry a random key minted for this run (`--api-key`). The key is handed to the bots as their model
+//! not carry a random key minted for this run (`LLAMA_API_KEY`, never the command line). The key is handed to the bots as their model
 //! key and exists nowhere else, so another program on the same computer cannot spend the processor on it
 //! and a page in a browser cannot reach it.
 //!
@@ -93,6 +93,9 @@ impl Running {
     }
 }
 
+/// The variable llama-server reads its key from, in place of `--api-key` on the command line.
+pub const API_KEY_VARIABLE: &str = "LLAMA_API_KEY";
+
 /// A new key: 32 random bytes, so there is nothing to guess.
 pub fn mint_key() -> String {
     let mut bytes = [0u8; 32];
@@ -108,7 +111,10 @@ pub fn mint_key() -> String {
 /// because Gemma 4 otherwise thinks aloud before every answer: measured on 2026-10-16, an answer with
 /// thinking on spent all of its first 300 words thinking and had none left to answer with
 /// (`--reasoning-budget 0` did not stop it).
-pub fn arguments(settings: &Settings, port: u16, api_key: &str) -> Vec<OsString> {
+///
+/// The key is not here: a command line can be read by every account on the computer (`ps`). It goes
+/// to the program as `LLAMA_API_KEY`, which llama-server reads in place of `--api-key`; see `start`.
+pub fn arguments(settings: &Settings, port: u16) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec![
         "-m".into(),
         settings.model_file.clone().into_os_string(),
@@ -118,8 +124,6 @@ pub fn arguments(settings: &Settings, port: u16, api_key: &str) -> Vec<OsString>
         "127.0.0.1".into(),
         "--port".into(),
         port.to_string().into(),
-        "--api-key".into(),
-        api_key.into(),
         "--ctx-size".into(),
         settings.context.to_string().into(),
     ];
@@ -175,7 +179,9 @@ pub fn start(
         let err = out.try_clone().map_err(|error| unwritable(&log, &error))?;
         let mut command = crate::quiet::command(&settings.server);
         command
-            .args(arguments(settings, port, &api_key))
+            .args(arguments(settings, port))
+            // The key, where only this account can read it. See `arguments`.
+            .env(API_KEY_VARIABLE, &api_key)
             .stdin(Stdio::null())
             .stdout(Stdio::from(out))
             .stderr(Stdio::from(err));
@@ -404,10 +410,12 @@ mod tests {
 
     #[test]
     fn the_command_line_is_loopback_only_keyed_and_single_slot() {
-        let args = text(&arguments(&settings(), 51234, "KEY"));
+        let args = text(&arguments(&settings(), 51234));
         assert_eq!(after(&args, "--host").as_deref(), Some("127.0.0.1"));
         assert_eq!(after(&args, "--port").as_deref(), Some("51234"));
-        assert_eq!(after(&args, "--api-key").as_deref(), Some("KEY"));
+        // Never on the command line, where every account on the computer can read it.
+        assert!(!args.iter().any(|arg| arg.starts_with("--api-key")));
+        assert_eq!(API_KEY_VARIABLE, "LLAMA_API_KEY");
         assert_eq!(after(&args, "--alias").as_deref(), Some("gemma-4-e4b"));
         assert_eq!(after(&args, "--ctx-size").as_deref(), Some("16384"));
         assert_eq!(after(&args, "--parallel").as_deref(), Some("1"));
@@ -429,7 +437,7 @@ mod tests {
     fn threads_are_passed_when_chosen() {
         let mut chosen = settings();
         chosen.threads = Some(6);
-        let args = text(&arguments(&chosen, 1, "k"));
+        let args = text(&arguments(&chosen, 1));
         assert_eq!(after(&args, "--threads").as_deref(), Some("6"));
     }
 
@@ -474,8 +482,8 @@ mod tests {
         use super::*;
         use crate::test_support::{compile_fixture, temp_root};
 
-        /// Behaves like `llama-server` for the parts the app depends on: reads `--port` and
-        /// `--api-key`, serves `/health` only to a request carrying the key, and says what it was started
+        /// Behaves like `llama-server` for the parts the app depends on: reads `--port` and the key
+        /// from `LLAMA_API_KEY`, serves `/health` only to a request carrying the key, and says what it was started
         /// with. What it does is read from `behaviour.txt` beside it, because the app starts it with a
         /// fixed command line. A real compiled program, so its executable path is its own, as the real
         /// one's is.
@@ -486,7 +494,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let get = |flag: &str| args.iter().position(|a| a == flag).map(|i| args[i + 1].clone());
     let port = get("--port").expect("--port");
-    let key = get("--api-key").expect("--api-key");
+    let key = std::env::var("LLAMA_API_KEY").expect("LLAMA_API_KEY");
     println!("started with {:?}", args);
     let behaviour = std::fs::read_to_string("behaviour.txt").unwrap_or_default();
     match behaviour.trim() {
@@ -577,7 +585,9 @@ fn main() {
 
             // What it was started with is in the log.
             let log = fs::read_to_string(log_path(&logs)).unwrap();
-            assert!(log.contains("--api-key"), "{log}");
+            // Started with no key on its command line, and answering only to the key it was given.
+            assert!(!log.contains("--api-key"), "{log}");
+            assert!(!log.contains(&running.api_key), "{log}");
             assert!(log.contains("127.0.0.1"), "{log}");
 
             running.stop(&dir);

@@ -65,6 +65,8 @@ struct Shell {
     local_model: Mutex<Option<openbot_desktop_lib::local_server::Running>>,
     /// Set by the Cancel button while the model is being downloaded or loaded.
     local_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Relays from the Docker bridge to the loopback-only server and model, on Linux. Dropped by Stop.
+    bridges: Mutex<Vec<openbot_desktop_lib::bridge::Forwarder>>,
     /// Containers may outlive a failed Start before any host root is published.
     containers: Mutex<Option<ContainerDeployment>>,
     /// A verified down allows a following Stop/Quit to be an idempotent no-op.
@@ -943,6 +945,8 @@ impl ChosenModel {
 
 /// Stop the model this app is running, if it is. Safe to call when there is none.
 fn stop_local_model(shell: &Shell, root: &Path) {
+    // The relays point at the model and the server, which are going away with it.
+    shell.bridges.lock().unwrap().clear();
     if let Some(mut running) = shell.local_model.lock().unwrap().take() {
         running.stop(root);
     }
@@ -1586,6 +1590,50 @@ async fn start_stack_inner<R: tauri::Runtime>(
         {
             report(&app, "ports", false, problem.clone());
             return Err(problem.into());
+        }
+
+        /*
+         * Where the desktop server listens.
+         *
+         * In single-user mode every request is its one administrator, so it listens on loopback,
+         * not on every interface, wherever the containers can still reach it there: Docker Desktop
+         * carries `host.docker.internal` to the host's loopback, and on Linux with Docker Engine the
+         * bridge's address is relayed to it (see `bridge.rs`), as is the model on this computer.
+         * Podman, and a Linux machine whose bridge cannot be read, keep every interface, as before.
+         */
+        let mut relays = Vec::new();
+        let loopback_only = match found.engine {
+            engine::Engine::Podman => false,
+            engine::Engine::Docker if cfg!(target_os = "linux") => {
+                match openbot_desktop_lib::bridge::gateway(&found) {
+                    Some(gateway) => {
+                        if let Some(running) = shell.local_model.lock().unwrap().as_ref() {
+                            match openbot_desktop_lib::bridge::forward(gateway, running.port) {
+                                Ok(relay) => relays.push(relay),
+                                Err(error) => report(
+                                    &app,
+                                    "model",
+                                    false,
+                                    format!("The containers cannot reach the model: {error}"),
+                                ),
+                            }
+                        }
+                        match openbot_desktop_lib::bridge::forward(gateway, ports.server) {
+                            Ok(relay) => {
+                                relays.push(relay);
+                                true
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                    None => false,
+                }
+            }
+            engine::Engine::Docker => true,
+        };
+        *shell.bridges.lock().unwrap() = relays;
+        if loopback_only {
+            secrets.insert("LISTEN_HOSTS".into(), "127.0.0.1".into());
         }
 
         let logs = root.join(".logs");

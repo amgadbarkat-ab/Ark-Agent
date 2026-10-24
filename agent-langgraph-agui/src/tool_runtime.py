@@ -167,10 +167,33 @@ def lean_tools(messages):
     return narrow(run.tools, run.deployment, messages)
 
 
+def with_single_types(schema):
+    """A JSON Schema with every list of types reduced to its first type that is not "null".
+
+    Gemma 4's chat template formats tool parameters with a Jinja `map` filter that the bundled
+    llama.cpp does not implement, so one `"type": ["string", "null"]` anywhere made every request to
+    the model on this computer fail with HTTP 500. Same rule as `shared/tool-schema.ts`.
+    """
+    if isinstance(schema, list):
+        return [with_single_types(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    out = {}
+    for key, value in schema.items():
+        if key == "type" and isinstance(value, list):
+            named = [item for item in value if isinstance(item, str)]
+            out[key] = next((item for item in named if item != "null"), named[0] if named else "string")
+        else:
+            out[key] = with_single_types(value)
+    return out
+
+
 def bind_tools(model, tools=None):
     tools = current_tools().tools if tools is None else tools
     if not tools:
         return model
+    # The desktop writes the window only for the model it runs on this computer.
+    local = bool((os.environ.get("BOT_CONTEXT_TOKENS") or "").strip())
     return model.bind_tools(
         [
             {
@@ -178,7 +201,9 @@ def bind_tools(model, tools=None):
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.parameters,
+                    "parameters": with_single_types(tool.parameters)
+                    if local
+                    else tool.parameters,
                 },
             }
             for tool in tools

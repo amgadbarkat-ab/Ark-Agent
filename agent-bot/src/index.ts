@@ -6,6 +6,7 @@ import { hasManagedAgentToken } from "../../shared/agent-authorisation";
 import { keepAlive } from "../../shared/keep-alive";
 import { deploymentToolsOf, narrowTools } from "../../shared/prompt-budget";
 import { describeRun, hostOf, openingOf } from "../../shared/run-summary";
+import { withSingleTypes } from "../../shared/tool-schema";
 import { listenPort } from "../../shared/listen-port";
 import { toProviderMessages } from "./history";
 import {
@@ -120,10 +121,16 @@ function toProviderTools(tools: RunAgentInput["tools"] | undefined) {
     function: {
       name: tool.name,
       description: tool.description,
-      parameters: tool.parameters as Record<string, unknown>,
+      // The model on this computer cannot read a list of types; see `shared/tool-schema.ts`.
+      parameters: (LOCAL_MODEL
+        ? withSingleTypes(tool.parameters)
+        : tool.parameters) as Record<string, unknown>,
     },
   }));
 }
+
+/** The desktop writes the window only for the model it runs on this computer. */
+const LOCAL_MODEL = Boolean(process.env.BOT_CONTEXT_TOKENS?.trim());
 
 async function runAgent(input: RunAgentInput): Promise<Response> {
   const encoder = new EventEncoder();

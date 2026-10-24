@@ -8,6 +8,44 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+Fixes from the DT Lab's test of 0.1.13 on a 16 GB Debian box with the model on this computer.
+
+### The model on this computer answers built-in employees again
+
+- **Every built-in employee's chat failed on the local model.** The runtime drove the deployment's model through OpenAI's
+  newer Responses API, whose llama.cpp stream the SDK cannot read ("text part … not found"). A deployment model at any address
+  other than OpenAI's own now goes to `/v1/chat/completions`, as a person's own connections already did.
+- **One screen tool broke Gemma 4's chat template.** A parameter typed as a list (`["string", "null"]`) reached a Jinja filter
+  the bundled llama.cpp does not implement, and every request failed with HTTP 500 ("NotImplemented: map: filter-mapping not
+  implemented"). Tool schemas sent to the model on this computer (or to a local Ollama, LM Studio or llama.cpp connection) now
+  name one type; hosted models are sent them unchanged. In the server and in all three Bots.
+- **Thread titles** failed for the same reason and now go the same way. A small model's title that is not the short form asked
+  for is still dropped by the runtime and the conversation stays "Untitled".
+
+### Linux
+
+- **The Bots could not reach the model on this computer.** It listens on `127.0.0.1`, and on Docker Engine a container cannot
+  reach the host's loopback ("could not reach the model provider"). The desktop now relays the Docker bridge's address to it,
+  and to the desktop server, so containers on this machine reach both and the local network reaches neither.
+- **`agent-bot` could not resolve `host.docker.internal`.** It now has the same `host-gateway` mapping as the other Bots.
+
+### Security
+
+- **The desktop server and web app listened on every interface**, and in single-user mode every request is the computer's
+  administrator. The web app now listens on loopback only, and the server on loopback wherever the containers can still reach
+  it (Docker Desktop, and Linux with the relay above). Podman keeps the earlier behaviour for now. `LISTEN_HOSTS` sets the
+  addresses for any deployment; unset, nothing changes.
+- **The local model's key was on its command line**, readable by every account on the computer. It is now passed as
+  `LLAMA_API_KEY`, which llama-server reads in its place (checked in llama.cpp b11696's own source).
+
+### Smaller
+
+- **The 30-minute wait for a slow model did not reach the desktop server.** Bun reads `BUN_CONFIG_HTTP_IDLE_TIMEOUT` before
+  `--env-file` is applied, so the setting in `.env` was ignored and the server still gave up at five minutes. It is now set in
+  the process environment of every host process.
+- **A 16 GB computer was recommended Gemma 4 12B**, which does not fit beside the stack. 12B is now offered from 24 GB, and a
+  16 GB computer gets E4B.
+
 ## 0.1.13
 
 ### An updated desktop app now updates what it runs
