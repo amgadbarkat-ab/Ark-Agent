@@ -12,9 +12,14 @@ import { defer, finalize, from, fromEvent, switchMap, takeUntil } from "rxjs";
 import { z } from "zod";
 import {
   COMPUTER_GUIDANCE,
-  SELF_DESCRIPTION_GUIDANCE,
   PROVENANCE_GUIDANCE,
+  SELF_DESCRIPTION_GUIDANCE,
 } from "../../shared/bot-prompt";
+import {
+  fitToWindow,
+  leftOutNote,
+  windowFromEnvironment,
+} from "../../shared/prompt-budget";
 import { sanitizeSeededHistory } from "./agents/history-sanitize";
 import type { AgentActor } from "./agents/profile-types";
 import type { AuditInitiator } from "./audit";
@@ -954,7 +959,40 @@ async function buildAgent(
     );
 
   const whole = withTools(granted);
-  if (!narrowing && !handoff) return whole;
+
+  /*
+   * THE MODEL ON THIS COMPUTER HAS A WINDOW, AND THE REST OF THE RUN HAS TO FIT IN IT.
+   *
+   * The Bots in their own containers have kept to it since v0.1.11, and a built-in employee never
+   * did: it sent everything, and on the desktop's local model every message was refused before a
+   * word came back (DT Lab, v0.1.14: "request (22182 tokens) exceeds the available context size
+   * (16384 tokens)"). The same rules as the Bots (`prompt-budget.ts`), for the deployment's own model
+   * only: a person who connected a model of their own is not held to the window of this computer's.
+   */
+  const localWindow = model.connection ? undefined : windowFromEnvironment();
+  const ownTools = new Set(granted.map((tool) => tool.name));
+  const fitted =
+    localWindow === undefined
+      ? undefined
+      : (input: RunAgentInput): RunAgentInput => {
+          const { input: lean, leftOut } = fitToWindow(
+            input,
+            ownTools,
+            localWindow,
+          );
+          if (leftOut.length === 0) return lean;
+          return {
+            ...lean,
+            context: [
+              ...(lean.context ?? []),
+              {
+                description: "Tools not offered on this turn",
+                value: leftOutNote(leftOut),
+              },
+            ],
+          };
+        };
+  if (!narrowing && !handoff && !fitted) return whole;
 
   return new RunBuiltAgent(
     { agentId: agent.id, description: agent.name },
@@ -979,6 +1017,7 @@ async function buildAgent(
         ? whole
         : withTools(tools);
     },
+    fitted,
   );
 }
 
@@ -1640,6 +1679,8 @@ class RunBuiltAgent extends AbstractAgent {
     input: RunAgentInput,
     signal: AbortSignal,
   ) => Promise<AbstractAgent>;
+  /** What the run's own input becomes before the model sees it: fitted to a small window, or as is. */
+  private prepare?: (input: RunAgentInput) => RunAgentInput;
 
   constructor(
     identity: { agentId: string; description: string },
@@ -1648,10 +1689,12 @@ class RunBuiltAgent extends AbstractAgent {
       input: RunAgentInput,
       signal: AbortSignal,
     ) => Promise<AbstractAgent>,
+    prepare?: (input: RunAgentInput) => RunAgentInput,
   ) {
     super(identity);
     this.whole = whole;
     this.build = build;
+    this.prepare = prepare;
   }
 
   run(input: RunAgentInput): Observable<BaseEvent> {
@@ -1665,7 +1708,7 @@ class RunBuiltAgent extends AbstractAgent {
         switchMap((agent) => {
           signal.throwIfAborted();
           active.inner = agent;
-          return agent.run(input);
+          return agent.run(this.prepare ? this.prepare(input) : input);
         }),
         // Settle Stop even if a collaborator ignores the signal or rejects after cancellation.
         takeUntil(fromEvent(signal, "abort")),
@@ -1701,6 +1744,9 @@ class RunBuiltAgent extends AbstractAgent {
     const cloned = super.clone() as RunBuiltAgent;
     cloned.whole = this.whole;
     cloned.build = this.build;
+    // Lost here, a run on the model on this computer is sent whole again: the runtime clones before
+    // every run, so the clone is the agent that actually runs.
+    cloned.prepare = this.prepare;
     // A clone owns its cancellation state, including while its build is pending.
     cloned.active = undefined;
     return cloned;

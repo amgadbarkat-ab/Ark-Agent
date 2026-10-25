@@ -13,18 +13,18 @@ import { ChatOpenAI } from "@langchain/openai";
 import { serve } from "bun";
 import { hasManagedAgentToken } from "../../shared/agent-authorisation";
 import { keepAlive } from "../../shared/keep-alive";
-import { narrowTools } from "../../shared/prompt-budget";
-import { describeRun, hostOf, openingOf } from "../../shared/run-summary";
-import { withSingleTypes } from "../../shared/tool-schema";
+import { listenPort } from "../../shared/listen-port";
 import {
   decodeModelOverride,
   MODEL_HEADER,
   type ModelOverride,
 } from "../../shared/model-header";
-import { listenPort } from "../../shared/listen-port";
+import { fitToWindow } from "../../shared/prompt-budget";
+import { describeRun, hostOf, openingOf } from "../../shared/run-summary";
+import { withSingleTypes } from "../../shared/tool-schema";
 import { toLangChainMessages } from "./history";
-import { readReasoningEffort } from "./model-options";
 import { apiKeyOrPlaceholder, KEY_VARIABLE, keyIsRequired } from "./model-key";
+import { readReasoningEffort } from "./model-options";
 import {
   buildOverrideModel,
   messageProviderFor,
@@ -434,12 +434,8 @@ async function runAgent(
    * A model with a small window is not shown every tool on every turn; see `prompt-budget.ts`.
    * Decided once here so the tools bound to the model and the note telling it what is missing agree.
    */
-  const { offered, leftOut } = narrowTools(
-    input.tools ?? [],
-    deploymentToolsOf(input),
-    input.messages ?? [],
-  );
-  const lean = offered === input.tools ? input : { ...input, tools: offered };
+  const { input: lean, leftOut } = fitToWindow(input, deploymentToolsOf(input));
+  const offered = lean.tools ?? [];
   let stopBeating = () => {};
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {

@@ -46,6 +46,7 @@ async function withProvider<T>(
       authorization: string | null;
       apiKey: string | null;
       model: unknown;
+      body: string;
     }>;
   }) => Promise<T>,
 ) {
@@ -55,6 +56,7 @@ async function withProvider<T>(
     authorization: string | null;
     apiKey: string | null;
     model: unknown;
+    body: string;
   }> = [];
   const base = await mock.start();
   const proxy = Bun.serve({
@@ -68,6 +70,7 @@ async function withProvider<T>(
         authorization: request.headers.get("authorization"),
         apiKey: request.headers.get("x-api-key"),
         model: (JSON.parse(body) as { model?: unknown }).model,
+        body,
       });
       return fetch(`${base}${path}`, {
         method: "POST",
@@ -262,6 +265,124 @@ describe("the deployment's own model on a server that is not OpenAI", () => {
         if (previous.key === undefined) delete process.env.OPENAI_API_KEY;
         else process.env.OPENAI_API_KEY = previous.key;
       }
+    });
+  });
+
+  /*
+   * The desktop's local model has a 16K window, and a built-in employee's "hi" was a 22K-token
+   * request: the browser's screen kit (the A2UI catalog above all) and every tool, sent whole. The
+   * DT Lab's v0.1.14 run failed every employee chat that way.
+   */
+  describe("with the window of the model on this computer", () => {
+    const catalog = "CATALOG-".repeat(6_000);
+    const screen = {
+      context: [
+        { description: "The page open", value: "Expenses" },
+        {
+          description:
+            "A2UI catalog capabilities: available catalog IDs and custom component definitions the client can render.",
+          value: catalog,
+        },
+      ],
+      tools: [
+        {
+          name: "render_a2ui",
+          description: "Render a surface.",
+          parameters: { type: "object", properties: {} },
+        },
+        {
+          name: "showBarChart",
+          description: "Show a bar chart. ".repeat(400),
+          parameters: { type: "object", properties: {} },
+        },
+      ],
+    };
+    const runOn = async (
+      model: Parameters<typeof resolveRuntimeAgents>[1],
+      url: string,
+    ) => {
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+        window: process.env.BOT_CONTEXT_TOKENS,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      process.env.BOT_CONTEXT_TOKENS = "16384";
+      try {
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "assistant",
+              name: "assistant",
+              type: "built_in" as const,
+              systemPrompt: "Answer using the granted balance tool.",
+            },
+          ],
+          model,
+          async () => "local-model-key",
+          undefined,
+          balanceTool([]),
+        );
+        const agent = built.assistant?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({ id: "q", role: "user", content: "hi" });
+        await agent.runAgent(screen);
+      } finally {
+        for (const [key, value] of [
+          ["OPENAI_BASE_URL", previous.base],
+          ["OPENAI_API_KEY", previous.key],
+          ["BOT_CONTEXT_TOKENS", previous.window],
+        ] as const) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
+    };
+    const sent = (body: string) =>
+      JSON.parse(body) as {
+        messages: Array<{ role: string; content: unknown }>;
+        tools?: Array<{ function: { name: string } }>;
+      };
+
+    test("a built-in employee's run is fitted to it: no screen kit, its own tools kept", async () => {
+      await withProvider(async ({ url, mock, seen }) => {
+        mock.onMessage(/hi/, { content: "Hello." });
+        await runOn(deploymentModel, url);
+        expect(seen).toHaveLength(1);
+        const request = sent(seen[0]?.body ?? "{}");
+        const system = String(request.messages[0]?.content ?? "");
+        const tools = (request.tools ?? []).map((tool) => tool.function.name);
+        expect(system).not.toContain("CATALOG-");
+        expect(system).toContain("Expenses");
+        expect(tools).toContain("read_balance");
+        expect(tools).not.toContain("render_a2ui");
+        // Small enough to stay once the screen kit is out of the way.
+        expect(tools).toContain("showBarChart");
+        expect((seen[0]?.body.length ?? 0) < 16_384 * 3).toBe(true);
+      });
+    });
+
+    test("a model the person connected themselves is sent everything, as before", async () => {
+      await withProvider(async ({ url, mock, seen }) => {
+        mock.onMessage(/hi/, { content: "Hello." });
+        const connection = languageModelFor(
+          {
+            providerId: "groq",
+            protocol: "openai",
+            baseUrl: `${url}/v1`,
+            apiKey: "persons-own-key",
+            model: "llama-their-choice",
+          },
+          lenient,
+        );
+        await runOn({ ...deploymentModel, connection }, url);
+        const request = sent(seen[0]?.body ?? "{}");
+        const tools = (request.tools ?? []).map((tool) => tool.function.name);
+        expect(String(request.messages[0]?.content)).toContain("CATALOG-");
+        expect(tools).toContain("render_a2ui");
+        expect(tools).toContain("showBarChart");
+      });
     });
   });
 

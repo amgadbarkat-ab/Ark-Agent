@@ -55,6 +55,14 @@ MANAGE = frozenset(
 # A component a person looks at: showBarChart, showTable, askApproval, askForm.
 _VISUAL_NAME = re.compile(r"^(show|ask)[A-Z]")
 
+# The kit for drawing whole screens: the A2UI catalog (50 KB of JSON), its schema and rules, and the
+# design guide for `generateSandboxedUi`. The browser sends them as context with every message, and
+# together they are more than a 16K window before any tool or word of the conversation. Same rules
+# as `SCREEN_TOOLS` in `shared/prompt-budget.ts`.
+SCREEN_TOOLS = frozenset({"render_a2ui", "generateSandboxedUi"})
+_SCREEN_CONTEXT = re.compile(r"^(A2UI |Design guidelines for the generateSandboxedUi tool)")
+SCREEN_SHARE = 0.25
+
 _WANTS = {
     "visual": (
         "chart",
@@ -237,6 +245,29 @@ def narrow(tools, deployment, messages, tokens=None):
         offered = [tool for tool in offered if _group(tool, deployment) != group]
     left_out = [tool.name for tool in tools if tool not in offered]
     return offered, left_out
+
+
+def without_screen(tools, context, tokens=None):
+    """The tools and context with the screen kit left out when it would not fit, else as given.
+
+    Not named to the model as left out: it is not offered to this model on any turn, so telling it to
+    ask for one by name would be a promise nobody keeps.
+    """
+    tokens = window() if tokens is None else tokens
+    tools, context = tuple(tools), tuple(context)
+    if tokens is None:
+        return tools, context
+    screen = sum(
+        (len(entry.description or "") + len(entry.value or "")) // 3
+        for entry in context
+        if _SCREEN_CONTEXT.match(entry.description or "")
+    ) + sum(cost(tool) for tool in tools if tool.name in SCREEN_TOOLS)
+    if screen <= tokens * SCREEN_SHARE:
+        return tools, context
+    return (
+        tuple(tool for tool in tools if tool.name not in SCREEN_TOOLS),
+        tuple(entry for entry in context if not _SCREEN_CONTEXT.match(entry.description or "")),
+    )
 
 
 def left_out_note(names) -> str:

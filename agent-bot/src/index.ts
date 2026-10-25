@@ -4,10 +4,10 @@ import { serve } from "bun";
 import OpenAI from "openai";
 import { hasManagedAgentToken } from "../../shared/agent-authorisation";
 import { keepAlive } from "../../shared/keep-alive";
-import { deploymentToolsOf, narrowTools } from "../../shared/prompt-budget";
+import { listenPort } from "../../shared/listen-port";
+import { deploymentToolsOf, fitToWindow } from "../../shared/prompt-budget";
 import { describeRun, hostOf, openingOf } from "../../shared/run-summary";
 import { withSingleTypes } from "../../shared/tool-schema";
-import { listenPort } from "../../shared/listen-port";
 import { toProviderMessages } from "./history";
 import {
   apiKeyOrPlaceholder,
@@ -135,11 +135,11 @@ const LOCAL_MODEL = Boolean(process.env.BOT_CONTEXT_TOKENS?.trim());
 async function runAgent(input: RunAgentInput): Promise<Response> {
   const encoder = new EventEncoder();
   // A model with a small window is not shown every tool on every turn; see `prompt-budget.ts`.
-  const { offered, leftOut } = narrowTools(
-    input.tools ?? [],
+  const { input: fitted, leftOut } = fitToWindow(
+    input,
     deploymentToolsOf(input.forwardedProps),
-    input.messages ?? [],
   );
+  const offered = fitted.tools ?? [];
   let stopBeating = () => {};
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -158,7 +158,7 @@ async function runAgent(input: RunAgentInput): Promise<Response> {
         controller.enqueue(utf8.encode(frame)),
       );
       try {
-        const messages = toProviderMessages(input, undefined, leftOut);
+        const messages = toProviderMessages(fitted, undefined, leftOut);
         // What actually reached the model, so a report of "it does not know its role" can be told
         // apart from "it was never sent".
         const role = String(

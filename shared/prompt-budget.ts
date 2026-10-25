@@ -25,10 +25,14 @@
  *
  * The same rules as `agent-langgraph-agui/src/prompt_budget.py`, which the harness runs.
  */
-import type { RunAgentInput } from "@ag-ui/core";
-
-type Tool = RunAgentInput["tools"][number];
-type Message = RunAgentInput["messages"][number];
+/*
+ * Shapes rather than imports: the server, the Bots and their tests each carry their own AG-UI package,
+ * and these are the only parts of a run this module reads.
+ */
+type Tool = { name: string; description?: string; parameters?: unknown };
+type Message = { role: string; content?: unknown };
+type Context = { description: string; value: string };
+type Run = { tools?: Tool[]; messages?: Message[]; context?: Context[] };
 
 /** Share of the window the tools may take. The role, the guidance and the conversation need the rest. */
 export const TOOL_SHARE = 0.4;
@@ -51,6 +55,25 @@ const MANAGE = new Set([
 ]);
 /** A component a person looks at: showBarChart, showTable, askApproval, askForm. */
 const VISUAL_NAME = /^(show|ask)[A-Z]/;
+
+/**
+ * The kit for drawing whole screens: the A2UI protocol and the sandboxed interface.
+ *
+ * THIS, NOT THE TOOLS, WAS WHAT FILLED THE WINDOW. A built-in employee's "hi" to the model on this
+ * computer was a 98 KB request, and 64 KB of it was the system message: the browser sends the A2UI
+ * component catalog (50 KB of JSON), its schema, its generation and design rules, and the design guide
+ * for `generateSandboxedUi`, as context, with every message. That is more than the whole window of a
+ * 16K model before a single tool or word of the conversation. Measured by driving the app the way the
+ * DT Lab did, against a stand-in model that records what it is sent.
+ *
+ * The chart, table and form components (`show*`, `ask*`) are small and say what they draw in their own
+ * descriptions, so a local employee keeps those and loses only the kit for composing new screens.
+ */
+const SCREEN_TOOLS = new Set(["render_a2ui", "generateSandboxedUi"]);
+const SCREEN_CONTEXT =
+  /^(A2UI |Design guidelines for the generateSandboxedUi tool)/;
+/** Share of the window the screen kit may take before it is left out. */
+const SCREEN_SHARE = 0.25;
 
 type Group = "visual" | "manage" | "files";
 const GROUPS: Group[] = ["visual", "manage", "files"];
@@ -210,16 +233,15 @@ function groupOf(tool: Tool, deployment: ReadonlySet<string>): Group | null {
  * it. Then groups the person did not ask about and the thread has not used are left out, biggest
  * first, until they fit or nothing optional is left.
  */
-export function narrowTools(
-  tools: Tool[],
+export function narrowTools<T extends Tool>(
+  tools: T[],
   deployment: ReadonlySet<string>,
   messages: Message[],
   tokens: number | undefined = windowFromEnvironment(),
-): { offered: Tool[]; leftOut: string[] } {
+): { offered: T[]; leftOut: string[] } {
   if (tokens === undefined) return { offered: tools, leftOut: [] };
   const budget = Math.floor(tokens * TOOL_SHARE);
-  const total = (list: Tool[]) =>
-    list.reduce((sum, tool) => sum + cost(tool), 0);
+  const total = (list: T[]) => list.reduce((sum, tool) => sum + cost(tool), 0);
   if (total(tools) <= budget) return { offered: tools, leftOut: [] };
 
   const asked = lastPersonText(messages);
@@ -249,6 +271,59 @@ export function narrowTools(
     leftOut: tools
       .filter((tool) => !offered.includes(tool))
       .map((tool) => tool.name),
+  };
+}
+
+function contextCost(entry: Context): number {
+  return Math.floor(
+    (String(entry.description ?? "").length +
+      String(entry.value ?? "").length) /
+      3,
+  );
+}
+
+/**
+ * The run as it should reach a model with a small window, and the tool names it was not given.
+ *
+ * Unchanged when the window is not known. Otherwise the screen kit is left out when it would take
+ * more than its share (see `SCREEN_TOOLS`), and the tools are narrowed as `narrowTools` decides. The
+ * screen tools are not named in `leftOut`: they are not offered to this model on any turn, so telling
+ * it to ask for one by name would be a promise nobody keeps.
+ */
+export function fitToWindow<R extends Run>(
+  input: R,
+  deployment: ReadonlySet<string>,
+  tokens: number | undefined = windowFromEnvironment(),
+): { input: R; leftOut: string[] } {
+  if (tokens === undefined) return { input, leftOut: [] };
+  const context: NonNullable<R["context"]> = input.context ?? [];
+  const tools: NonNullable<R["tools"]> = input.tools ?? [];
+  const screenCost =
+    context
+      .filter((entry) => SCREEN_CONTEXT.test(String(entry.description ?? "")))
+      .reduce((sum, entry) => sum + contextCost(entry), 0) +
+    tools
+      .filter((tool) => SCREEN_TOOLS.has(tool.name))
+      .reduce((sum, tool) => sum + cost(tool), 0);
+  const withoutScreen = screenCost > tokens * SCREEN_SHARE;
+  const keptContext = withoutScreen
+    ? context.filter(
+        (entry) => !SCREEN_CONTEXT.test(String(entry.description ?? "")),
+      )
+    : context;
+  const keptTools = withoutScreen
+    ? tools.filter((tool) => !SCREEN_TOOLS.has(tool.name))
+    : tools;
+  const { offered, leftOut } = narrowTools(
+    keptTools,
+    deployment,
+    input.messages ?? [],
+    tokens,
+  );
+  if (offered === tools && keptContext === context) return { input, leftOut };
+  return {
+    input: { ...input, context: keptContext, tools: offered },
+    leftOut,
   };
 }
 
