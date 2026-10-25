@@ -21,6 +21,7 @@ import {
   leftOutNote,
   windowFromEnvironment,
 } from "../../shared/prompt-budget";
+import { withSingleTypes } from "../../shared/tool-schema";
 import { sanitizeSeededHistory } from "./agents/history-sanitize";
 import type { AgentActor } from "./agents/profile-types";
 import { withCurrentTeamwork } from "./agents/team";
@@ -1640,8 +1641,16 @@ class BuiltInAgentWithSaneHistory extends BuiltInAgent {
      * Nothing to load means nothing to inline, and the run goes up exactly as it did before any of
      * this existed.
      */
+    // One type per schema: the runtime turns these into validators and throws "Invalid JSON schema"
+    // on `["string", "null"]`, at any depth, before the model is asked (DT Lab, v0.1.14).
+    const tools = (input.tools ?? []).map((tool) => ({
+      ...tool,
+      parameters: withSingleTypes(tool.parameters),
+    }));
     if (!load)
-      return observeModelConnection(super.run({ ...input, messages: history }));
+      return observeModelConnection(
+        super.run({ ...input, tools, messages: history }),
+      );
     /*
      * Deferred, because `run` has to answer with a stream straight away and reading the bytes is a
      * database round trip. `defer` puts that read on the subscription, which is where the run
@@ -1658,7 +1667,7 @@ class BuiltInAgentWithSaneHistory extends BuiltInAgent {
         ),
       ).pipe(
         switchMap((messages) =>
-          observeModelConnection(super.run({ ...input, messages })),
+          observeModelConnection(super.run({ ...input, tools, messages })),
         ),
       ),
     );

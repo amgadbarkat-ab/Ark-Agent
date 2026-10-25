@@ -459,6 +459,61 @@ describe("the deployment's own model on a server that is not OpenAI", () => {
     });
   });
 
+  // DT Lab, v0.1.14: a tool whose array items were `{"type": ["string", "null"]}` failed the whole run
+  // with "Invalid JSON schema" before the model was asked.
+  test("a tool with nullable items is accepted, and reaches the model with one type", async () => {
+    await withProvider(async ({ url, mock, seen }) => {
+      mock.onMessage(/tag/, { content: "Tagged." });
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      try {
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "assistant",
+              name: "assistant",
+              type: "built_in" as const,
+              systemPrompt: "Tag things.",
+            },
+          ],
+          deploymentModel,
+          async () => "local-model-key",
+        );
+        const agent = built.assistant?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({ id: "q", role: "user", content: "tag this" });
+        await agent.runAgent({
+          tools: [
+            {
+              name: "set_tags",
+              description: "Set the tags.",
+              parameters: {
+                type: "object",
+                properties: {
+                  tags: { type: "array", items: { type: ["string", "null"] } },
+                },
+              },
+            },
+          ],
+        });
+        expect(agent.messages.at(-1)).toMatchObject({ content: "Tagged." });
+        const sent = JSON.parse(seen[0]?.body ?? "{}") as {
+          tools?: { function: { parameters: unknown } }[];
+        };
+        expect(JSON.stringify(sent.tools)).not.toContain('"null"');
+      } finally {
+        if (previous.base === undefined) delete process.env.OPENAI_BASE_URL;
+        else process.env.OPENAI_BASE_URL = previous.base;
+        if (previous.key === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = previous.key;
+      }
+    });
+  });
+
   test("OpenAI itself, and a deployment with no base URL, keep the runtime's own route", async () => {
     const { deploymentChatModel } = await import(
       "../src/models/language-model"
