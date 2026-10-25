@@ -1319,8 +1319,18 @@ async fn start_stack<R: tauri::Runtime>(
     let local = model.is_local();
     let result = start_stack_inner(app.clone(), root.clone(), model, harness).await;
     // A model that was started for a Start that then failed is several gigabytes held for nothing.
+    // Its row says so, because it said "running" a moment ago and nothing is running now.
     if local && result.is_err() {
+        let stopped = app.state::<Shell>().local_model.lock().unwrap().is_some();
         stop_local_model(&app.state::<Shell>(), &root);
+        if stopped {
+            report(
+                &app,
+                "model",
+                false,
+                "The model was stopped, because ArkAgent did not finish starting.",
+            );
+        }
     }
     result
 }
@@ -1373,6 +1383,17 @@ async fn start_stack_inner<R: tauri::Runtime>(
         harness::incompatible_with_model(harness.as_ref(), &model.provider, &model.login)
     {
         return Err(Problem::plain(said));
+    }
+    /*
+     * An out-of-date deployment is refused before the model is loaded, not after.
+     *
+     * Preparation refuses it anyway, but further down, after the model on this computer has been
+     * started: on a launch that resumed the last setup the DT Lab's window said "The model is
+     * running on this computer" while the Start that loaded it had already failed and stopped it
+     * again (v0.1.14). Asked here, nothing is started for a Start that cannot finish.
+     */
+    if let Some(tag) = deployment_release::behind_app(&root) {
+        return Err(openbot_desktop_lib::preparation::update_required(&tag));
     }
     let model = if model.is_local() {
         start_local_model(&app, &root, model.model.clone()).await?
