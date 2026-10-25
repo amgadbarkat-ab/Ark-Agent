@@ -12,6 +12,7 @@ import { defer, finalize, from, fromEvent, switchMap, takeUntil } from "rxjs";
 import { z } from "zod";
 import {
   COMPUTER_GUIDANCE,
+  CONVERSATION_GUIDANCE,
   PROVENANCE_GUIDANCE,
   SELF_DESCRIPTION_GUIDANCE,
 } from "../../shared/bot-prompt";
@@ -164,6 +165,7 @@ export function standingRoleMessage(
       ...(profile.memory ? [profile.memory] : []),
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
       SELF_DESCRIPTION_GUIDANCE,
+      CONVERSATION_GUIDANCE,
       /*
        * Here rather than in the package, because for a remote Bot the standing role is the only
        * instruction there is: `role_description` is one sentence somebody wrote about what it is
@@ -428,6 +430,12 @@ export function builtInAgentConfiguration(
     prompt: [
       agent.systemPrompt,
       ...(standing ? [standing] : []),
+      /*
+       * Who it is and how to talk, which a Bot at an endpoint is told in its standing role and a
+       * built-in employee was never told at all: asked "How are you?" it toured the platform.
+       */
+      SELF_DESCRIPTION_GUIDANCE,
+      CONVERSATION_GUIDANCE,
       /*
        * Unconditional, unlike the two below it.
        *
