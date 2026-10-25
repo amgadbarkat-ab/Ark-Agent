@@ -1372,6 +1372,9 @@ pub fn spawn_host_process(
         command.env("PORT", ports.server.to_string());
     }
     configure_host_process_runtime(&mut command, process.name);
+    if let Some(path) = path_with_bundled_bun(bun, std::env::var_os("PATH")) {
+        command.env("PATH", path);
+    }
     if process.script.is_empty() {
         command.args(["run", process.package_script]);
     } else {
@@ -1382,6 +1385,29 @@ pub fn spawn_host_process(
         .stderr(Stdio::from(err))
         .stdin(Stdio::null());
     command.spawn()
+}
+
+/// PATH with the bundled bun's folder first.
+///
+/// The app runs as a package script (`bun run serve`), and that script calls `bun` by name, so the
+/// shell found whichever bun came first on the machine's PATH: the DT Lab's box (v0.1.14) served the
+/// app on its own bun 1.4.2 from pnpm rather than the one ArkAgent ships and tests with. With the
+/// bundled one first, `bun` in any script is the one that started it. None when there is no folder to
+/// name, and the inherited PATH stays as it was.
+pub fn path_with_bundled_bun(
+    bun: &Path,
+    current: Option<std::ffi::OsString>,
+) -> Option<std::ffi::OsString> {
+    let folder = bun
+        .parent()
+        .filter(|folder| !folder.as_os_str().is_empty())?;
+    let rest = current
+        .as_deref()
+        .map(std::env::split_paths)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry != folder);
+    std::env::join_paths(std::iter::once(folder.to_path_buf()).chain(rest)).ok()
 }
 
 /// Keep a replacement handle even if refreshing durable ownership fails. The caller must
@@ -6211,6 +6237,25 @@ fn main() {
         );
         std::fs::remove_dir_all(listener_dir).unwrap();
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_bundled_bun_comes_first_on_the_path_its_scripts_see() {
+        let bundled = std::env::temp_dir().join("arkagent-bun").join("bun");
+        let folder = bundled.parent().unwrap().to_path_buf();
+        let system = std::env::temp_dir().join("usr-local-bin");
+        let current = std::env::join_paths([system.clone(), folder.clone()]).unwrap();
+        let path = path_with_bundled_bun(&bundled, Some(current)).unwrap();
+        let entries: Vec<_> = std::env::split_paths(&path).collect();
+        assert_eq!(entries, vec![folder.clone(), system]);
+        // No inherited PATH at all still names the bundled folder.
+        assert_eq!(
+            std::env::split_paths(&path_with_bundled_bun(&bundled, None).unwrap())
+                .collect::<Vec<_>>(),
+            vec![folder]
+        );
+        // A bare program name has no folder to put first.
+        assert!(path_with_bundled_bun(Path::new("bun"), None).is_none());
     }
 
     #[cfg(unix)]
