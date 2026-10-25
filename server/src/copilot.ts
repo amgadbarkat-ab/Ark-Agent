@@ -2398,6 +2398,14 @@ export function mountCopilotRuntime(
     // The subclass, not the base: a thread nobody has run yet reads as empty rather than as a 500.
     // See IntelligenceKnowingANewThread.
     intelligence: intelligenceClient,
+    /*
+     * The runtime's own thread names are off. It asks for one by running the employee itself again,
+     * with its whole prompt and every tool, and tries three times when the answer is not the JSON it
+     * wants: on the model on this computer that was three more full-size runs for every new
+     * conversation, and a run with tools that could act. Nothing here shows those names; a
+     * conversation is named by `channels/titler.ts`, in one small call.
+     */
+    generateThreadNames: false,
     licenseToken: intelligence.licenseToken,
     // Carried on the events the runtime already sends, so OpenBot's traffic is separable from any
     // other deployment's. Adds no events of its own.

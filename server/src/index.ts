@@ -78,7 +78,7 @@ import {
   summariseClaimedChannels,
 } from "./channels/summary";
 import { createThreadIdentity } from "./channels/thread-identity";
-import { createChannelTitler } from "./channels/titler";
+import { createChannelTitler, withPersonalModel } from "./channels/titler";
 import { createCloudGate } from "./cloud/gate";
 import { createCloudMeter } from "./cloud/meter";
 import { meteredComputerProvider, tenantOfBot } from "./cloud/provider";
@@ -1389,10 +1389,13 @@ const channelSummaries = {
   database,
   queue: createWorkQueue(database),
   transcript: routineIntelligence,
-  title: createChannelTitler({
-    model: runtimeModel.defaultModel,
-    resolveApiKey: resolveRuntimeModelApiKey,
-  }),
+  title: withPersonalModel(
+    createChannelTitler({
+      model: runtimeModel.defaultModel,
+      resolveApiKey: resolveRuntimeModelApiKey,
+    }),
+    async (userId) => (await modelForActor(userId))?.connection,
+  ),
   owner: workOwner("summariser"),
 };
 repeatAfterEach(async () => {
