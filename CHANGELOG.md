@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.15
+
 Fixes from the DT Lab's test of 0.1.14. Each was reproduced first, most of them by running the app,
 server and hub and walking the DT Lab's steps in a browser against a stand-in model that records what
 it is sent.
