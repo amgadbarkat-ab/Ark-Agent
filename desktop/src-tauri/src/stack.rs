@@ -953,6 +953,30 @@ pub fn stop_computers(engine: &Address, root: &Path) -> Result<bool, String> {
     Err(command_said(&stopped.stderr))
 }
 
+/// Whether this deployment's Compose project has containers on `engine`, running or stopped.
+///
+/// Asked when a Stop has no record of which engine started them: a desktop that was restarted, or
+/// updated, while its stack kept running. Compose scopes the listing to this folder's project, so a
+/// yes means these are this installation's containers and this is the engine holding them.
+pub fn project_has_containers(engine: &Address, root: &Path) -> Result<bool, String> {
+    let output = compose_command(engine, root, &Secrets::new())
+        .args([
+            "-f",
+            "docker-compose.yml",
+            "--profile",
+            "harness",
+            "ps",
+            "--all",
+            "--quiet",
+        ])
+        .output()
+        .map_err(|error| format!("could not list ArkAgent's containers: {error}"))?;
+    if !output.status.success() {
+        return Err(command_said(&output.stderr));
+    }
+    Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
+}
+
 pub fn down(engine: &Address, root: &Path) -> Result<(), String> {
     // Stop the supervisor and its runtime-created computers before removing the Compose stack.
     if !stop_computers(engine, root)? {
@@ -2573,7 +2597,14 @@ fn recorded_process_owns_port_unix(root: &Path, name: &str, port: u16) -> Result
         }) => unix_processes,
         _ => return Ok(false),
     };
-    let listening = unix_pids_listening_on(port)?;
+    // This desktop's own relays (`bridge.rs`) listen on the server's and the model's port numbers at
+    // the Docker bridge's address, and hand each connection to loopback. They are this process, not
+    // an unrelated one, so they neither prove nor disprove who owns the loopback listener. Counted,
+    // every Linux machine with Docker Engine failed this check with a healthy stack, because the
+    // relay was always a listener the records could not account for.
+    let own = std::process::id();
+    let mut listening = unix_pids_listening_on(port)?;
+    listening.retain(|pid| *pid != own);
     if listening.is_empty() {
         return Ok(false);
     }
@@ -6146,6 +6177,40 @@ fn main() {
             .unwrap();
         let port = port.trim().parse().unwrap();
         (child, port, dir)
+    }
+
+    // Linux only, like the relay itself: 127.0.0.2 stands in for the Docker bridge's address, and
+    // macOS has only 127.0.0.1 on its loopback.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn this_desktops_own_relay_on_the_server_port_does_not_cost_it_ownership() {
+        let root = temp_root("unix-owned-with-relay");
+        std::fs::create_dir_all(&root).unwrap();
+        let (mut listener, port, listener_dir) =
+            spawn_owned_listener("unix-owned-with-relay-listener");
+        record_host_processes(&root, &[("server", listener.id())]).unwrap();
+        let relay = crate::bridge::forward(std::net::Ipv4Addr::new(127, 0, 0, 2), port).unwrap();
+
+        assert!(
+            unix_pids_listening_on(port)
+                .unwrap()
+                .contains(&std::process::id()),
+            "the relay is a second listener on the same port, which is the case being tested"
+        );
+        assert!(
+            recorded_server_owns_port(&root, port).unwrap(),
+            "the recorded server owns the loopback listener; the other one is this process's relay"
+        );
+
+        drop(relay);
+        let _ = listener.kill();
+        listener.wait().expect("reap owned listener");
+        assert!(
+            !recorded_server_owns_port(&root, port).unwrap(),
+            "with the server gone, the relay alone is not a server this deployment owns"
+        );
+        std::fs::remove_dir_all(listener_dir).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
