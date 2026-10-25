@@ -18,20 +18,29 @@ import { serve } from "bun";
 import { eq, sql } from "drizzle-orm";
 import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
+import { createDrain } from "../../shared/drain";
 import { listenHosts } from "../../shared/listen-hosts";
+import { createReadiness } from "../../shared/readiness";
+import { TERMS_VERSION } from "../../shared/terms-version";
 import { workOwner } from "../../shared/work-owner";
+import { RunGateAgent } from "./accounts/run-gate";
+import { createRunSlots } from "./accounts/run-slots";
+import { billingModeFrom, createAccountStore } from "./accounts/store";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
 import { createAgentFetch } from "./agents/endpoint";
-import { askTheirOwnPerson, escalationTool } from "./agents/escalation";
 import { createHandoffDesk, HANDOFF_KIND } from "./agents/handoff";
 import { createHandoffDelivery } from "./agents/handoff-delivery";
 import { createHandoffRunner } from "./agents/handoff-runner";
 import { signHandoffDeliveryRun } from "./agents/handoff-signing";
-import { handoffTool } from "./agents/handoff-tool";
+import { createTeamReach } from "./agents/lead-reach";
 import { createAgentProfileStore } from "./agents/profile-store";
 import type { AgentActor } from "./agents/profile-types";
+import { createRunTools } from "./agents/run-tools";
 import { createRuntimeAgentLoader } from "./agents/runtime-agents";
+import { teamTools } from "./agents/team-tools";
 import { createApp } from "./app";
+import { approvalExecutors } from "./approvals/executors";
+import { createApprovalStore } from "./approvals/store";
 import {
   type AuditInitiator,
   createAuditReader,
@@ -49,6 +58,9 @@ import { createIdentityProviderStore } from "./auth/identity-provider-store";
 import { createOrganizationAuth } from "./auth/organization";
 import { organizationUserStore } from "./auth/organization-store";
 import type { OpenBotRole } from "./auth/roles";
+import type { BillingProvider } from "./billing/provider";
+import { billingFromEnvironment } from "./billing/select";
+import { createBillingWebhook } from "./billing/webhook";
 import {
   loadAttachmentForTurn,
   markAttachmentsSent,
@@ -67,8 +79,10 @@ import {
 } from "./channels/summary";
 import { createThreadIdentity } from "./channels/thread-identity";
 import { createChannelTitler } from "./channels/titler";
-import { createVoiceSessionStore } from "./voice/sessions";
-import { createVoiceSummarizer } from "./voice/summary";
+import { createCloudGate } from "./cloud/gate";
+import { createCloudMeter } from "./cloud/meter";
+import { meteredComputerProvider, tenantOfBot } from "./cloud/provider";
+import { createCloudStore } from "./cloud/store";
 import { createSandboxedStore } from "./components/sandboxed";
 import { createComponentStore } from "./components/store";
 import { createComputerGateway } from "./computer/gateway";
@@ -83,12 +97,7 @@ import {
   describeComputerIsolation,
 } from "./computer/provider";
 import { createSnapshotStore } from "./computer/snapshot-store";
-import { createCloudGate } from "./cloud/gate";
-import { createCloudMeter } from "./cloud/meter";
-import { meteredComputerProvider, tenantOfBot } from "./cloud/provider";
-import { createCloudStore } from "./cloud/store";
-import { loadConfig, LOCAL_APP_ORIGINS } from "./config";
-import { originAllowed, trustedOrigins } from "./origin-guard";
+import { LOCAL_APP_ORIGINS, loadConfig } from "./config";
 import {
   type IdentifyActor,
   type IdentifyUser,
@@ -109,22 +118,26 @@ import { agentProfiles, intelligenceChannelMappings } from "./db/schema";
 import { createHostAccessBroker } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
+import { createMarketplaceStore } from "./marketplace/store";
+import { createMemoryStore } from "./memories/store";
+import { memoryTools } from "./memories/tools";
+import { createModelConnectionStore } from "./models/connections";
+import {
+  createModelForActor,
+  createModelHeaderForActor,
+} from "./models/for-actor";
+import { createStarterModel } from "./models/starter";
 import {
   registerBusinessMetrics,
   serveMetrics,
   serverMetrics,
 } from "./observability";
-import { createDrain } from "../../shared/drain";
-import { createReadiness } from "../../shared/readiness";
-import { createOnboardingStore } from "./people/onboarding";
-import { createTermsStore } from "./people/terms";
-import { createPushSender, webPushSend } from "./push/sender";
-import { createPushStore } from "./push/store";
+import { originAllowed, trustedOrigins } from "./origin-guard";
 import { deploymentFacts } from "./overview/facts";
 import { createOverviewStore } from "./overview/store";
-import { TERMS_VERSION } from "../../shared/terms-version";
+import { createOnboardingStore } from "./people/onboarding";
 import { createPeopleStore } from "./people/store";
-import { createProviderOAuthProxy } from "./provider-oauth";
+import { createTermsStore } from "./people/terms";
 import { useRoutineTools } from "./plugins/builtin-routines";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
@@ -132,24 +145,14 @@ import { backfillComposioLogos } from "./plugins/logos";
 import { redirectUriFor } from "./plugins/oauth";
 import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
+import { hubConversations } from "./privacy/conversations";
+import { createProviderOAuthProxy } from "./provider-oauth";
+import { createPushSender, webPushSend } from "./push/sender";
+import { createPushStore } from "./push/store";
+import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
 import { createTurnRunner } from "./routines/run-turn";
 import { createRoutineRunner } from "./routines/runner";
-import { createTeamReach } from "./agents/lead-reach";
-import { teamTools } from "./agents/team-tools";
-import { approvalExecutors } from "./approvals/executors";
-import { createApprovalStore } from "./approvals/store";
-import { createMemoryStore } from "./memories/store";
-import { memoryTools } from "./memories/tools";
 import { createRoutineStore } from "./routines/store";
-import { RunGateAgent } from "./accounts/run-gate";
-import { billingFromEnvironment } from "./billing/select";
-import type { BillingProvider } from "./billing/provider";
-import { createBillingWebhook } from "./billing/webhook";
-import { createRunSlots } from "./accounts/run-slots";
-import { billingModeFrom, createAccountStore } from "./accounts/store";
-import { createMarketplaceStore } from "./marketplace/store";
-import { hubConversations } from "./privacy/conversations";
-import { dropRetiredPlanCredentials } from "./retired-plan-credentials";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
 import {
@@ -158,13 +161,9 @@ import {
   synchronizeTenantPackage,
 } from "./tenant-package";
 import { createUserInstructionsStore } from "./user-instructions";
-import { createModelConnectionStore } from "./models/connections";
-import { createStarterModel } from "./models/starter";
-import {
-  createModelForActor,
-  createModelHeaderForActor,
-} from "./models/for-actor";
 import { createUserPreferencesStore } from "./user-preferences";
+import { createVoiceSessionStore } from "./voice/sessions";
+import { createVoiceSummarizer } from "./voice/summary";
 import { repeatAfterEach } from "./work/loop";
 import {
   createWorkQueue,
@@ -1157,77 +1156,14 @@ const copilotRuntime = mountCopilotRuntime(
    * answer belongs, and both of those are the deployment's own statement about the run rather than
    * anything the model can edit.
    */
-  (actorId) => async (botId, input) => {
-    const from = readRunAssertion(
-      (input.forwardedProps as { openbotRun?: unknown } | undefined)
-        ?.openbotRun,
-      config.keyEncryptionKey,
-    );
-    const run = {
-      botId,
-      actorId,
-      runId: input.runId,
-      threadId: input.threadId,
-      depth: from?.depth ?? 0,
-      // Read from the assertion for the reason `depth` is: the run is rebuilt from parts here, and
-      // a field left out of this object is a field the desk and the escalation never see.
-      initiator: from?.initiator ?? PERSON_INITIATOR,
-      // And the request the chain descends from, for the cap that holds a whole chain to one number.
-      ...(from?.request ? { request: from.request } : {}),
-    };
-    /*
-     * The caps are checked BEFORE the grants query, not inside the tool that would discard it.
-     *
-     * `handoffTool` short-circuits on all three of these, but only after being handed a
-     * `hasSomebodyToAsk` that costs a query. So a deployment which switched the capability off
-     * still paid one grants read per run of every Bot, for a tool it was never going to be offered,
-     * and a run already at the cap paid it again.
-     */
-    const couldHandOn =
-      config.handoff.maxDepth > 0 &&
-      config.handoff.maxPerRun > 0 &&
-      run.depth < config.handoff.maxDepth;
-
-    const passing = couldHandOn
-      ? handoffTool({
-          desk: handoffDesk,
-          /*
-           * How deep this run already is comes from the assertion the deployment signed when it handed
-           * this work on. A run a person started carries none, and none means zero.
-           *
-           * NOT `from.botId`. The assertion proves what this run is, and the Bot is whichever one the
-           * runtime is building right now: on a hop those agree, and taking the id from the signed
-           * value rather than from the build would let a stale assertion aim the next hop at the
-           * wrong Bot's grants.
-           */
-          from: run,
-          // Read now rather than at boot, so a grant made a minute ago counts and one revoked a
-          // minute ago stops counting.
-          hasSomebodyToAsk:
-            (
-              await pluginStore
-                .botsReachableFrom(botId)
-                .catch(() => [] as string[])
-            ).length > 0,
-          maxDepth: config.handoff.maxDepth,
-          maxPerRun: config.handoff.maxPerRun,
-        })
-      : null;
-    /*
-     * The way to stop and ask is offered whether or not there is a Bot to hand to.
-     *
-     * It is the cheaper of the two and the one a Bot should reach for first: asking the person who
-     * is already in the conversation spends nothing and cannot be aimed anywhere they cannot see.
-     * A deployment that offered only the expensive exit would push every unanswerable question
-     * sideways into another run.
-     */
-    const asking = escalationTool({
-      from: run,
-      route: askTheirOwnPerson,
-      auditStore: bootAuditStore,
-    });
-    return passing ? [passing, asking] : [asking];
-  },
+  createRunTools({
+    keyEncryptionKey: config.keyEncryptionKey,
+    handoff: config.handoff,
+    desk: handoffDesk,
+    botsReachableFrom: (botId) => pluginStore.botsReachableFrom(botId),
+    auditStore: bootAuditStore,
+    team: teamToolDependencies,
+  }),
   // A run started or ended on a thread; light the channel it belongs to. Fire-and-forget, keyed by
   // thread, and a scratch thread maps to no channel and signals nowhere.
   (input) => {

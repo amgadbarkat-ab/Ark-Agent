@@ -161,8 +161,9 @@ describe("a hop, from the tool call to the delivery", () => {
     expect(seen?.message).toContain("find the outage window");
     expect(seen?.message).toContain("yesterday only");
     expect(seen?.message).toContain("a date range");
-    // Attributed by the deployment, from the row rather than from anything a model wrote.
-    expect(seen?.message).toContain(ASKER);
+    // Attributed by the deployment, from the row rather than from anything a model wrote: by the
+    // name the person gave it, which the colleague can read, and not its id.
+    expect(seen?.message).toStartWith("Asker has asked you");
   });
 
   test("a delivered hop is finished, so a second sweep does not run the Bot again", async () => {

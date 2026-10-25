@@ -386,6 +386,79 @@ describe("the deployment's own model on a server that is not OpenAI", () => {
     });
   });
 
+  /*
+   * The DT Lab's lead (v0.1.14) called team_ask and was refused with "asking a colleague works from a
+   * conversation": a built-in employee's team tools were built per request, before there was a run to
+   * ask as. The run's own copy has to be the one that executes.
+   */
+  test("a team tool built for the run replaces the request's copy, so asking a colleague knows the run", async () => {
+    await withProvider(async ({ url, mock }) => {
+      mock.on({ hasToolResult: true }, { content: "I have asked them." });
+      mock.onMessage(/colleague/, {
+        toolCalls: [
+          {
+            id: "c1",
+            name: "team_ask",
+            arguments: { colleague: "Research Analyst", task: "List risks." },
+          },
+        ],
+      });
+      const used: string[] = [];
+      const teamAsk = (which: "request" | "run") => ({
+        name: "team_ask",
+        ref: "team/ask",
+        description: "Ask a colleague for work.",
+        parameters: z.object({ colleague: z.string(), task: z.string() }),
+        execute: async () => {
+          used.push(which);
+          return which === "run" ? "Handed over." : "Refused. No run.";
+        },
+      });
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      try {
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "lead",
+              name: "lead",
+              type: "built_in" as const,
+              systemPrompt: "Lead the team.",
+            },
+          ],
+          deploymentModel,
+          async () => "local-model-key",
+          undefined,
+          async () => [teamAsk("request")],
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          async () => [teamAsk("run")],
+        );
+        const agent = built.lead?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({
+          id: "q",
+          role: "user",
+          content: "Ask your colleague for the risks.",
+        });
+        await agent.runAgent();
+        expect(used).toEqual(["run"]);
+      } finally {
+        if (previous.base === undefined) delete process.env.OPENAI_BASE_URL;
+        else process.env.OPENAI_BASE_URL = previous.base;
+        if (previous.key === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = previous.key;
+      }
+    });
+  });
+
   test("OpenAI itself, and a deployment with no base URL, keep the runtime's own route", async () => {
     const { deploymentChatModel } = await import(
       "../src/models/language-model"

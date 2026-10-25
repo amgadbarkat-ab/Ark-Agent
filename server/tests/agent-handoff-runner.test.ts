@@ -134,6 +134,26 @@ describe("delivering a hop", () => {
     expect(message).toContain("What a good answer looks like: a date range");
   });
 
+  test("the addressed Bot is told who asked by name, not by an id it cannot read", async () => {
+    const { runner: sweep, delivered } = runner({
+      claimed: [
+        {
+          kind: "bot.message",
+          key: "run-1:named",
+          payload: { ...WORK, fromName: "Chief of Operations" },
+          attempts: 1,
+        } as WorkItem,
+      ],
+    });
+
+    await sweep.sweep();
+
+    const message = delivered[0]?.message ?? "";
+    expect(message).toStartWith(
+      "Chief of Operations has asked you to help with this",
+    );
+  });
+
   test("the run it starts carries the depth this hop reached", async () => {
     const { runner: sweep, delivered } = runner();
 

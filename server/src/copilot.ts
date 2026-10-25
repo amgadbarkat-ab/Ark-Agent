@@ -22,6 +22,8 @@ import {
 } from "../../shared/prompt-budget";
 import { sanitizeSeededHistory } from "./agents/history-sanitize";
 import type { AgentActor } from "./agents/profile-types";
+import { withCurrentTeamwork } from "./agents/team";
+import { TEAM_TOOL_PREFIX } from "./agents/team-tools";
 import type { AuditInitiator } from "./audit";
 import {
   attachmentIdsIn,
@@ -155,7 +157,9 @@ export function standingRoleMessage(
     role: "system",
     content: [
       `You are ${profile.name}, ${profile.title}.`,
-      profile.persona?.trim() ? profile.persona : profile.roleDescription,
+      profile.persona?.trim()
+        ? withCurrentTeamwork(profile.persona)
+        : profile.roleDescription,
       ...(profile.team ? [profile.team] : []),
       ...(profile.memory ? [profile.memory] : []),
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
@@ -269,7 +273,11 @@ export function registeredAgentFromRow(
           type: "built_in",
           // The team rides with the instruction it was written for, since a built-in digital employee
           // has no standing role message to carry it.
-          systemPrompt: [trimmedSystemPrompt, row.team, row.memory]
+          systemPrompt: [
+            withCurrentTeamwork(trimmedSystemPrompt),
+            row.team,
+            row.memory,
+          ]
             .filter(Boolean)
             .join("\n\n"),
         }
@@ -1010,7 +1018,8 @@ async function buildAgent(
        */
       const passing = (await handoff?.(agent.id, input)) ?? [];
       signal.throwIfAborted();
-      const tools = passing.length > 0 ? [...offered, ...passing] : offered;
+      const tools =
+        passing.length > 0 ? withRunTools(offered, passing) : offered;
       // Nothing added and nothing narrowed means nothing to rebuild, and reusing the agent already
       // built for this request keeps that path allocation-for-allocation what it was.
       return tools.length === granted.length && passing.length === 0
@@ -1019,6 +1028,25 @@ async function buildAgent(
     },
     fitted,
   );
+}
+
+/**
+ * The run's own tools added to what was offered, each replacing the request's copy of the same name.
+ *
+ * The team tools are both: offered per request, so narrowing can see them, and built again per run,
+ * because asking a colleague has to know which run is asking. A per-run team tool is kept only where
+ * the request offered one by that name, so a run is never handed a team tool narrowing left out.
+ */
+export function withRunTools(
+  offered: readonly GrantedTool[],
+  perRun: readonly GrantedTool[],
+): GrantedTool[] {
+  const named = new Set(offered.map((tool) => tool.name));
+  const kept = perRun.filter(
+    (tool) => !tool.name.startsWith(TEAM_TOOL_PREFIX) || named.has(tool.name),
+  );
+  const replaced = new Set(kept.map((tool) => tool.name));
+  return [...offered.filter((tool) => !replaced.has(tool.name)), ...kept];
 }
 
 /**
@@ -2149,6 +2177,71 @@ class IntelligenceKnowingANewThread extends CopilotKitIntelligence {
  */
 const THREAD_LOCK_TTL_SECONDS = 120;
 
+/** The platform calls a conversation lock needs: create the thread if it is new, then lock it. */
+export type ConversationLockPlatform = Pick<
+  CopilotKitIntelligence,
+  "getOrCreateThread" | "ɵacquireThreadLock"
+>;
+
+/**
+ * The conversation's run lock, taken for a run this deployment starts itself (a hand-off's turn).
+ *
+ * Null when somebody else is running in it, which the caller treats as "try again later".
+ */
+export async function acquireConversationLock(
+  intelligenceClient: ConversationLockPlatform,
+  input: { threadId: string; runId: string; userId: string; agentId: string },
+  onRunBusy?: (input: { threadId: string; busy: boolean }) => void,
+): Promise<{ runId: string } | null> {
+  /*
+   * THE THREAD FIRST. A hop answers in a scratch thread minted for it, which nothing has created,
+   * and Ark Hub locks only a thread it holds: every hand-off on the desktop's own hub was
+   * refused with "thread not found" before its colleague ever ran (DT Lab, v0.1.14). The
+   * routines' headless turn creates its thread the same way (`routines/run-turn.ts`), and it is
+   * idempotent, so the relay leg, which locks the conversation that asked, is unchanged.
+   */
+  await intelligenceClient.getOrCreateThread({
+    threadId: input.threadId,
+    userId: input.userId,
+    agentId: input.agentId,
+  });
+  try {
+    const held = await intelligenceClient.ɵacquireThreadLock(input);
+    // A run started on this thread. Side effect only, never awaited: a channel showing it is
+    // working is worth nothing next to the lock the run depends on.
+    try {
+      onRunBusy?.({ threadId: input.threadId, busy: true });
+    } catch {}
+    /*
+     * The run id only. The lock also hands back a join token, which is what a browser presents
+     * to watch the conversation; the runner's socket has its own credential and passing this
+     * one in place of it means a socket that is refused and a run that never starts. See the
+     * note on `runner.run` in handoff-delivery.ts.
+     */
+    return { runId: held.runId };
+  } catch (error) {
+    /*
+     * ONLY A CONFLICT MEANS "NOT NOW". Everything else is raised.
+     *
+     * A conversation somebody is already running in answers 409, and that is ordinary: the hop
+     * waits and is tried again. Anything else is not — a platform that cannot be reached, a
+     * token that stopped working, or one of the underscored APIs below being renamed by a
+     * routine version bump. Returned as `null` those all read as contention: every hop retries
+     * to exhaustion, every person is told their question was never answered, and the only
+     * evidence is a warning line that looks like a busy conversation.
+     *
+     * Raised, the runner writes the real reason onto `agent.handoff_failed`, and the sentence
+     * the person eventually gets names it.
+     */
+    const status =
+      error instanceof Error && "status" in error
+        ? (error as { status?: unknown }).status
+        : undefined;
+    if (status === 409) return null;
+    throw error;
+  }
+}
+
 export function mountCopilotRuntime(
   config: DeploymentConfig,
   model: RuntimeModel,
@@ -2379,48 +2472,12 @@ export function mountCopilotRuntime(
      * the caller waits and tries again rather than two Bots writing over each other.
      */
     threadLock: {
-      acquire: async (input: {
+      acquire: (input: {
         threadId: string;
         runId: string;
         userId: string;
         agentId: string;
-      }) => {
-        try {
-          const held = await intelligenceClient.ɵacquireThreadLock(input);
-          // A run started on this thread. Side effect only, never awaited: a channel showing it is
-          // working is worth nothing next to the lock the run depends on.
-          try {
-            onRunBusy?.({ threadId: input.threadId, busy: true });
-          } catch {}
-          /*
-           * The run id only. The lock also hands back a join token, which is what a browser presents
-           * to watch the conversation; the runner's socket has its own credential and passing this
-           * one in place of it means a socket that is refused and a run that never starts. See the
-           * note on `runner.run` in handoff-delivery.ts.
-           */
-          return { runId: held.runId };
-        } catch (error) {
-          /*
-           * ONLY A CONFLICT MEANS "NOT NOW". Everything else is raised.
-           *
-           * A conversation somebody is already running in answers 409, and that is ordinary: the hop
-           * waits and is tried again. Anything else is not — a platform that cannot be reached, a
-           * token that stopped working, or one of the underscored APIs below being renamed by a
-           * routine version bump. Returned as `null` those all read as contention: every hop retries
-           * to exhaustion, every person is told their question was never answered, and the only
-           * evidence is a warning line that looks like a busy conversation.
-           *
-           * Raised, the runner writes the real reason onto `agent.handoff_failed`, and the sentence
-           * the person eventually gets names it.
-           */
-          const status =
-            error instanceof Error && "status" in error
-              ? (error as { status?: unknown }).status
-              : undefined;
-          if (status === 409) return null;
-          throw error;
-        }
-      },
+      }) => acquireConversationLock(intelligenceClient, input, onRunBusy),
       renew: async (input: { threadId: string; runId: string }) => {
         await intelligenceClient.ɵrenewThreadLock({
           ...input,

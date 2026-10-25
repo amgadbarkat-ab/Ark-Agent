@@ -557,7 +557,8 @@ function attribute(work: HandoffWork): string {
     return `${work.task}\n\nSay this in your own words to the person in this conversation, in a sentence or two. Do not hand it to another digital employee.`;
   }
   const lines = [
-    `${work.fromBotId} has asked you to help with this, on behalf of the person in this conversation.`,
+    // By name, as the person's own record says it: an id told the colleague nothing about who asked.
+    `${work.fromName ?? work.fromBotId} has asked you to help with this, on behalf of the person in this conversation.`,
     "",
     `Task: ${work.task}`,
   ];
