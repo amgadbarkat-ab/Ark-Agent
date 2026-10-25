@@ -19,7 +19,7 @@ from langgraph.graph import END
 
 from .model_override import UnreadableSelectionError
 from .parallel_tools import ParallelToolAgent
-from .prompt_budget import left_out_note, narrow
+from .prompt_budget import left_out_note, narrow, without_screen
 
 
 @dataclass(frozen=True)
@@ -74,11 +74,13 @@ class ToolAwareAgent(ParallelToolAgent):
         names = props.get("openbotDeploymentTools", [])
         assertion = props.get("openbotRun", "")
         messages, standing = lift_leading_system_turns(list(input.messages or []))
+        # A small window cannot hold the screen kit; see `prompt_budget.without_screen`.
+        tools, surface = without_screen(input.tools or [], input.context or [])
         context = RunTools(
-            tools=tuple(input.tools or []),
+            tools=tools,
             # The standing role first: it is who the coworker is, and what the surface adds is about
             # the screen it is on.
-            context=(*standing, *tuple(input.context or [])),
+            context=(*standing, *surface),
             deployment=frozenset(name for name in names if isinstance(name, str))
             if isinstance(names, list)
             else frozenset(),

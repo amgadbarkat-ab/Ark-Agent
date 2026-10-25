@@ -46,6 +46,7 @@ async function withProvider<T>(
       authorization: string | null;
       apiKey: string | null;
       model: unknown;
+      body: string;
     }>;
   }) => Promise<T>,
 ) {
@@ -55,6 +56,7 @@ async function withProvider<T>(
     authorization: string | null;
     apiKey: string | null;
     model: unknown;
+    body: string;
   }> = [];
   const base = await mock.start();
   const proxy = Bun.serve({
@@ -68,6 +70,7 @@ async function withProvider<T>(
         authorization: request.headers.get("authorization"),
         apiKey: request.headers.get("x-api-key"),
         model: (JSON.parse(body) as { model?: unknown }).model,
+        body,
       });
       return fetch(`${base}${path}`, {
         method: "POST",
@@ -256,6 +259,252 @@ describe("the deployment's own model on a server that is not OpenAI", () => {
         expect(
           seen.every((s) => s.authorization === "Bearer local-model-key"),
         ).toBe(true);
+      } finally {
+        if (previous.base === undefined) delete process.env.OPENAI_BASE_URL;
+        else process.env.OPENAI_BASE_URL = previous.base;
+        if (previous.key === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = previous.key;
+      }
+    });
+  });
+
+  /*
+   * The desktop's local model has a 16K window, and a built-in employee's "hi" was a 22K-token
+   * request: the browser's screen kit (the A2UI catalog above all) and every tool, sent whole. The
+   * DT Lab's v0.1.14 run failed every employee chat that way.
+   */
+  describe("with the window of the model on this computer", () => {
+    const catalog = "CATALOG-".repeat(6_000);
+    const screen = {
+      context: [
+        { description: "The page open", value: "Expenses" },
+        {
+          description:
+            "A2UI catalog capabilities: available catalog IDs and custom component definitions the client can render.",
+          value: catalog,
+        },
+      ],
+      tools: [
+        {
+          name: "render_a2ui",
+          description: "Render a surface.",
+          parameters: { type: "object", properties: {} },
+        },
+        {
+          name: "showBarChart",
+          description: "Show a bar chart. ".repeat(400),
+          parameters: { type: "object", properties: {} },
+        },
+      ],
+    };
+    const runOn = async (
+      model: Parameters<typeof resolveRuntimeAgents>[1],
+      url: string,
+    ) => {
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+        window: process.env.BOT_CONTEXT_TOKENS,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      process.env.BOT_CONTEXT_TOKENS = "16384";
+      try {
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "assistant",
+              name: "assistant",
+              type: "built_in" as const,
+              systemPrompt: "Answer using the granted balance tool.",
+            },
+          ],
+          model,
+          async () => "local-model-key",
+          undefined,
+          balanceTool([]),
+        );
+        const agent = built.assistant?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({ id: "q", role: "user", content: "hi" });
+        await agent.runAgent(screen);
+      } finally {
+        for (const [key, value] of [
+          ["OPENAI_BASE_URL", previous.base],
+          ["OPENAI_API_KEY", previous.key],
+          ["BOT_CONTEXT_TOKENS", previous.window],
+        ] as const) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
+    };
+    const sent = (body: string) =>
+      JSON.parse(body) as {
+        messages: Array<{ role: string; content: unknown }>;
+        tools?: Array<{ function: { name: string } }>;
+      };
+
+    test("a built-in employee's run is fitted to it: no screen kit, its own tools kept", async () => {
+      await withProvider(async ({ url, mock, seen }) => {
+        mock.onMessage(/hi/, { content: "Hello." });
+        await runOn(deploymentModel, url);
+        expect(seen).toHaveLength(1);
+        const request = sent(seen[0]?.body ?? "{}");
+        const system = String(request.messages[0]?.content ?? "");
+        const tools = (request.tools ?? []).map((tool) => tool.function.name);
+        expect(system).not.toContain("CATALOG-");
+        expect(system).toContain("Expenses");
+        expect(tools).toContain("read_balance");
+        expect(tools).not.toContain("render_a2ui");
+        // Small enough to stay once the screen kit is out of the way.
+        expect(tools).toContain("showBarChart");
+        expect((seen[0]?.body.length ?? 0) < 16_384 * 3).toBe(true);
+      });
+    });
+
+    test("a model the person connected themselves is sent everything, as before", async () => {
+      await withProvider(async ({ url, mock, seen }) => {
+        mock.onMessage(/hi/, { content: "Hello." });
+        const connection = languageModelFor(
+          {
+            providerId: "groq",
+            protocol: "openai",
+            baseUrl: `${url}/v1`,
+            apiKey: "persons-own-key",
+            model: "llama-their-choice",
+          },
+          lenient,
+        );
+        await runOn({ ...deploymentModel, connection }, url);
+        const request = sent(seen[0]?.body ?? "{}");
+        const tools = (request.tools ?? []).map((tool) => tool.function.name);
+        expect(String(request.messages[0]?.content)).toContain("CATALOG-");
+        expect(tools).toContain("render_a2ui");
+        expect(tools).toContain("showBarChart");
+      });
+    });
+  });
+
+  /*
+   * The DT Lab's lead (v0.1.14) called team_ask and was refused with "asking a colleague works from a
+   * conversation": a built-in employee's team tools were built per request, before there was a run to
+   * ask as. The run's own copy has to be the one that executes.
+   */
+  test("a team tool built for the run replaces the request's copy, so asking a colleague knows the run", async () => {
+    await withProvider(async ({ url, mock }) => {
+      mock.on({ hasToolResult: true }, { content: "I have asked them." });
+      mock.onMessage(/colleague/, {
+        toolCalls: [
+          {
+            id: "c1",
+            name: "team_ask",
+            arguments: { colleague: "Research Analyst", task: "List risks." },
+          },
+        ],
+      });
+      const used: string[] = [];
+      const teamAsk = (which: "request" | "run") => ({
+        name: "team_ask",
+        ref: "team/ask",
+        description: "Ask a colleague for work.",
+        parameters: z.object({ colleague: z.string(), task: z.string() }),
+        execute: async () => {
+          used.push(which);
+          return which === "run" ? "Handed over." : "Refused. No run.";
+        },
+      });
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      try {
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "lead",
+              name: "lead",
+              type: "built_in" as const,
+              systemPrompt: "Lead the team.",
+            },
+          ],
+          deploymentModel,
+          async () => "local-model-key",
+          undefined,
+          async () => [teamAsk("request")],
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          async () => [teamAsk("run")],
+        );
+        const agent = built.lead?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({
+          id: "q",
+          role: "user",
+          content: "Ask your colleague for the risks.",
+        });
+        await agent.runAgent();
+        expect(used).toEqual(["run"]);
+      } finally {
+        if (previous.base === undefined) delete process.env.OPENAI_BASE_URL;
+        else process.env.OPENAI_BASE_URL = previous.base;
+        if (previous.key === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = previous.key;
+      }
+    });
+  });
+
+  // DT Lab, v0.1.14: a tool whose array items were `{"type": ["string", "null"]}` failed the whole run
+  // with "Invalid JSON schema" before the model was asked.
+  test("a tool with nullable items is accepted, and reaches the model with one type", async () => {
+    await withProvider(async ({ url, mock, seen }) => {
+      mock.onMessage(/tag/, { content: "Tagged." });
+      const previous = {
+        base: process.env.OPENAI_BASE_URL,
+        key: process.env.OPENAI_API_KEY,
+      };
+      process.env.OPENAI_BASE_URL = `${url}/v1`;
+      process.env.OPENAI_API_KEY = "local-model-key";
+      try {
+        const built = await resolveRuntimeAgents(
+          async () => [
+            {
+              id: "assistant",
+              name: "assistant",
+              type: "built_in" as const,
+              systemPrompt: "Tag things.",
+            },
+          ],
+          deploymentModel,
+          async () => "local-model-key",
+        );
+        const agent = built.assistant?.clone();
+        if (!agent) throw new Error("agent was not built");
+        agent.addMessage({ id: "q", role: "user", content: "tag this" });
+        await agent.runAgent({
+          tools: [
+            {
+              name: "set_tags",
+              description: "Set the tags.",
+              parameters: {
+                type: "object",
+                properties: {
+                  tags: { type: "array", items: { type: ["string", "null"] } },
+                },
+              },
+            },
+          ],
+        });
+        expect(agent.messages.at(-1)).toMatchObject({ content: "Tagged." });
+        const sent = JSON.parse(seen[0]?.body ?? "{}") as {
+          tools?: { function: { parameters: unknown } }[];
+        };
+        expect(JSON.stringify(sent.tools)).not.toContain('"null"');
       } finally {
         if (previous.base === undefined) delete process.env.OPENAI_BASE_URL;
         else process.env.OPENAI_BASE_URL = previous.base;

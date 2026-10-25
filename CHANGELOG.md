@@ -8,6 +8,63 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+Fixes from the DT Lab's test of 0.1.14. Each was reproduced first, most of them by running the app,
+server and hub and walking the DT Lab's steps in a browser against a stand-in model that records what
+it is sent.
+
+### A lead can hand work to a colleague
+
+- **`team_ask` was refused for every built-in employee**, with "asking a colleague works from a
+  conversation". Team tools were built before there was a run to ask as. They are now built for the
+  run, as the hand-off and ask-a-person tools always were. A Bot at an endpoint was not affected.
+- **Every hand-off was then skipped on Ark Hub** with "thread not found": the colleague answers in a
+  new thread that nothing created, and the hub locks only a thread it holds. It is created first now.
+- **A hired employee's own instruction told it to ask the person to bring a colleague in**, ahead of
+  the team paragraph that gives it `team_ask`, and the lead believed the first. Colleagues on the team
+  are now for the team tools; only someone outside it is for the person. Employees hired before this
+  are read with the new line, and anything their owner added to the instruction stays.
+- The colleague is told the lead's name, not its internal id.
+
+### The model on this computer runs built-in employees
+
+- **Every built-in employee's chat was larger than the local model's window** (22,182 tokens against
+  16,384). Measured, most of it was the browser's kit for drawing screens: the A2UI catalog alone is
+  50 KB of JSON, sent with every message. On a small window the screen kit is left out and the tools
+  are narrowed, for built-in employees, both TypeScript Bots and the Python harness; a person's own
+  connected model is sent everything as before. Expense Review's "hi" went from 98 KB to 15.5 KB.
+
+### Conversation
+
+- **Small talk is answered as small talk.** "How are you?" got a tour of the platform and a
+  "Summary:" line. Every employee is now told to answer a greeting in a line or two, to keep headings
+  and summaries for documents somebody asked for, and to answer "what can you do" for its own role.
+  Built-in employees also get the self-description rule the Bots already had.
+- `scripts/conversation-check.ts` asks every employee those questions on a real model and checks the
+  answers. It needs a model key, so it is run by hand rather than in CI.
+- **Conversations are named by the model the person uses.** A person on Claude whose local model was
+  not running got no names; the deployment's model is now the fallback. The runtime's own naming, which
+  ran the whole employee three more times per new conversation, is off.
+- A tool whose list items allow `null` no longer fails a built-in employee's run with "Invalid JSON
+  schema".
+
+### Desktop
+
+- **"Could not verify its app on port 3010" on every Linux machine with Docker Engine.** The ownership
+  check counted the desktop's own relay (added in 0.1.14) as a stranger on the server's port. It no
+  longer does, and a restart drops the old relays before binding new ones.
+- **An app updated while the old stack was running** adopted it without offering the update, and Stop
+  refused. An older stack is not adopted any more, and Stop takes down this folder's containers on the
+  engine that holds them.
+- **"The model is running" with no model running**: an out-of-date stack is now refused before the
+  model is loaded, and a model stopped by a failed Start says so.
+- The bundled bun is first on the PATH of the processes the desktop starts.
+- An empty Digital Team page says where the shared employees are.
+
+### Not done
+
+- Nothing here was run on a real Windows or Linux desktop before release; the DT Lab's test is that.
+- Podman still listens on every interface (0.1.14, desk #40).
+
 ## 0.1.14
 
 Fixes from the DT Lab's test of 0.1.13 on a 16 GB Debian box with the model on this computer.

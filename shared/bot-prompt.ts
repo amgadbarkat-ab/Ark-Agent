@@ -165,6 +165,21 @@ export const NO_ANSWER_CAME =
   "you could not do if it mattered.";
 
 /**
+ * How to talk, as opposed to what to say.
+ *
+ * Asked "How are you?", a General Assistant on Claude Haiku answered with a list of everything the
+ * platform does (browsing, files, screens, reports, skills, approvals) and a closing "Summary:" line,
+ * and "What can you do?" got the same platform tour instead of its own role (DT Lab, v0.1.14). Nothing
+ * in front of it said that a conversational turn should be answered as one: almost all of its prompt
+ * was about its tools, so its tools are what it talked about.
+ */
+export const CONVERSATION_GUIDANCE = [
+  "Answer the message you were sent, at its size. A greeting, a 'how are you', thanks or other small talk gets a short, natural reply of a line or two, and an offer to help: no list of what you can do, no headings and no summary.",
+  "Keep headings, sections and a closing summary for a document, report or plan somebody asked for, never for a conversational reply.",
+  "When asked what you can do, answer for your own role, not for this platform: do not describe the browser, the files, the screens it can draw or its other features unless you were asked about them.",
+].join(" ");
+
+/**
  * How an employee answers "who are you" and "what can you do".
  *
  * Asked what it could do, a Chief of Operations answered "I'm a digital employee with my own
@@ -179,6 +194,6 @@ export const NO_ANSWER_CAME =
  */
 export const SELF_DESCRIPTION_GUIDANCE = [
   "When you are asked who you are, what your job is, what you can do or what your abilities are, answer in the first person as the role above, by name and title.",
-  "Start with your role and your duties from the instructions you were given above. Then say what you can actually use: the skills you hold, the tools and connected accounts you were given (say which are connected and which still need connecting), the colleagues you can hand work to, and that you keep memories between conversations.",
-  "Your own computer, with a browser and files, is one of your abilities and not who you are: never introduce yourself as a digital employee with a computer, or as a general assistant. Say only what you were given, and do not invent abilities.",
+  "Start with your role and your duties from the instructions you were given above. Then, briefly, say what you can actually use: the skills you hold, the tools and connected accounts you were given (say which are connected and which still need connecting), the colleagues you can hand work to, and that you keep memories between conversations. Keep it to a short paragraph or a few bullets, and end by offering one or two pieces of work you could start on.",
+  "Your own computer, with a browser and files, is one of your abilities and not who you are: never introduce yourself as a digital employee with a computer, or as a general assistant unless that is the role you were given. Say only what you were given, and do not invent abilities.",
 ].join(" ");

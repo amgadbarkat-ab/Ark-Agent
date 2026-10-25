@@ -953,6 +953,30 @@ pub fn stop_computers(engine: &Address, root: &Path) -> Result<bool, String> {
     Err(command_said(&stopped.stderr))
 }
 
+/// Whether this deployment's Compose project has containers on `engine`, running or stopped.
+///
+/// Asked when a Stop has no record of which engine started them: a desktop that was restarted, or
+/// updated, while its stack kept running. Compose scopes the listing to this folder's project, so a
+/// yes means these are this installation's containers and this is the engine holding them.
+pub fn project_has_containers(engine: &Address, root: &Path) -> Result<bool, String> {
+    let output = compose_command(engine, root, &Secrets::new())
+        .args([
+            "-f",
+            "docker-compose.yml",
+            "--profile",
+            "harness",
+            "ps",
+            "--all",
+            "--quiet",
+        ])
+        .output()
+        .map_err(|error| format!("could not list ArkAgent's containers: {error}"))?;
+    if !output.status.success() {
+        return Err(command_said(&output.stderr));
+    }
+    Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
+}
+
 pub fn down(engine: &Address, root: &Path) -> Result<(), String> {
     // Stop the supervisor and its runtime-created computers before removing the Compose stack.
     if !stop_computers(engine, root)? {
@@ -1348,6 +1372,9 @@ pub fn spawn_host_process(
         command.env("PORT", ports.server.to_string());
     }
     configure_host_process_runtime(&mut command, process.name);
+    if let Some(path) = path_with_bundled_bun(bun, std::env::var_os("PATH")) {
+        command.env("PATH", path);
+    }
     if process.script.is_empty() {
         command.args(["run", process.package_script]);
     } else {
@@ -1358,6 +1385,29 @@ pub fn spawn_host_process(
         .stderr(Stdio::from(err))
         .stdin(Stdio::null());
     command.spawn()
+}
+
+/// PATH with the bundled bun's folder first.
+///
+/// The app runs as a package script (`bun run serve`), and that script calls `bun` by name, so the
+/// shell found whichever bun came first on the machine's PATH: the DT Lab's box (v0.1.14) served the
+/// app on its own bun 1.4.2 from pnpm rather than the one ArkAgent ships and tests with. With the
+/// bundled one first, `bun` in any script is the one that started it. None when there is no folder to
+/// name, and the inherited PATH stays as it was.
+pub fn path_with_bundled_bun(
+    bun: &Path,
+    current: Option<std::ffi::OsString>,
+) -> Option<std::ffi::OsString> {
+    let folder = bun
+        .parent()
+        .filter(|folder| !folder.as_os_str().is_empty())?;
+    let rest = current
+        .as_deref()
+        .map(std::env::split_paths)
+        .into_iter()
+        .flatten()
+        .filter(|entry| entry != folder);
+    std::env::join_paths(std::iter::once(folder.to_path_buf()).chain(rest)).ok()
 }
 
 /// Keep a replacement handle even if refreshing durable ownership fails. The caller must
@@ -2573,7 +2623,14 @@ fn recorded_process_owns_port_unix(root: &Path, name: &str, port: u16) -> Result
         }) => unix_processes,
         _ => return Ok(false),
     };
-    let listening = unix_pids_listening_on(port)?;
+    // This desktop's own relays (`bridge.rs`) listen on the server's and the model's port numbers at
+    // the Docker bridge's address, and hand each connection to loopback. They are this process, not
+    // an unrelated one, so they neither prove nor disprove who owns the loopback listener. Counted,
+    // every Linux machine with Docker Engine failed this check with a healthy stack, because the
+    // relay was always a listener the records could not account for.
+    let own = std::process::id();
+    let mut listening = unix_pids_listening_on(port)?;
+    listening.retain(|pid| *pid != own);
     if listening.is_empty() {
         return Ok(false);
     }
@@ -6146,6 +6203,59 @@ fn main() {
             .unwrap();
         let port = port.trim().parse().unwrap();
         (child, port, dir)
+    }
+
+    // Linux only, like the relay itself: 127.0.0.2 stands in for the Docker bridge's address, and
+    // macOS has only 127.0.0.1 on its loopback.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn this_desktops_own_relay_on_the_server_port_does_not_cost_it_ownership() {
+        let root = temp_root("unix-owned-with-relay");
+        std::fs::create_dir_all(&root).unwrap();
+        let (mut listener, port, listener_dir) =
+            spawn_owned_listener("unix-owned-with-relay-listener");
+        record_host_processes(&root, &[("server", listener.id())]).unwrap();
+        let relay = crate::bridge::forward(std::net::Ipv4Addr::new(127, 0, 0, 2), port).unwrap();
+
+        assert!(
+            unix_pids_listening_on(port)
+                .unwrap()
+                .contains(&std::process::id()),
+            "the relay is a second listener on the same port, which is the case being tested"
+        );
+        assert!(
+            recorded_server_owns_port(&root, port).unwrap(),
+            "the recorded server owns the loopback listener; the other one is this process's relay"
+        );
+
+        drop(relay);
+        let _ = listener.kill();
+        listener.wait().expect("reap owned listener");
+        assert!(
+            !recorded_server_owns_port(&root, port).unwrap(),
+            "with the server gone, the relay alone is not a server this deployment owns"
+        );
+        std::fs::remove_dir_all(listener_dir).unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn the_bundled_bun_comes_first_on_the_path_its_scripts_see() {
+        let bundled = std::env::temp_dir().join("arkagent-bun").join("bun");
+        let folder = bundled.parent().unwrap().to_path_buf();
+        let system = std::env::temp_dir().join("usr-local-bin");
+        let current = std::env::join_paths([system.clone(), folder.clone()]).unwrap();
+        let path = path_with_bundled_bun(&bundled, Some(current)).unwrap();
+        let entries: Vec<_> = std::env::split_paths(&path).collect();
+        assert_eq!(entries, vec![folder.clone(), system]);
+        // No inherited PATH at all still names the bundled folder.
+        assert_eq!(
+            std::env::split_paths(&path_with_bundled_bun(&bundled, None).unwrap())
+                .collect::<Vec<_>>(),
+            vec![folder]
+        );
+        // A bare program name has no folder to put first.
+        assert!(path_with_bundled_bun(Path::new("bun"), None).is_none());
     }
 
     #[cfg(unix)]

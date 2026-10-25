@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createChannelTitler } from "../src/channels/titler";
+import { createChannelTitler, withPersonalModel } from "../src/channels/titler";
 
 function respondWith(body: unknown, status = 200) {
   const calls: { url: string; body: Record<string, unknown> }[] = [];
@@ -127,5 +127,48 @@ describe("asking the model for a title", () => {
     })("Asked: anything?");
 
     expect(answer).toBeNull();
+  });
+});
+
+describe("a title asked of the model the person chose", () => {
+  // Shaped like the language model a connection opens, answering with the text it is given.
+  const theirs = (answer: string | Error) =>
+    ({
+      specificationVersion: "v3",
+      doGenerate: async () => {
+        if (answer instanceof Error) throw answer;
+        return { content: [{ type: "text", text: answer }] };
+      },
+    }) as never;
+
+  test("their own model names the conversation, and the deployment's is not asked", async () => {
+    const asked: string[] = [];
+    const title = withPersonalModel(
+      async () => {
+        asked.push("deployment");
+        return "From the deployment";
+      },
+      async () => theirs("Unreceipted client dinner"),
+    );
+    expect(await title("Asked: ...", "person-1")).toBe(
+      "Unreceipted client dinner",
+    );
+    expect(asked).toEqual([]);
+  });
+
+  test("somebody with no model of their own is named by the deployment's, as before", async () => {
+    const title = withPersonalModel(
+      async () => "From the deployment",
+      async () => undefined,
+    );
+    expect(await title("Asked: ...", "person-1")).toBe("From the deployment");
+  });
+
+  test("when theirs cannot answer, the deployment's still may", async () => {
+    const title = withPersonalModel(
+      async () => "From the deployment",
+      async () => theirs(new Error("their provider is down")),
+    );
+    expect(await title("Asked: ...", "person-1")).toBe("From the deployment");
   });
 });

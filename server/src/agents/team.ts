@@ -45,6 +45,37 @@ function describe(member: TeamMember): string {
 }
 
 /**
+ * How a hired employee's own instruction speaks about teamwork, in its own voice.
+ *
+ * IT USED TO CONTRADICT THE TEAM PARAGRAPH. Every ready-made role was installed with "When a task
+ * needs someone else, such as a colleague ... I ask you to bring them in", and that line comes first,
+ * as the employee's own words, before the team paragraph that says the lead CAN ask a colleague with
+ * team_ask. Given both, the lead believed the first: asked by the DT Lab (v0.1.14) to have its
+ * Research Analyst list some risks, it said it had no colleagues it could call and answered itself.
+ * Colleagues on the team are now for the team tools, and only someone outside it is for the person to
+ * bring in.
+ */
+export const TEAMWORK =
+  "Teamwork: I am one digital employee among others. When part of a task belongs to a colleague on my digital team, I ask them for it with my team tools, as my team section says, and I report their answer back. When it needs someone who is not on the team, such as a manager, an expert or a reference, I say who and what I would ask them, and I ask you to bring them in. I never claim to have contacted anyone unless a tool shows that I did.";
+
+/** The line every install wrote before `TEAMWORK`, still stored in those employees' instructions. */
+const RETIRED_TEAMWORK =
+  "Teamwork: I am one digital employee among others and I cannot do every task alone. When a task needs someone else, such as a colleague, a manager, an expert or a reference, I say who and what I would ask them, and I ask you to bring them in. I never claim to have contacted anyone unless a tool shows that I did.";
+
+/**
+ * A stored instruction with its teamwork line brought up to date.
+ *
+ * Read-time rather than a migration, because the instruction is a copy the install wrote into the
+ * employee, and the person may have edited the rest of it since: only the exact retired sentence is
+ * replaced, and anything they wrote is left as they wrote it.
+ */
+export function withCurrentTeamwork(instruction: string): string {
+  return instruction.includes(RETIRED_TEAMWORK)
+    ? instruction.replace(RETIRED_TEAMWORK, TEAMWORK)
+    : instruction;
+}
+
+/**
  * The team paragraph for one employee, or null when it has no colleagues and does not lead.
  *
  * `team` is everyone the person owns, this employee included.

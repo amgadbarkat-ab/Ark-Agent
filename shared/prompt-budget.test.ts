@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { RunAgentInput } from "@ag-ui/core";
 import {
+  fitToWindow,
   leftOutNote,
   narrowTools,
   windowFromEnvironment,
@@ -122,4 +123,60 @@ test("the model is told what it was not given", () => {
   const note = leftOutNote(["showBarChart", "save_bot"]);
   expect(note).toContain("not offered on this turn");
   expect(note).toContain("showBarChart, save_bot");
+});
+
+describe("the screen kit on a small window", () => {
+  // What the browser sends a built-in employee with every message, at the size it was measured:
+  // the A2UI catalog alone was 50 KB of the 98 KB request the DT Lab's "hi" turned into.
+  const kit = [
+    {
+      description:
+        "A2UI catalog capabilities: available catalog IDs and custom component definitions the client can render.",
+      value: "c".repeat(50_000),
+    },
+    {
+      description:
+        "A2UI generation guidelines — protocol rules, tool arguments, path rules, data model format, and form/two-way-binding instructions.",
+      value: "g".repeat(6_000),
+    },
+    {
+      description:
+        "Design guidelines for the generateSandboxedUi tool. Follow these when building UI.",
+      value: "d".repeat(3_000),
+    },
+  ];
+  const ownPage = { description: "The page open", value: "Expenses" };
+  const run = (text: string) => ({
+    messages: [person(text)],
+    context: [ownPage, ...kit],
+    tools: [...TOOLS, tool("render_a2ui"), tool("generateSandboxedUi")],
+  });
+
+  test("is left out, with its tools, and the page's own context stays", () => {
+    const { input, leftOut } = fitToWindow(run("hi"), DEPLOYMENT, 16_384);
+    expect(input.context).toEqual([ownPage]);
+    expect(names(input.tools)).not.toContain("render_a2ui");
+    expect(names(input.tools)).not.toContain("generateSandboxedUi");
+    // Not offered on any turn, so the model is not told to ask for them by name.
+    expect(leftOut).not.toContain("render_a2ui");
+    expect(leftOut).not.toContain("generateSandboxedUi");
+  });
+
+  test("is left out even when the person asks for a chart, and the chart tools are offered", () => {
+    const { input } = fitToWindow(
+      run("show me a bar chart of my expenses"),
+      DEPLOYMENT,
+      16_384,
+    );
+    expect(input.context).toEqual([ownPage]);
+    expect(names(input.tools)).toContain("showBarChart");
+  });
+
+  test("stays when the window is not known, or is large enough to hold it", () => {
+    const whole = run("hi");
+    expect(fitToWindow(whole, DEPLOYMENT, undefined).input).toBe(whole);
+    expect(fitToWindow(whole, DEPLOYMENT, 200_000).input.context).toEqual(
+      whole.context,
+    );
+  });
 });

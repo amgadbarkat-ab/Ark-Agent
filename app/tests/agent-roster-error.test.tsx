@@ -454,9 +454,11 @@ test("a failed REFETCH on /agents with the other slice empty also shows it as em
   await waitForFailedRefetch(queryClient);
 
   expect(await view.findByText("Shared Agent")).toBeTruthy();
+  // With somebody shared, the empty team says where they are rather than that there is nobody (DT
+  // Lab, v0.1.14: an empty team beside fourteen employees on the home page, and nothing to say why).
   expect(
     await view.findByText(
-      "You don't have any digital employees yet. Hire one below, or create your own.",
+      "You don't have digital employees of your own yet. The ones on the home page are shared with everybody here, and are listed under Shared with you below. Hire one, or create your own, to build a team that works for you.",
     ),
   ).toBeTruthy();
   expect(view.queryByText("Your digital team couldn't be loaded.")).toBeNull();

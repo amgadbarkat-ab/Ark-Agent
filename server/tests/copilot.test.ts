@@ -7,6 +7,7 @@ import { LLMock } from "@copilotkit/aimock";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { EMPTY } from "rxjs";
 import {
+  CONVERSATION_GUIDANCE,
   PROVENANCE_GUIDANCE,
   SELF_DESCRIPTION_GUIDANCE,
 } from "../../shared/bot-prompt";
@@ -246,7 +247,9 @@ describe("registered Copilot agents", () => {
       model: "openai/gpt-5.6-terra",
       // The provenance rule is unconditional, so even a Bot with no tools and no computer carries
       // it. That Bot needs it most: nothing it says was read anywhere.
-      prompt: `Be helpful.\n\n${PROVENANCE_GUIDANCE}`,
+      // Who it is and how to talk, then where answers come from: a built-in employee is told what a
+      // Bot at an endpoint hears in its standing role.
+      prompt: `Be helpful.\n\n${SELF_DESCRIPTION_GUIDANCE}\n\n${CONVERSATION_GUIDANCE}\n\n${PROVENANCE_GUIDANCE}`,
       apiKey: "openai-secret",
     });
   });
@@ -569,6 +572,7 @@ describe("standing agent roles", () => {
         "Review receipts, categorize expenses, and prepare reimbursement reports.",
         "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
         SELF_DESCRIPTION_GUIDANCE,
+        CONVERSATION_GUIDANCE,
         // For a remote Bot this message is the whole instruction, so the provenance rule has to
         // travel in it or the Bot never hears it. Referenced rather than restated, so the assertion
         // stays exact without pinning the wording twice.
@@ -774,6 +778,7 @@ describe("standing agent roles", () => {
         "Reconcile corporate card statements.",
         "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
         SELF_DESCRIPTION_GUIDANCE,
+        CONVERSATION_GUIDANCE,
         PROVENANCE_GUIDANCE,
       ].join("\n\n"),
     );
@@ -1171,7 +1176,9 @@ describe("a person's standing instructions", () => {
       expect(prompt).not.toContain("standing instructions");
       // Byte for byte what a deployment had before any of this existed, which is what most people
       // on most days get.
-      expect(prompt).toBe(`Be helpful.\n\n${PROVENANCE_GUIDANCE}`);
+      expect(prompt).toBe(
+        `Be helpful.\n\n${SELF_DESCRIPTION_GUIDANCE}\n\n${CONVERSATION_GUIDANCE}\n\n${PROVENANCE_GUIDANCE}`,
+      );
     },
   );
 

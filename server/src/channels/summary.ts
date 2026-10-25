@@ -29,7 +29,11 @@ const MAX_SUMMARY_GRAPHEMES = 60;
 const MAX_EXCERPT_GRAPHEMES = 600;
 
 /** A seam, so a test drives every path with no key and no network. Null means nothing worth writing. */
-export type ChannelTitler = (excerpt: string) => Promise<string | null>;
+/** `ownerUserId` is whose conversation it is, so a title can be asked of the model they chose. */
+export type ChannelTitler = (
+  excerpt: string,
+  ownerUserId?: string,
+) => Promise<string | null>;
 
 /** The one method of the Intelligence client this file uses. Narrowed for the same reason. */
 export type ThreadTranscript = {
@@ -241,7 +245,7 @@ async function summariseOne(
   if (!excerpt) return "not yet";
 
   // Final, unlike the two above: no key or nothing usable does not change a minute later.
-  const answer = await options.title(excerpt);
+  const answer = await options.title(excerpt, owner.userId);
   if (!answer) return "nothing to name it with";
 
   const title = oneLine(stripWrappingQuotes(answer), MAX_SUMMARY_GRAPHEMES);

@@ -1,4 +1,5 @@
 import type { CategoryId } from "../../../shared/marketplace";
+import { TEAMWORK } from "../agents/team";
 import {
   type ConnectionRequest,
   type McpRequest,
@@ -94,8 +95,9 @@ function bullets(items: string[]): string {
  * address or nothing at all, in which case the employee says it works for the person who set it up rather
  * than naming something it was not told.
  *
- * It promises only what exists. It does not say the employee can message a colleague or open an account; it
- * says what it would ask, and asks the person to bring the colleague in.
+ * It promises only what exists. A colleague on the person's team is asked through the team tools, which the
+ * team paragraph describes for this employee; anyone else, it says what it would ask and asks the person to
+ * bring them in (see `TEAMWORK`).
  */
 export function composeInstruction(
   listing: { title: string; role: OfficialRole },
@@ -123,7 +125,7 @@ export function composeInstruction(
     `To do this work well I will ask you to connect these accounts: ${connections}. And these servers: ${servers}. They only work once you connect them. If something I need is not connected, I say so plainly and ask you to connect it in Settings; I never pretend I used it.`,
     LANGUAGE,
     ...(role.outreach ? [OUTREACH] : []),
-    "Teamwork: I am one digital employee among others and I cannot do every task alone. When a task needs someone else, such as a colleague, a manager, an expert or a reference, I say who and what I would ask them, and I ask you to bring them in. I never claim to have contacted anyone unless a tool shows that I did.",
+    TEAMWORK,
     HONESTY,
   ].join("\n\n");
 }

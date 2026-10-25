@@ -13,6 +13,7 @@ import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
 import type { AgentActor } from "../src/agents/profile-types";
 import { createRuntimeAgentLoader } from "../src/agents/runtime-agents";
+import { TEAMWORK } from "../src/agents/team";
 import { createDatabase } from "../src/db/client";
 import {
   agentProfiles,
@@ -985,6 +986,18 @@ describe("a digital employee installed from a role", () => {
     return row?.persona ?? null;
   }
 
+  /** What the employee is told, whichever kind it runs as: a built-in's prompt, or a Bot's standing role. */
+  function instructionLoaded(
+    loaded: Awaited<ReturnType<ReturnType<typeof createRuntimeAgentLoader>>>,
+    id: string,
+  ): string {
+    const agent = loaded.find((candidate) => candidate.id === id);
+    if (!agent) return "";
+    if ("standingMessage" in agent)
+      return String(agent.standingMessage.content);
+    return "systemPrompt" in agent ? String(agent.systemPrompt) : "";
+  }
+
   test("knows who it is, names the company and brings its skills", async () => {
     const { store, calls } = storeWithSkills();
     const ann = await person("role-company");
@@ -1008,6 +1021,55 @@ describe("a digital employee installed from a role", () => {
     expect(calls.granted).toEqual(
       calls.installed.map((slug) => `skill-${slug}`),
     );
+  });
+
+  /*
+   * The DT Lab (v0.1.14) hired Chief of Operations and Research Analyst and asked the lead to have its
+   * colleague list some risks. It said it had no colleagues it could call. Its own instruction told it
+   * to ask the person to bring a colleague in, ahead of the team paragraph that gives it team_ask.
+   */
+  test("hired as a team, the lead's instruction sends a colleague's part to the colleague", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-team");
+    const lead = await store.install(ann, "operations-coordinator");
+    const analyst = await store.install(ann, "research-analyst");
+    made.agents.push(lead.agentId, analyst.agentId);
+
+    const loaded = await createRuntimeAgentLoader(database)(ann);
+    const prompt = (id: string) => instructionLoaded(loaded, id);
+    const said = prompt(lead.agentId);
+    expect(said).toContain("Your colleagues are Research Analyst");
+    expect(said).toContain("you CAN reach your colleagues");
+    expect(said).toContain("team_ask");
+    expect(said).toContain(TEAMWORK);
+    expect(said).not.toContain("I cannot do every task alone");
+    expect(prompt(analyst.agentId)).toContain(TEAMWORK);
+  });
+
+  test("installed before the teamwork line changed, it is read with the current one", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-team-legacy");
+    const lead = await store.install(ann, "operations-coordinator");
+    const analyst = await store.install(ann, "research-analyst");
+    made.agents.push(lead.agentId, analyst.agentId);
+    // What every install wrote from v0.1.10 to v0.1.14, still stored in those employees.
+    const retired =
+      "Teamwork: I am one digital employee among others and I cannot do every task alone. When a task needs someone else, such as a colleague, a manager, an expert or a reference, I say who and what I would ask them, and I ask you to bring them in. I never claim to have contacted anyone unless a tool shows that I did.";
+    // Whichever kind it was installed as, the instruction is stored as its persona.
+    const stored = (await instructionOf(lead.agentId)) ?? "";
+    await database
+      .update(agentProfiles)
+      .set({
+        persona: `${stored.replace(TEAMWORK, retired)}\n\nAlways copy in the finance lead.`,
+      })
+      .where(eq(agentProfiles.agentId, lead.agentId));
+
+    const loaded = await createRuntimeAgentLoader(database)(ann);
+    const said = instructionLoaded(loaded, lead.agentId);
+    expect(said).not.toContain("I cannot do every task alone");
+    expect(said).toContain(TEAMWORK);
+    // What the person added to it is theirs, and stays.
+    expect(said).toContain("Always copy in the finance lead.");
   });
 
   test("does not call an email address a company", async () => {

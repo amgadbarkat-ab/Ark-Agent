@@ -2,7 +2,9 @@
  * One model call for a few words. Not a Bot and not a turn: a title is not said to anybody and is
  * not part of the conversation it names, so there is no runtime work and no thread to hold.
  */
+import type { ConnectionLanguageModel } from "../models/language-model";
 import { chatCompletionsUrl } from "../routing/model";
+import type { ChannelTitler } from "./summary";
 import { oneLine } from "./text";
 
 /** Rules, not an example: a model copies an example's subject as readily as its shape. */
@@ -69,5 +71,46 @@ export function createChannelTitler(options: TitlerOptions) {
     if (typeof content !== "string") return null;
     const answer = content.trim();
     return answer.length > 0 ? answer : null;
+  };
+}
+
+/**
+ * The same rules, asked of the model the person who owns the conversation chose, when they chose one.
+ *
+ * A title was only ever asked of the deployment's model. On the desktop that is the model on this
+ * computer, and a person who had switched to Claude because theirs could not run their employees got
+ * no titles at all: the DT Lab's sidebar (v0.1.14) showed a conversation's last line in place of its
+ * name. Their own model answers first; the deployment's is the fallback, as it was the only one before.
+ */
+export function withPersonalModel(
+  deployment: ChannelTitler,
+  personal: (userId: string) => Promise<ConnectionLanguageModel | undefined>,
+  timeoutMs = 20_000,
+): ChannelTitler {
+  return async (excerpt, ownerUserId) => {
+    const model = ownerUserId
+      ? await personal(ownerUserId).catch(() => undefined)
+      : undefined;
+    if (model) {
+      try {
+        const result = await model.doGenerate({
+          prompt: [
+            { role: "system", content: INSTRUCTION },
+            { role: "user", content: [{ type: "text", text: excerpt }] },
+          ],
+          // Reasoning tokens come out of this budget, as above.
+          maxOutputTokens: 512,
+          abortSignal: AbortSignal.timeout(timeoutMs),
+        });
+        const text = result.content
+          .map((part) => (part.type === "text" ? part.text : ""))
+          .join("")
+          .trim();
+        if (text) return text;
+      } catch {
+        // Their model could not answer; the deployment's may.
+      }
+    }
+    return deployment(excerpt, ownerUserId);
   };
 }

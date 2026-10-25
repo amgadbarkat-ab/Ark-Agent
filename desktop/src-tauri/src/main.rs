@@ -1319,8 +1319,18 @@ async fn start_stack<R: tauri::Runtime>(
     let local = model.is_local();
     let result = start_stack_inner(app.clone(), root.clone(), model, harness).await;
     // A model that was started for a Start that then failed is several gigabytes held for nothing.
+    // Its row says so, because it said "running" a moment ago and nothing is running now.
     if local && result.is_err() {
+        let stopped = app.state::<Shell>().local_model.lock().unwrap().is_some();
         stop_local_model(&app.state::<Shell>(), &root);
+        if stopped {
+            report(
+                &app,
+                "model",
+                false,
+                "The model was stopped, because ArkAgent did not finish starting.",
+            );
+        }
     }
     result
 }
@@ -1373,6 +1383,17 @@ async fn start_stack_inner<R: tauri::Runtime>(
         harness::incompatible_with_model(harness.as_ref(), &model.provider, &model.login)
     {
         return Err(Problem::plain(said));
+    }
+    /*
+     * An out-of-date deployment is refused before the model is loaded, not after.
+     *
+     * Preparation refuses it anyway, but further down, after the model on this computer has been
+     * started: on a launch that resumed the last setup the DT Lab's window said "The model is
+     * running on this computer" while the Start that loaded it had already failed and stopped it
+     * again (v0.1.14). Asked here, nothing is started for a Start that cannot finish.
+     */
+    if let Some(tag) = deployment_release::behind_app(&root) {
+        return Err(openbot_desktop_lib::preparation::update_required(&tag));
     }
     let model = if model.is_local() {
         start_local_model(&app, &root, model.model.clone()).await?
@@ -1601,6 +1622,9 @@ async fn start_stack_inner<R: tauri::Runtime>(
          * bridge's address is relayed to it (see `bridge.rs`), as is the model on this computer.
          * Podman, and a Linux machine whose bridge cannot be read, keep every interface, as before.
          */
+        // The previous start's relays first: they hold the very addresses the new ones bind, so a
+        // restart that kept them would fail to relay and fall back to every interface.
+        shell.bridges.lock().unwrap().clear();
         let mut relays = Vec::new();
         let loopback_only = match found.engine {
             engine::Engine::Podman => false,
@@ -1823,11 +1847,48 @@ fn down_owned_containers(shell: &Shell, root: &Path) -> Result<(), String> {
     match containers.as_ref() {
         Some(owned) => stack::down(&owned.address, root),
         None if shell.stopped_container_root.lock().unwrap().as_deref() == Some(root) => Ok(()),
-        None if root.join("docker-compose.yml").exists() => Err(
-            "ArkAgent has no runtime ownership for this installation. Stop its containers using the original engine and context before starting ArkAgent again.".into(),
-        ),
+        None if root.join("docker-compose.yml").exists() => {
+            drop(containers);
+            down_adopted_containers(
+                shell,
+                root,
+                &[engine::Engine::Docker, engine::Engine::Podman],
+            )
+        }
         None => Ok(()),
     }
+}
+
+const NO_RUNTIME_OWNERSHIP: &str = "ArkAgent has no runtime ownership for this installation. Stop its containers using the original engine and context before starting ArkAgent again.";
+
+/// Stop containers this session did not start, once an engine shows they are this installation's.
+///
+/// A desktop that is restarted or updated while its stack keeps running has no record of which
+/// engine started it, and Stop used to refuse outright: the DT Lab updated 0.1.13 to 0.1.14 with the
+/// stack up and could only clear it by hand. Each engine that answers is asked for this folder's
+/// Compose project, and the first that has containers in it is the one that runs them. When none
+/// does, nothing was verified and the refusal stands, because claiming a cleanup that did not happen
+/// is the failure the refusal exists to prevent.
+fn down_adopted_containers(
+    shell: &Shell,
+    root: &Path,
+    engines: &[engine::Engine],
+) -> Result<(), String> {
+    for engine in engines {
+        let address = engine::Address::new(*engine, None);
+        if !address.responds() {
+            continue;
+        }
+        let Ok(address) = address.pin() else {
+            continue;
+        };
+        if stack::project_has_containers(&address, root).unwrap_or(false) {
+            stack::down(&address, root)?;
+            *shell.stopped_container_root.lock().unwrap() = Some(root.to_path_buf());
+            return Ok(());
+        }
+    }
+    Err(NO_RUNTIME_OWNERSHIP.into())
 }
 
 /// Merely viewing setup does not give this session containers to shut down.
@@ -2675,7 +2736,10 @@ fn already_running<R: tauri::Runtime>(app: tauri::AppHandle<R>, root: String) ->
 }
 
 fn already_running_at(root: &Path, ports: &openbot_env::Ports) -> bool {
-    owned_app_url(root, ports).is_some()
+    // A stack older than this app is not adopted, however healthy: showing it would hide the update
+    // from the person who just installed one. The setup window offers "Update and start" instead,
+    // and that Start reclaims the old host processes and replaces the containers.
+    deployment_release::behind_app(root).is_none() && owned_app_url(root, ports).is_some()
 }
 
 /// Neither an owned API nor an answering app port alone authorizes showing a deployment.
@@ -5950,6 +6014,9 @@ fn main() {
         ["compose","-f","docker-compose.yml","config","--format","json"] => println!("{{\"services\":{{\"supervisor\":{{\"environment\":{{\"COMPUTER_NAMESPACE\":\"fixture\"}}}}}}}}"),
         ["compose","-f","docker-compose.yml","stop","supervisor"] => (),
         ["ps","--quiet","--filter",_,"--filter",_] => (),
+        ["compose","-f","docker-compose.yml","--profile","harness","ps","--all","--quiet"] => {
+            if fs::read_to_string(cwd.join("fixture-containers-running")).ok().as_deref()==Some(&identity) { println!("fixture-container"); }
+        }
         ["compose","-f","docker-compose.yml","--profile","harness","down"] => {
             if cwd.join("fail-down").exists() { eprintln!("synthetic down refusal");std::process::exit(73); }
             if fs::read_to_string(cwd.join("fixture-containers-running")).ok().as_deref()==Some(&identity) {
@@ -6626,7 +6693,10 @@ fn main() {
                 .as_str()
                 .unwrap()
                 .contains("no runtime ownership"));
-            assert!(fixture.commands().is_empty());
+            assert!(
+                !fixture.commands().contains(" down"),
+                "with nothing of this installation's on any engine, Stop must not take anything down"
+            );
             fixture.start(&fixture.a, false);
             fixture.stop().unwrap();
             let commands = fixture.commands();
@@ -6637,6 +6707,24 @@ fn main() {
                 commands,
                 "verified down needs no further engine selection"
             );
+        }
+
+        #[test]
+        fn stop_takes_over_containers_an_earlier_session_left_running() {
+            if crate::test_support::isolated_process(
+                "tests::container_root::stop_takes_over_containers_an_earlier_session_left_running",
+            ) {
+                return;
+            }
+            let fixture = Fixture::new();
+            fixture.start(&fixture.a, false);
+            // The desktop was restarted (or updated) while its stack kept running: this session has
+            // no record of the engine that started the containers.
+            let shell = fixture.app.state::<Shell>();
+            *shell.containers.lock().unwrap() = None;
+            remember_selected_root(&shell, &fixture.a);
+            fixture.stop().unwrap();
+            fixture.assert_stopped();
         }
 
         #[test]
@@ -9986,6 +10074,19 @@ fn main() {
         let destination = app.get_webview_window("main").unwrap().url().unwrap();
         assert!(!initial_adoption && shown.is_err() && destination.as_str() == "tauri://localhost/",
             "owned API must not authorize a foreign app: initial={initial_adoption}, shown={shown:?}, restore={destination}");
+    }
+
+    #[test]
+    fn a_running_stack_older_than_this_app_is_not_adopted() {
+        let f = RestoreFixture::with_app_descendant(false);
+        assert!(already_running_at(&f.owned, &f.ports));
+        // The DT Lab installed 0.1.14 while 0.1.13's stack was up, and the new app showed the old
+        // stack with no offer to update it.
+        deployment::record(&f.owned, "v0.0.1").unwrap();
+        assert!(
+            !already_running_at(&f.owned, &f.ports),
+            "an older deployment must reach setup, where Update and start is offered"
+        );
     }
 
     #[test]
