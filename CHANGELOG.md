@@ -8,6 +8,21 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Every digital employee answers in the customer's language
+
+- **Every employee now has the same language rule:** reply in the language the customer or colleague
+  writes in (Greek, English or Arabic), use English when unsure, keep names, amounts, VAT numbers and
+  dates exactly as given, and say so rather than guess when a term cannot be written correctly. Until
+  now only the ready-made roles had a language line, and it said to ask when unsure; the starter
+  employees and any employee a person wrote themselves had none.
+- Employees hired before this are read without the old line, so two rules that disagree never reach
+  the model. Anything their owner added to the instruction stays.
+
+### Model checks
+
+- `scripts/starter-model-toolcheck.ts` asks in Arabic too (an email, a search, and a greeting that
+  must be answered in Arabic), and `scripts/starter-model-benchmark.ts` takes `--prompt arabic`.
+
 ## 0.1.15
 
 Fixes from the DT Lab's test of 0.1.14. Each was reproduced first, most of them by running the app,
