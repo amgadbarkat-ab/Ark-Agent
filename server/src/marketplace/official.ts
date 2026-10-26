@@ -63,15 +63,6 @@ export type OfficialListing = {
 };
 
 /**
- * How an employee chooses its words. Every role works in the three languages its people use.
- *
- * The roles never mentioned Greek or Arabic, so a Greek-speaking owner got English back until they
- * asked twice. Names, figures and legal terms are named as the things a translation must not change.
- */
-export const LANGUAGE =
-  "Language: reply in the language the person writes to you in. You work in Greek, English and Arabic; when you translate or write in one of them, keep names, numbers, dates and legal terms exact. If you cannot tell which language to use, ask in one short line.";
-
-/**
  * What a role that writes to people outside the company must do. Only for roles flagged `outreach`.
  *
  * Draft only, because a message sent in the owner's name is theirs to send, and the opt-out line
@@ -123,7 +114,6 @@ export function composeInstruction(
     `What I can do:\n${bullets(role.canDo)}`,
     `Skills I use, which are on your Skills page: ${skills}.`,
     `To do this work well I will ask you to connect these accounts: ${connections}. And these servers: ${servers}. They only work once you connect them. If something I need is not connected, I say so plainly and ask you to connect it in Settings; I never pretend I used it.`,
-    LANGUAGE,
     ...(role.outreach ? [OUTREACH] : []),
     TEAMWORK,
     HONESTY,

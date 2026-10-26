@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CONVERSATION_GUIDANCE } from "../shared/bot-prompt";
+import { CONVERSATION_GUIDANCE, LANGUAGE_GUIDANCE } from "../shared/bot-prompt";
 import {
   checkCapabilities,
   checkGreeting,
@@ -58,7 +58,7 @@ describe("a reply to What can you do?", () => {
   });
 });
 
-test("every employee checked is prompted the way the server prompts it, conversation guidance included", async () => {
+test("every employee checked is prompted the way the server prompts it, conversation and language guidance included", async () => {
   const all = await employees();
   expect(all.length).toBeGreaterThan(10);
   expect(all.some((employee) => employee.id === "general-assistant")).toBe(
@@ -69,5 +69,7 @@ test("every employee checked is prompted the way the server prompts it, conversa
   );
   for (const employee of all) {
     expect(employee.prompt).toContain(CONVERSATION_GUIDANCE);
+    // The approved rule, once: the ready-made roles used to carry a language line of their own.
+    expect(employee.prompt.split(LANGUAGE_GUIDANCE)).toHaveLength(2);
   }
 });

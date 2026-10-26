@@ -1072,6 +1072,28 @@ describe("a digital employee installed from a role", () => {
     expect(said).toContain("Always copy in the finance lead.");
   });
 
+  test("hired with the language line the approved rule replaced, it is read without it", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-language-legacy");
+    const sales = await store.install(ann, "sales");
+    made.agents.push(sales.agentId);
+    // What every install wrote from v0.1.11 to v0.1.15, still stored in those employees.
+    const retired =
+      "Language: reply in the language the person writes to you in. You work in Greek, English and Arabic; when you translate or write in one of them, keep names, numbers, dates and legal terms exact. If you cannot tell which language to use, ask in one short line.";
+    const stored = (await instructionOf(sales.agentId)) ?? "";
+    await database
+      .update(agentProfiles)
+      .set({
+        persona: `${stored}\n\n${retired}\n\nAlways copy in the finance lead.`,
+      })
+      .where(eq(agentProfiles.agentId, sales.agentId));
+
+    const loaded = await createRuntimeAgentLoader(database)(ann);
+    const said = instructionLoaded(loaded, sales.agentId);
+    expect(said).not.toContain("ask in one short line");
+    expect(said).toContain("Always copy in the finance lead.");
+  });
+
   test("does not call an email address a company", async () => {
     const { store } = storeWithSkills();
     const ann = await person("role-email");
