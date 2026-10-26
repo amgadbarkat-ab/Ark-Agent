@@ -13,8 +13,10 @@ import { z } from "zod";
 import {
   COMPUTER_GUIDANCE,
   CONVERSATION_GUIDANCE,
+  LANGUAGE_GUIDANCE,
   PROVENANCE_GUIDANCE,
   SELF_DESCRIPTION_GUIDANCE,
+  withoutRetiredLanguage,
 } from "../../shared/bot-prompt";
 import {
   fitToWindow,
@@ -160,13 +162,14 @@ export function standingRoleMessage(
     content: [
       `You are ${profile.name}, ${profile.title}.`,
       profile.persona?.trim()
-        ? withCurrentTeamwork(profile.persona)
+        ? withoutRetiredLanguage(withCurrentTeamwork(profile.persona))
         : profile.roleDescription,
       ...(profile.team ? [profile.team] : []),
       ...(profile.memory ? [profile.memory] : []),
       "This standing role applies in every channel. Treat channel messages as task-specific instructions within it.",
       SELF_DESCRIPTION_GUIDANCE,
       CONVERSATION_GUIDANCE,
+      LANGUAGE_GUIDANCE,
       /*
        * Here rather than in the package, because for a remote Bot the standing role is the only
        * instruction there is: `role_description` is one sentence somebody wrote about what it is
@@ -277,7 +280,7 @@ export function registeredAgentFromRow(
           // The team rides with the instruction it was written for, since a built-in digital employee
           // has no standing role message to carry it.
           systemPrompt: [
-            withCurrentTeamwork(trimmedSystemPrompt),
+            withoutRetiredLanguage(withCurrentTeamwork(trimmedSystemPrompt)),
             row.team,
             row.memory,
           ]
@@ -437,6 +440,7 @@ export function builtInAgentConfiguration(
        */
       SELF_DESCRIPTION_GUIDANCE,
       CONVERSATION_GUIDANCE,
+      LANGUAGE_GUIDANCE,
       /*
        * Unconditional, unlike the two below it.
        *

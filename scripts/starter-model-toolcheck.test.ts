@@ -105,6 +105,26 @@ describe("judging an answer", () => {
     );
     expect(judge(byId("words-el"), { content: "Γεια σου!" }).ok).toBe(true);
   });
+
+  test("an Arabic request answered without Arabic letters fails", () => {
+    expect(judge(byId("words-ar"), { content: "Hello there" }).why).toBe(
+      "answered an Arabic request without Arabic",
+    );
+    expect(judge(byId("words-ar"), { content: "مرحبًا!" }).ok).toBe(true);
+  });
+
+  test("an Arabic email keeps the address and the invoice number", () => {
+    expect(
+      judge(
+        byId("email-ar"),
+        call("send_email", {
+          to: "omar@example.com",
+          subject: "الفاتورة 2087",
+          body: "ستُدفع الفاتورة 2087 يوم الخميس.",
+        }),
+      ).ok,
+    ).toBe(true);
+  });
 });
 
 describe("running against a server", () => {

@@ -84,12 +84,10 @@ describe("Ark's digital employees", () => {
     }
   });
 
-  test("every role works in Greek, English and Arabic and keeps names and figures exact", () => {
+  test("a role is hired without a language line of its own, because every employee is given the approved one", () => {
     for (const listing of OFFICIAL_LISTINGS) {
-      const text = composeInstruction(listing, null);
-      expect(text, listing.slug).toContain("Greek, English and Arabic");
-      expect(text, listing.slug).toContain(
-        "names, numbers, dates and legal terms",
+      expect(composeInstruction(listing, null), listing.slug).not.toContain(
+        "Language:",
       );
     }
   });

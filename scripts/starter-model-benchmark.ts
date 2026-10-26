@@ -21,6 +21,8 @@ const PROMPTS: Record<string, string> = {
     "Write a short, friendly reply to a customer who asks when their invoice will be paid. Keep it under 80 words.",
   greek:
     "Γράψε μια σύντομη, φιλική απάντηση σε έναν πελάτη που ρωτά πότε θα πληρωθεί το τιμολόγιό του. Έως 80 λέξεις.",
+  arabic:
+    "اكتب ردًا قصيرًا وودودًا على عميل يسأل متى سيتم دفع فاتورته. لا يزيد عن 80 كلمة.",
 };
 
 type Options = {

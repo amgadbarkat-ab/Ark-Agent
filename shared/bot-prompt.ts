@@ -165,6 +165,35 @@ export const NO_ANSWER_CAME =
   "you could not do if it mattered.";
 
 /**
+ * Which language to answer in, for every digital employee: the rule Amgad approved on 22 Oct 2026,
+ * word for word.
+ *
+ * Here rather than in the ready-made roles, because those were the only employees that had a language
+ * rule at all: the ones a desktop starts with, and any the person writes themselves, answered a Greek
+ * question in English.
+ */
+export const LANGUAGE_GUIDANCE =
+  "Reply in the language the customer or colleague writes in: Greek, English or Arabic. If you're unsure, use English. Keep names, amounts, VAT numbers and dates exactly as given. If you can't write a term correctly in that language, say so; don't guess.";
+
+/**
+ * The language line a ready-made role was hired with before the approved one. It said to ask when
+ * unsure, which the approved rule replaces with English, so the two cannot both be in front of a model.
+ */
+const RETIRED_LANGUAGE =
+  "Language: reply in the language the person writes to you in. You work in Greek, English and Arabic; when you translate or write in one of them, keep names, numbers, dates and legal terms exact. If you cannot tell which language to use, ask in one short line.";
+
+/**
+ * A stored instruction without the retired language line. Read-time, like `withCurrentTeamwork`: the
+ * instruction is a copy the hire wrote, the person may have edited the rest, and only the exact
+ * retired paragraph is taken out.
+ */
+export function withoutRetiredLanguage(instruction: string): string {
+  return instruction
+    .replace(`\n\n${RETIRED_LANGUAGE}`, "")
+    .replace(RETIRED_LANGUAGE, "");
+}
+
+/**
  * How to talk, as opposed to what to say.
  *
  * Asked "How are you?", a General Assistant on Claude Haiku answered with a list of everything the

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Asks an OpenAI-compatible model to do the things a bot does, and counts how often it does them right:
- * call the right tool with arguments that are valid and complete, in English and in Greek, and NOT call a
+ * call the right tool with arguments that are valid and complete, in English, Greek and Arabic, and NOT call a
  * tool when none is wanted.
  *
  *   bun scripts/starter-model-toolcheck.ts --url http://127.0.0.1:8080/v1 --token <token> \
@@ -87,7 +87,7 @@ export const TOOLS: Tool[] = [
 
 export type Case = {
   id: string;
-  language: "english" | "greek";
+  language: "english" | "greek" | "arabic";
   prompt: string;
   /** The tool that should be called, or null when the right answer is words only. */
   expect: null | {
@@ -158,6 +158,28 @@ export const CASES: Case[] = [
     prompt: "Πες μου γεια με μία σύντομη πρόταση.",
     expect: null,
   },
+  {
+    id: "email-ar",
+    language: "arabic",
+    prompt:
+      "أرسل بريدًا إلى omar@example.com وأخبره أن الفاتورة 2087 ستُدفع يوم الخميس.",
+    expect: {
+      tool: "send_email",
+      contains: { to: "omar@example.com", body: "2087" },
+    },
+  },
+  {
+    id: "search-ar",
+    language: "arabic",
+    prompt: "ما هو سعر خام Brent اليوم؟",
+    expect: { tool: "search_web", contains: { query: "brent" } },
+  },
+  {
+    id: "words-ar",
+    language: "arabic",
+    prompt: "قل لي مرحبًا بجملة قصيرة واحدة.",
+    expect: null,
+  },
 ];
 
 export type ToolCall = {
@@ -172,6 +194,7 @@ export type Message = {
 export type Verdict = { ok: boolean; why: string };
 
 const GREEK = /[Ͱ-Ͽἀ-῿]/;
+const ARABIC = /[\u0600-\u06FF]/;
 
 /** Whether one answer is what the case wanted, and if not, the first thing wrong with it. */
 export function judge(wanted: Case, message: Message): Verdict {
@@ -187,6 +210,9 @@ export function judge(wanted: Case, message: Message): Verdict {
     if (!text) return { ok: false, why: "no words and no tool" };
     if (wanted.language === "greek" && !GREEK.test(text)) {
       return { ok: false, why: "answered a Greek request without Greek" };
+    }
+    if (wanted.language === "arabic" && !ARABIC.test(text)) {
+      return { ok: false, why: "answered an Arabic request without Arabic" };
     }
     return { ok: true, why: "answered in words" };
   }
