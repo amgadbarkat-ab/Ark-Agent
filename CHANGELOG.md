@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.16
+
 ### Every digital employee answers in the customer's language
 
 - **Every employee now has the same language rule:** reply in the language the customer or colleague
