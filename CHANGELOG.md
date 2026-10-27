@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.17
+
 ### Hired digital employees know who they are and can reach their team
 
 - **A hired employee was sent none of its role, tools or memory.** On the desktop every employee you
