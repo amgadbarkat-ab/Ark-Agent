@@ -160,7 +160,10 @@ export function standingRoleMessage(
     id: `standing-role:${profile.id}`,
     role: "system",
     content: [
-      `You are ${profile.name}, ${profile.title}.`,
+      // A ready-made role is named after its title: "Chief of Operations, Chief of Operations" read as a slip.
+      profile.title.trim().toLowerCase() === profile.name.trim().toLowerCase()
+        ? `You are ${profile.name}.`
+        : `You are ${profile.name}, ${profile.title}.`,
       profile.persona?.trim()
         ? withoutRetiredLanguage(withCurrentTeamwork(profile.persona))
         : profile.roleDescription,
@@ -1445,26 +1448,23 @@ function remoteAgentWithStandingRole(
    * straight away. `defer` puts the work on the subscription, which is where the run actually
    * begins, so nothing happens until somebody is listening and a retried run chooses again.
    */
-  return new CloningRemoteAgent(remote, (target) => {
-    target.use((input, next) => {
-      const stream = defer(() =>
-        from(narrow ? narrow(input) : Promise.resolve(tools)).pipe(
-          switchMap((offered) => runWith(offered, input, next)),
-        ),
+  return new CloningRemoteAgent(remote, (input, next) => {
+    const stream = defer(() =>
+      from(narrow ? narrow(input) : Promise.resolve(tools)).pipe(
+        switchMap((offered) => runWith(offered, input, next)),
+      ),
+    );
+    const owned =
+      !!process.env.MANAGED_AGENT_TOKEN &&
+      agent.headers?.["x-openbot-agent-token"] ===
+        process.env.MANAGED_AGENT_TOKEN &&
+      [
+        process.env.PICKED_HARNESS_URL,
+        process.env.MANAGED_AGENT_AG_UI_URL,
+      ].some(
+        (url) => url?.replace(/\/$/, "") === agent.endpoint.replace(/\/$/, ""),
       );
-      const owned =
-        !!process.env.MANAGED_AGENT_TOKEN &&
-        agent.headers?.["x-openbot-agent-token"] ===
-          process.env.MANAGED_AGENT_TOKEN &&
-        [
-          process.env.PICKED_HARNESS_URL,
-          process.env.MANAGED_AGENT_AG_UI_URL,
-        ].some(
-          (url) =>
-            url?.replace(/\/$/, "") === agent.endpoint.replace(/\/$/, ""),
-        );
-      return owned ? observeModelConnection(stream) : stream;
-    });
+    return owned ? observeModelConnection(stream) : stream;
   });
 }
 
@@ -1527,13 +1527,26 @@ function mastraOpenBotContext({
   ];
 }
 
+/**
+ * A remote Bot with this deployment's run around it: its standing role, its tools, its signed run.
+ *
+ * APPLIED IN `run`, NOT AS `.use()` MIDDLEWARE. `.use()` runs only under `runAgent`, and the plan's
+ * gate (`RunGateAgent`) starts its inner agent with `run`. Every remote Bot is behind that gate, so on
+ * the desktop, where every hired employee runs at the bundled LangGraph Bot, the endpoint got none of
+ * it: role 0 characters, no team tools, no memory tools. Asked who it was, Chief of Operations
+ * described the browser; asked to hand work to a colleague, it said it had no way to (DT Lab and the
+ * owner, v0.1.11 to v0.1.16). Here, both ways in pass through it exactly once.
+ */
 class CloningRemoteAgent extends AbstractAgent {
   headers?: AgentHeaders;
   private readonly remote: HeaderBearingAgent;
 
   constructor(
     remote: AbstractAgent,
-    private readonly attachOpenBotMiddleware: (target: AbstractAgent) => void,
+    private readonly wrap: (
+      input: RunAgentInput,
+      next: AbstractAgent,
+    ) => Observable<BaseEvent>,
   ) {
     super({
       agentId: remote.agentId,
@@ -1547,14 +1560,13 @@ class CloningRemoteAgent extends AbstractAgent {
     if (this.remote.headers) {
       this.headers = { ...this.remote.headers };
     }
-    this.attachOpenBotMiddleware(this);
   }
 
   run(input: RunAgentInput): Observable<BaseEvent> {
     if (this.headers) {
       this.remote.headers = { ...this.headers };
     }
-    return this.remote.run(input);
+    return this.wrap(input, this.remote);
   }
 
   async getCapabilities() {
@@ -1568,10 +1580,7 @@ class CloningRemoteAgent extends AbstractAgent {
 
   clone() {
     const clonedRemote = this.remote.clone() as AbstractAgent;
-    const clone = new CloningRemoteAgent(
-      clonedRemote,
-      this.attachOpenBotMiddleware,
-    );
+    const clone = new CloningRemoteAgent(clonedRemote, this.wrap);
     if (this.headers) {
       clone.headers = { ...this.headers };
     }

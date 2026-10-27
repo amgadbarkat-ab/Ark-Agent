@@ -6,12 +6,14 @@ import { HttpAgent } from "@ag-ui/client";
 import { LLMock } from "@copilotkit/aimock";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
 import { EMPTY } from "rxjs";
+import { z } from "zod";
 import {
   CONVERSATION_GUIDANCE,
   LANGUAGE_GUIDANCE,
   PROVENANCE_GUIDANCE,
   SELF_DESCRIPTION_GUIDANCE,
 } from "../../shared/bot-prompt";
+import { RunGateAgent } from "../src/accounts/run-gate";
 import { MAX_INLINED_BYTES_PER_RUN } from "../src/channels/attachment-parts";
 import { loadConfig } from "../src/config";
 import type { LoadAttachment } from "../src/copilot";
@@ -605,6 +607,74 @@ describe("standing agent roles", () => {
       userMessage("Sort these."),
     ]);
     expect(result?.newMessages?.at(-1)?.content).toBe("Categorized.");
+  });
+
+  /*
+   * The way every remote Bot is really run: behind the plan's gate, which starts it with `run`.
+   *
+   * The standing role and the tools were added as `.use()` middleware, which only `runAgent` applies,
+   * so behind the gate the endpoint got none of it. On the desktop every hired employee runs at the
+   * bundled LangGraph Bot, and Chief of Operations answered "who are you?" with a description of the
+   * browser and said it had no way to ask a colleague (DT Lab and the owner, v0.1.11 to v0.1.16).
+   */
+  test("sends the standing role and the tools when the plan's gate runs it", async () => {
+    await using endpoint = fakeAgUiEndpoint();
+    const agents = await buildAgents(
+      [remoteAgent(endpoint.url)],
+      { provider: "openai", defaultModel: "gpt-5.6-terra" },
+      null,
+      undefined,
+      async () => [
+        {
+          name: "team_ask",
+          ref: "team/ask",
+          description: "Ask a colleague.",
+          parameters: z.object({}),
+          execute: async () => "asked",
+        },
+      ],
+    );
+    const gate = new RunGateAgent(
+      built(agents, "agent_expense"),
+      { actorId: "owner-1", botId: "agent_expense" },
+      {
+        accounts: {
+          entitlementFor: async () =>
+            ({
+              canRun: true,
+              tenantId: "tenant-1",
+              maxActiveBots: null,
+            }) as never,
+        },
+        slots: {
+          tryAcquire: async () => ({ ok: true }),
+          release: async () => {},
+          activeBots: async () => 0,
+          ttlMs: 60_000,
+        },
+      },
+    );
+
+    await new Promise<void>((resolve, reject) =>
+      gate
+        .run({
+          threadId: "thread-1",
+          runId: "run-1",
+          messages: [userMessage("Who are you?")],
+          tools: [],
+          context: [],
+          state: {},
+          forwardedProps: {},
+        })
+        .subscribe({ complete: resolve, error: reject }),
+    );
+
+    const sent = endpoint.requests.at(-1) as {
+      messages: { id: string }[];
+      tools: { name: string }[];
+    };
+    expect(sent.messages[0]).toEqual(standingRoleMessage(profile));
+    expect(sent.tools.map((tool) => tool.name)).toContain("team_ask");
   });
 
   test("keeps the standing role out of forwarded props and agent state", async () => {

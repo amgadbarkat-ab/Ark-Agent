@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AgentCard } from "@/components/agents/agent-card";
-import { Composer, toAgentOptions } from "@/components/channels/composer";
 import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
+import { Composer, toAgentOptions } from "@/components/channels/composer";
 import { SidebarToggleBar } from "@/components/layout/sidebar-toggle";
 import {
   Carousel,
@@ -97,8 +97,10 @@ function RouteComponent() {
             // Said out loud: a message that silently reaches somebody you did not choose is the
             // kind of surprise that costs trust the first time it happens.
             <p className="mt-2 w-full max-w-2xl text-xs text-muted-foreground text-center">
-              Sent to the digital employee it is for. Type <code>@</code> to
-              choose one yourself.
+              {fallback.primary && fallback.mine
+                ? `Sent to ${fallback.name}, who leads your team and passes work to the right colleague.`
+                : "Sent to the digital employee it is for."}{" "}
+              Type <code>@</code> to choose one yourself.
             </p>
           ) : null}
           {error ? (

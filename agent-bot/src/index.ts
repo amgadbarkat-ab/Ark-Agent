@@ -129,6 +129,10 @@ function toProviderTools(tools: RunAgentInput["tools"] | undefined) {
   }));
 }
 
+/** What the person is shown when the model answered with nothing they can read. */
+const EMPTY_REPLY =
+  "The model returned an empty reply and the run ended without an answer. If this is the model on this computer, it may be too large for this computer's memory, or still starting: try again, or choose a smaller model in Models.";
+
 /** The desktop writes the window only for the model it runs on this computer. */
 const LOCAL_MODEL = Boolean(process.env.BOT_CONTEXT_TOKENS?.trim());
 
@@ -231,6 +235,24 @@ async function runAgent(input: RunAgentInput): Promise<Response> {
         }
 
         if (textOpen) {
+          send({ type: "TEXT_MESSAGE_END", messageId } as BaseEvent);
+        } else if (toolCalls.size === 0) {
+          /*
+           * Nothing to show, said out loud. A model that streams only its reasoning, or nothing at
+           * all, ended the run with a bare RUN_FINISHED, and the person saw "thinking" stop with no
+           * answer and no reason (the owner, on the 26B model on this computer, v0.1.16).
+           * agent-langgraph says the same in this case; see its EMPTY_REPLY_FALLBACK.
+           */
+          send({
+            type: "TEXT_MESSAGE_START",
+            messageId,
+            role: "assistant",
+          } as BaseEvent);
+          send({
+            type: "TEXT_MESSAGE_CONTENT",
+            messageId,
+            delta: EMPTY_REPLY,
+          } as BaseEvent);
           send({ type: "TEXT_MESSAGE_END", messageId } as BaseEvent);
         }
 

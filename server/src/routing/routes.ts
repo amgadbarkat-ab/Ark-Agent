@@ -13,10 +13,27 @@ import type {
 
 const PICKED_HARNESS_AGENT_ID = "picked-harness";
 
+/**
+ * The person's own primary digital employee, the lead of their team, or undefined.
+ *
+ * Theirs only: an administrator sees other people's coworkers on the roster, and somebody else's lead
+ * is not where this person's untagged message belongs.
+ */
+export function leadOf(
+  roster: readonly AgentProfile[],
+  actorId: string | undefined,
+): AgentProfile | undefined {
+  return actorId
+    ? roster.find((agent) => agent.primary && agent.ownerUserId === actorId)
+    : undefined;
+}
+
 export function defaultRoutingProfile(
   roster: readonly AgentProfile[],
+  actorId?: string,
 ): AgentProfile | undefined {
   return (
+    leadOf(roster, actorId) ??
     roster.find((agent) => agent.id === PICKED_HARNESS_AGENT_ID) ??
     roster.find((agent) => agent.visibility === "public") ??
     roster[0]
@@ -126,8 +143,9 @@ export function createRoutingRoutes(
 
     const actor = context.var.actor;
     const roster = await store.list(actor, false);
-    // The same default the composer shows: the package-picked harness, then the first public coworker.
-    const preferred = defaultRoutingProfile(roster);
+    // The same default the composer shows: the person's own lead, then the package-picked harness,
+    // then the first public coworker.
+    const preferred = defaultRoutingProfile(roster, actor?.id);
     if (!preferred) {
       return context.json({ error: "No digital employee is available." }, 409);
     }
@@ -176,6 +194,38 @@ export function createRoutingRoutes(
         viaMention: true,
       });
     }
+    /*
+     * A person with a team talks to its lead, and the lead hands the work to whoever it is for.
+     *
+     * The router used to choose among everybody on the roster, the deployment's own Bots included, and
+     * fell back to one of those when it was unsure, which "hi" and "who are you?" always are. So the
+     * owner who had hired Chief of Operations as primary and Customer Support was answered by the
+     * deployment's general Bot, which knew nothing of the team and said it had no way to reach it
+     * (v0.1.16). The lead holds `team_ask` and knows its colleagues; choosing for it is its job.
+     */
+    const lead = leadOf(roster, actor?.id);
+    if (lead) {
+      const reason =
+        "the person's primary digital employee, who leads their team";
+      await record(
+        actorId(actor),
+        lead.id,
+        reason,
+        false,
+        false,
+        [lead.id],
+        null,
+      );
+      return context.json({
+        agentId: lead.id,
+        name: lead.name,
+        reason,
+        fallback: false,
+        undecided: null,
+        viaMention: false,
+      });
+    }
+
     const candidates: RoutingCandidate[] = await Promise.all(
       roster.map(async (a) => ({
         id: a.id,
