@@ -10,11 +10,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
+import { ConversationView } from "@/components/channels/conversation-view";
 import {
+  addressedOutside,
   handoffInstruction,
   mentionedColleague,
 } from "@/components/channels/mention-handoff";
-import { ConversationView } from "@/components/channels/conversation-view";
 import {
   seedMessage,
   takeFirstMessage,
@@ -32,6 +33,7 @@ import {
   type ChannelSummary,
   channelKeys,
 } from "@/lib/channels/queries";
+import { useStartChannel } from "@/lib/channels/start";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
@@ -255,6 +257,8 @@ export function ChannelChat({
   const { copilotkit } = useCopilotKit();
   // Mentions are scoped to the channel's permitted agents.
   const { data: agentProfiles } = useQuery(agentListQueryOptions());
+  // An `@` for somebody outside this conversation starts one with them; see `addressedOutside`.
+  const { startChosen } = useStartChannel();
   const channelAgentId = `channel:${channel.id}`;
   const { agent, isReady } = useAgent({
     agentId: channelAgentId,
@@ -944,7 +948,7 @@ export function ChannelChat({
                   }
                 : undefined
             }
-            agents={toAgentOptions(agentProfiles, channel.agentIds)}
+            agents={toAgentOptions(agentProfiles)}
             channelId={channel.id}
             /*
              * THE TURN, not the run. `say` waits for the runtime agent and the join before a run starts,
@@ -1015,6 +1019,15 @@ export function ChannelChat({
                 .filter((instruction): instruction is string =>
                   Boolean(instruction),
                 );
+              const elsewhere = addressedOutside(
+                draft,
+                toAgentOptions(agentProfiles),
+                channel.agentIds,
+              );
+              if (elsewhere) {
+                await startChosen(elsewhere.id, draft.text);
+                return;
+              }
               const colleague = mentionedColleague(
                 draft,
                 toAgentOptions(agentProfiles, channel.agentIds),

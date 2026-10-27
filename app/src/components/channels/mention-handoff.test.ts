@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { handoffInstruction, mentionedColleague } from "./mention-handoff";
+import {
+  addressedOutside,
+  handoffInstruction,
+  mentionedColleague,
+} from "./mention-handoff";
 
 const members = [
   { id: "chief", name: "Chief of Operations" },
@@ -74,4 +78,45 @@ test("the lead is told who it was for and how to pass it on", () => {
   expect(said).toContain("team_ask");
   expect(said).toContain("@Marketing");
   expect(said).toContain("Do not answer it yourself");
+});
+
+/*
+ * The owner typed "@Chief of Operations who are you and what is your role" into a conversation that
+ * had started with somebody else, and that somebody answered "I'm the same digital employee as
+ * before, not a Chief of Operations" (v0.1.16).
+ */
+test("an @ for somebody outside the conversation names them, typed or chosen", () => {
+  const everyone = [...members, { id: "general", name: "General Assistant" }];
+  expect(
+    addressedOutside(
+      {
+        text: "@Chief of Operations who are you and what is your role",
+        agentId: null,
+      },
+      everyone,
+      ["general"],
+    )?.id,
+  ).toBe("chief");
+  expect(
+    addressedOutside({ text: "who are you", agentId: "chief" }, everyone, [
+      "general",
+    ])?.id,
+  ).toBe("chief");
+});
+
+test("an @ for somebody already in the conversation is not outside it", () => {
+  expect(
+    addressedOutside(
+      { text: "@Marketing a new website", agentId: null },
+      members,
+      ["chief", "marketing"],
+    ),
+  ).toBeNull();
+  expect(
+    addressedOutside(
+      { text: "an email address a@b.com", agentId: null },
+      members,
+      ["chief"],
+    ),
+  ).toBeNull();
 });

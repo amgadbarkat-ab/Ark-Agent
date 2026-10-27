@@ -8,6 +8,31 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Hired digital employees know who they are and can reach their team
+
+- **A hired employee was sent none of its role, tools or memory.** On the desktop every employee you
+  hire runs in the bundled LangGraph service. The plan's run limit started those runs in a way that
+  skipped the step adding the employee's role, its team tools (`team_ask` and the rest), its memory
+  tools and its signed run. So the model saw only the page about the browser. Asked "who are you?",
+  Chief of Operations described the browser, and asked to hand work to a colleague it said it had no
+  way to. That step now runs on every way a run starts. Measured on the real path: the role reaching
+  the model went from 0 to about 7,900 characters, and the lead is offered its team and memory tools.
+  The hand-off was walked end to end: Chief of Operations asks Customer Support, Customer Support
+  answers as itself, and the answer comes back to the lead.
+- **A message with no `@` goes to your primary.** It used to be routed among every digital employee
+  you can see, the deployment's own included, and a "hi" or "who are you?" landed on the deployment's
+  general one, which knew nothing of your team. With a team, your primary answers and hands work on;
+  the home box says so. Without one, routing works as before.
+- **An `@` for an employee who is not in the conversation starts a conversation with them.** It used
+  to be answered by whoever the conversation started with.
+- **An empty answer is explained.** The bundled Bot ended a run with nothing to show in silence; it now
+  says the model returned an empty reply and what to try.
+- The first line of a role no longer repeats a name that is also the title ("You are Chief of
+  Operations, Chief of Operations").
+
+Not in this release: on Linux with Docker Engine, closing the app still cuts the containers off from
+the model and the server until Stop and Start (desk #71).
+
 ## 0.1.16
 
 ### Every digital employee answers in the customer's language

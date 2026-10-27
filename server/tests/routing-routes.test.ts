@@ -86,7 +86,13 @@ type Recorded = {
   payload: Record<string, unknown>;
 };
 
-function app(options: { routed?: string; undecided?: RoutingUndecided } = {}) {
+function app(
+  options: {
+    routed?: string;
+    undecided?: RoutingUndecided;
+    roster?: readonly object[];
+  } = {},
+) {
   const written: Recorded[] = [];
   /** Every call the router was asked to make, so "never asked" is an assertion and not a hope. */
   const asked: string[] = [];
@@ -101,7 +107,7 @@ function app(options: { routed?: string; undecided?: RoutingUndecided } = {}) {
   };
 
   const store = {
-    list: async () => ROSTER,
+    list: async () => options.roster ?? ROSTER,
   } as unknown as AgentProfileStore;
 
   const router = {
@@ -143,6 +149,69 @@ async function post(
     body: JSON.stringify(body),
   });
 }
+
+/*
+ * The owner hired Chief of Operations as primary and Customer Support, typed "hi" and "who are you?"
+ * into the box, and was answered by the deployment's general Bot, which knew nothing of the team
+ * (v0.1.16). A person with a team talks to its lead; the lead hands work on with team_ask.
+ */
+describe("a person with a team", () => {
+  const lead = {
+    id: "agent_coo",
+    name: "Chief of Operations",
+    roleDescription: "runs the company's operations",
+    visibility: "private",
+    primary: true,
+    ownerUserId: ACTOR.id,
+  };
+  const support = {
+    id: "agent_support",
+    name: "Customer Support",
+    roleDescription: "answers customers",
+    visibility: "private",
+    primary: false,
+    ownerUserId: ACTOR.id,
+  };
+
+  test("has an untagged message go to their lead, and the router is not asked", async () => {
+    const { server, asked, written } = app({
+      roster: [...ROSTER, lead, support],
+    });
+    const response = await post(server, { text: "hi" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      agentId: "agent_coo",
+      fallback: false,
+      viaMention: false,
+    });
+    expect(asked).toEqual([]);
+    expect(written.at(-1)).toMatchObject({
+      eventType: "channel.routed",
+      targetId: "agent_coo",
+    });
+  });
+
+  test("still reaches the colleague they name with @", async () => {
+    const { server } = app({ roster: [...ROSTER, lead, support] });
+    const response = await post(server, {
+      text: "can you answer this customer?",
+      agentId: "agent_support",
+    });
+    expect(await response.json()).toMatchObject({
+      agentId: "agent_support",
+      viaMention: true,
+    });
+  });
+
+  test("does not send it to somebody else's lead", async () => {
+    const { server, asked } = app({
+      roster: [...ROSTER, { ...lead, ownerUserId: "someone-else" }],
+    });
+    const response = await post(server, { text: "hi" });
+    expect((await response.json()).agentId).not.toBe("agent_coo");
+    expect(asked).toEqual(["hi"]);
+  });
+});
 
 describe("choosing the default route target", () => {
   test("prefers the package-picked harness over earlier public coworkers", () => {

@@ -14,20 +14,18 @@
 
 type Member = { id: string; name: string };
 
-/** The colleague a message is for: the `@` chip if there is one, else an `@Name` typed out. */
-export function mentionedColleague(
+/** Who among `candidates` the message names: the `@` chip if there is one, else an `@Name` typed out. */
+function named(
   draft: { text: string; agentId: string | null },
-  members: readonly Member[],
-  leadId: string,
+  candidates: readonly Member[],
 ): Member | null {
-  const colleagues = members.filter((member) => member.id !== leadId);
   if (draft.agentId) {
-    return colleagues.find((member) => member.id === draft.agentId) ?? null;
+    return candidates.find((member) => member.id === draft.agentId) ?? null;
   }
   const text = draft.text.toLowerCase();
   // Longest name first, so "@Sales Lead" is not read as "@Sales".
   return (
-    [...colleagues]
+    [...candidates]
       .sort((a, b) => b.name.length - a.name.length)
       .find((member) => {
         const name = member.name.trim().toLowerCase();
@@ -37,6 +35,38 @@ export function mentionedColleague(
         const after = text.charAt(at + name.length + 1);
         return after === "" || !/[\p{L}\p{N}]/u.test(after);
       }) ?? null
+  );
+}
+
+/** The colleague a message is for: the `@` chip if there is one, else an `@Name` typed out. */
+export function mentionedColleague(
+  draft: { text: string; agentId: string | null },
+  members: readonly Member[],
+  leadId: string,
+): Member | null {
+  return named(
+    draft,
+    members.filter((member) => member.id !== leadId),
+  );
+}
+
+/**
+ * A digital employee the message is addressed to who is not in this conversation at all.
+ *
+ * A conversation belongs to the employee it started with, so "@Chief of Operations who are you?"
+ * typed into a conversation with somebody else was answered by that somebody else, who said it was
+ * "the same digital employee as before, not a Chief of Operations" (the owner, v0.1.16). Such a
+ * message starts a conversation with the one it names instead.
+ */
+export function addressedOutside(
+  draft: { text: string; agentId: string | null },
+  everyone: readonly Member[],
+  memberIds: readonly string[],
+): Member | null {
+  const inside = new Set(memberIds);
+  return named(
+    draft,
+    everyone.filter((member) => !inside.has(member.id)),
   );
 }
 

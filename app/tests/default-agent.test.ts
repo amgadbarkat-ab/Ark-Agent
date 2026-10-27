@@ -28,6 +28,32 @@ function agent(id: string, name = id): AgentProfile {
 }
 
 describe("default agent selection", () => {
+  test("prefers the person's own primary, the lead of their team, over every other default", () => {
+    const lead = {
+      ...agent("agent_coo", "Chief of Operations"),
+      primary: true,
+    };
+    const roster = [
+      agent(PICKED_HARNESS_AGENT_ID, "LangGraph"),
+      agent("general-assistant", "General Assistant"),
+      lead,
+      agent("agent_support", "Customer Support"),
+    ];
+    expect(defaultAgentId(roster)).toBe("agent_coo");
+    expect(defaultAgentProfile(roster, roster[1])?.id).toBe("agent_coo");
+  });
+
+  test("does not take somebody else's primary as this person's", () => {
+    const theirs = {
+      ...agent("agent_their_lead"),
+      primary: true,
+      mine: false,
+    };
+    expect(defaultAgentId([theirs, agent(PICKED_HARNESS_AGENT_ID)])).toBe(
+      PICKED_HARNESS_AGENT_ID,
+    );
+  });
+
   test("prefers the picked harness over the first visible agent", () => {
     const chosen = defaultAgentProfile([
       agent("general-assistant", "General Assistant"),
