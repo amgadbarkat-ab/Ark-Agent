@@ -28,6 +28,7 @@ research and plans. Each file says when it was written.
 | [20-accounts-and-keys.md](20-accounts-and-keys.md) | What the company has to obtain and how, step by step: D-U-N-S, Google Play, Apple Developer and App Store Connect, the Mac Developer ID, Windows signing; the names to set in GitHub; order, cost and lead times; the branch for a company versus a sole proprietor. |
 | [22-starter-model.md](22-starter-model.md) | The free starter model: why, what it is and is not, the model chosen and the Oracle free-tier machine it runs on, the queue, the settings, how to set the server up, what is verified and what is not. |
 | [21-desktop-demo.md](21-desktop-demo.md) | The desktop app for a first customer demo: what the customer sees, what must exist first, making the first release, where the downloads live (the company's website), and what was and was not checked. |
+| [25-device-control.md](25-device-control.md) | Device control, step 1: what an employee on the desktop can reach today, the gaps against "no submit, pay, send or delete without a person approving", 20 Greek/English test tasks, and 10 prompt-injection trap pages (`security/device-control-traps/`). |
 | [../brand/README.md](../brand/README.md) | The company's v3 (Ember) identity as used in Ark: tokens, the app tile, where each icon lands, how to make them again, and what is not done. |
 | [../legal/](../legal/) | Drafts for a lawyer: privacy notice (shown in the app at /privacy), terms of service (at /terms; acceptance recorded per version) and a data processing agreement template. |
 
