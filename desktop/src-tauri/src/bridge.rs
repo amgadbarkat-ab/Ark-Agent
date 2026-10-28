@@ -10,13 +10,31 @@
 //! every request as its one administrator, reachable from the whole local network. So each stays on
 //! loopback, and this relays the bridge's address to it: reachable from the containers on this
 //! machine, from nothing else.
+//!
+//! PODMAN (desk #40) is asked rather than assumed, because where its containers land on this
+//! computer depends on how its network is set up, and none of it can be read from a setting:
+//!
+//! - `podman machine` (macOS, and Windows with the user-mode networking ArkAgent turns on) runs
+//!   gvproxy, which hands traffic for the host's address (192.168.127.254) to the host's loopback, the
+//!   way Docker Desktop does. A loopback-only server is reachable there with no relay.
+//! - Rootless Podman on Linux, which is what ArkAgent installs there, uses pasta or slirp4netns. By
+//!   default neither delivers to the host's loopback: pasta maps `host.containers.internal` to the
+//!   host's own network address, which is reachable from the local network too, so a relay there would
+//!   undo the point of listening on loopback. It is not relayed.
+//!
+//! So `loopback_reach_from_containers` runs one throwaway container from the deployment's own server
+//! image and has it fetch a one-time answer from a listener on `127.0.0.1`, through
+//! `host.docker.internal`, which is how every Bot reaches the server and the model. Only an answer
+//! carrying that run's token makes the server loopback-only; anything else keeps every interface, as
+//! before.
 
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::engine::{Address, Engine};
 
@@ -138,6 +156,159 @@ pub fn relay_again(
 /// Whether something accepts a connection at `address` within a second.
 pub fn answers(address: SocketAddr) -> bool {
     TcpStream::connect_timeout(&address, Duration::from_secs(1)).is_ok()
+}
+
+/// What a container on this engine said when asked to reach this computer's loopback.
+#[derive(Debug, PartialEq, Eq)]
+pub enum LoopbackReach {
+    /// It fetched this run's token from a listener on `127.0.0.1`: loopback is enough.
+    Reached,
+    /// It ran and could not reach that listener: anything on loopback is out of its reach.
+    NotReached,
+    /// The question could not be asked (no image, an engine too old for `host-gateway`, a timeout).
+    /// Nothing is known, so nothing changes.
+    Unknown(String),
+}
+
+/// How long the throwaway container may take. Starting one in a `podman machine` VM takes a few
+/// seconds; this is a ceiling, not a wait.
+const PROBE_WITHIN: Duration = Duration::from_secs(60);
+
+/// Ask a container started from `image` on `address` whether it reaches this computer's loopback
+/// through `host.docker.internal`, as the deployment's containers reach the server and the model.
+///
+/// See the module comment for why Podman is asked this rather than told.
+pub fn loopback_reach_from_containers(address: &Address, image: &str) -> LoopbackReach {
+    let token = crate::local_server::mint_key();
+    let answering = match OneAnswer::serve(&token) {
+        Ok(answering) => answering,
+        Err(error) => return LoopbackReach::Unknown(format!("no loopback listener: {error}")),
+    };
+    let mut command = address.command();
+    command
+        .args(probe_arguments(image, answering.port))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => return LoopbackReach::Unknown(format!("could not run the engine: {error}")),
+    };
+    let deadline = Instant::now() + PROBE_WITHIN;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(100)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return LoopbackReach::Unknown("the container did not finish in time".into());
+            }
+        }
+    }
+    let output = match child.wait_with_output() {
+        Ok(output) => output,
+        Err(error) => return LoopbackReach::Unknown(error.to_string()),
+    };
+    let reach = read_probe(&String::from_utf8_lossy(&output.stdout), &token);
+    match reach {
+        LoopbackReach::Unknown(_) => LoopbackReach::Unknown(
+            String::from_utf8_lossy(&output.stderr)
+                .lines()
+                .last()
+                .unwrap_or("the container said nothing")
+                .to_string(),
+        ),
+        known => known,
+    }
+}
+
+/// The engine's command line: a throwaway container from the deployment's own server image (bun is
+/// in it, and Install already put it on this engine, so nothing is pulled), mapped to the host the
+/// way `docker-compose.yml` maps every Bot.
+fn probe_arguments(image: &str, port: u16) -> Vec<String> {
+    vec![
+        "run".into(),
+        "--rm".into(),
+        "--pull=never".into(),
+        "--add-host".into(),
+        "host.docker.internal:host-gateway".into(),
+        "--entrypoint".into(),
+        "bun".into(),
+        image.into(),
+        "-e".into(),
+        probe_script("host.docker.internal", port),
+    ]
+}
+
+/// What the container runs. It always prints exactly one of two lines, so a container that printed
+/// neither did not run this at all.
+fn probe_script(host: &str, port: u16) -> String {
+    format!(
+        "try {{ const r = await fetch('http://{host}:{port}/', {{ signal: AbortSignal.timeout(8000) }}); \
+         console.log('answer:' + (await r.text())); }} catch {{ console.log('unreachable'); }}"
+    )
+}
+
+fn read_probe(stdout: &str, token: &str) -> LoopbackReach {
+    for line in stdout.lines().map(str::trim) {
+        if let Some(answer) = line.strip_prefix("answer:") {
+            // Something answered, and only this run's listener knows the token: anything else that
+            // answered was not this computer's loopback.
+            return if answer == token {
+                LoopbackReach::Reached
+            } else {
+                LoopbackReach::NotReached
+            };
+        }
+        if line == "unreachable" {
+            return LoopbackReach::NotReached;
+        }
+    }
+    LoopbackReach::Unknown(String::new())
+}
+
+/// A listener on `127.0.0.1` that answers every HTTP request with one token, until dropped.
+struct OneAnswer {
+    stop: Arc<AtomicBool>,
+    port: u16,
+}
+
+impl OneAnswer {
+    fn serve(token: &str) -> io::Result<Self> {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
+        listener.set_nonblocking(true)?;
+        let port = listener.local_addr()?.port();
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopping = stop.clone();
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{token}",
+            token.len()
+        );
+        thread::Builder::new()
+            .name("loopback-probe".into())
+            .spawn(move || {
+                while !stopping.load(Ordering::SeqCst) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            let _ = stream.set_nonblocking(false);
+                            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                            let mut request = [0u8; 4096];
+                            let _ = stream.read(&mut request);
+                            let _ = stream.write_all(response.as_bytes());
+                        }
+                        Err(_) => thread::sleep(Duration::from_millis(50)),
+                    }
+                }
+            })?;
+        Ok(Self { stop, port })
+    }
+}
+
+impl Drop for OneAnswer {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+    }
 }
 
 fn relay(client: TcpStream, target: SocketAddr) {
@@ -267,6 +438,98 @@ mod tests {
             Err(io::ErrorKind::PermissionDenied.into())
         };
         assert!(relay_again(bridge, port, refused, |_| true).is_err());
+    }
+
+    #[test]
+    fn only_this_runs_token_says_the_containers_reach_loopback() {
+        assert_eq!(read_probe("answer:abc\n", "abc"), LoopbackReach::Reached);
+        assert_eq!(
+            read_probe("some log line\n  answer:abc  \n", "abc"),
+            LoopbackReach::Reached
+        );
+        // Something else answered on that port: not this computer's loopback.
+        assert_eq!(
+            read_probe("answer:other\n", "abc"),
+            LoopbackReach::NotReached
+        );
+        assert_eq!(read_probe("answer:\n", "abc"), LoopbackReach::NotReached);
+        assert_eq!(
+            read_probe("unreachable\n", "abc"),
+            LoopbackReach::NotReached
+        );
+        // Neither line: the script never ran (no bun, no image, an engine error).
+        assert!(matches!(read_probe("", "abc"), LoopbackReach::Unknown(_)));
+        assert!(matches!(
+            read_probe("Error: image not known\n", "abc"),
+            LoopbackReach::Unknown(_)
+        ));
+    }
+
+    #[test]
+    fn the_probe_container_is_mapped_like_the_bots_and_pulls_nothing() {
+        let args = probe_arguments("ghcr.io/example/server@sha256:1", 41234);
+        assert_eq!(args[0], "run");
+        assert!(args.contains(&"--rm".to_string()));
+        assert!(args.contains(&"--pull=never".to_string()));
+        let mapped = args.iter().position(|arg| arg == "--add-host").unwrap();
+        // The same mapping `docker-compose.yml` gives every Bot.
+        assert_eq!(args[mapped + 1], "host.docker.internal:host-gateway");
+        let image = args
+            .iter()
+            .position(|arg| arg == "ghcr.io/example/server@sha256:1")
+            .unwrap();
+        assert_eq!(args[image - 2], "--entrypoint");
+        assert_eq!(args[image - 1], "bun");
+        assert_eq!(args[image + 1], "-e");
+        assert!(args[image + 2].contains("http://host.docker.internal:41234/"));
+    }
+
+    #[test]
+    fn the_loopback_listener_answers_with_the_token_and_only_on_loopback() {
+        let answering = OneAnswer::serve("tok-123").unwrap();
+        let mut stream = TcpStream::connect((Ipv4Addr::LOCALHOST, answering.port)).unwrap();
+        stream
+            .write_all(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
+            .unwrap();
+        let mut answer = String::new();
+        stream.read_to_string(&mut answer).unwrap();
+        assert!(answer.starts_with("HTTP/1.1 200 OK"));
+        assert!(answer.ends_with("\r\n\r\ntok-123"));
+    }
+
+    /// The script itself, run by the bun on this machine where there is one, against the listener
+    /// (reached) and against a port nothing listens on (not reached).
+    #[test]
+    fn the_probe_script_reports_both_answers() {
+        let Ok(bun) = which_bun() else {
+            eprintln!("bun is not on PATH; the script is not run here");
+            return;
+        };
+        let token = "tok-456";
+        let answering = OneAnswer::serve(token).unwrap();
+        let run = |port: u16| {
+            let output = std::process::Command::new(&bun)
+                .args(["-e", &probe_script("127.0.0.1", port)])
+                .output()
+                .unwrap();
+            read_probe(&String::from_utf8_lossy(&output.stdout), token)
+        };
+        assert_eq!(run(answering.port), LoopbackReach::Reached);
+        let closed = TcpListener::bind("127.0.0.1:0").unwrap();
+        let closed_port = closed.local_addr().unwrap().port();
+        drop(closed);
+        assert_eq!(run(closed_port), LoopbackReach::NotReached);
+    }
+
+    fn which_bun() -> Result<std::path::PathBuf, ()> {
+        let name = if cfg!(windows) { "bun.exe" } else { "bun" };
+        std::env::var_os("PATH")
+            .and_then(|path| {
+                std::env::split_paths(&path)
+                    .map(|dir| dir.join(name))
+                    .find(|candidate| candidate.is_file())
+            })
+            .ok_or(())
     }
 
     #[test]

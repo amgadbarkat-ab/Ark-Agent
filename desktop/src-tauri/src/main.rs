@@ -1620,14 +1620,31 @@ async fn start_stack_inner<R: tauri::Runtime>(
          * not on every interface, wherever the containers can still reach it there: Docker Desktop
          * carries `host.docker.internal` to the host's loopback, and on Linux with Docker Engine the
          * bridge's address is relayed to it (see `bridge.rs`), as is the model on this computer.
-         * Podman, and a Linux machine whose bridge cannot be read, keep every interface, as before.
+         * A Linux machine whose bridge cannot be read keeps every interface, as before.
+         *
+         * Podman (desk #40) is asked, by a throwaway container that fetches a one-time answer from
+         * this computer's loopback through `host.docker.internal`, which is how the Bots reach the
+         * server. Only that answer makes it loopback-only; see `bridge.rs` for why Podman cannot be
+         * told apart by its settings and why rootless Podman on Linux is not relayed.
          */
         // The previous start's relays first: they hold the very addresses the new ones bind, so a
         // restart that kept them would fail to relay and fall back to every interface.
         shell.bridges.lock().unwrap().clear();
         let mut relays = Vec::new();
         let loopback_only = match found.engine {
-            engine::Engine::Podman => false,
+            engine::Engine::Podman => {
+                let reach = match deployment::reference(&root, "server") {
+                    Ok(image) => {
+                        openbot_desktop_lib::bridge::loopback_reach_from_containers(&found, &image)
+                    }
+                    Err(error) => openbot_desktop_lib::bridge::LoopbackReach::Unknown(error),
+                };
+                podman_listens_on_loopback(
+                    reach,
+                    shell.local_model.lock().unwrap().is_some(),
+                    |detail| report(&app, "model", false, detail),
+                )
+            }
             engine::Engine::Docker if cfg!(target_os = "linux") => {
                 match openbot_desktop_lib::bridge::gateway(&found) {
                     Some(gateway) => {
@@ -2753,6 +2770,39 @@ fn owned_app_url(root: &Path, ports: &openbot_env::Ports) -> Option<String> {
         return None;
     }
     stack::app_url(ports.app)
+}
+
+/// Whether the desktop server listens on loopback alone on Podman, from what a container said.
+///
+/// Desk #40. Loopback only when a container was seen to reach it; otherwise every interface, as
+/// before, because a server the Bots cannot reach is a broken install, while one the local network
+/// can reach is the exposure this was already living with. The model on this computer only ever
+/// listens on loopback, so a container that was seen not to reach loopback cannot reach the model
+/// either, and that is said now rather than as every employee's "could not reach the model
+/// provider" later. Nothing is said when nothing is known.
+fn podman_listens_on_loopback(
+    reach: openbot_desktop_lib::bridge::LoopbackReach,
+    model_running: bool,
+    say: impl FnOnce(String),
+) -> bool {
+    use openbot_desktop_lib::bridge::LoopbackReach;
+    match reach {
+        LoopbackReach::Reached => true,
+        LoopbackReach::NotReached => {
+            if model_running {
+                say(
+                    "The containers cannot reach the model on this computer: this Podman does not \
+                     carry their traffic to this computer's loopback address."
+                        .into(),
+                );
+            }
+            false
+        }
+        LoopbackReach::Unknown(detail) => {
+            eprintln!("[start] could not ask Podman's containers about loopback: {detail}");
+            false
+        }
+    }
 }
 
 /*
@@ -10259,6 +10309,42 @@ fn main() {
                 format!("http://127.0.0.1:{}/", f.ports.app)
             );
         }
+    }
+
+    /// Desk #40: Podman's server is loopback-only exactly when a container was seen to reach loopback.
+    #[test]
+    fn podman_listens_on_loopback_only_when_a_container_reached_it() {
+        use openbot_desktop_lib::bridge::LoopbackReach;
+        let mut said = Vec::new();
+        assert!(podman_listens_on_loopback(
+            LoopbackReach::Reached,
+            true,
+            |line| said.push(line)
+        ));
+        assert!(said.is_empty());
+
+        // Not reached: every interface, as before, and the model's unreachability said now.
+        assert!(!podman_listens_on_loopback(
+            LoopbackReach::NotReached,
+            true,
+            |line| said.push(line)
+        ));
+        assert_eq!(said.len(), 1);
+        assert!(said[0].contains("cannot reach the model on this computer"));
+        assert!(!podman_listens_on_loopback(
+            LoopbackReach::NotReached,
+            false,
+            |line| said.push(line)
+        ));
+        assert_eq!(said.len(), 1, "no model, nothing to say about it");
+
+        // Not known (no image, an older Podman without host-gateway): nothing changes, nothing said.
+        assert!(!podman_listens_on_loopback(
+            LoopbackReach::Unknown("image not known".into()),
+            true,
+            |line| said.push(line)
+        ));
+        assert_eq!(said.len(), 1);
     }
 
     // ---- desk #71: the relays of a stack a reopened window adopts ------------------------------
