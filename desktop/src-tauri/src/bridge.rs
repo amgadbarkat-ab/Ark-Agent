@@ -93,6 +93,53 @@ pub fn forward(listen_ip: Ipv4Addr, port: u16) -> io::Result<Forwarder> {
     Ok(Forwarder { stop, listening })
 }
 
+/// What came of relaying a port again for a stack this window did not start.
+pub enum Relayed {
+    /// Relaying now, until the returned relay is dropped.
+    Relaying(Forwarder),
+    /// Something on this machine already answers the containers there: a server started before
+    /// the relays existed, or when they could not be made, listens on every interface.
+    AlreadyReachable,
+    /// The address is not this machine's (Docker Desktop on Linux keeps the bridge inside its VM),
+    /// so the start that raised this stack could not have relayed it either and kept every
+    /// interface instead. Nothing to restore.
+    NotThisMachine,
+}
+
+/// Relay `port` again for a running stack, telling a port that needs nothing apart from one that
+/// cannot be reached.
+///
+/// Desk #71: closing the window ends this process and every relay with it, while the containers,
+/// the desktop server and the model keep running. A window opened afterwards adopts that stack and
+/// has to put the relays back, or every digital employee gets "connection refused" while every
+/// health check (all of them made over loopback) says the stack is fine. `forward` and `reachable`
+/// are parameters so a test can stand in for the bridge.
+pub fn relay_again(
+    listen_ip: Ipv4Addr,
+    port: u16,
+    forward: impl FnOnce(Ipv4Addr, u16) -> io::Result<Forwarder>,
+    reachable: impl FnOnce(SocketAddr) -> bool,
+) -> io::Result<Relayed> {
+    match forward(listen_ip, port) {
+        Ok(relay) => Ok(Relayed::Relaying(relay)),
+        Err(error) if error.kind() == io::ErrorKind::AddrNotAvailable => {
+            Ok(Relayed::NotThisMachine)
+        }
+        Err(error)
+            if error.kind() == io::ErrorKind::AddrInUse
+                && reachable(SocketAddr::new(IpAddr::V4(listen_ip), port)) =>
+        {
+            Ok(Relayed::AlreadyReachable)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Whether something accepts a connection at `address` within a second.
+pub fn answers(address: SocketAddr) -> bool {
+    TcpStream::connect_timeout(&address, Duration::from_secs(1)).is_ok()
+}
+
 fn relay(client: TcpStream, target: SocketAddr) {
     let Ok(upstream) = TcpStream::connect_timeout(&target, Duration::from_secs(5)) else {
         let _ = client.shutdown(Shutdown::Both);
@@ -171,6 +218,55 @@ mod tests {
             client.read_exact(&mut answer).unwrap();
             assert_eq!(&answer, b"ping-ok!");
         }
+    }
+
+    /// Desk #71. Each way a relay can come out for an adopted stack, with the bridge stood in for.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn relaying_again_tells_a_port_that_needs_nothing_from_one_nobody_can_reach() {
+        let bridge = Ipv4Addr::new(127, 0, 0, 3);
+        let free = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = free.local_addr().unwrap().port();
+        drop(free);
+
+        // The usual case: the port is free on the bridge, and the relay is made.
+        match relay_again(bridge, port, forward, answers).unwrap() {
+            Relayed::Relaying(relay) => assert_eq!(relay.listening.port(), port),
+            _ => panic!("expected a relay"),
+        }
+
+        // A server already listening there (every interface, as before relays existed) needs none.
+        // (The dropped relay's thread lets go of the address within one of its 50 ms polls.)
+        let everywhere = (0..40)
+            .find_map(|_| {
+                TcpListener::bind((bridge, port))
+                    .inspect_err(|_| thread::sleep(Duration::from_millis(50)))
+                    .ok()
+            })
+            .expect("the dropped relay lets go of its address");
+        assert!(matches!(
+            relay_again(bridge, port, forward, answers).unwrap(),
+            Relayed::AlreadyReachable
+        ));
+        drop(everywhere);
+
+        // An address that is not this machine's, as on Docker Desktop: nothing to restore.
+        let elsewhere = |_: Ipv4Addr, _: u16| -> io::Result<Forwarder> {
+            Err(io::ErrorKind::AddrNotAvailable.into())
+        };
+        assert!(matches!(
+            relay_again(bridge, port, elsewhere, |_| panic!("not asked")).unwrap(),
+            Relayed::NotThisMachine
+        ));
+
+        // Held by something that does not answer: a real failure, said as one.
+        let held =
+            |_: Ipv4Addr, _: u16| -> io::Result<Forwarder> { Err(io::ErrorKind::AddrInUse.into()) };
+        assert!(relay_again(bridge, port, held, |_| false).is_err());
+        let refused = |_: Ipv4Addr, _: u16| -> io::Result<Forwarder> {
+            Err(io::ErrorKind::PermissionDenied.into())
+        };
+        assert!(relay_again(bridge, port, refused, |_| true).is_err());
     }
 
     #[test]

@@ -2568,6 +2568,9 @@ fn show_openbot_on<R: tauri::Runtime>(
     let destination = owned_app_url(&root, ports).ok_or_else(|| {
         format!("ArkAgent could not verify its app on port {port} belongs to this installation. Try starting ArkAgent again.")
     })?;
+    // Before the window shows the app: an app whose digital employees cannot reach the server or the
+    // model looks fine and answers nothing, which is worse than the sentence this returns instead.
+    restore_adopted_relays(&shell, &root, ports)?;
     eprintln!("[show] navigating to the owned ArkAgent app");
     let window = app
         .get_webview_window("main")
@@ -2750,6 +2753,152 @@ fn owned_app_url(root: &Path, ports: &openbot_env::Ports) -> Option<String> {
         return None;
     }
     stack::app_url(ports.app)
+}
+
+/*
+ * The relays of a stack this window adopted rather than started (desk #71).
+ *
+ * On Linux with Docker Engine the containers reach the desktop server and the model on this computer
+ * through relays this process runs on the bridge's address (see `bridge.rs`). Closing the window ends
+ * this process, and the relays with it, while everything they relay to keeps running: the containers,
+ * the host processes and llama-server. The next window adopts that stack (`already_running`), and
+ * adopting used to mean only navigating to it, so every digital employee got "connection refused"
+ * while every health check, all of them made over loopback, said the stack was fine. The DT Lab had to
+ * press Stop and then Start to get the relays back.
+ *
+ * So the window that adopts puts them back, for the server's port and for the model's. The model's
+ * port is not this window's to know: llama-server picked it when it started. `adopted_model` takes it
+ * from the running program and checks that the deployment's containers were told the same one.
+ */
+
+/// What the containers of a running deployment use for a model on this computer.
+#[derive(Debug, PartialEq, Eq)]
+enum AdoptedModel {
+    /// A provider elsewhere, which this machine does not relay.
+    NotUsed,
+    /// The model this app started, still running, on this port.
+    Running(u16),
+    /// The containers were told about a model on this computer that no longer runs there (or not on
+    /// the port they were told), so nothing a relay could do would let them reach it.
+    Gone,
+}
+
+/// Read from the deployment's `.env`, which is what the containers were raised with, and checked
+/// against the running program, which is where the model is now. `ARK_OFFLINE_MODEL_LABEL` is written
+/// only for the model ArkAgent runs itself (and cleared otherwise), which is how a model on this
+/// computer is told apart from a provider the person named, whose `OPENAI_CONTAINER_BASE_URL` may
+/// also have a port.
+fn adopted_model(root: &Path, running_port: impl FnOnce(&Path) -> Option<u16>) -> AdoptedModel {
+    let values = openbot_env::already_set(
+        &root.join(".env"),
+        &["ARK_OFFLINE_MODEL_LABEL", "OPENAI_CONTAINER_BASE_URL"],
+    );
+    if !values.contains_key("ARK_OFFLINE_MODEL_LABEL") {
+        return AdoptedModel::NotUsed;
+    }
+    let told = values
+        .get("OPENAI_CONTAINER_BASE_URL")
+        .and_then(|url| reqwest::Url::parse(url).ok())
+        .and_then(|url| url.port());
+    match (told, running_port(root)) {
+        (Some(told), Some(running)) if told == running => AdoptedModel::Running(running),
+        _ => AdoptedModel::Gone,
+    }
+}
+
+/// The bridge address of the engine running this deployment's containers, when it is Docker Engine
+/// on Linux. Asked of the engine that holds this folder's Compose project, as Stop does for a stack
+/// it did not start (`down_adopted_containers`): this window has no record of which engine that was.
+fn adopted_gateway(root: &Path) -> Option<std::net::Ipv4Addr> {
+    if !cfg!(target_os = "linux") || !root.join("docker-compose.yml").exists() {
+        return None;
+    }
+    let address = engine::Address::new(engine::Engine::Docker, None);
+    if !address.responds() {
+        return None;
+    }
+    let address = address.pin().ok()?;
+    if !stack::project_has_containers(&address, root).unwrap_or(false) {
+        return None;
+    }
+    openbot_desktop_lib::bridge::gateway(&address)
+}
+
+/// Called under `startup`, which Stop also holds while it drops the relays.
+fn restore_adopted_relays(
+    shell: &Shell,
+    root: &Path,
+    ports: &openbot_env::Ports,
+) -> Result<(), Problem> {
+    restore_adopted_relays_with(
+        shell,
+        root,
+        ports,
+        adopted_gateway,
+        |root| adopted_model(root, openbot_desktop_lib::local_server::recorded_port),
+        openbot_desktop_lib::bridge::forward,
+    )
+}
+
+fn restore_adopted_relays_with<G, M, F>(
+    shell: &Shell,
+    root: &Path,
+    ports: &openbot_env::Ports,
+    gateway: G,
+    model: M,
+    forward: F,
+) -> Result<(), Problem>
+where
+    G: FnOnce(&Path) -> Option<std::net::Ipv4Addr>,
+    M: FnOnce(&Path) -> AdoptedModel,
+    F: Fn(std::net::Ipv4Addr, u16) -> std::io::Result<openbot_desktop_lib::bridge::Forwarder>,
+{
+    use openbot_desktop_lib::bridge::{answers, relay_again, Relayed};
+    // A stack this session started already has the relays its Start made (or chose not to make), and
+    // a model this session runs is one it started. Only a stack found running is this function's.
+    if shell.containers.lock().unwrap().is_some()
+        || shell.local_model.lock().unwrap().is_some()
+        || !shell.bridges.lock().unwrap().is_empty()
+    {
+        return Ok(());
+    }
+    // Not Docker Engine on Linux, or its bridge cannot be read: Start relays nothing there either.
+    let Some(gateway) = gateway(root) else {
+        return Ok(());
+    };
+    let mut relays = Vec::new();
+    let mut failed = Vec::new();
+    let mut relay = |what: &str, port: u16| match relay_again(gateway, port, &forward, answers) {
+        Ok(Relayed::Relaying(relay)) => relays.push(relay),
+        Ok(Relayed::AlreadyReachable | Relayed::NotThisMachine) => {}
+        Err(error) => failed.push(format!("{what} (port {port}): {error}")),
+    };
+    relay("the ArkAgent server", ports.server);
+    let model = model(root);
+    if let AdoptedModel::Running(port) = model {
+        relay("the model on this computer", port);
+    }
+    eprintln!(
+        "[show] restored {} relay(s) for the adopted stack",
+        relays.len()
+    );
+    *shell.bridges.lock().unwrap() = relays;
+    if model == AdoptedModel::Gone {
+        return Err(Problem::with(
+            "The model on this computer is no longer running, so your digital employees cannot answer. Start ArkAgent again to start it.",
+            "The deployment's containers use a model on this computer, and no model this app started is running on the port they were given.",
+        ));
+    }
+    if !failed.is_empty() {
+        return Err(Problem::with(
+            "Your digital employees cannot reach ArkAgent on this computer. Start ArkAgent again to reconnect them.",
+            format!(
+                "ArkAgent could not restore the connection the containers use for {}",
+                failed.join("; ")
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// What stopped the stack, if anything did, and forget it once it has been read.
@@ -10110,5 +10259,210 @@ fn main() {
                 format!("http://127.0.0.1:{}/", f.ports.app)
             );
         }
+    }
+
+    // ---- desk #71: the relays of a stack a reopened window adopts ------------------------------
+
+    fn deployment_with_env(label: &str, env: &str) -> PathBuf {
+        let root = temp_root(label);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join(".env"), env).unwrap();
+        root
+    }
+
+    #[test]
+    fn the_adopted_models_port_is_the_running_programs_and_the_one_the_containers_were_told() {
+        let local = deployment_with_env(
+            "adopted-model-local",
+            "ARK_OFFLINE_MODEL_LABEL=Gemma 4 E4B\nOPENAI_CONTAINER_BASE_URL=http://host.docker.internal:51234/v1\n",
+        );
+        assert_eq!(
+            adopted_model(&local, |_| Some(51234)),
+            AdoptedModel::Running(51234)
+        );
+        // The program exited, or another one now runs elsewhere: the containers cannot reach it.
+        assert_eq!(adopted_model(&local, |_| None), AdoptedModel::Gone);
+        assert_eq!(adopted_model(&local, |_| Some(40000)), AdoptedModel::Gone);
+
+        // A provider the person named has a port too, and is not this machine's to relay; nor is
+        // the server's own model proxy, which the server relay already covers. Neither asks the
+        // program anything.
+        for env in [
+            "ARK_OFFLINE_MODEL_LABEL=\nOPENAI_CONTAINER_BASE_URL=http://host.docker.internal:11434/v1\n",
+            "OPENAI_CONTAINER_BASE_URL=http://host.docker.internal:3001/api/model-provider/v1\n",
+            "",
+        ] {
+            let root = deployment_with_env("adopted-model-elsewhere", env);
+            assert_eq!(
+                adopted_model(&root, |_| panic!("not asked")),
+                AdoptedModel::NotUsed,
+                "{env}"
+            );
+        }
+        // Said to be on this computer with no port the containers could have been given.
+        let unreadable = deployment_with_env(
+            "adopted-model-unreadable",
+            "ARK_OFFLINE_MODEL_LABEL=Gemma 4 E4B\nOPENAI_CONTAINER_BASE_URL=not a url\n",
+        );
+        assert_eq!(adopted_model(&unreadable, |_| Some(1)), AdoptedModel::Gone);
+    }
+
+    /// A loopback service, as the desktop server and the model are, answering `ok` to anything.
+    #[cfg(target_os = "linux")]
+    fn loopback_service() -> u16 {
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let _ = stream.write_all(b"ok");
+            }
+        });
+        port
+    }
+
+    #[cfg(target_os = "linux")]
+    fn answer_through(address: std::net::SocketAddr) -> String {
+        use std::io::Read;
+        let mut stream = std::net::TcpStream::connect(address).unwrap();
+        let mut answer = String::new();
+        stream.read_to_string(&mut answer).unwrap();
+        answer
+    }
+
+    /// The DT Lab's case: the window was closed with the stack and the model running, and a new one
+    /// adopts them. Both relays come back, and traffic through them reaches the loopback services.
+    /// A second loopback address stands in for the Docker bridge, as in `bridge.rs`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_adopted_stack_gets_its_server_and_model_relays_back() {
+        let bridge = std::net::Ipv4Addr::new(127, 0, 0, 5);
+        let ports = openbot_env::Ports {
+            server: loopback_service(),
+            ..openbot_env::Ports::default()
+        };
+        let model_port = loopback_service();
+        let root = temp_root("adopted-relays");
+        let shell = Shell::default();
+        restore_adopted_relays_with(
+            &shell,
+            &root,
+            &ports,
+            |_| Some(bridge),
+            |_| AdoptedModel::Running(model_port),
+            openbot_desktop_lib::bridge::forward,
+        )
+        .unwrap();
+        let relays = shell.bridges.lock().unwrap();
+        let mut relayed: Vec<u16> = relays.iter().map(|relay| relay.listening.port()).collect();
+        relayed.sort_unstable();
+        let mut wanted = vec![ports.server, model_port];
+        wanted.sort_unstable();
+        assert_eq!(relayed, wanted);
+        for relay in relays.iter() {
+            assert_eq!(relay.listening.ip(), std::net::IpAddr::V4(bridge));
+            assert_eq!(answer_through(relay.listening), "ok");
+        }
+    }
+
+    /// Showing the app again in the same session, or showing one this session started, makes no
+    /// second set: Start owns those relays, and binding them twice would fail.
+    #[test]
+    fn relays_are_restored_only_for_a_stack_this_session_did_not_start() {
+        let root = temp_root("adopted-relays-owned");
+        let ports = openbot_env::Ports::default();
+        let never = |_: std::net::Ipv4Addr,
+                     _: u16|
+         -> std::io::Result<openbot_desktop_lib::bridge::Forwarder> {
+            panic!("no relay should be made")
+        };
+        let shell = Shell::default();
+        *shell.containers.lock().unwrap() = Some(ContainerDeployment {
+            root: root.clone(),
+            address: engine::Address::new(engine::Engine::Docker, None),
+        });
+        restore_adopted_relays_with(
+            &shell,
+            &root,
+            &ports,
+            |_| panic!("the engine is not asked"),
+            |_| panic!("the model is not asked"),
+            never,
+        )
+        .unwrap();
+
+        // Not Docker Engine on Linux (or its bridge unreadable): nothing to relay, nothing said.
+        let shell = Shell::default();
+        restore_adopted_relays_with(
+            &shell,
+            &root,
+            &ports,
+            |_| None,
+            |_| panic!("the model is not asked"),
+            never,
+        )
+        .unwrap();
+        assert!(shell.bridges.lock().unwrap().is_empty());
+    }
+
+    /// A relay that cannot be made, or a model that is gone, is said before the app is shown, with
+    /// the step that fixes it, rather than leaving every employee answering "connection refused".
+    #[test]
+    fn an_adopted_stack_that_cannot_be_reconnected_says_so() {
+        let root = temp_root("adopted-relays-failing");
+        let ports = openbot_env::Ports::default();
+        let held = |_: std::net::Ipv4Addr,
+                    _: u16|
+         -> std::io::Result<openbot_desktop_lib::bridge::Forwarder> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "refused",
+            ))
+        };
+        let shell = Shell::default();
+        let problem = restore_adopted_relays_with(
+            &shell,
+            &root,
+            &ports,
+            |_| Some(std::net::Ipv4Addr::new(172, 17, 0, 1)),
+            |_| AdoptedModel::NotUsed,
+            held,
+        )
+        .unwrap_err();
+        assert!(problem.said.contains("digital employees cannot reach"));
+        assert!(problem.said.contains("Start ArkAgent again"));
+        assert!(!problem.said.to_lowercase().contains("bot"));
+
+        // Docker Desktop on Linux: the bridge is in its VM, so Start kept every interface instead.
+        let elsewhere = |_: std::net::Ipv4Addr,
+                         _: u16|
+         -> std::io::Result<openbot_desktop_lib::bridge::Forwarder> {
+            Err(std::io::ErrorKind::AddrNotAvailable.into())
+        };
+        let shell = Shell::default();
+        restore_adopted_relays_with(
+            &shell,
+            &root,
+            &ports,
+            |_| Some(std::net::Ipv4Addr::new(172, 17, 0, 1)),
+            |_| AdoptedModel::NotUsed,
+            elsewhere,
+        )
+        .unwrap();
+
+        let shell = Shell::default();
+        let problem = restore_adopted_relays_with(
+            &shell,
+            &root,
+            &ports,
+            |_| Some(std::net::Ipv4Addr::new(172, 17, 0, 1)),
+            |_| AdoptedModel::Gone,
+            elsewhere,
+        )
+        .unwrap_err();
+        assert!(problem
+            .said
+            .contains("model on this computer is no longer running"));
     }
 }

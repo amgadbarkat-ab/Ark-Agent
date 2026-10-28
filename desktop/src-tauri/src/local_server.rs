@@ -305,21 +305,64 @@ pub fn reap_stale(root: &Path, server: &Path) {
         return;
     };
     let _ = fs::remove_file(&path);
-    let mut lines = text.lines();
-    let (Some(pid), Some(recorded)) = (
-        lines
-            .next()
-            .and_then(|line| line.trim().parse::<u32>().ok()),
-        lines.next(),
-    ) else {
+    let Some((pid, recorded)) = parse_record(&text) else {
         return;
     };
-    if Path::new(recorded.trim()) != server {
+    if recorded != server {
         return;
     }
     if process_runs(pid, server) {
         kill_process(pid);
     }
+}
+
+/// The process id and the program `record` wrote, if the file says both.
+fn parse_record(text: &str) -> Option<(u32, PathBuf)> {
+    let mut lines = text.lines();
+    let pid = lines.next()?.trim().parse::<u32>().ok()?;
+    let server = lines.next()?.trim();
+    (!server.is_empty()).then(|| (pid, PathBuf::from(server)))
+}
+
+/// The port of the model an earlier run of this app left running for this deployment, read from the
+/// running program itself.
+///
+/// For a window that adopts a stack it did not start (desk #71). The deployment's `.env` says which
+/// port the containers were told, but only the running program says where the model is now: the
+/// port is picked fresh at every start, and a model that has since exited answers nowhere. So this
+/// reads the record `start` wrote, checks it the way `reap_stale` does (the process id must still be
+/// our program, not whatever has reused the number since), and then reads that process's own
+/// `--port`. Nothing is written or stopped here.
+///
+/// Linux only, the one platform that relays the model to the containers; `None` elsewhere.
+#[cfg(target_os = "linux")]
+pub fn recorded_port(root: &Path) -> Option<u16> {
+    let (pid, server) = parse_record(&fs::read_to_string(record_path(root)).ok()?)?;
+    if !process_runs(pid, &server) {
+        return None;
+    }
+    let command_line = fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+    port_in_command_line(
+        command_line
+            .split(|byte| *byte == 0)
+            .map(|word| String::from_utf8_lossy(word).into_owned()),
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn recorded_port(_root: &Path) -> Option<u16> {
+    None
+}
+
+/// The value after `--port` in a command line `arguments` built.
+fn port_in_command_line(words: impl IntoIterator<Item = String>) -> Option<u16> {
+    let mut words = words.into_iter();
+    while let Some(word) = words.next() {
+        if word == "--port" {
+            return words.next()?.parse().ok();
+        }
+    }
+    None
 }
 
 /// Whether `pid` is alive and running exactly `server`.
@@ -439,6 +482,29 @@ mod tests {
         chosen.threads = Some(6);
         let args = text(&arguments(&chosen, 1));
         assert_eq!(after(&args, "--threads").as_deref(), Some("6"));
+    }
+
+    #[test]
+    fn the_port_is_read_back_from_the_command_line_it_was_started_with() {
+        let args = text(&arguments(&settings(), 51234));
+        assert_eq!(port_in_command_line(args), Some(51234));
+        assert_eq!(port_in_command_line(["-m".to_string(), "x".into()]), None);
+        assert_eq!(
+            port_in_command_line(["--port".to_string(), "nope".into()]),
+            None
+        );
+        assert_eq!(port_in_command_line(["--port".to_string()]), None);
+    }
+
+    #[test]
+    fn the_record_names_a_process_and_a_program() {
+        assert_eq!(
+            parse_record("123\n/opt/llama-server\n"),
+            Some((123, PathBuf::from("/opt/llama-server")))
+        );
+        assert_eq!(parse_record("123\n"), None);
+        assert_eq!(parse_record("abc\n/opt/llama-server\n"), None);
+        assert_eq!(parse_record(""), None);
     }
 
     #[test]
@@ -673,6 +739,50 @@ fn main() {
                 problem.said.contains("could not start the model"),
                 "{problem:?}"
             );
+        }
+
+        /// A window reopened over a running model finds its port from the program itself (desk #71),
+        /// and finds nothing once the program is gone or the record names a stranger.
+        #[cfg(target_os = "linux")]
+        #[test]
+        fn a_reopened_window_reads_the_running_models_port_from_the_program() {
+            let dir = scratch("recorded-port");
+            let server = stand_in(&dir, "ok");
+            assert_eq!(recorded_port(&dir), None, "nothing recorded yet");
+            let cancel = AtomicBool::new(false);
+            let mut running = start(
+                &settings_for(server.clone()),
+                &dir,
+                &dir.join("logs"),
+                Duration::from_secs(20),
+                &cancel,
+            )
+            .unwrap();
+            assert_eq!(recorded_port(&dir), Some(running.port));
+            // Reading it changes nothing: the record stays for Stop and for the next start's reaping.
+            assert!(record_path(&dir).exists());
+            assert!(running.alive());
+
+            // A record whose process id now belongs to something else names no port.
+            let port = running.port;
+            let mut other = std::process::Command::new("sleep")
+                .arg("30")
+                .spawn()
+                .unwrap();
+            let ours = fs::read_to_string(record_path(&dir)).unwrap();
+            fs::write(
+                record_path(&dir),
+                format!("{}\n{}\n", other.id(), server.display()),
+            )
+            .unwrap();
+            assert_eq!(recorded_port(&dir), None);
+            let _ = other.kill();
+            let _ = other.wait();
+            fs::write(record_path(&dir), ours).unwrap();
+            assert_eq!(recorded_port(&dir), Some(port));
+
+            running.stop(&dir);
+            assert_eq!(recorded_port(&dir), None, "a stopped model answers nowhere");
         }
 
         #[cfg(target_os = "linux")]
