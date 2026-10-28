@@ -2,6 +2,7 @@ import { manualBilling } from "./manual";
 import { type PaddleEnvironment, paddleBilling } from "./paddle";
 import type { BillingProvider } from "./provider";
 import { sandboxBilling } from "./sandbox";
+import { stripeBilling, stripeEnvironmentOf } from "./stripe";
 
 /**
  * Which payment provider this deployment uses, by name.
@@ -9,6 +10,8 @@ import { sandboxBilling } from "./sandbox";
  * `manual` (the default) takes no money. `sandbox` is a stand-in with real signature checks and no
  * payment; it refuses to start without a secret, so it cannot be turned on by accident half-configured.
  * `paddle` is the real one (Paddle Billing, decided 2026-10-08); it refuses to start unless every setting it needs is present and consistent.
+ * `stripe` is the alternative for a deployment that sells through Stripe and handles its own tax. It is
+ * test mode only for now: a live key is refused until the live run in docs/ark/25-stripe.md is done.
  */
 export function billingFromEnvironment(
   environment: Record<string, string | undefined>,
@@ -84,7 +87,44 @@ export function billingFromEnvironment(
         : {}),
     });
   }
+  if (name === "stripe") {
+    const need = (key: string) => {
+      const value = environment[key]?.trim();
+      if (!value) {
+        throw new Error(`ARK_BILLING_PROVIDER=stripe needs ${key}.`);
+      }
+      return value;
+    };
+    const secretKey = need("STRIPE_SECRET_KEY");
+    /*
+     * Stripe has only been run against its test mode. Taking real money through it is a decision that
+     * comes after the live run, not a key pasted into the wrong box, so a live key stops the server.
+     */
+    if (stripeEnvironmentOf(secretKey) === "live") {
+      throw new Error(
+        "STRIPE_SECRET_KEY is a live key, and Stripe is supported in test mode only for now. Use a test key (sk_test_... or rk_test_...); docs/ark/25-stripe.md says what is left before live.",
+      );
+    }
+    const prices: Record<string, string> = {};
+    for (const [plan, key] of [
+      ["agent", "STRIPE_PRICE_AGENT"],
+      ["team", "STRIPE_PRICE_TEAM"],
+      ["enterprise", "STRIPE_PRICE_ENTERPRISE"],
+    ] as const) {
+      const value = environment[key]?.trim();
+      if (value) prices[plan] = value;
+    }
+    const tolerance = Number(environment.STRIPE_WEBHOOK_TOLERANCE_SECONDS);
+    return stripeBilling({
+      secretKey,
+      webhookSecret: need("STRIPE_WEBHOOK_SECRET"),
+      prices,
+      ...(Number.isFinite(tolerance) && tolerance > 0
+        ? { toleranceSeconds: tolerance }
+        : {}),
+    });
+  }
   throw new Error(
-    `ARK_BILLING_PROVIDER=${name} is not a billing provider this version knows. Use manual, paddle or sandbox.`,
+    `ARK_BILLING_PROVIDER=${name} is not a billing provider this version knows. Use manual, paddle, stripe or sandbox.`,
   );
 }
