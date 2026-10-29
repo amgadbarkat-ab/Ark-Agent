@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.18
+
 ### Digital employees
 
 - **A colleague's answer was lost when the model on this computer was slow** (DT Lab, v0.1.17 step 4).
