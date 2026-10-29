@@ -66,6 +66,7 @@ type ToolCallPayload = {
   serverTitle: string;
   tool: string;
   args: Record<string, unknown>;
+  shown?: Record<string, string>;
   version: string | null;
   effect: "read" | "write";
   because: HeldToolCall["because"];
@@ -120,6 +121,7 @@ export function toolCallApprovals(store: ApprovalStore): ToolCallApprovals {
         serverTitle: call.serverTitle,
         tool: call.tool,
         args: call.args,
+        ...(call.shown ? { shown: call.shown } : {}),
         version: call.version,
         effect: call.effect,
         because: call.because,
@@ -452,7 +454,9 @@ export const chatCardExecutor: ApprovalExecutor = async () =>
  * What the person reads beside a request, in rows of label and value.
  *
  * For a held call these are its exact arguments: what the person approves is what runs, so they are
- * shown as they will be sent, strings as written and anything else as JSON.
+ * shown as they will be sent, strings as written and anything else as JSON. The one exception is an
+ * argument the deployment itself settled and named (`shown`), such as a routine's conversation,
+ * which reads as its name with the id that will be sent beside it.
  */
 export function approvalDetails(
   record: Pick<ApprovalRecord, "kind" | "payload">,
@@ -463,12 +467,21 @@ export function approvalDetails(
   >;
   if (record.kind === TOOL_CALL_KIND) {
     const args = isObject(payload.args) ? payload.args : {};
+    const shown = isObject(payload.shown) ? payload.shown : {};
     const rows = [
       { label: "Tool", value: `${payload.tool} on ${payload.serverTitle}` },
-      ...Object.entries(args).map(([label, value]) => ({
-        label,
-        value: typeof value === "string" ? value : JSON.stringify(value),
-      })),
+      ...Object.entries(args).map(([label, value]) => {
+        const named = shown[label];
+        return {
+          label,
+          value:
+            typeof named === "string"
+              ? named
+              : typeof value === "string"
+                ? value
+                : JSON.stringify(value),
+        };
+      }),
     ];
     return rows;
   }

@@ -107,6 +107,26 @@ export type VendorTransport = {
     toolName: string,
     args: Record<string, unknown>,
   ): Promise<McpCallResult>;
+  /**
+   * Settle arguments that only this deployment can settle, before the call is held or made.
+   *
+   * Optional, and only Routines has one: a routine's `channelId` is a conversation id, and a small
+   * model filled it with the words "this current conversation". Checked only at the write, that call
+   * was held, approved and then failed — the person approved a call that could not run. Settled here,
+   * before the store decides whether to hold, so the arguments a person is shown are the ones that
+   * run. `shown` is a readable name for an argument, by argument, for the person deciding; it is
+   * never sent anywhere. Never asked on an approved call: those arguments are the approved row's.
+   *
+   * Must not throw. Anything it cannot settle is returned unchanged, for `callTool` to refuse.
+   */
+  prepareCall?(
+    connection: { actorId?: string; botId?: string; threadId?: string },
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{
+    args: Record<string, unknown>;
+    shown?: Record<string, string>;
+  }>;
 };
 
 /**

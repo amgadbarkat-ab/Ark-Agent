@@ -26,6 +26,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   browser now reports which buttons submit a form, so the default "ask before submitting" rule holds
   a plain "Verify" or "Continue" button in a form, as it was meant to.
 
+### Fixes from the v0.1.19 retest
+
+- **Fixed: an approved routine could fail because it named no real conversation.** When a digital
+  employee sets up or moves a routine and names a conversation that is not one of yours (a small
+  model wrote "this current conversation"), the routine now posts into the conversation you asked in.
+  The request you approve shows that conversation by name, and approving it runs exactly that.
+
 ## 0.1.19
 
 ### Approvals in the middle of a run (desk #5)

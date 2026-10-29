@@ -7260,10 +7260,35 @@ export function createPluginStore(options: PluginStoreOptions) {
         advertised[0]?.effect,
       );
 
-      const args = withoutEmptyOptionals(
+      const given = withoutEmptyOptionals(
         callArgs,
         advertised[0]?.inputSchema as Record<string, unknown> | undefined,
       );
+
+      /*
+       * What only this deployment can fill in, filled in before the hold rather than at the vendor.
+       *
+       * A routine's conversation is the one case: a model wrote a phrase where a conversation id
+       * belongs, the call was held, the person approved it, and only then did it fail. Settled here,
+       * the request shows the conversation that will be used and the approved row is a call that
+       * runs. Not asked on an approved call — those arguments are the row the person approved.
+       */
+      const prepareCall = transportFor(access.transport).prepareCall;
+      const prepared =
+        approved || !prepareCall
+          ? { args: given }
+          : await prepareCall(
+              {
+                actorId: input.actorId,
+                botId: input.botId,
+                ...(input.run?.threadId
+                  ? { threadId: input.run.threadId }
+                  : {}),
+              },
+              toolName,
+              given,
+            );
+      const args = prepared.args;
 
       /*
        * The version this action was listed at, handed to the transport that needs one.
@@ -7519,6 +7544,7 @@ export function createPluginStore(options: PluginStoreOptions) {
           serverTitle: row.title,
           tool: toolName,
           args: modelArgs,
+          ...(prepared.shown ? { shown: prepared.shown } : {}),
           version: advertised[0]?.version ?? null,
           effect,
           because: ruleAsks

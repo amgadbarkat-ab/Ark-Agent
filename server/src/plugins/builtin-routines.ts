@@ -35,7 +35,7 @@ import { MAX_RESULT_CHARS, type McpCallResult, type McpTool } from "./mcp";
  */
 export type RoutineTools = Pick<
   RoutineStore,
-  "create" | "listFor" | "update" | "remove"
+  "create" | "listFor" | "update" | "remove" | "targetChannel"
 >;
 
 let installed: RoutineTools | null = null;
@@ -91,9 +91,9 @@ const TOOLS: readonly McpTool[] = Object.freeze([
       "time — the default is UTC and there is no deployment timezone to inherit, so a schedule set without",
       "one fires at a UTC hour rather than at theirs.",
       "",
-      "The routine posts its reply into a channel. Leave `channelId` out and it goes to the one channel you",
-      "share with this person; when you share more than one you will be told so and asked to pick, and the",
-      "answer to that is to ask them which.",
+      "The routine posts its reply into a conversation. Leave `channelId` out and it goes to this one, the",
+      "conversation you are in now. Pass `channelId` only to post somewhere else, and then only as an id you",
+      'were given; a description such as "this conversation" is not an id.',
       "",
       "It takes no owner and no digital employee. The routine belongs to the person you are talking to and runs as you;",
       "both are taken from the run itself, and there is no field for either.",
@@ -119,7 +119,7 @@ const TOOLS: readonly McpTool[] = Object.freeze([
         channelId: {
           type: "string",
           description:
-            "Where the reply is posted. Omit for the one channel you share with this person.",
+            "The id of a different conversation to post into. Omit to post into this conversation.",
         },
       },
       required: ["instruction", "cron"],
@@ -173,7 +173,7 @@ const TOOLS: readonly McpTool[] = Object.freeze([
         channelId: {
           type: "string",
           description:
-            "A different channel to post into. Must be one you and this person share.",
+            "The id of a different conversation to post into, one you and this person share. Omit to leave it where it is.",
         },
         enabled: {
           type: "boolean",
@@ -336,6 +336,52 @@ async function describeWritten(
       ? `${opening} ${inWords(summary)}`
       : `${fallbackOpening} Its id is ${routine.id}.`,
   );
+}
+
+/**
+ * Settle which conversation a routine posts into, before the call is held for a person or made.
+ *
+ * A small model filled `channelId` with the words "this current conversation"; the call was held,
+ * the person approved it, and the write then failed because that is not an id. So a `channelId`
+ * that is not a conversation this person and this Bot share — a phrase, a guess, somebody else's
+ * conversation — is replaced by the conversation the run is in, and so is a missing one on create.
+ * Done here, ahead of the hold, so the approval shows the conversation that will be used and the
+ * approved call is the one that runs. The owner and the Bot come off the connection, as in
+ * {@link callTool}; the thread is the run's own, never the model's.
+ *
+ * An update that names no channel is not asking to move the routine, so it is left alone. Anything
+ * that cannot be settled — no store, no actor, no conversation to fall back to, a failed read — goes
+ * through unchanged, and the store's own check refuses it in words the model can act on.
+ */
+export async function prepareCall(
+  connection: { actorId?: string; botId?: string; threadId?: string },
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<{ args: Record<string, unknown>; shown?: Record<string, string> }> {
+  if (toolName !== "create_routine" && toolName !== "update_routine") {
+    return { args };
+  }
+  const named = stringArg(args, "channelId");
+  if (toolName === "update_routine" && named === undefined) return { args };
+  const ownerUserId = connection.actorId?.trim();
+  const agentId = connection.botId?.trim();
+  const tools = installed;
+  if (!ownerUserId || !agentId || !tools) return { args };
+  try {
+    const target = await tools.targetChannel({
+      ownerUserId,
+      agentId,
+      ...(named !== undefined ? { channelId: named } : {}),
+      ...(connection.threadId ? { threadId: connection.threadId } : {}),
+    });
+    if (!target) return { args };
+    return {
+      args: { ...args, channelId: target.id },
+      shown: { channelId: `${target.name} (${target.id})` },
+    };
+  } catch {
+    return { args };
+  }
 }
 
 /**

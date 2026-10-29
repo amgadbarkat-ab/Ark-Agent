@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   callTool,
   listTools,
+  prepareCall,
   type RoutineTools,
   useRoutineTools,
 } from "../src/plugins/builtin-routines";
@@ -73,7 +74,11 @@ type Recorded =
       id: string;
       patch: RoutinePatch;
     }
-  | { method: "remove"; ownerUserId: string; id: string };
+  | { method: "remove"; ownerUserId: string; id: string }
+  | {
+      method: "targetChannel";
+      input: Parameters<RoutineTools["targetChannel"]>[0];
+    };
 
 /** Installs a stub that records every call, and answers with the fixtures above. */
 function recordingTools(overrides: Partial<RoutineTools> = {}): Recorded[] {
@@ -93,6 +98,17 @@ function recordingTools(overrides: Partial<RoutineTools> = {}): Recorded[] {
     },
     async remove(ownerUserId, id) {
       calls.push({ method: "remove", ownerUserId, id });
+    },
+    // The conversation the run is in, standing in for the store's check: a named id survives only
+    // when it is `channel_1`, the one this person and this Bot share.
+    async targetChannel(input) {
+      calls.push({ method: "targetChannel", input });
+      if (input.channelId === "channel_1") {
+        return { id: "channel_1", name: "Standup" };
+      }
+      return input.threadId === "thread_current"
+        ? { id: "channel_current", name: "Planning" }
+        : null;
     },
     ...overrides,
   });
@@ -580,5 +596,114 @@ describe("what the store said", () => {
     expect(result.isError).toBe(true);
     expect(Array.from(result.text)).toHaveLength(400);
     expect(result.text).toBe("é".repeat(400));
+  });
+});
+
+describe("settling the conversation before the call is held", () => {
+  const RUN = { ...CONNECTION, threadId: "thread_current" };
+
+  test("a phrase where a conversation id belongs becomes the conversation the run is in", async () => {
+    // DT Lab, v0.1.19: a small model wrote this, the call was held, the person approved it, and the
+    // write then failed because it is not an id.
+    const calls = recordingTools();
+    const prepared = await prepareCall(RUN, "create_routine", {
+      instruction: "Post the standup summary.",
+      cron: "0 9 * * 1-5",
+      channelId: "this current conversation",
+    });
+
+    expect(prepared.args.channelId).toBe("channel_current");
+    expect(prepared.shown).toEqual({
+      channelId: "Planning (channel_current)",
+    });
+    expect(calls).toContainEqual({
+      method: "targetChannel",
+      input: {
+        ownerUserId: "user_asker",
+        agentId: "bot_helper",
+        channelId: "this current conversation",
+        threadId: "thread_current",
+      },
+    });
+  });
+
+  test("a conversation this person and this Bot share is kept", async () => {
+    recordingTools();
+    const prepared = await prepareCall(RUN, "create_routine", {
+      instruction: "Post the standup summary.",
+      cron: "0 9 * * 1-5",
+      channelId: "channel_1",
+    });
+
+    expect(prepared.args.channelId).toBe("channel_1");
+    expect(prepared.shown).toEqual({ channelId: "Standup (channel_1)" });
+  });
+
+  test("a create that names no conversation posts into this one", async () => {
+    recordingTools();
+    const prepared = await prepareCall(RUN, "create_routine", {
+      instruction: "Post the standup summary.",
+      cron: "0 9 * * 1-5",
+    });
+
+    expect(prepared.args.channelId).toBe("channel_current");
+  });
+
+  test("an update with a bogus conversation moves it to this one, and one naming none is left alone", async () => {
+    const calls = recordingTools();
+    const moved = await prepareCall(RUN, "update_routine", {
+      id: "routine_1",
+      channelId: "here",
+    });
+    expect(moved.args.channelId).toBe("channel_current");
+
+    calls.splice(0);
+    const untouched = { id: "routine_1", cron: "30 18 * * *" };
+    const unmoved = await prepareCall(RUN, "update_routine", untouched);
+    expect(unmoved).toEqual({ args: untouched });
+    expect(calls).toHaveLength(0);
+  });
+
+  test("the owner and the Bot come off the connection, never out of the arguments", async () => {
+    const calls = recordingTools();
+    await prepareCall(RUN, "create_routine", {
+      ownerUserId: "someone-else",
+      agentId: "another-bot",
+      instruction: "Post it.",
+      cron: "0 9 * * 1-5",
+    });
+
+    expect(calls[0]).toMatchObject({
+      input: { ownerUserId: "user_asker", agentId: "bot_helper" },
+    });
+  });
+
+  test("anything it cannot settle goes through unchanged, for the store to refuse", async () => {
+    const args = {
+      instruction: "Post it.",
+      cron: "0 9 * * 1-5",
+      channelId: "this current conversation",
+    };
+
+    // No conversation to fall back to.
+    recordingTools();
+    expect(await prepareCall(CONNECTION, "create_routine", args)).toEqual({
+      args,
+    });
+
+    // A read that failed.
+    recordingTools({
+      async targetChannel() {
+        throw new Error("connection reset");
+      },
+    });
+    expect(await prepareCall(RUN, "create_routine", args)).toEqual({ args });
+
+    // A tool with no conversation in it.
+    const calls = recordingTools();
+    expect(
+      await prepareCall(RUN, "delete_routine", { id: "routine_1" }),
+    ).toEqual({ args: { id: "routine_1" } });
+    expect(calls).toHaveLength(0);
   });
 });

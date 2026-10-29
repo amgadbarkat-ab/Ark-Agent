@@ -67,6 +67,11 @@ export type HeldToolCall = {
   tool: string;
   /** Exactly what will be sent if it is approved, and what the person is shown. */
   args: Record<string, unknown>;
+  /**
+   * A readable name for some of those arguments, by argument: a conversation's name beside its id.
+   * Shown to the person deciding in place of the bare value, and never sent.
+   */
+  shown?: Record<string, string>;
   /** The vendor's version of the action at the time it was asked, so a changed action is not run. */
   version: string | null;
   effect: "read" | "write";
