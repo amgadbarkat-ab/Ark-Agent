@@ -26,6 +26,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   browser now reports which buttons submit a form, so the default "ask before submitting" rule holds
   a plain "Verify" or "Continue" button in a form, as it was meant to.
 
+### Desktop
+
+- **An older Docker Compose now says what to update** (DT Lab, v0.1.19). Compose 2.26 stopped the
+  start on "unknown flag: --pull", which named nothing to install. The app now says Compose is too
+  old and how to update it on this system.
+
 ## 0.1.19
 
 ### Approvals in the middle of a run (desk #5)
