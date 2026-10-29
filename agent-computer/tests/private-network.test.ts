@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { type Browser, chromium } from "playwright";
+import type { Browser } from "playwright";
 import {
   privateNetworkBlocked,
   refusePrivateNetworkArgs,
@@ -34,12 +34,16 @@ describe("whether the deployment closed the private network", () => {
  * depends on the network, and the private addresses are never reached: each request is refused
  * before it leaves, by the route or by the proxy script, exactly as the computers launch them.
  */
-const executable = standInBrowser();
+// Run with `bun run test:own-browser`, as the other live browser tests: the ordinary test job does
+// not install this package's dependencies, so Playwright is loaded only when the browser part runs.
+const asked = process.env.OPENBOT_OWN_BROWSER === "1";
+const executable = asked ? standInBrowser() : null;
 describe.skipIf(!executable)(
   "a public page cannot send the browser onto the private network",
   () => {
     let browser: Browser;
     beforeAll(async () => {
+      const { chromium } = await import("playwright");
       browser = await chromium.launch({
         ...(executable ? { executablePath: executable } : {}),
         args: refusePrivateNetworkArgs(),
