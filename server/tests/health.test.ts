@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createApp } from "../src/app";
+import type { ChannelStore } from "../src/channels/routes";
 import { loadConfig } from "../src/config";
 import { testEnvironment } from "./support/environment";
 
@@ -35,6 +36,37 @@ describe("runtime capabilities", () => {
     expect(JSON.parse(body).transcription).toBe(true);
     expect(body).not.toContain("private");
   });
+  test("reports Read aloud's languages and credit without exposing its endpoint, model, voices, or key", async () => {
+    const configured = createApp(
+      loadConfig(
+        testEnvironment({
+          SPEECH_URL: "http://127.0.0.1:4210/private/v1",
+          SPEECH_MODEL: "private-speech-model",
+          SPEECH_VOICE_AR: "private-arabic-voice",
+          SPEECH_API_KEY: "private-speech-key",
+          SPEECH_ATTRIBUTION: "Powered by Example",
+        }),
+      ),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      // Read aloud scopes a message by the person's channels, so it is only on where there are some.
+      { get: async () => null } as unknown as ChannelStore,
+    );
+    const response = await configured.request("/api/capabilities");
+    const body = await response.text();
+    expect(JSON.parse(body).readAloud).toEqual({
+      languages: ["ar"],
+      attribution: "Powered by Example",
+    });
+    expect(body).not.toContain("private");
+  });
   test("reports the Intelligence runtime without exposing configuration secrets", async () => {
     const response = await app.request("http://openbot.local/api/capabilities");
 
@@ -47,6 +79,8 @@ describe("runtime capabilities", () => {
       generativeUi: true,
       transcription: false,
       voice: false,
+      // Read aloud is off unless its own SPEECH_ variables are set.
+      readAloud: null,
       // The Android app's package name, public already; null where there is no Android app.
       androidPackage: null,
       // The iOS app's address scheme, public already; null where there is no iOS app.
@@ -75,6 +109,7 @@ describe("runtime capabilities", () => {
       "generativeUi",
       "transcription",
       "voice",
+      "readAloud",
       "androidPackage",
       "appUrlScheme",
       "authProviders",

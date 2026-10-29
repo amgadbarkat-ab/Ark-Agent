@@ -65,6 +65,7 @@ import {
   toVisibleChatItems,
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
+import { ReadAloud } from "./read-aloud";
 import { ToolRenderBoundary } from "./tool-boundary";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import { ToolLine } from "./tool-line";
@@ -72,6 +73,11 @@ import { VoiceChatCard } from "./voice-chat-card";
 
 type ChatTranscriptProps = {
   busy?: boolean;
+  /**
+   * The conversation these messages are in. Read aloud names a message by it, so a screen with no
+   * channel yet offers no Read aloud.
+   */
+  channelId?: string;
   /** Comma-separated `/` command names, used to tell a skill chip from a leading slash. */
   commandNames?: string;
   messages: ReadonlyArray<Readonly<Message>>;
@@ -592,16 +598,26 @@ function ColleagueAnswer({ name, answer }: { name: string; answer: string }) {
  * It is also what keeps the entrance honest — no remount means no replay of the fade.
  */
 const TranscriptMessage = memo(function TranscriptMessage({
+  channelId = "",
   commandNames = "",
   delay,
+  messageId,
   role,
+  settled = false,
   speakerId = "",
   speakerName = "",
   text,
 }: {
+  channelId?: string;
   commandNames?: string;
   delay: number;
+  messageId: string;
   role: "user" | "assistant";
+  /**
+   * The turn this belongs to has finished, so the message is stored and can be read aloud. A reply
+   * still streaming is neither complete nor in the history the server reads it back from.
+   */
+  settled?: boolean;
   /** Primitives, not an object, so an untouched message still compares equal and is skipped. */
   speakerId?: string;
   speakerName?: string;
@@ -700,6 +716,13 @@ const TranscriptMessage = memo(function TranscriptMessage({
               )}
             </BubbleContent>
           </Bubble>
+          {!isUser && channelId && settled ? (
+            <ReadAloud
+              channelId={channelId}
+              messageId={messageId}
+              text={text}
+            />
+          ) : null}
         </Arriving>
       </MessageContent>
     </MessageRow>
@@ -1498,6 +1521,7 @@ function useSmoothSendScroll(
 
 export function ChatTranscript({
   busy = false,
+  channelId,
   commandNames = "",
   messages,
   onRemoveQueued,
@@ -1553,6 +1577,18 @@ export function ChatTranscript({
         item.kind === "attachments",
     )?.id ?? null;
   useSmoothSendScroll(viewportRef, newestUserMessageId);
+
+  /*
+   * Where the turn in flight starts. Everything after the person's newest message is still being
+   * written while `busy`, and is not offered Read aloud until the turn is over.
+   */
+  const turnStart = busy
+    ? items.findLastIndex(
+        (item) =>
+          (item.kind === "text" && isPersonSentMessage(item.role, item.text)) ||
+          item.kind === "attachments",
+      )
+    : items.length;
 
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
   const anchorRows = anchorRowIds(items);
@@ -1694,9 +1730,12 @@ export function ChatTranscript({
                   scrollAnchor={anchorRows.has(item.id)}
                 >
                   <TranscriptMessage
+                    {...(channelId ? { channelId } : {})}
                     commandNames={commandNames}
                     delay={delays.delayFor(item.id, index, items.length)}
+                    messageId={item.id}
                     role={item.role}
+                    settled={!busy || index < turnStart}
                     speakerId={speaker?.id}
                     speakerName={speaker?.name}
                     text={item.text}

@@ -7444,7 +7444,8 @@ fn main() {
             "services:\n  agent-harness:\n    labels:\n      regression: preserved\n",
         )
         .unwrap();
-        std::fs::write(root.join(".env"), "PICKED_HARNESS_IMAGE=synthetic:local\nPICKED_HARNESS_PORT=4206\nPICKED_HARNESS_HOST_PORT=52106\nPOSTGRES_PORT=55432\n").unwrap();
+        // Every profile is named below, so the opt-in speech engine needs an image too, as the harness does.
+        std::fs::write(root.join(".env"), "PICKED_HARNESS_IMAGE=synthetic:local\nSPEECH_IMAGE=synthetic-speech:local\nPICKED_HARNESS_PORT=4206\nPICKED_HARNESS_HOST_PORT=52106\nPOSTGRES_PORT=55432\n").unwrap();
         let command = compose_start_command(
             &Address::new(crate::engine::Engine::Docker, None),
             &root,
@@ -7492,7 +7493,7 @@ fn main() {
     /// This only reads configuration; it never contacts a container engine or registry.
     #[test]
     #[ignore = "requires Docker Compose; only reads configuration, no running engine needed"]
-    fn macos_podman_port_overlay_replaces_all_six_ports_and_preserves_other_settings() {
+    fn macos_podman_port_overlay_replaces_every_published_port_and_preserves_other_settings() {
         let root = temp_root("compose-ports-merge");
         std::fs::create_dir_all(&root).unwrap();
         let source = include_str!("../../../docker-compose.yml");
@@ -7530,8 +7531,8 @@ fn main() {
             serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap()
         };
         for settings in [
-            "PICKED_HARNESS_IMAGE=synthetic-harness:local\n".to_string(),
-            "PICKED_HARNESS_IMAGE=synthetic-harness:local\nPOSTGRES_PORT=15432\nSUPERVISOR_PORT=14500\nCOMPUTER_PORT=14100\nBOT_PORT=14200\nLANGGRAPH_PORT=14201\nPICKED_HARNESS_PORT=14206\n".to_string(),
+            "PICKED_HARNESS_IMAGE=synthetic-harness:local\nSPEECH_IMAGE=synthetic-speech:local\n".to_string(),
+            "PICKED_HARNESS_IMAGE=synthetic-harness:local\nSPEECH_IMAGE=synthetic-speech:local\nPOSTGRES_PORT=15432\nSUPERVISOR_PORT=14500\nCOMPUTER_PORT=14100\nBOT_PORT=14200\nLANGGRAPH_PORT=14201\nPICKED_HARNESS_PORT=14206\nSPEECH_PORT=14210\n".to_string(),
         ] {
             std::fs::write(root.join(".env"), &settings).unwrap();
             let mut before = config(false);
@@ -7545,7 +7546,7 @@ fn main() {
                     published += 1;
                 }
             }
-            assert_eq!(published, 6, "all published services must be covered");
+            assert_eq!(published, 8, "all published services must be covered");
             assert_eq!(after, before, "only the duplicate IPv6 loopback mappings may change");
             assert_eq!(std::fs::read_to_string(root.join(".env")).unwrap(), settings);
             assert_eq!(std::fs::read_to_string(root.join("docker-compose.yml")).unwrap(), source);

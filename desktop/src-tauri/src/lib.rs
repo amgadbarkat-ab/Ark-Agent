@@ -22,6 +22,7 @@ pub mod pull_metrics;
 pub mod quiet;
 pub mod retired_plan;
 pub mod saved_intent;
+pub mod speech_gpu;
 pub mod stack;
 pub mod supervise;
 pub mod tray;

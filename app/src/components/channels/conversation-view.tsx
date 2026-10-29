@@ -451,6 +451,7 @@ export function ConversationView({
          */}
         <ChatTranscript
           busy={busy}
+          {...(channelId ? { channelId } : {})}
           commandNames={(commands ?? [])
             .map((command) => command.name)
             .join(",")}

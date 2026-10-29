@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { MAX_IMAGE_BYTES } from "../../shared/attachments";
+import { SPEECH_LANGUAGES } from "../../shared/speech";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
@@ -59,6 +60,8 @@ import type { Database } from "./db/client";
 import { withoutStatement } from "./db/query-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
+import { createSpeechProvider } from "./speech/provider";
+import { createSpeechRoutes } from "./speech/routes";
 import { createVoiceProvider } from "./voice/provider";
 import { createVoiceRoutes } from "./voice/routes";
 import type { VoiceSessionServices } from "./voice/session-routes";
@@ -517,6 +520,21 @@ export function createApp(
       transcription: Boolean(config.transcription),
       voice: Boolean(config.voice),
       /*
+       * Read aloud, as the browser needs it: which languages have a voice, and the credit the model's
+       * licence asks to be shown. Null where it is off, which includes a deployment with no channel
+       * store, because /api/speech cannot scope a message without one. The endpoint, model, voice
+       * names and key stay here, like transcription's.
+       */
+      readAloud:
+        config.speech && channelStore
+          ? {
+              languages: SPEECH_LANGUAGES.filter(
+                (language) => config.speech?.voices[language],
+              ),
+              attribution: config.speech.attribution ?? null,
+            }
+          : null,
+      /*
        * The Android app's package name, where there is one. The browser reads it to tell this
        * deployment's own app from any other Android app that happened to open the site: both show up
        * as an `android-app://` referrer, and only the first may hide a way to buy (docs/ark/19-mobile.md).
@@ -698,6 +716,25 @@ export function createApp(
       requireUser,
       config.transcription
         ? createTranscriptionProvider(config.transcription)
+        : undefined,
+    ),
+  );
+  /*
+   * Mounted whether or not it is configured, so a deployment without it answers 404 with a sentence
+   * rather than the app's HTML. It needs the person's channels to scope the message it reads, so a
+   * deployment with no channel store has no Read aloud either.
+   */
+  app.route(
+    "/api/speech",
+    createSpeechRoutes(
+      requireUser,
+      config.speech && channelStore
+        ? {
+            provider: createSpeechProvider(config.speech),
+            voices: config.speech.voices,
+            channels: channelStore,
+            transcript: createIntelligenceClient(config.runtime.intelligence),
+          }
         : undefined,
     ),
   );

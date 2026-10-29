@@ -271,6 +271,7 @@ test("publishes every service that holds a secret on loopback only", () => {
     "BOT_PORT",
     "LANGGRAPH_PORT",
     "PICKED_HARNESS_PORT",
+    "SPEECH_PORT",
   ]) {
     const published = [
       ...compose.matchAll(
@@ -567,4 +568,64 @@ test("gives the selected harness the same governed callback as the framework Bot
       "host.docker.internal=host-gateway",
     );
   }
+});
+
+/**
+ * Read aloud's speech engine is opt-in and graphics-card only (docs/ark/27-read-aloud.md).
+ *
+ * Off by default means absent from every start that does not name its profile, including the
+ * desktop's, which names its services explicitly. GPU-only means the service reserves an NVIDIA
+ * device, so Compose refuses it on a machine without one instead of running it on the processor.
+ * And no image of ours exists, so nothing is ever pulled for it.
+ */
+test("keeps the speech engine behind its profile, on an NVIDIA GPU, with no image to pull", () => {
+  expect(runComposeConfig({}).services).not.toHaveProperty("speech");
+
+  const output = execFileSync(
+    "docker",
+    [
+      "compose",
+      "--env-file",
+      "/dev/null",
+      "--profile",
+      "speech",
+      "config",
+      "--format",
+      "json",
+    ],
+    {
+      cwd: join(import.meta.dir, ".."),
+      env: {
+        PATH: process.env.PATH ?? "",
+        SPEECH_IMAGE: "speech-engine:local",
+      },
+      encoding: "utf8",
+    },
+  );
+  const speech = (
+    JSON.parse(output) as {
+      services: Record<
+        string,
+        {
+          image?: string;
+          pull_policy?: string;
+          deploy?: {
+            resources?: {
+              reservations?: {
+                devices?: { driver?: string; capabilities?: string[] }[];
+              };
+            };
+          };
+        }
+      >;
+    }
+  ).services.speech;
+  expect(speech?.image).toBe("speech-engine:local");
+  expect(speech?.pull_policy).toBe("never");
+  expect(speech?.deploy?.resources?.reservations?.devices).toEqual([
+    expect.objectContaining({ driver: "nvidia", capabilities: ["gpu"] }),
+  ]);
+  // No default image anywhere in the file: an unset SPEECH_IMAGE is empty, not somebody's registry.
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: asserts on the unexpanded placeholder text.
+  expect(composeFile()).toContain("image: ${SPEECH_IMAGE:-}\n");
 });

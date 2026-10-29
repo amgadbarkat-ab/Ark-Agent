@@ -8,6 +8,17 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Read aloud (desk #82): draft, off by default, not enabled in any build
+
+- **A digital employee's Arabic or English answer can be read aloud in a synthetic voice, where a
+  deployment turns it on.** Nothing changes for any deployment that does not set the new `SPEECH_`
+  settings, and no release sets them. The control appears under a finished answer only when it is on
+  and the answer is Arabic or English; it says the voice is synthetic. Greek and every other language
+  are refused before anything is sent. The engine (KittenTTS 2) runs only on an NVIDIA graphics card,
+  in an opt-in `speech` Compose profile that nothing starts by default and whose image you build
+  yourself. Its model licence asks for "Powered by KittenML" to be shown, has a revenue limit and can
+  be revoked: read docs/ark/27-read-aloud.md before turning it on.
+
 ### Digital employees
 
 - **What you typed on the home screen while your message was being sent is kept** (DT Lab, v0.1.19).

@@ -20,3 +20,6 @@ services:
   agent-harness:
     ports: !override
       - "127.0.0.1:${PICKED_HARNESS_PORT:-4202}:${PICKED_HARNESS_PORT:-4202}"
+  speech:
+    ports: !override
+      - "127.0.0.1:${SPEECH_PORT:-4210}:${SPEECH_CONTAINER_PORT:-8000}"

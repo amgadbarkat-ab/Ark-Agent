@@ -7,6 +7,7 @@ import {
 } from "@/components/layout/page-shell";
 import { MessageListPreference } from "@/components/settings/message-list-preference";
 import { NotificationSettings } from "@/components/settings/notifications";
+import { ReadAloudSetting } from "@/components/settings/read-aloud";
 import { StandingInstructions } from "@/components/settings/standing-instructions";
 import { useTheme } from "@/components/theme-provider";
 import {
@@ -67,6 +68,8 @@ function RouteComponent() {
       <StandingInstructions />
       {/* Per device, because only a browser can be asked for permission, so it is not an account setting. */}
       <NotificationSettings />
+      {/* Only where the deployment has it on; it is also where the speech model's credit is shown. */}
+      <ReadAloudSetting />
       {/*
        * Drawn from the same registry the listeners match against, so this list is what the keys
        * actually do rather than what somebody remembered they did. Read-only on purpose: these

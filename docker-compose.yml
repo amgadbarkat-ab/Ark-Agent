@@ -416,6 +416,33 @@ services:
       timeout: 5s
       retries: 5
 
+  # Read aloud's speech engine (docs/ark/27-read-aloud.md). OFF BY DEFAULT and graphics-card only.
+  #
+  # Behind its own profile, so nothing starts it unless somebody asks with `--profile speech`. The
+  # approved model is ~8x slower than real time and holds ~6 GB of memory on a processor, which is not
+  # a voice anybody waits for, so the service reserves an NVIDIA GPU and Compose refuses to start it on
+  # a machine that has none rather than quietly falling back to the processor.
+  #
+  # No image of ours exists. SPEECH_IMAGE names one the operator built from the engine's own
+  # repository, and `pull_policy: never` means an unset or mistyped name fails instead of fetching
+  # something from a registry nobody chose. Whatever runs here must answer OpenAI's
+  # `POST /v1/audio/speech`; the server reaches it through SPEECH_URL like any other endpoint.
+  speech:
+    profiles: ["speech"]
+    image: ${SPEECH_IMAGE:-}
+    pull_policy: never
+    ports:
+      # Loopback, for the same reason as agent-bot: the server is a host process and the only caller.
+      - "127.0.0.1:${SPEECH_PORT:-4210}:${SPEECH_CONTAINER_PORT:-8000}"
+      - "[::1]:${SPEECH_PORT:-4210}:${SPEECH_CONTAINER_PORT:-8000}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
 networks:
   # The database and the one service that reaches it by name. Nothing a Bot can reach is on it.
   #

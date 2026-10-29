@@ -30,6 +30,7 @@ research and plans. Each file says when it was written.
 | [22-starter-model.md](22-starter-model.md) | The free starter model: why, what it is and is not, the model chosen and the Oracle free-tier machine it runs on, the queue, the settings, how to set the server up, what is verified and what is not. |
 | [21-desktop-demo.md](21-desktop-demo.md) | The desktop app for a first customer demo: what the customer sees, what must exist first, making the first release, where the downloads live (the company's website), and what was and was not checked. |
 | [25-device-control.md](25-device-control.md) | Device control, step 1: what an employee on the desktop can reach today, the gaps against "no submit, pay, send or delete without a person approving", 20 Greek/English test tasks, and 10 prompt-injection trap pages (`security/device-control-traps/`). |
+| [27-read-aloud.md](27-read-aloud.md) | Read aloud (draft, off by default): a digital employee's Arabic or English answer in a synthetic voice, GPU-only, why not Greek, the KittenML licence obligations, how to turn it on, what was measured. |
 | [../brand/README.md](../brand/README.md) | The company's v3 (Ember) identity as used in Ark: tokens, the app tile, where each icon lands, how to make them again, and what is not done. |
 | [../legal/](../legal/) | Drafts for a lawyer: privacy notice (shown in the app at /privacy), terms of service (at /terms; acceptance recorded per version) and a data processing agreement template. |
 

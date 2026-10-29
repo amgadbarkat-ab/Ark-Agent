@@ -23,6 +23,7 @@ import {
 } from "./mobile/links";
 import type { StarterModelConfig } from "./models/starter";
 import { parseRequestLogMode, type RequestLogMode } from "./observability";
+import { type SpeechConfig, speechConfig } from "./speech/config";
 import { type VoiceConfig, voiceConfig } from "./voice/config";
 
 export type RuntimeCapabilities = {
@@ -238,6 +239,8 @@ export type DeploymentConfig = {
   /** Audio configuration is independent of agent model providers. */
   transcription?: TranscriptionConfig;
   voice?: VoiceConfig;
+  /** Read aloud. Absent means the feature does not exist on this deployment. See speech/config.ts. */
+  speech?: SpeechConfig;
   /** The port the API listens on. Named `PORT` or `SERVER_PORT`; see `serverPort`. */
   port: number;
   databaseUrl: string;
@@ -1827,6 +1830,7 @@ export function loadConfig(
     port: serverPort(environment),
     transcription: transcriptionConfig(environment),
     voice: voiceConfig(environment),
+    speech: speechConfig(environment),
     databaseUrl: required(environment, "DATABASE_URL"),
     cloud: cloudConfig(environment),
     contentSecurityPolicy: contentSecurityPolicyMode(environment),

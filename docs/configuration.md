@@ -238,6 +238,26 @@ until cancellation or navigation. Your configured provider's retention policy st
 
 Dictation is separate from live voice calls and does not enable them automatically.
 
+## Read aloud (draft)
+
+Off by default and in no build. A **Read aloud** control under a digital employee's Arabic or English
+answer plays it in a synthetic voice. The server loads the answer itself from a conversation the
+person is in, decides the language from its script, and refuses Greek and every other language before
+sending anything. See [docs/ark/27-read-aloud.md](ark/27-read-aloud.md) for the rules, the GPU-only
+engine, and the model's licence obligations.
+
+| Variable | Meaning |
+| --- | --- |
+| `SPEECH_URL` | Base URL of an OpenAI-compatible speech API, including `/v1`. The server appends `/audio/speech`. All `SPEECH_` variables unset disables Read aloud. |
+| `SPEECH_MODEL` | Required model name, passed verbatim. |
+| `SPEECH_VOICE_EN`, `SPEECH_VOICE_AR` | The voice for English and for Arabic. At least one is required; a language without a voice is not read aloud. |
+| `SPEECH_API_KEY` | Optional bearer credential for the speech service. |
+| `SPEECH_ATTRIBUTION` | The credit the model's licence asks to be shown, e.g. `Powered by KittenML`. Shown in Preferences and the control's tooltip. |
+| `SPEECH_IMAGE`, `SPEECH_CONTAINER_PORT`, `SPEECH_PORT` | For the opt-in `speech` Compose profile only: the engine image you built (no default, never pulled), its port inside the container, and the loopback port on the host (default 4210). The service reserves an NVIDIA GPU. |
+
+Answers are capped at 4,000 characters after markdown is removed, and requests time out after 60
+seconds. One message at a time per person, four per server process. The message text is never logged.
+
 ## Live voice calls
 
 The waveform button in an existing channel opens a floating call widget. The realtime voice model

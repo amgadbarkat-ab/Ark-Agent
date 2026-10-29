@@ -1,5 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import {
+  SPEECH_LANGUAGES,
+  type SpeechLanguage,
+} from "../../../../shared/speech";
 
 /**
  * What this deployment can do, as the server is willing to say it.
@@ -20,6 +24,14 @@ export type DeploymentCapabilities = {
   generativeUi: boolean;
   transcription?: boolean;
   voice?: boolean;
+  /**
+   * Read aloud: the languages this deployment has a voice for, and the credit the speech model's
+   * licence asks to be shown. Null, or absent from an older server, means it is off.
+   */
+  readAloud?: {
+    languages: SpeechLanguage[];
+    attribution: string | null;
+  } | null;
   /**
    * The package name of this deployment's Android app, or null where it has none. Compared with the
    * `android-app://` address that opened the page to know it is that app and not another Android app
@@ -68,6 +80,7 @@ export function deploymentCapabilitiesQueryOptions() {
         generativeUi?: boolean;
         transcription?: boolean;
         voice?: boolean;
+        readAloud?: unknown;
         androidPackage?: unknown;
         appUrlScheme?: unknown;
       };
@@ -76,6 +89,7 @@ export function deploymentCapabilitiesQueryOptions() {
         generativeUi: body.generativeUi === true,
         transcription: body.transcription === true,
         voice: body.voice === true,
+        readAloud: readAloudCapability(body.readAloud),
         androidPackage:
           typeof body.androidPackage === "string" ? body.androidPackage : null,
         appUrlScheme:
@@ -83,4 +97,26 @@ export function deploymentCapabilitiesQueryOptions() {
       };
     },
   });
+}
+
+/** Only languages this build knows how to gate; a newer server's extra language is not offered. */
+function readAloudCapability(
+  value: unknown,
+): DeploymentCapabilities["readAloud"] {
+  if (!value || typeof value !== "object") return null;
+  const { languages, attribution } = value as {
+    languages?: unknown;
+    attribution?: unknown;
+  };
+  const known = Array.isArray(languages)
+    ? SPEECH_LANGUAGES.filter((language) => languages.includes(language))
+    : [];
+  if (known.length === 0) return null;
+  return {
+    languages: known,
+    attribution:
+      typeof attribution === "string" && attribution.trim()
+        ? attribution.trim()
+        : null,
+  };
 }
