@@ -331,8 +331,14 @@ pub fn lacks_prebuilt_app(root: &Path) -> bool {
 pub const REQUIRED: [&str; 4] = ["docker-compose.yml", "server", "app", "worker"];
 
 /// The rest of what a deployment needs, which is not what it is checked for.
-pub const ALSO_COPIED: [&str; 9] = [
+pub const ALSO_COPIED: [&str; 12] = [
     "shared",
+    // What drives the person's own Chrome or Edge when they switch that on (device control, phase
+    // 1; own_browser.rs). Only its source and manifest: its packages are installed the first time
+    // somebody switches it on, and nobody else pays for them.
+    "agent-computer/src",
+    "agent-computer/package.json",
+    "agent-computer/bun.lock",
     // The app's config generator reads the privacy notice and the terms from here every time it
     // builds or serves, and stops with ENOENT without them. Only this folder of `docs`.
     "docs/legal",

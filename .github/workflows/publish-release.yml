@@ -496,7 +496,7 @@ jobs:
           # config generator reads the privacy notice and terms from it. Of hub/ only its manifest: the root
           # manifest names it as a workspace and a frozen install fails without it.
           git archive --format=tar --prefix="ark-${VERSION}/" -o source.tar "$GITHUB_SHA" -- \
-            docker-compose.yml server app worker shared examples docs/legal hub/package.json package.json bun.lock scripts \
+            docker-compose.yml server app worker shared agent-computer/src agent-computer/package.json agent-computer/bun.lock examples docs/legal hub/package.json package.json bun.lock scripts \
             tsconfig.base.json bunfig.toml
           # And the web app built for this release (the job above), in app/dist, marker included. The
           # desktop installs without the tools that build the page and serves this.
