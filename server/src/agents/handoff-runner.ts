@@ -15,6 +15,7 @@ import {
   type AuditStore,
   recordAuditEvent,
 } from "../audit";
+import { frameColleagueAnswer } from "../../../shared/handoff-markers";
 import { cutAtCodeUnits } from "../channels/text";
 import { DEFAULT_MAX_ATTEMPTS, type WorkQueue } from "../work/queue";
 import { HANDOFF_KIND } from "./handoff";
@@ -56,6 +57,14 @@ export type HandoffWork = {
    * sentence or two.
    */
   resume?: boolean;
+  /**
+   * On a relay, the colleague's answer as it said it.
+   *
+   * Kept apart from the task, which carries it too, because the task is addressed to the relaying
+   * model and this is written into the conversation for the person to read. What the model makes
+   * of it is up to the model; that the person can read it is not.
+   */
+  relayed?: string;
 };
 
 export type HandoffDelivery = {
@@ -190,8 +199,15 @@ export function createHandoffRunner(options: {
         depth: work.depth,
         ...(work.initiator ? { initiator: work.initiator } : {}),
         ...(work.request ? { request: work.request } : {}),
+        // The colleague's name, so its answer is attributed to it in the transcript.
+        ...(work.toName ? { fromName: work.toName } : {}),
         answerIn: work.threadId,
-        task: `You asked ${work.toName ?? work.toBotId} to help with this: ${work.task}\n\nIt answered:\n\n${clip(answer)}\n\nGive the person the outcome. Keep what matters, drop the pleasantries, and say it came from ${work.toName ?? work.toBotId}.`,
+        relayed: clip(answer),
+        /*
+         * Pass it on, not sum it up. "Keep what matters" let a small model decide nothing did: asked
+         * for three risks, the person was told the colleague had got back, and nothing else.
+         */
+        task: `You asked ${work.toName ?? work.toBotId} to help with this: ${work.task}\n\nIt answered:\n\n${clip(answer)}\n\nPass its answer on to the person: say it came from ${work.toName ?? work.toBotId} and give every point it made, in full. Do not shorten it to a summary or leave any of it out.`,
       } as unknown as Record<string, unknown>,
     });
 
@@ -566,6 +582,13 @@ function attribute(work: HandoffWork): string {
   if (work.answerIn && work.resume) {
     return `${work.task}\n\nSpeak to the person in this conversation as yourself. Do not hand this to another digital employee.`;
   }
+  /*
+   * A relay is not told to be brief. Its task is the colleague's answer, and "a sentence or two" is
+   * how three risks became one line saying they had arrived.
+   */
+  if (work.answerIn && work.relayed) {
+    return `${work.task}\n\nSpeak to the person in this conversation as yourself. Do not hand it to another digital employee.`;
+  }
   if (work.answerIn) {
     return `${work.task}\n\nSay this in your own words to the person in this conversation, in a sentence or two. Do not hand it to another digital employee.`;
   }
@@ -594,6 +617,14 @@ function attribute(work: HandoffWork): string {
  * somebody else's instructions to a model is how a transcript stops being a conversation.
  */
 function summarise(work: HandoffWork): string | null {
+  /*
+   * A relay shows the colleague's answer itself, as it was said and under its name, ahead of
+   * whatever the relaying employee says about it. That employee's reply is a model's to word and a
+   * small one may drop the substance; this line is the answer the person actually asked for.
+   */
+  if (work.answerIn && work.relayed) {
+    return frameColleagueAnswer(work.fromName ?? work.fromBotId, work.relayed);
+  }
   /*
    * Nothing, for a Bot going back to its own conversation to say a hop failed. Its own sentence is
    * the whole message; the text that prompted it is an instruction to a model, and shown here it
