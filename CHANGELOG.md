@@ -8,6 +8,24 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Device control, phase 1: your own browser (desk #27)
+
+- **A digital employee can work in your own Chrome or Edge, on the desktop app, if you switch it
+  on.** It is off by default. Choose **Let digital employees use my browser** in the ArkAgent menu
+  (tray or window menu); ArkAgent asks first, then opens Chrome or Edge with a separate ArkAgent
+  profile that holds none of your saved passwords or sign-ins. Then choose which employees use it on
+  the Computers page. Switching it off, closing that browser window, Stop or Quit ends it at once.
+- **The same rules as the employee's own browser, through the same gateway.** Every action is
+  checked against the element the server saw, decided by the same boundary (submitting, sending,
+  paying, buying, deleting and now unsubscribing and confirming wait for a person), and recorded in
+  the audit trail marked as your browser. It never opens an address on your own network (router,
+  printers, other computers), and it has no files or command line on your computer.
+- **You can see it and take over.** A band above every screen says which employee can use your
+  browser and when one is working in it, with **Take over** and **Stop**.
+- **Fixed: a submit button without a telling label went through without asking.** The employee's
+  browser now reports which buttons submit a form, so the default "ask before submitting" rule holds
+  a plain "Verify" or "Continue" button in a form, as it was meant to.
+
 ## 0.1.19
 
 ### Approvals in the middle of a run (desk #5)
