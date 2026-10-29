@@ -28,6 +28,14 @@ export function environmentFor(
     );
   }
   const browserMode = rawBrowserMode;
+  // Checked here for the same reason as the mode: a typo would otherwise reach every computer and
+  // stop each one at start. Forwarded only when true, so an unset deployment is unchanged.
+  const rawBlock = env.COMPUTER_BLOCK_PRIVATE_NETWORK?.trim() || undefined;
+  if (rawBlock !== undefined && rawBlock !== "true" && rawBlock !== "false") {
+    throw new Error(
+      `COMPUTER_BLOCK_PRIVATE_NETWORK must be true or false, not ${JSON.stringify(env.COMPUTER_BLOCK_PRIVATE_NETWORK)}.`,
+    );
+  }
   return [
     `COMPUTER_BOT_ID=${botId}`,
     ...(computerToken ? [`COMPUTER_TOKEN=${computerToken}`] : []),
@@ -35,6 +43,7 @@ export function environmentFor(
       ? ["SPIFFE_ENDPOINT_SOCKET=/tmp/spire-agent/public/api.sock"]
       : []),
     ...(browserMode ? [`COMPUTER_BROWSER_MODE=${browserMode}`] : []),
+    ...(rawBlock === "true" ? ["COMPUTER_BLOCK_PRIVATE_NETWORK=true"] : []),
     ...passthrough.map(([key, value]) => `${key}=${value ?? ""}`),
   ];
 }

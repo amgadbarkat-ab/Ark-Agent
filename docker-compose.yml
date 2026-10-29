@@ -136,6 +136,9 @@ services:
       # `headed` runs full Chromium behind the same streamed screen, so a person taking the wheel
       # gets a browser sites treat like their ordinary desktop browser. Headless remains the default.
       COMPUTER_BROWSER_MODE: ${COMPUTER_BROWSER_MODE:-headless}
+      # `true` refuses every request the browser makes to a private address (a link, a redirect, a
+      # form, an image), not only the address an employee asks to open. The desktop sets it.
+      COMPUTER_BLOCK_PRIVATE_NETWORK: ${COMPUTER_BLOCK_PRIVATE_NETWORK:-}
       # How many Bots may hold a running browser at once, and how long an untouched one is kept.
       # A few hundred MB each, so on a deployment with many Bots these are the difference between
       # a container that holds steady and one that is killed for memory. Defaults are 8 and 30
@@ -234,6 +237,7 @@ services:
       COMPUTER_TOKEN: ${COMPUTER_TOKEN:-openbot-dev-computer-token}
       # Forwarded into every per-Bot computer the supervisor creates.
       COMPUTER_BROWSER_MODE: ${COMPUTER_BROWSER_MODE:-headless}
+      COMPUTER_BLOCK_PRIVATE_NETWORK: ${COMPUTER_BLOCK_PRIVATE_NETWORK:-}
       COMPUTER_IMAGE: ${COMPUTER_IMAGE:-openbot-agent-computer:latest}
       # Which deployment the computers it creates belong to, so two stacks on one Docker host never
       # derive the same container and volume names for the same Bot.

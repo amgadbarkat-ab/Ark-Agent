@@ -26,6 +26,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   browser now reports which buttons submit a form, so the default "ask before submitting" rule holds
   a plain "Verify" or "Continue" button in a form, as it was meant to.
 
+### Security
+
+- **A public page could still redirect an employee's browser to the office network** (device control,
+  finding 1; DT Lab v0.1.19 step 9). The server refused a private address only when an employee asked
+  to open it, and the check added in device control phase 1 never saw redirects, because the browser
+  driver shows only the first address of a redirect. Both the employee's own browser on the desktop
+  and the person's own Chrome or Edge now refuse every request to a private address at the browser's
+  network layer, redirect hops and names that resolve to a private address included.
+
 ### Desktop
 
 - **An older Docker Compose now says what to update** (DT Lab, v0.1.19). Compose 2.26 stopped the

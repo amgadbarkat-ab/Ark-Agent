@@ -183,7 +183,8 @@ export function ownBrowserRefuses(pathname: string): string | null {
  * the same way, and the person's browser is on their office network.
  *
  * By the name as written, without resolving it, like the server's rule. A public name that resolves
- * to a private address is not caught here; that is the same limit the container has.
+ * to a private address, and every hop of a redirect, are caught by the browser's proxy script instead
+ * (private-network.ts), which the route cannot do.
  */
 export function isPrivateDestination(raw: string): boolean {
   let url: URL;
