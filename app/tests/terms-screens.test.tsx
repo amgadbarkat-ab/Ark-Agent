@@ -13,6 +13,7 @@ import { type AuthenticatedUser, needsTerms } from "@/lib/auth/queries";
 import { queryClient } from "@/query-client";
 import { Route as AcceptRoute } from "@/routes/_authed/accept-terms";
 import { Route as TermsRoute } from "@/routes/terms";
+import { settleReactWork } from "./settle-react-work";
 
 /**
  * The terms of service: a public page that is the file the lawyer edits, and the one screen somebody
@@ -25,7 +26,11 @@ afterEach(cleanup);
 afterEach(() => queryClient.clear());
 const originalDefaults = queryClient.getDefaultOptions();
 afterAll(() => queryClient.setDefaultOptions(originalDefaults));
-afterAll(() => GlobalRegistrator.unregister());
+afterAll(async () => {
+  // Drained first: happy-dom 21 left a posted render running against a removed document here.
+  await settleReactWork();
+  GlobalRegistrator.unregister();
+});
 
 const originalFetch = global.fetch;
 afterEach(() => {

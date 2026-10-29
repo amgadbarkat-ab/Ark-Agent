@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { useEffect } from "react";
 import { DetailPanel } from "@/components/layout/detail-panel";
+import { settleReactWork } from "./settle-react-work";
 
 class Observer implements ResizeObserver {
   static targets = new Map<Element, Observer>();
@@ -49,7 +50,9 @@ afterEach(() => {
   cleanup();
   Observer.targets.clear();
 });
-afterAll(() => {
+afterAll(async () => {
+  // Drained first: happy-dom 21 left a posted render running against a removed document here.
+  await settleReactWork();
   globalThis.ResizeObserver = originalObserver;
   GlobalRegistrator.unregister();
 });
