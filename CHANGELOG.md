@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.19
+
 ### Approvals in the middle of a run (desk #5)
 
 - **A digital employee's action can wait for a person.** Each tool can be set to run, ask a person
