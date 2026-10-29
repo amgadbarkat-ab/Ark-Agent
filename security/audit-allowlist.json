@@ -2,10 +2,22 @@
   "about": "Known vulnerabilities in dependencies that we have looked at and decided to carry for now. Read by scripts/audit-check.ts, which fails the weekly dependency audit on any high or critical advisory that is not here, or whose date has passed. A line is a decision with a reason and an expiry (at most 200 days away); when the date comes, fix it or write the reason again. See docs/ark/15-security-review.md, O4.",
   "allow": [
     {
-      "advisory": "GHSA-vfj7-8cjw-p6xm",
-      "package": "braces",
-      "reason": "Stack exhaustion on deeply nested brace patterns. braces is reached only through fast-glob and micromatch in the build-time tooling of the app (shadcn, ts-morph), which is given our own file patterns, never a customer's input. No fixed release exists (3.0.3 is the latest).",
-      "expires": "2026-12-31"
+      "advisory": "GHSA-xcx6-jx8p-x3h5",
+      "package": "@azure/msal-node",
+      "reason": "Decided 2026-10-29. The authorization code flow can disclose parameters to an attacker-controlled endpoint; fixed only in 7.1.0, a major version. msal-node 5.1.5 is reached only through @copilotkit/runtime > @copilotkit/channels-intelligence > @copilotkit/channels-teams > @microsoft/agents-hosting, which pins msal-node exactly (5.6.0 in its newest release, 1.9.1) and calls only client-credential, on-behalf-of and managed-identity flows, never the authorization code flow. Ark does not configure the Teams channel at all. Overriding across two majors under a library that pins it would be untested code on a path we do not run. Look again when agents-hosting moves to msal-node 7.",
+      "expires": "2027-01-31"
+    },
+    {
+      "advisory": "GHSA-x8rm-f576-gq67",
+      "package": "graphql-scalars",
+      "reason": "Decided 2026-10-29. A regular expression denial of service in the PhoneNumber scalar; fixed only in 2.0.1, a major version, with no 1.x release. graphql-scalars 1.26.0 is required as ^1 by @copilotkit/runtime and type-graphql, and the runtime's GraphQL schema uses only its JSON and JSONObject scalars (checked in @copilotkit/runtime 1.70.1 dist), so no PhoneNumber value is ever parsed. Look again when the runtime allows graphql-scalars 2.",
+      "expires": "2027-01-31"
+    },
+    {
+      "advisory": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "reason": "Decided 2026-10-29. Memory exhaustion while validating oversized constrained collections. Our own zod is raised to 4.6.7 (fixed). What remains is zod 3.25.75/3.25.76, which has no fixed 3.x release and is required as zod 3 by @microsoft/agents-hosting (exact pin), @ag-ui/core, @ag-ui/client, @ag-ui/mastra, @ai-sdk/ui-utils and the @copilotkit packages; zod 4 cannot be forced on them. Those copies validate agent-protocol events and tool schemas inside the runtime libraries, behind our own request size limits, not raw request bodies from the internet. Look again when those libraries move to zod 4 or a 3.x fix appears.",
+      "expires": "2027-01-31"
     }
   ]
 }

@@ -100,7 +100,8 @@ person's own skill, then the deployment's. The rules:
 Everything is behind one interface (`BillingProvider`), so choosing a payment provider is writing one
 adapter. Shipped: **manual** (no online payment; staff set plans; the app says to contact us) and
 **sandbox** (real signature checks, no money; refuses production and a missing secret), and **paddle**
-(the real one, see 12-paddle.md). Set with `ARK_BILLING_PROVIDER`.
+(the real one, see 12-paddle.md), and **stripe** (an alternative for a deployment that sells through
+Stripe, test mode only for now, see 25-stripe.md). Set with `ARK_BILLING_PROVIDER`.
 
 The webhook (`POST /api/billing/webhook/:provider`) believes nothing unsigned (signature over the raw
 bytes, constant-time), does nothing on a repeat or out-of-order delivery (the provider's event id is

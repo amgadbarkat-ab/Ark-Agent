@@ -118,14 +118,24 @@ interfaces off is to give them a policy of their own, by serving their frame fro
 `bun audit` now lists **5** (1 high, 3 moderate, 1 low), down from 32. The drop is from forcing the
 patched releases of `undici` (7.29.1, which also took the 5.x and 6.x users to 7) and
 `@fastify/busboy` (3.2.2), and `fast-copy` (3.1), through `overrides` in the root `package.json`;
-type checks and the whole test suite pass on the new set. What is left:
-- **`braces` ≤ 3.0.3** (high): stack exhaustion on deeply nested brace patterns, reached only through
-  `fast-glob`/`micromatch` in the app's build-time tooling (shadcn, ts-morph) with our own patterns.
-  No fixed release exists. It is the one entry in `security/audit-allowlist.json`, with a reason and
-  an expiry date.
-- **`esbuild` ≤ 0.24** (the Vite *development* server only; not shipped), **`sprintf-js`** (no fix
-  published) and **`@ai-sdk/provider-utils`** (low): moderate or low, in libraries that handle our own
-  data, not attacker input.
+type checks and the whole test suite pass on the new set. **2026-10-29:** the weekly check had been red since v0.1.11 as new advisories were published (17 high
+or critical by this date). Raised to patched releases: `better-auth` and its plugins (1.7.14, a
+critical), `zod` (our own, 4.6.7), `vite` (7.3.7), `happy-dom` and its registrator (21.0.4, test only),
+`@mastra/core` (1.80, which no longer pulls `@modelcontextprotocol/server`), and in the lockfile
+`body-parser` (1.20.9 and 2.4.0), `follow-redirects` (1.16.2), `seroval` (1.6.12) and
+`systeminformation` (5.33.18); the `undici` override to 7.30.1 and the `qs` override to 6.16.x (what
+the new `body-parser` needs). `braces` no longer reports and its entry was removed. Three have no fix
+the libraries that need them can take, and are decisions in `security/audit-allowlist.json`, each with
+its reason and an expiry of 2027-01-31:
+- **`@azure/msal-node` 5.x** (authorization code flow): fixed only in 7.x; pinned by
+  `@microsoft/agents-hosting` under CopilotKit's Teams channel, which uses other flows and which Ark
+  does not configure.
+- **`zod` 3.25** (memory on oversized collections): no 3.x fix; required as zod 3 by the AG-UI,
+  CopilotKit and Microsoft agent libraries.
+- **`graphql-scalars` 1.x** (PhoneNumber regex): fixed only in 2.x; CopilotKit's runtime uses only its
+  JSON scalars.
+
+Moderate and low ones remain below the gate's level.
 
 **A scheduled check now exists** (`.github/workflows/dependency-audit.yml`, weekly and on any change to
 a dependency file): `scripts/audit-check.ts` fails on any HIGH or CRITICAL advisory that is not in the

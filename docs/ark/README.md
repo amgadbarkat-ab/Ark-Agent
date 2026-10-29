@@ -18,6 +18,7 @@ research and plans. Each file says when it was written.
 | [10-desktop-replatform.md](10-desktop-replatform.md) | What still ties the desktop app to CopilotKit and the order to remove it. |
 | [11-marketplace.md](11-marketplace.md) | The marketplace: Ark's installable digital employees, view-only shared coworkers, what is kept out, review and reports. |
 | [12-paddle.md](12-paddle.md) | How customers pay: why Paddle, what to set up, how it works, what is verified and the sandbox run to do before going live. |
+| [25-stripe.md](25-stripe.md) | Stripe as an alternative payment provider, test mode only: when to choose it over Paddle, the settings, how it works, what is verified and what is left before live. |
 | [13-azure-hosting.md](13-azure-hosting.md) | Hosting on Azure: why this shape, the day-to-day runbook, backups and the restore drill, secret rotation, the "before customers" checklist, and what has and has not been checked. |
 | [14-data-protection.md](14-data-protection.md) | GDPR: what is held and where, who else sees it, people's rights and how each is met, what is kept after erasure, the breach procedure. |
 | [15-security-review.md](15-security-review.md) | Security self-review: what was found and fixed (including the administrator-takeover flaw), what is open, and what a penetration tester should target. |
