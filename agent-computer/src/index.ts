@@ -24,7 +24,19 @@ import {
   TAKE_CONTROL_FIRST,
 } from "./control";
 import { identity } from "./identity";
-import { createProfiles, numberFromEnv, VIEWPORT } from "./profiles";
+import {
+  isPrivateDestination,
+  ownBrowserFromEnv,
+  ownBrowserRefuses,
+  PRIVATE_ADDRESS_REFUSED,
+} from "./own-browser";
+import { createOwnBrowserProfiles } from "./own-browser-profiles";
+import {
+  createProfiles,
+  numberFromEnv,
+  type Profiles,
+  VIEWPORT,
+} from "./profiles";
 import {
   parseExecTimeout,
   parseInputMessage,
@@ -86,8 +98,19 @@ if (!COMPUTER_TOKEN) {
   process.exit(1);
 }
 
+/**
+ * The person's own Chrome or Edge, when the desktop app started this process to drive it.
+ *
+ * Null everywhere else, which is every container. See own-browser.ts for what changes: no files, no
+ * shell, no reset, no private addresses, and this process answers on loopback only.
+ */
+const OWN_BROWSER = ownBrowserFromEnv(process.env);
+
 const BROWSER_MODE = browserModeFromEnv(process.env.COMPUTER_BROWSER_MODE);
-const VIRTUAL_DISPLAY = await startVirtualDisplay(BROWSER_MODE);
+// The person's browser is already on their screen, so there is no display to start for it.
+const VIRTUAL_DISPLAY = OWN_BROWSER
+  ? null
+  : await startVirtualDisplay(BROWSER_MODE);
 if (VIRTUAL_DISPLAY) process.env.DISPLAY = VIRTUAL_DISPLAY.name;
 console.info(
   JSON.stringify({
@@ -245,14 +268,17 @@ async function assertWritable(label: string, directory: string) {
   }
 }
 
-await assertWritable(
-  "The workspace",
-  process.env.WORKSPACE_DIR?.trim() || "/workspace",
-);
-await assertWritable(
-  "The browser profiles directory",
-  process.env.PROFILES_DIR?.trim() || "/profiles",
-);
+// Not on the person's own computer: that target has no workspace and no profile of ours to keep.
+if (!OWN_BROWSER) {
+  await assertWritable(
+    "The workspace",
+    process.env.WORKSPACE_DIR?.trim() || "/workspace",
+  );
+  await assertWritable(
+    "The browser profiles directory",
+    process.env.PROFILES_DIR?.trim() || "/profiles",
+  );
+}
 
 const workspace = createWorkspace(
   process.env.WORKSPACE_DIR?.trim() || "/workspace",
@@ -283,10 +309,22 @@ const workspace = createWorkspace(
  * here would put an entry in the map on the path that closes browsers, which is where the map is
  * meant to shrink.
  */
-const profiles = createProfiles(
-  process.env.PROFILES_DIR?.trim() || "/profiles",
-  (botId) => sessions.get(botId)?.viewer.releaseAll(COMPUTER_STOPPED),
-);
+const announceClosed = (botId: string) =>
+  sessions.get(botId)?.viewer.releaseAll(COMPUTER_STOPPED);
+const ownBrowserProfiles = OWN_BROWSER
+  ? createOwnBrowserProfiles(OWN_BROWSER, announceClosed, () => {
+      // The person closed the window. That is the switch going off, and the desktop reads this
+      // process ending as exactly that: it tells the server, and no employee is left pointing at a
+      // browser that will not come back until the person turns it on again.
+      void shutDown("the person closed their browser", 0);
+    })
+  : null;
+const profiles: Profiles = ownBrowserProfiles
+  ? ownBrowserProfiles
+  : createProfiles(
+      process.env.PROFILES_DIR?.trim() || "/profiles",
+      announceClosed,
+    );
 // Rooted in the same workspace the file tools use, so a command and a written file see one
 // directory rather than two.
 const shell = createShell(process.env.WORKSPACE_DIR?.trim() || "/workspace");
@@ -466,6 +504,12 @@ type StreamData = { botId: string };
 
 serve<StreamData>({
   port: PORT,
+  /*
+   * Loopback only when this drives the person's own browser. A container is reached across the
+   * deployment's network and binds as it always has; a process on somebody's laptop that answered on
+   * every interface would put their browser one token away from the office network.
+   */
+  ...(OWN_BROWSER ? { hostname: "127.0.0.1" } : {}),
   idleTimeout: 120,
   /**
    * The live screen, pushed by Chrome rather than polled.
@@ -664,6 +708,16 @@ serve<StreamData>({
     const session = sessionFor(botId);
 
     /*
+     * What the person's own browser does not have: files, a shell and a reset. Refused before anything
+     * else, so the list in own-browser.ts is the whole of the answer and no handler below can be
+     * reached for them.
+     */
+    if (OWN_BROWSER) {
+      const refusal = ownBrowserRefuses(url.pathname);
+      if (refusal) return json({ error: refusal }, 403);
+    }
+
+    /*
      * The wheel, asked once for everything that acts.
      *
      * Refused here rather than inside each handler because the handler that forgets is the whole
@@ -851,6 +905,8 @@ serve<StreamData>({
         // difference between "no identity here" and "identity broken" is visible.
         identity: await identity(),
         browserMode: BROWSER_MODE,
+        // Which kind of computer this is, so a status reader can say "your own browser".
+        target: OWN_BROWSER ? "own-browser" : "container",
       });
     }
 
@@ -898,6 +954,11 @@ serve<StreamData>({
       const parsed = parseNavigateUrl(body?.url);
       if (!parsed.ok) {
         return json({ error: parsed.error }, 400);
+      }
+      // The server refuses these first; this is the floor on the person's own computer, which holds
+      // even for a caller that is not the server (finding 1).
+      if (OWN_BROWSER && isPrivateDestination(parsed.url)) {
+        return json({ error: PRIVATE_ADDRESS_REFUSED }, 403);
       }
 
       const startedAt = Date.now();
@@ -1374,6 +1435,23 @@ if (VIRTUAL_DISPLAY) {
     // A headed Chromium cannot recover without its display. Let the container restart policy build
     // the pair together again instead of advertising a healthy service whose next browser fails.
     void shutDown("virtual display exited", 1);
+  });
+}
+
+/*
+ * The person's browser opens when this starts, not at the first action. Switching the setting on in
+ * the desktop app is when they expect to see it, and a window that appears later, mid-task, out of
+ * nowhere, is the opposite of being able to watch.
+ */
+if (ownBrowserProfiles) {
+  ownBrowserProfiles.warm().catch((error: unknown) => {
+    console.error(
+      JSON.stringify({
+        type: "own-browser-start-failed",
+        error: describe(error, "The browser did not start."),
+      }),
+    );
+    void shutDown("the person's browser could not be started", 1);
   });
 }
 
