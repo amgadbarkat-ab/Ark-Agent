@@ -32,6 +32,10 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   employee sets up or moves a routine and names a conversation that is not one of yours (a small
   model wrote "this current conversation"), the routine now posts into the conversation you asked in.
   The request you approve shows that conversation by name, and approving it runs exactly that.
+- **Fixed: the first words of your next message could go nowhere.** After you start a conversation
+  from the home screen or New chat, the message box of the conversation it opens now has the cursor,
+  so you can keep typing while your digital employee answers. Before, the cursor went away with the
+  screen you sent from, and what you typed next was lost until you clicked the box.
 
 ## 0.1.19
 
