@@ -414,10 +414,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <IconInbox />
               </div>
               <span className="text-sm trackint-tight">Requests</span>
+              {/*
+               * "Needs you": everything waiting on this person — held calls and browser actions,
+               * approval cards in conversations, and a lead's requests — counted by the server in
+               * one number, so the sidebar and the Requests page cannot disagree (desk #69).
+               */}
               {waiting ? (
-                <span className="ml-auto rounded-full bg-brand px-1.5 py-px text-[10px] font-medium text-brand-foreground tabular-nums">
-                  {waiting}
-                  <span className="sr-only"> waiting</span>
+                <span
+                  className="ml-auto flex items-center gap-1.5"
+                  title={`${waiting} need${waiting === 1 ? "s" : ""} you`}
+                >
+                  <span className="text-[11px] text-muted-foreground">
+                    Needs you
+                  </span>
+                  <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-medium text-brand-foreground tabular-nums">
+                    {waiting}
+                  </span>
                 </span>
               ) : null}
             </SidebarMenuButton>

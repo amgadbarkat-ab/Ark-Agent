@@ -29,7 +29,17 @@ export type PluginTool = {
    */
   destructive: boolean;
   grantedTo: string[];
+  /**
+   * What happens when a digital employee calls it: it runs, a person approves it first, or it is
+   * refused. Always the answer in force, so a screen never works the default out for itself; absent
+   * only from a server older than the setting.
+   */
+  onCall?: ToolCallOutcome;
+  /** Whether an administrator chose `onCall`, as opposed to it being the default. */
+  onCallSet?: boolean;
 };
+
+export type ToolCallOutcome = "allow" | "ask" | "refuse";
 
 /**
  * A grant on a tool this server does not currently advertise.

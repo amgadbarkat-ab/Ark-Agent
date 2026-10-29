@@ -1016,7 +1016,10 @@ async function buildAgent(
             ],
           };
         };
-  if (!narrowing && !handoff && !fitted) return whole;
+  // A tool that wants to know its run (a held call delivers its outcome there) needs the per-run
+  // build as much as narrowing or a hand-off does.
+  const wantsRun = granted.some((tool) => tool.executeInRun);
+  if (!narrowing && !handoff && !fitted && !wantsRun) return whole;
 
   return new RunBuiltAgent(
     { agentId: agent.id, description: agent.name },
@@ -1034,16 +1037,42 @@ async function buildAgent(
        */
       const passing = (await handoff?.(agent.id, input)) ?? [];
       signal.throwIfAborted();
-      const tools =
+      const merged =
         passing.length > 0 ? withRunTools(offered, passing) : offered;
-      // Nothing added and nothing narrowed means nothing to rebuild, and reusing the agent already
-      // built for this request keeps that path allocation-for-allocation what it was.
-      return tools.length === granted.length && passing.length === 0
+      const tools = bindRun(merged, input);
+      // Nothing added, nothing narrowed and nothing bound means nothing to rebuild, and reusing the
+      // agent already built for this request keeps that path allocation-for-allocation what it was.
+      return tools === merged &&
+        merged.length === granted.length &&
+        passing.length === 0
         ? whole
         : withTools(tools);
     },
     fitted,
   );
+}
+
+/**
+ * Each tool that asks for its run, told this one.
+ *
+ * The run's id and thread are the runtime's own — the run it is about to stream — not anything the
+ * model produced. Answers the same array when no tool asks, so a caller can tell nothing changed.
+ */
+export function bindRun(
+  tools: GrantedTool[],
+  input: Pick<RunAgentInput, "runId" | "threadId">,
+): GrantedTool[] {
+  if (!tools.some((tool) => tool.executeInRun)) return tools;
+  const run = {
+    ...(input.runId ? { runId: input.runId } : {}),
+    ...(input.threadId ? { threadId: input.threadId } : {}),
+  };
+  return tools.map((tool) => {
+    const inRun = tool.executeInRun;
+    return inRun
+      ? { ...tool, execute: (args: unknown) => inRun(args, run) }
+      : tool;
+  });
 }
 
 /**

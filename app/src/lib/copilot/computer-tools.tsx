@@ -17,6 +17,12 @@ import { reportComputerActivity } from "./computer-activity";
 export type ToolOutcome = Record<string, unknown> & { ok: boolean };
 
 /**
+ * What the runtime hands a tool handler beside its arguments: the person's Stop, and the agent whose
+ * run this is — whose thread is the conversation a held action's outcome is delivered back into.
+ */
+type ToolContext = { signal?: AbortSignal; agent?: { threadId?: string } };
+
+/**
  * Human-assistance wait window. Long enough for a user to return, finite so the run can unblock.
  */
 const WAIT_FOR_PERSON_MS = 10 * 60_000;
@@ -58,14 +64,26 @@ export async function callComputer(
    */
   init?: { method?: string; body?: unknown },
   signal?: AbortSignal,
+  /**
+   * The conversation this action belongs to. If a boundary holds it for a person, its outcome is
+   * delivered back there; the server keeps it only if the person is in that conversation.
+   */
+  threadId?: string,
 ): Promise<ToolOutcome> {
   // Announce before the call so the screen can open while the action is running.
   reportComputerActivity(botId);
+  const body =
+    threadId &&
+    init?.body &&
+    typeof init.body === "object" &&
+    !Array.isArray(init.body)
+      ? { ...(init.body as Record<string, unknown>), threadId }
+      : init?.body;
   let response: Response;
   try {
     response = await tryClient(`/api/computers/${botId}${path}`, {
       method: init?.method,
-      body: init?.body,
+      body,
       // Abort cancels the request and prevents later actions, but cannot undo browser work already executing.
       signal,
     });
@@ -80,28 +98,44 @@ export async function callComputer(
     };
   }
 
-  const body = (await response.json().catch(() => null)) as Record<
+  const answer = (await response.json().catch(() => null)) as Record<
     string,
     unknown
   > | null;
 
+  /*
+   * Held for a person: nothing happened, and the reason is the sentence the employee relays. Neither
+   * a refusal (a boundary did not say no) nor a failure (nothing broke), so the model is told it is
+   * waiting and the transcript draws it as waiting.
+   */
+  if (response.status === 202 && answer?.held === true) {
+    return {
+      ok: false,
+      held: true,
+      approvalId: answer.approvalId,
+      reason:
+        (answer.reason as string) ??
+        "This is waiting for the person to approve it in Requests.",
+    };
+  }
+
   if (!response.ok) {
     return {
       ok: false,
-      reason: (body?.error as string) ?? "That did not work.",
+      reason: (answer?.error as string) ?? "That did not work.",
       // Preserve refusal/stale-ref/control distinctions for the model's next step.
       ...(response.status === 403
-        ? { refused: true, rule: body?.rule ?? null }
+        ? { refused: true, rule: answer?.rule ?? null }
         : {}),
       ...(response.status === 409
-        ? body?.humanHasControl === true
+        ? answer?.humanHasControl === true
           ? { humanHasControl: true }
           : { staleRefs: true }
         : {}),
     };
   }
 
-  return { ok: true, ...(body ?? {}) };
+  return { ok: true, ...(answer ?? {}) };
 }
 
 /** What a computer tool's render can read back out of its own result. */
@@ -113,6 +147,8 @@ type ComputerOutcome = {
   refused?: boolean;
   reason?: string;
   staleRefs?: boolean;
+  /** A boundary rule holds this for a person; it is in their Requests and has not happened. */
+  held?: boolean;
   elements?: unknown[];
   element?: { role?: string; name?: string };
   /** What a shell call reports back, so the line can show the output rather than only the command. */
@@ -234,7 +270,10 @@ function ActionLine({
 
 /** Whether a result is an ordinary failure rather than a refusal, so the two can render differently. */
 function didNotWork(outcome: ComputerOutcome): boolean {
-  return outcome.ok === false && outcome.refused !== true;
+  // Held for a person is neither: nothing broke, and the boundary did not say no.
+  return (
+    outcome.ok === false && outcome.refused !== true && outcome.held !== true
+  );
 }
 
 export function ComputerTools() {
@@ -255,7 +294,8 @@ export function ComputerTools() {
       {
         signal,
         toolCall,
-      }: { signal?: AbortSignal; toolCall?: { id?: string } } = {},
+        agent,
+      }: ToolContext & { toolCall?: { id?: string } } = {},
     ) => {
       const computerId = bot.current;
       const result = await callComputer(
@@ -274,6 +314,7 @@ export function ComputerTools() {
           body: { url, ...(toolCall?.id ? { toolCallId: toolCall.id } : {}) },
         },
         signal,
+        agent?.threadId,
       );
       /*
        * This Bot has a page of its own now, so the pane may default to the screen.
@@ -401,7 +442,7 @@ export function ComputerTools() {
         text: string;
         submit?: boolean;
       },
-      { signal }: { signal?: AbortSignal } = {},
+      { signal, agent }: ToolContext = {},
     ) =>
       callComputer(
         bot.current,
@@ -411,11 +452,16 @@ export function ComputerTools() {
           body: input,
         },
         signal,
+        agent?.threadId,
       ),
     render: ({ args, result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Filled in"
+        label={
+          outcomeOf(result).held === true
+            ? "Waiting for your approval to fill in"
+            : "Filled in"
+        }
         detail={
           // Never show typed values; identify only the target field.
           labelOf(result) ??
@@ -442,7 +488,7 @@ export function ComputerTools() {
     }),
     handler: async (
       input: { ref: string; snapshotId: number },
-      { signal }: { signal?: AbortSignal } = {},
+      { signal, agent }: ToolContext = {},
     ) =>
       callComputer(
         bot.current,
@@ -452,13 +498,18 @@ export function ComputerTools() {
           body: input,
         },
         signal,
+        agent?.threadId,
       ),
     render: ({ args, result, status }) => {
       const outcome = outcomeOf(result);
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Clicked"
+          label={
+            outcome.held === true
+              ? "Waiting for your approval to click"
+              : "Clicked"
+          }
           detail={
             // Show refusal reason instead of an internal element ref.
             outcome.refused === true
@@ -492,7 +543,7 @@ export function ComputerTools() {
         ref?: string;
         snapshotId?: number;
       },
-      { signal }: { signal?: AbortSignal } = {},
+      { signal, agent }: ToolContext = {},
     ) =>
       callComputer(
         bot.current,
@@ -502,11 +553,16 @@ export function ComputerTools() {
           body: input,
         },
         signal,
+        agent?.threadId,
       ),
     render: ({ args, result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Pressed"
+        label={
+          outcomeOf(result).held === true
+            ? "Waiting for your approval to press"
+            : "Pressed"
+        }
         detail={typeof args?.key === "string" ? args.key : undefined}
         refused={outcomeOf(result).refused === true}
         failed={didNotWork(outcomeOf(result))}
@@ -774,7 +830,7 @@ export function ComputerTools() {
     }),
     handler: async (
       input: { command: string },
-      { signal }: { signal?: AbortSignal } = {},
+      { signal, agent }: ToolContext = {},
     ) => {
       const computerId = bot.current;
       const result = await callComputer(
@@ -782,6 +838,7 @@ export function ComputerTools() {
         "/exec",
         { method: "POST", body: input },
         signal,
+        agent?.threadId,
       );
       /*
        * Recorded here rather than in `render`, which runs again on every re-render and would append
@@ -858,16 +915,22 @@ export function ComputerTools() {
         .optional()
         .describe("Add to the end of the file instead of replacing it"),
     }),
-    handler: async (input: {
-      path: string;
-      contents: string;
-      append?: boolean;
-    }) => {
+    handler: async (
+      input: {
+        path: string;
+        contents: string;
+        append?: boolean;
+      },
+      { agent }: ToolContext = {},
+    ) => {
       const computerId = bot.current;
-      const result = await callComputer(computerId, "/files/write", {
-        method: "POST",
-        body: input,
-      });
+      const result = await callComputer(
+        computerId,
+        "/files/write",
+        { method: "POST", body: input },
+        undefined,
+        agent?.threadId,
+      );
       /*
        * The path and the size, never the contents. A Bot may well be saving something it was told in
        * confidence, and the write route declines to echo it back for exactly that reason; putting it
@@ -919,7 +982,7 @@ export function ComputerTools() {
     }),
     handler: async (
       input: { deltaY?: number },
-      { signal }: { signal?: AbortSignal } = {},
+      { signal, agent }: ToolContext = {},
     ) =>
       callComputer(
         bot.current,
@@ -929,6 +992,7 @@ export function ComputerTools() {
           body: input,
         },
         signal,
+        agent?.threadId,
       ),
     render: ({ result, status }) => (
       <ActionLine

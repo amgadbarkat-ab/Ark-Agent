@@ -46,6 +46,16 @@ export type HandoffWork = {
    * the asking Bot, which is why it can speak in it at all.
    */
   answerIn?: string;
+  /**
+   * A backwards hop that picks the work up again rather than relaying a sentence.
+   *
+   * Set by the approvals inbox when a person decides on something the employee was waiting for — a
+   * tool call held for their approval. The employee is not passing on somebody else's answer: it is
+   * continuing its own work in its own conversation with the outcome in hand, so it reads the whole
+   * conversation rather than the tail a relay reads, and it is told to carry on rather than to say a
+   * sentence or two.
+   */
+  resume?: boolean;
 };
 
 export type HandoffDelivery = {
@@ -553,6 +563,9 @@ function attribute(work: HandoffWork): string {
    * asked has now asked it for something, which is the beginning of a loop rather than the end of
    * one.
    */
+  if (work.answerIn && work.resume) {
+    return `${work.task}\n\nSpeak to the person in this conversation as yourself. Do not hand this to another digital employee.`;
+  }
   if (work.answerIn) {
     return `${work.task}\n\nSay this in your own words to the person in this conversation, in a sentence or two. Do not hand it to another digital employee.`;
   }

@@ -3,9 +3,10 @@ import { ApprovalsList } from "@/components/approvals/approvals-list";
 import { PageShell } from "@/components/layout/page-shell";
 
 /**
- * Requests from a person's digital employees to change a colleague's work: its routines, its
- * instructions. Nothing in here has happened yet. Each request is applied when it is approved and not
- * before, and lapses after a week if nobody answers.
+ * Everything that needs the person: a lead's request to change a colleague's work, a tool call or a
+ * browser action held for their approval, and an approval card raised in a conversation. Nothing in
+ * here has happened yet. Each is carried out when it is approved and not before, and lapses after a
+ * week if nobody answers.
  */
 export const Route = createFileRoute("/_authed/_app/approvals")({
   component: ApprovalsPage,
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/_authed/_app/approvals")({
 function ApprovalsPage() {
   return (
     <PageShell
-      description="What your digital employees have asked to change about a colleague's work. Nothing here has happened yet: it is applied when you approve it, and not before."
+      description="Everything your digital employees are waiting on you for. Nothing here has happened yet: it is carried out when you approve it, exactly as shown, and not before."
       title="Requests"
     >
       <ApprovalsList />

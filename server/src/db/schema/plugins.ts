@@ -197,6 +197,38 @@ export const mcpTools = pgTable(
 );
 
 /**
+ * What happens when a digital employee calls one tool: it runs, it waits for a person, or it is refused.
+ *
+ * WHY A TABLE OF ITS OWN AND NOT A COLUMN ON `mcp_tools`. That table is a cache of what the vendor
+ * advertised and is replaced wholesale on every refresh, so a setting kept there would be lost the
+ * next time somebody pressed Refresh, silently, and the next call would run without the approval an
+ * administrator asked for. A setting is somebody's decision and lives beside the grants.
+ *
+ * ABSENCE IS THE DEFAULT, AND THE DEFAULT IS DECIDED IN CODE. A tool that changes things asks a
+ * person first and a tool that only reads runs; see `toolCallOutcome`. A row is an administrator
+ * saying otherwise for one tool, which is why there is no row for the default and why removing the
+ * row is how a tool goes back to it.
+ *
+ * Keyed by server and tool name rather than by the ref string, so a server that is removed takes its
+ * settings with it and a re-added one starts from the defaults rather than inheriting a decision made
+ * about a different connection.
+ */
+export const toolCallRules = pgTable(
+  "tool_call_rules",
+  {
+    serverId: text("server_id")
+      .notNull()
+      .references(() => mcpServers.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    /** `allow`, `ask` or `refuse`. Text rather than an enum: the plugin store owns the vocabulary. */
+    outcome: text("outcome").notNull(),
+    setBy: text("set_by"),
+    updatedAt: updatedAt(),
+  },
+  (table) => [primaryKey({ columns: [table.serverId, table.toolName] })],
+);
+
+/**
  * One person's Composio connection to one app.
  *
  * WHY THIS IS NOT `mcp_user_credentials`. That table's whole guarantee is that a row means real held

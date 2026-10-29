@@ -16,6 +16,7 @@ import {
   type SchemeKind,
   schemeKind,
 } from "./broker";
+import { isToolCallOutcome } from "./call-outcome";
 import { CATALOGUE, catalogueEntry } from "./catalogue";
 import { toolkitOf, vendorSentence } from "./composio";
 import {
@@ -2447,6 +2448,54 @@ export function createPluginRoutes(
       ? `This digital employee already has a different skill called /${slug}. Take that one off first, or give this one another name.`
       : null;
   }
+
+  /**
+   * What happens when a digital employee calls one tool: it runs, a person approves it first, or it
+   * is refused. `null` puts it back to the default (a tool that changes things asks, one that reads
+   * runs). Administrators only, like adding the connector: it decides for every employee and every
+   * person at once.
+   */
+  routes.put(
+    "/servers/:id/tools/:tool/on-call",
+    requireUser,
+    async (context) => {
+      const forbidden = requireAdmin(context);
+      if (forbidden) return forbidden;
+      const serverId = context.req.param("id").trim();
+      const toolName = context.req.param("tool").trim();
+      const body = (await context.req.json().catch(() => null)) as {
+        outcome?: unknown;
+      } | null;
+      const outcome = body?.outcome ?? null;
+      if (
+        !serverId ||
+        !toolName ||
+        (outcome !== null && !isToolCallOutcome(outcome))
+      ) {
+        return context.json(
+          {
+            error:
+              'An outcome is "allow", "ask", "refuse", or null for the default.',
+          },
+          400,
+        );
+      }
+      try {
+        await store.setToolCallOutcome(
+          serverId,
+          toolName,
+          outcome,
+          actorEmail(context),
+        );
+      } catch (error) {
+        if (error instanceof CatalogueEntryUnknownError) {
+          return context.json({ error: error.message }, 404);
+        }
+        throw error;
+      }
+      return context.json({ ok: true });
+    },
+  );
 
   routes.post("/grants", requireUser, async (context) => {
     const body = (await context.req.json().catch(() => null)) as {

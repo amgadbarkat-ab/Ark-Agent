@@ -62,6 +62,18 @@ export type GrantedTool = {
   parameters: z.ZodType;
   execute: (args: unknown) => Promise<string>;
   /**
+   * The same call, told which run is making it.
+   *
+   * A tool is built per request and a request is earlier than a run, so `execute` cannot know which
+   * conversation it is in. A call held for a person's approval has to: when they decide, the outcome
+   * is delivered back into that conversation and the employee carries on. The runtime binds this to
+   * its own run (`bindRun` in copilot.ts) and offers the bound `execute` to the model.
+   */
+  executeInRun?: (
+    args: unknown,
+    run: { runId?: string; threadId?: string },
+  ) => Promise<string>;
+  /**
    * `<serverId>/<toolName>`, carried alongside the name the model is offered.
    *
    * The two spellings exist because a model tool name may not contain a slash, and selection has to
@@ -192,14 +204,14 @@ export async function grantedTools(options: {
   const { store, botId, actorId, initiator } = options;
   const granted = await store.listForAgent(botId);
 
-  return granted.tools.map((tool) => ({
-    name: tool.toolName,
-    ref: tool.ref,
-    description: tool.description,
-    parameters: parametersFor(tool.inputSchema),
-    execute: async (args: unknown) => {
+  return granted.tools.map((tool) => {
+    const call = async (
+      args: unknown,
+      run?: { runId?: string; threadId?: string },
+    ) => {
       try {
         const result = await store.callTool({
+          ...(run ? { run } : {}),
           ref: tool.ref,
           // The runtime hands through whatever the model produced. Anything that is not an object
           // is not a set of arguments, and the vendor should be the one to say so.
@@ -238,8 +250,16 @@ export async function grantedTools(options: {
           ? `That tool could not be called: ${error.message}`
           : "That tool could not be called.";
       }
-    },
-  }));
+    };
+    return {
+      name: tool.toolName,
+      ref: tool.ref,
+      description: tool.description,
+      parameters: parametersFor(tool.inputSchema),
+      execute: (args: unknown) => call(args),
+      executeInRun: call,
+    };
+  });
 }
 
 /**
