@@ -738,6 +738,15 @@ pub fn compose(
     // design. Without this the server refuses to call its own supervisor and the failure arrives as
     // an Unauthorized wrapped in a 500, which names neither the address nor the rule.
     env.insert("AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS".into(), "true".into());
+    // But not where a digital employee may browse (device control, finding 1). The switch above also
+    // opened every private address to each employee's browser: the customer's router page, a NAS,
+    // printers, other computers on the office network, and the model decides where it browses, so one
+    // prompt-injected page could send it there. Nothing ArkAgent runs needs an employee to browse a
+    // private address: the server reaches its Bots, its supervisor and the model itself, and the
+    // containers reach the server through `host.docker.internal` (and, on Linux, the relays in
+    // `bridge.rs`), none of which is browsing. So browsing the private range stays refused, as it is
+    // on a hosted deployment. Read by servers from this release on; an older one ignores it.
+    env.insert("AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS".into(), "false".into());
 
     // Which package the deployment runs. Without it the server falls back rather than using the one
     // that came with the deployment, and the Bots somebody was given are not the Bots they get.
@@ -1460,6 +1469,13 @@ HTTPS_PROXY=http://proxy:8080
                 .map(String::as_str),
             Some("true"),
             "everything a desktop install talks to is on this machine"
+        );
+        // And no employee's browser is sent into the customer's own network (device control,
+        // finding 1): the server's reach is opened, browsing the private range is not.
+        assert_eq!(
+            env.get("AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS")
+                .map(String::as_str),
+            Some("false")
         );
     }
 
