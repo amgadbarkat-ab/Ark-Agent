@@ -34,6 +34,10 @@ pub struct PlanModel {
     pub id: &'static str,
     pub label: &'static str,
     pub size_bytes: u64,
+    /// The licence's name, shown with the model.
+    pub licence: &'static str,
+    /// Run only when a person picks it, never recommended or chosen for them.
+    pub opt_in: bool,
     /// The best this computer can run, which is what is chosen unless the person says otherwise.
     pub recommended: bool,
     /// Already on this computer, whole and checked.
@@ -124,6 +128,15 @@ pub fn engine_ready(root: &Path, gpu: bool) -> bool {
 ///
 /// "Already here" before "best" matters on every start after the first: a person who chose a smaller model
 /// to save a download must not find the app fetching a bigger one the next time it opens.
+///
+/// And the model the last start ran before any other already here (desk #64). A reopened window asks for
+/// "the model on this computer" without naming one, so with two models on disk the list order used to
+/// decide, and a person who had picked the opt-in Nemotron after trying Gemma got Gemma back at the next
+/// start. The last start wrote its model's name to `.env` as `BOT_MODEL` (the name it serves under is its
+/// id); a name that is not one of these models, as after a hosted model, is ignored.
+///
+/// Never an opt-in model unless it was picked: it is never `fits.first()` (they are listed last), and it is
+/// only on disk, or named in `.env`, because somebody chose it.
 pub fn choose(
     root: &Path,
     machine: &Machine,
@@ -141,6 +154,12 @@ pub fn choose(
                 model.label
             )))
         };
+    }
+    let last_run = crate::env::already_set(&root.join(".env"), &["BOT_MODEL"])
+        .get("BOT_MODEL")
+        .and_then(|id| local_model::by_id(id));
+    if let Some(last) = last_run.filter(|last| fits.contains(last) && model_ready(root, last)) {
+        return Ok(last);
     }
     if let Some(here) = fits.iter().copied().find(|model| model_ready(root, model)) {
         return Ok(here);
@@ -174,14 +193,20 @@ pub fn plan_for(root: &Path, machine: &Machine, requested: Option<&str>) -> Plan
     };
     let fits = local_model::fitting(machine);
     let chosen = choose(root, machine, requested).ok();
+    // The recommendation's own model, not merely the first listed: an opt-in model is never marked.
+    let recommended = match &recommendation {
+        Recommendation::Model { model } => Some(model.id),
+        Recommendation::TooSmall { .. } => None,
+    };
     let models = fits
         .iter()
-        .enumerate()
-        .map(|(index, model)| PlanModel {
+        .map(|model| PlanModel {
             id: model.id,
             label: model.label,
             size_bytes: model.size_bytes,
-            recommended: index == 0,
+            licence: model.licence,
+            opt_in: model.opt_in,
+            recommended: recommended == Some(model.id),
             ready: model_ready(root, model),
         })
         .collect();
@@ -375,7 +400,83 @@ mod tests {
             size_bytes: bytes.len() as u64,
             sha256: Box::leak(digest.into_boxed_str()),
             min_ram_gib: 1.0,
+            licence: "test",
+            opt_in: false,
         }
+    }
+
+    /// A model file on disk, whole and marked verified, as `ensure_model` leaves one.
+    fn place(dir: &Path, model: &LocalModel) {
+        let file = model_path(dir, model);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::File::create(&file)
+            .unwrap()
+            .set_len(model.size_bytes)
+            .unwrap();
+        fs::write(
+            marker(&file),
+            format!("{} {}\n", model.size_bytes, model.sha256),
+        )
+        .unwrap();
+    }
+
+    /// Desk #64: Nemotron is offered with its licence, never recommended or chosen for anybody, and
+    /// once picked stays picked.
+    #[test]
+    fn nemotron_bolt_is_offered_and_runs_only_when_picked() {
+        use crate::local_model::BOLT_E4B;
+        let fresh = root("bolt-offered");
+        let plan = plan_for(&fresh, &machine(16), None);
+        assert_eq!(
+            plan.chosen,
+            Some("gemma-4-e4b"),
+            "Gemma stays the automatic pick"
+        );
+        let offered: Vec<_> = plan
+            .models
+            .iter()
+            .map(|model| (model.id, model.recommended, model.opt_in, model.licence))
+            .collect();
+        assert_eq!(
+            offered,
+            [
+                ("gemma-4-e4b", true, false, "Apache 2.0"),
+                ("gemma-4-e2b", false, false, "Apache 2.0"),
+                ("nemotron-3.5-bolt-e4b", false, true, "OpenMDW-1.1"),
+            ]
+        );
+        let json = serde_json::to_value(&plan.models[2]).unwrap();
+        assert_eq!(json["licence"], "OpenMDW-1.1");
+        assert_eq!(json["optIn"], true);
+        // A 12 GB computer is not offered it at all.
+        assert!(plan_for(&fresh, &machine(12), None)
+            .models
+            .iter()
+            .all(|model| model.id != BOLT_E4B.id));
+
+        // Picked: it is what runs, and what the download is for.
+        let picked = plan_for(&fresh, &machine(16), Some("nemotron-3.5-bolt-e4b"));
+        assert_eq!(picked.chosen, Some("nemotron-3.5-bolt-e4b"));
+        assert!(picked.to_download_bytes > BOLT_E4B.size_bytes);
+
+        // Picked once and downloaded, with Gemma there too from before: the next start, which asks
+        // without a name, runs what the last start ran rather than whichever is listed first.
+        let both = root("bolt-kept");
+        place(&both, &E4B);
+        place(&both, &BOLT_E4B);
+        assert_eq!(choose(&both, &machine(16), None).unwrap().id, "gemma-4-e4b");
+        fs::write(both.join(".env"), "BOT_MODEL=nemotron-3.5-bolt-e4b\n").unwrap();
+        assert_eq!(
+            choose(&both, &machine(16), None).unwrap().id,
+            "nemotron-3.5-bolt-e4b"
+        );
+        // A hosted model's name, or a model no longer on disk, is not a pick to honour.
+        fs::write(both.join(".env"), "BOT_MODEL=gpt-5.5\n").unwrap();
+        assert_eq!(choose(&both, &machine(16), None).unwrap().id, "gemma-4-e4b");
+        let gone = root("bolt-gone");
+        place(&gone, &E4B);
+        fs::write(gone.join(".env"), "BOT_MODEL=nemotron-3.5-bolt-e4b\n").unwrap();
+        assert_eq!(choose(&gone, &machine(16), None).unwrap().id, "gemma-4-e4b");
     }
 
     #[test]
@@ -405,7 +506,9 @@ mod tests {
             [
                 ("gemma-4-12b", true),
                 ("gemma-4-e4b", false),
-                ("gemma-4-e2b", false)
+                ("gemma-4-e2b", false),
+                // Offered, never the recommendation (desk #64).
+                ("nemotron-3.5-bolt-e4b", false)
             ]
         );
     }
@@ -414,14 +517,15 @@ mod tests {
     fn a_thirty_two_gigabyte_computer_is_offered_the_biggest_model_and_every_smaller_one() {
         let plan = plan_for(&root("plan-big"), &machine(32), None);
         assert_eq!(plan.chosen, Some("gemma-4-26b-a4b"));
-        assert_eq!(plan.models.len(), 4);
+        // The four Gemma sizes and the opt-in Nemotron.
+        assert_eq!(plan.models.len(), 5);
         assert!(plan.to_download_bytes > G26B.size_bytes);
         // Asking about a smaller one changes the figures and nothing else.
         let smaller = plan_for(&root("plan-big-small"), &machine(32), Some("gemma-4-e4b"));
         assert_eq!(smaller.chosen, Some("gemma-4-e4b"));
         assert!(smaller.to_download_bytes > E4B.size_bytes);
         assert!(smaller.to_download_bytes < G12B.size_bytes);
-        assert_eq!(smaller.models.len(), 4);
+        assert_eq!(smaller.models.len(), 5);
     }
 
     #[test]

@@ -20,7 +20,9 @@
 //! hopes is there, a digest is what was tested. They are Google's own builds, Apache 2.0 (decision D6
 //! requires a permissive licence), with the quantisation-aware 4-bit weights, read from Hugging Face on
 //! 2026-10-16. The memory each needs is the file plus working memory plus the operating system, which is
-//! why E2B is offered from 8 GB and E4B from 12 GB.
+//! why E2B is offered from 8 GB and E4B from 12 GB. One more is offered beside them and only run when a
+//! person picks it: NVIDIA's Nemotron 3.5 Bolt E4B, OpenMDW-1.1 (also permissive, commercial use
+//! allowed); see [`BOLT_E4B`].
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -72,6 +74,10 @@ pub struct LocalModel {
     /// The smallest memory it is offered at, in GiB as the operating system reports it. A computer sold
     /// as "8 GB" reports about 7.7, which is why these sit a little under the round numbers.
     pub min_ram_gib: f64,
+    /// The licence's name, as the setup screen shows it beside the model.
+    pub licence: &'static str,
+    /// Offered, never chosen for anybody: only a person who picks it gets it. See [`BOLT_E4B`].
+    pub opt_in: bool,
 }
 
 impl LocalModel {
@@ -97,6 +103,8 @@ pub const E4B: LocalModel = LocalModel {
     size_bytes: 5_154_941_280,
     sha256: "676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee",
     min_ram_gib: 11.0,
+    licence: GEMMA_LICENCE,
+    opt_in: false,
 };
 
 /// Gemma 4 E2B: smaller and quicker, weaker, for a computer with 8 GB.
@@ -108,6 +116,8 @@ pub const E2B: LocalModel = LocalModel {
     size_bytes: 3_349_516_256,
     sha256: "fa401b55b07ee70a54c6dae3903c783a6e65064312529ea57175cb5f8dec6634",
     min_ram_gib: 7.0,
+    licence: GEMMA_LICENCE,
+    opt_in: false,
 };
 
 /// Gemma 4 12B: the first size that does tool use and long tasks well, for a computer with 24 GB or more.
@@ -124,6 +134,8 @@ pub const G12B: LocalModel = LocalModel {
     size_bytes: 6_975_879_296,
     sha256: "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b",
     min_ram_gib: 20.0,
+    licence: GEMMA_LICENCE,
+    opt_in: false,
 };
 
 /// Gemma 4 26B A4B: a mixture of experts, 26 billion parameters of which about 4 billion work on any one word,
@@ -137,10 +149,49 @@ pub const G26B: LocalModel = LocalModel {
     size_bytes: 14_439_363_584,
     sha256: "3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d",
     min_ram_gib: 27.0,
+    licence: GEMMA_LICENCE,
+    opt_in: false,
 };
 
-/// Best first.
-pub const MODELS: [&LocalModel; 4] = [&G26B, &G12B, &E4B, &E2B];
+const GEMMA_LICENCE: &str = "Apache 2.0";
+
+/// NVIDIA Nemotron 3.5 Bolt E4B: Gemma 4 E4B post-trained by NVIDIA for multi-turn tool use and
+/// instruction following (desk #64). Offered beside the Gemma models, never chosen for anybody.
+///
+/// OPT-IN, because Gemma is what was measured on the DT Lab's boxes and what every recommendation in this
+/// file is calibrated against; Bolt is the same architecture with different weights, and nothing here has
+/// yet watched it run a digital employee's turn. So [`recommend`] never names it, `local_setup::choose`
+/// never picks it on its own, and it is listed after the Gemma models: a person sees it and can pick it.
+///
+/// NVIDIA's own GGUF (the `nvidia/` repository, not a repackaging), Q4_K_M, read from Hugging Face on
+/// 2026-10-28 with `?blobs=true` for the size and the SHA-256. Licensed under OpenMDW-1.1, which allows
+/// commercial use (the model card: "ready for commercial or non-commercial use"); the Gemma 4 weights it was
+/// trained from are Apache 2.0. The repository's "4GB" is NVIDIA's name for it, not the file, which is
+/// 6.18 GB.
+///
+/// MEMORY. The same architecture as E4B, so the same working memory beyond the file, and a file about 1 GB
+/// bigger: E4B's 11 GB plus that is a 12 GB computer with nothing to spare, so it is offered from 16 GB.
+/// Reasoned from E4B, not measured.
+///
+/// THE CHAT TEMPLATE is Gemma 4's (the card serves it with the `gemma4` tool and reasoning parsers), so it
+/// has Gemma's `map('upper')` that llama.cpp b11696 does not implement (desk #36). The tool schemas sent to
+/// it are made single-typed exactly as for Gemma: that is decided by `BOT_CONTEXT_TOKENS` (written for
+/// every model this app runs, see `env.rs`) and by the server for every built-in run, never by the model's
+/// name.
+pub const BOLT_E4B: LocalModel = LocalModel {
+    id: "nemotron-3.5-bolt-e4b",
+    label: "Nemotron 3.5 Bolt E4B",
+    repo: "nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB",
+    file: "Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf",
+    size_bytes: 6_180_446_208,
+    sha256: "c8af2b8aea10a690a1d9491db744a9446660173cb38fc489612b556615a69612",
+    min_ram_gib: 15.0,
+    licence: "OpenMDW-1.1",
+    opt_in: true,
+};
+
+/// The models chosen automatically, best first, then the ones only a person's pick runs.
+pub const MODELS: [&LocalModel; 5] = [&G26B, &G12B, &E4B, &E2B, &BOLT_E4B];
 
 /// Words of conversation the server holds in memory for this model, which is also the most one request
 /// may be.
@@ -160,7 +211,7 @@ pub fn context_for(model: &LocalModel) -> u32 {
 }
 
 /// Every model this computer can run, best first: what the setup screen offers, with the first one
-/// recommended.
+/// recommended. Opt-in models come after every automatic one, so the first is never one of them.
 pub fn fitting(machine: &Machine) -> Vec<&'static LocalModel> {
     let ram = machine.ram_gib();
     MODELS
@@ -200,7 +251,8 @@ pub enum Recommendation {
 /// browsing than the large hosted ones, and slower on a computer without a graphics card).
 pub fn recommend(machine: &Machine) -> Recommendation {
     let ram = machine.ram_gib();
-    for model in MODELS {
+    // Never an opt-in model: those run only when a person picks one (see `BOLT_E4B`).
+    for model in MODELS.iter().filter(|model| !model.opt_in) {
         if ram >= model.min_ram_gib {
             return Recommendation::Model { model };
         }
@@ -640,7 +692,7 @@ mod tests {
     fn only_the_largest_model_is_given_the_larger_window() {
         use super::*;
         assert_eq!(context_for(&G26B), 32768);
-        for small in [&G12B, &E4B, &E2B] {
+        for small in [&G12B, &E4B, &E2B, &BOLT_E4B] {
             assert_eq!(context_for(small), crate::local_server::DEFAULT_CONTEXT);
         }
     }
@@ -702,11 +754,24 @@ mod tests {
                 "gemma-4-26b-a4b",
                 "gemma-4-12b",
                 "gemma-4-e4b",
-                "gemma-4-e2b"
+                "gemma-4-e2b",
+                "nemotron-3.5-bolt-e4b"
             ]
         );
-        assert_eq!(ids(16.0), ["gemma-4-e4b", "gemma-4-e2b"]);
-        assert_eq!(ids(23.4), ["gemma-4-12b", "gemma-4-e4b", "gemma-4-e2b"]);
+        assert_eq!(
+            ids(16.0),
+            ["gemma-4-e4b", "gemma-4-e2b", "nemotron-3.5-bolt-e4b"]
+        );
+        assert_eq!(ids(12.0), ["gemma-4-e4b", "gemma-4-e2b"]);
+        assert_eq!(
+            ids(23.4),
+            [
+                "gemma-4-12b",
+                "gemma-4-e4b",
+                "gemma-4-e2b",
+                "nemotron-3.5-bolt-e4b"
+            ]
+        );
         assert_eq!(ids(7.7), ["gemma-4-e2b"]);
         assert!(ids(4.0).is_empty());
         assert_eq!(by_id("gemma-4-12b"), Some(&G12B));
@@ -792,23 +857,68 @@ mod tests {
                 "gemma-4-26b-a4b",
                 "gemma-4-12b",
                 "gemma-4-e4b",
-                "gemma-4-e2b"
+                "gemma-4-e2b",
+                "nemotron-3.5-bolt-e4b"
             ]
         );
         for model in MODELS {
             assert_eq!(model.sha256.len(), 64, "{}", model.id);
             assert!(model.sha256.chars().all(|c| c.is_ascii_hexdigit()));
-            assert!(model.url().starts_with("https://huggingface.co/google/"));
             assert!(model.url().ends_with(model.file));
+            assert!(!model.licence.is_empty(), "{}", model.id);
+        }
+        let automatic: Vec<_> = MODELS.iter().filter(|model| !model.opt_in).collect();
+        for model in &automatic {
+            assert!(model.url().starts_with("https://huggingface.co/google/"));
             // Google's own repositories, never a third party's repackaging.
             assert!(model.repo.starts_with("google/"), "{}", model.id);
+            assert_eq!(model.licence, "Apache 2.0");
         }
         // Each better model needs more memory and is a bigger file, or the order would be a lie.
-        for pair in MODELS.windows(2) {
+        for pair in automatic.windows(2) {
             let (better, smaller) = (pair[0], pair[1]);
             assert!(better.min_ram_gib > smaller.min_ram_gib, "{}", better.id);
             assert!(better.size_bytes > smaller.size_bytes, "{}", better.id);
         }
+        // Opt-in models come after every automatic one, so "best first" never starts with one.
+        let first_opt_in = MODELS.iter().position(|model| model.opt_in).unwrap();
+        assert!(MODELS[first_opt_in..].iter().all(|model| model.opt_in));
+    }
+
+    /// Desk #64: NVIDIA's own GGUF, pinned to what Hugging Face reported on 2026-10-28, under its
+    /// own licence, and offered but never chosen for anybody.
+    #[test]
+    fn nemotron_bolt_is_nvidias_own_file_and_only_ever_picked() {
+        assert_eq!(
+            BOLT_E4B.url(),
+            "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB/resolve/main/Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"
+        );
+        assert_eq!(BOLT_E4B.size_bytes, 6_180_446_208);
+        assert_eq!((BOLT_E4B.size_gb() * 100.0).round() / 100.0, 6.18);
+        assert_eq!(
+            BOLT_E4B.sha256,
+            "c8af2b8aea10a690a1d9491db744a9446660173cb38fc489612b556615a69612"
+        );
+        assert_eq!(BOLT_E4B.licence, "OpenMDW-1.1");
+        const _: () = assert!(BOLT_E4B.opt_in);
+        assert_eq!(by_id("nemotron-3.5-bolt-e4b"), Some(&BOLT_E4B));
+        // Bigger than E4B, so offered from a 16 GB computer, not a 12 GB one.
+        const _: () = assert!(BOLT_E4B.min_ram_gib > E4B.min_ram_gib);
+        assert!(!fitting(&machine(11.7)).contains(&&BOLT_E4B));
+        assert!(fitting(&machine(15.6)).contains(&&BOLT_E4B));
+        // Gemma's window, as the same architecture's E4B has.
+        assert_eq!(context_for(&BOLT_E4B), crate::local_server::DEFAULT_CONTEXT);
+        // Never the recommendation, on any computer that can run it.
+        for gib in [15.6, 16.0, 23.4, 31.7, 63.0, 512.0] {
+            match recommend(&machine(gib)) {
+                Recommendation::Model { model } => assert!(!model.opt_in, "{gib} GiB"),
+                other => panic!("expected a model at {gib} GiB, got {other:?}"),
+            }
+            assert!(!fitting(&machine(gib))[0].opt_in, "{gib} GiB");
+        }
+        let value = serde_json::to_value(&BOLT_E4B).unwrap();
+        assert_eq!(value["licence"], "OpenMDW-1.1");
+        assert_eq!(value["optIn"], true);
     }
 
     // ---- reading the machine ------------------------------------------------------------------

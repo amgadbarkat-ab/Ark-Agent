@@ -7,6 +7,10 @@ export type LocalModelOption = {
   id: string;
   label: string;
   sizeBytes: number;
+  /** The licence's name, such as "Apache 2.0". */
+  licence?: string;
+  /** Offered, never chosen for anybody: runs only when the person picks it. */
+  optIn?: boolean;
   /** The best this computer can run. */
   recommended: boolean;
   /** Already on this computer, whole and checked. */
@@ -43,6 +47,10 @@ export function gigabytes(bytes: number): string {
 
 /** What each size is for, in a few words, because a name like "12B" tells a person nothing. */
 function purpose(model: LocalModelOption): string {
+  // Before "e4b", which its name also contains.
+  if (model.id.includes("bolt")) {
+    return "Gemma 4 E4B tuned by NVIDIA for tool use, only if you choose it";
+  }
   if (model.id.includes("26b")) {
     return "Best for agents: plans and uses tools well";
   }
@@ -143,11 +151,13 @@ export function LocalModelPanel({
               onChange={() => onChoose(model.id)}
             />
             <span className="mark-tile" aria-hidden="true">
-              <span>G</span>
+              <span>{model.label.charAt(0) || "G"}</span>
             </span>
             <span className="tile-name">{model.label}</span>
             <span className="tile-summary">
-              {purpose(model)} · {gigabytes(model.sizeBytes)}
+              {purpose(model)}
+              {model.licence ? ` · ${model.licence} licence` : ""} ·{" "}
+              {gigabytes(model.sizeBytes)}
             </span>
             {model.recommended && (
               <span className="tile-note">Recommended for this computer</span>

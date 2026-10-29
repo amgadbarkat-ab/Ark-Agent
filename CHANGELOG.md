@@ -8,6 +8,31 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Desktop
+
+- **Closing the app on Linux cut the digital employees off until Stop and Start** (desk #71). With Docker
+  Engine, the containers reach the server and the model on this computer through relays the app runs,
+  and those ended with the app while everything else kept running, so reopening it showed a healthy
+  stack whose every employee answered "connection refused". Reopening now puts the relays back, for the
+  server and for the model (whose port is read from the running model itself). If they cannot be put
+  back, or the model has stopped, the app says so and Start fixes it.
+- **Podman: the desktop server listens only on this computer when the containers can still reach it**
+  (desk #40). At each Start a throwaway container checks whether it reaches this computer's loopback;
+  only then is the server loopback-only. Where it cannot (rootless Podman on Linux, by default), the
+  server listens on every interface as before, and with the model on this computer chosen the Start
+  says the containers cannot reach the model.
+- **NVIDIA Nemotron 3.5 Bolt E4B, as an opt-in model on this computer** (desk #64). Offered from 16 GB
+  beside the Gemma models, with its licence (OpenMDW-1.1, commercial use allowed) on the screen. Gemma
+  stays the recommendation and the automatic choice; Nemotron runs only when you pick it, and a model you
+  picked is now kept at the next start even when another one is also downloaded.
+
+### Security
+
+- **A digital employee's browser could open any address on the customer's network from the desktop**
+  (device control, finding 1): the setting that lets the server reach its own Bots also opened every
+  private address to browsing, the router page and the NAS among them. The desktop now keeps the
+  server's reach and refuses private addresses to the browser (`AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS`).
+
 ## 0.1.17
 
 ### Hired digital employees know who they are and can reach their team
