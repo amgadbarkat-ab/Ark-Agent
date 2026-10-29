@@ -54,6 +54,8 @@ export type ApprovalRecord = {
   /** The conversation the ask was made in, when there was one. Where the outcome is delivered. */
   threadId: string | null;
   runId: string | null;
+  /** The channel that shows `threadId`, for a link back to the conversation. */
+  channelId: string | null;
 };
 
 /**
@@ -245,6 +247,9 @@ export function createApprovalStore(
         decidedBy: approvals.decidedBy,
         threadId: approvals.threadId,
         runId: approvals.runId,
+        channelId: sql<
+          string | null
+        >`(select channel_id from intelligence_channel_mappings where intelligence_channel_mappings.thread_id = ${approvals.threadId} limit 1)`,
       })
       .from(approvals);
 

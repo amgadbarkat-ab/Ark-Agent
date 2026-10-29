@@ -442,6 +442,12 @@ export function createApp(
    * leaves `/api/agents/:agentId/memories` unmounted.
    */
   memories?: MemoryStore,
+  /**
+   * Whether a person is in the conversation a browser says an action belongs to. Appended last, for
+   * the positional reason above. Absent drops every such thread: a held browser action still waits
+   * for the person, and its outcome is not delivered into a conversation.
+   */
+  ownsConversation?: (actorId: string, threadId: string) => Promise<boolean>,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1609,6 +1615,7 @@ export function createApp(
         canUseBot,
         pageFrames,
         auditReader,
+        ownsConversation,
       ),
     );
   }
@@ -1775,7 +1782,10 @@ export function createApp(
   }
 
   if (approvals) {
-    app.route("/api/approvals", createApprovalRoutes(approvals, requireUser));
+    app.route(
+      "/api/approvals",
+      createApprovalRoutes(approvals, requireUser, canUseBot),
+    );
   }
 
   if (memories) {

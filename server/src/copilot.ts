@@ -1069,7 +1069,9 @@ export function bindRun(
   };
   return tools.map((tool) => {
     const inRun = tool.executeInRun;
-    return inRun ? { ...tool, execute: (args: unknown) => inRun(args, run) } : tool;
+    return inRun
+      ? { ...tool, execute: (args: unknown) => inRun(args, run) }
+      : tool;
   });
 }
 
