@@ -79,7 +79,16 @@ export type OwnBrowserComputer = {
  * in private-network.test.ts.
  */
 export async function startOwnBrowserComputer(
-  options: { hostResolverRules?: string; token?: string } = {},
+  options: {
+    hostResolverRules?: string;
+    token?: string;
+    /**
+     * Start the browser itself rather than through the shell wrapper, as the desktop does: for a real
+     * Chrome or Edge on Windows or macOS (own-browser-platform.test.ts), where the browser has its own
+     * sandbox and a `.cmd` wrapper could not pass on the pipe the browser is driven over.
+     */
+    direct?: boolean;
+  } = {},
 ): Promise<OwnBrowserComputer> {
   const chromium = standInBrowser();
   if (!chromium) {
@@ -109,9 +118,18 @@ export async function startOwnBrowserComputer(
     env: {
       PATH: process.env.PATH ?? "",
       HOME: scratch,
+      // Windows will not start a browser without these; harmless elsewhere.
+      ...(options.direct
+        ? {
+            SystemRoot: process.env.SystemRoot ?? "",
+            LOCALAPPDATA: process.env.LOCALAPPDATA ?? "",
+            TEMP: process.env.TEMP ?? "",
+            TMP: process.env.TMP ?? "",
+          }
+        : {}),
       PORT: String(port),
       COMPUTER_TOKEN: token,
-      COMPUTER_OWN_BROWSER_EXECUTABLE: wrapper,
+      COMPUTER_OWN_BROWSER_EXECUTABLE: options.direct ? chromium : wrapper,
       COMPUTER_OWN_BROWSER_PROFILE: profileDir,
       // No screen in CI. On a person's computer the window is the point.
       COMPUTER_OWN_BROWSER_HEADLESS: "true",
