@@ -165,6 +165,27 @@ jobs:
       - name: Rust regression tests
         run: cargo test --locked --lib --bins
         working-directory: desktop/src-tauri
+      # The standard-user test below creates a Windows account and loads its profile, which Windows
+      # writes to the system drive. Twice on 29 October (PR #49 and the v0.1.18 release) that failed
+      # with "There is not enough space on the disk" after every test had passed, and the release went
+      # out with no installers at all. The workspace is on D:, so what fills C: is the package caches
+      # and temporary files the build left in the runner's own profile. They are not needed again
+      # after the build, so they go, and the free space is printed before and after so a next shortage
+      # names its own cause.
+      - name: Make room on the system drive for the standard-user test
+        if: matrix.platform.name == 'windows'
+        shell: pwsh
+        run: |
+          function Report($label) { "{0}: {1:N1} GB free on C:" -f $label, ((Get-PSDrive C).Free / 1GB) }
+          Report 'before'
+          Get-ChildItem $env:USERPROFILE -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            $bytes = (Get-ChildItem $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
+            if ($bytes -gt 500MB) { "{0,8:N1} GB  {1}" -f ($bytes / 1GB), $_.FullName }
+          }
+          foreach ($path in @("$env:USERPROFILE\.bun\install\cache", "$env:LOCALAPPDATA\npm-cache", "$env:TEMP")) {
+            if (Test-Path $path) { Get-ChildItem $path -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
+          }
+          Report 'after'
       # Hosted Windows runners are administrators. Exercise setup again with an actual Users-only
       # account: DISM's feature reads worked as CI's administrator but refused ordinary app users.
       - name: Windows standard-user setup regression
