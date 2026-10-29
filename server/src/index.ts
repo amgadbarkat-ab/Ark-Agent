@@ -97,7 +97,7 @@ import {
   describeComputerIsolation,
 } from "./computer/provider";
 import { createSnapshotStore } from "./computer/snapshot-store";
-import { LOCAL_APP_ORIGINS, loadConfig } from "./config";
+import { LOCAL_APP_ORIGINS, loadConfig, mayBrowsePrivateHosts } from "./config";
 import {
   type IdentifyActor,
   type IdentifyUser,
@@ -457,7 +457,9 @@ const computerGateway = computerProvider
       // So wiping a profile takes the pictures of its signed-in pages with it, which is what the
       // sentence on that button already promised.
       pageFrames: pageFrameStore,
-      allowPrivateHosts: config.computer?.allowPrivateHosts,
+      // Where an employee's browser may go, which the desktop narrows below this server's own reach
+      // (AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS; device control, finding 1).
+      allowPrivateHosts: mayBrowsePrivateHosts(config.computer),
       token: config.computer?.token,
     })
   : undefined;

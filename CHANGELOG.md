@@ -8,6 +8,59 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Digital employees
+
+- **A colleague's answer was lost when the model on this computer was slow** (DT Lab, v0.1.17 step 4).
+  A hand-off gave the colleague five minutes, but the model on this computer can spend longer than
+  that reading a long prompt in silence, so the lead's "Asked Customer Support" stayed alone in the
+  chat and the hand-off was asked again from the start behind the first. It now waits as long as the
+  rest of the stack waits for that model (30 minutes), and the answer comes back into the conversation
+  even if you left it meanwhile.
+- **The `@` menu was empty when opening an employee you had not talked to yet** (DT Lab, v0.1.17 step
+  5). That screen offered nobody to pick, and a message meant for Chief of Operations went to Customer
+  Support. It lists your digital employees, and an `@` for somebody else starts the conversation with
+  them.
+
+### Payments
+
+- **Stripe, beside Paddle, in test mode only** (`ARK_BILLING_PROVIDER=stripe`): checkout, signed and
+  idempotent webhooks, plan change, cancel and the customer portal; a live key is refused. Nothing
+  changes for a deployment that does not choose it. See docs/ark/26-stripe.md for what is verified (unit
+  and integration tests against a fake Stripe) and what is left before live.
+
+### Desktop
+
+- **Closing the app on Linux cut the digital employees off until Stop and Start** (desk #71). With Docker
+  Engine, the containers reach the server and the model on this computer through relays the app runs,
+  and those ended with the app while everything else kept running, so reopening it showed a healthy
+  stack whose every employee answered "connection refused". Reopening now puts the relays back, for the
+  server and for the model (whose port is read from the running model itself). If they cannot be put
+  back, or the model has stopped, the app says so and Start fixes it.
+- **Podman: the desktop server listens only on this computer when the containers can still reach it**
+  (desk #40). At each Start a throwaway container checks whether it reaches this computer's loopback;
+  only then is the server loopback-only. Where it cannot (rootless Podman on Linux, by default), the
+  server listens on every interface as before, and with the model on this computer chosen the Start
+  says the containers cannot reach the model.
+- **NVIDIA Nemotron 3.5 Bolt E4B, as an opt-in model on this computer** (desk #64). Offered from 16 GB
+  beside the Gemma models, with its licence (OpenMDW-1.1, commercial use allowed) on the screen. Gemma
+  stays the recommendation and the automatic choice; Nemotron runs only when you pick it, and a model you
+  picked is now kept at the next start even when another one is also downloaded.
+
+### Security
+
+- **Dependency audit cleared**: patched versions of better-auth (critical), zod, vite, happy-dom,
+  Mastra, undici, qs, body-parser, follow-redirects, seroval and systeminformation. Three advisories
+  with no usable fix are recorded as dated decisions (until 31 January 2027) in
+  security/audit-allowlist.json, with the reasons in docs/ark/15-security-review.md.
+- **Device control, step 1** (desk #27): docs/ark/25-device-control.md records what a digital employee
+  on the desktop can reach today and the gaps against "no submit, pay, send or delete without a person
+  approving", with 20 Greek/English test tasks and 10 prompt-injection trap pages
+  (security/device-control-traps/).
+- **A digital employee's browser could open any address on the customer's network from the desktop**
+  (device control, finding 1): the setting that lets the server reach its own Bots also opened every
+  private address to browsing, the router page and the NAS among them. The desktop now keeps the
+  server's reach and refuses private addresses to the browser (`AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS`).
+
 ## 0.1.17
 
 ### Hired digital employees know who they are and can reach their team

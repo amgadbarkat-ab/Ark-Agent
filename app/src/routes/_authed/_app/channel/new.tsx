@@ -4,7 +4,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChannelAvatar } from "@/components/channels/avatar";
 import { canSend, type Recipient } from "@/components/channels/compose-state";
+import { toAgentOptions } from "@/components/channels/composer";
 import { ConversationView } from "@/components/channels/conversation-view";
+import { addressedOutside } from "@/components/channels/mention-handoff";
 import { seedMessage } from "@/components/channels/transcript-messages";
 import { SidebarToggle } from "@/components/layout/sidebar-toggle";
 import {
@@ -136,6 +138,15 @@ function RouteComponent() {
         </Combobox>
       </div>
       <ConversationView
+        /*
+         * The `@` menu lists every digital employee, the same roster an open conversation offers.
+         * This screen used to pass nothing, so the menu was empty ("No agents in this channel") —
+         * and it is the screen the person is on whenever they open an employee they have not talked
+         * to yet: the DT Lab (v0.1.17) opened Customer Support, typed `@Chief`, found nobody to
+         * pick, sent anyway, and Customer Support answered a message meant for the Chief of
+         * Operations. v0.1.17 had wired the roster into `ChannelChat` only, and tested it there.
+         */
+        agents={toAgentOptions(profiles)}
         // Choosing a coworker answers the "To:" field, so the message is what remains: the caret
         // lands in the composer the moment a recipient exists, whether picked here or in the URL.
         autoFocus
@@ -155,6 +166,12 @@ function RouteComponent() {
         onSubmit={async (draft) => {
           const recipient = recipients[0];
           if (!recipient || !canSend(recipients, draft.text)) return;
+          // An `@` for somebody other than the To: recipient is the later, more specific choice, so
+          // the conversation starts with them — the rule an open conversation follows through
+          // `addressedOutside`, applied before there is a conversation to be outside of.
+          const addressed =
+            addressedOutside(draft, toAgentOptions(profiles), [recipient.id]) ??
+            recipient;
 
           setError(null);
           setSent(seedMessage(draft.text, newId()));
@@ -162,7 +179,7 @@ function RouteComponent() {
           try {
             // Recorded, then started: a coworker picked here is as much a choice as an `@` on the
             // home screen, and the trail has to say so for both.
-            await startChosen(recipient.id, draft.text);
+            await startChosen(addressed.id, draft.text);
           } catch (caught) {
             // Preserve the unsent draft when channel creation fails.
             setSent(null);

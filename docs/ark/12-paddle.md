@@ -12,6 +12,9 @@ Stripe would leave us to register for tax in every country we sell in. For a sma
 50, 100 and 250 plans across borders, that is the deciding difference. The price is a larger cut per
 sale than a processor takes, which the owner has accepted by choosing it.
 
+A Stripe adapter exists beside this one for a deployment that already sells through Stripe and
+handles its own tax (26-stripe.md). It is test mode only, and does not change this decision.
+
 ## What the owner sets up in Paddle
 
 Do it in Paddle's **sandbox** first (a separate account at sandbox-vendors.paddle.com), run the checks

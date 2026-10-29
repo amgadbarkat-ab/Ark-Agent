@@ -56,7 +56,9 @@ export function agentTrigger(agents: readonly AgentOption[]): TriggerConfig {
     char: AGENT_TRIGGER,
     accessibilityLabel: "agent",
     reopenOnChipClick: true,
-    emptyMessage: "No agents in this channel",
+    // The roster is every digital employee, not the channel's members (an `@` for somebody outside
+    // the conversation starts one with them), so an empty menu means nobody matched what was typed.
+    emptyMessage: "No matching digital employees",
     onSearch: (query): TriggerSuggestion[] =>
       agents
         .filter((agent) => matches(query, agent.name, agent.description))

@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AbstractAgent, BaseEvent, Message } from "@ag-ui/client";
 import { Observable } from "rxjs";
-import { createHandoffDelivery } from "../src/agents/handoff-delivery";
+import {
+  createHandoffDelivery,
+  DEFAULT_DELIVERY_DEADLINE_MS,
+} from "../src/agents/handoff-delivery";
 import type { HandoffWork } from "../src/agents/handoff-runner";
 
 /**
@@ -804,4 +809,43 @@ describe("what the trail is told started the hop", () => {
       { actorId: "user-1", botId: "researcher", fromBotId: "assistant" },
     ]);
   });
+});
+
+/**
+ * A hop waits for the model as long as everything else on the computer does.
+ *
+ * The DT Lab (v0.1.17, step 4): the Chief of Operations handed a question to Customer Support, and
+ * the answer never arrived. On the desktop's own model a first answer can be silent for longer than
+ * five minutes, so the server and the Bots wait up to 30 for it — and a hop gave up at five, "after 1
+ * events, the last RUN_STARTED", while the model was still reading. Read from the files that set
+ * that patience, so raising it there and not here fails here.
+ */
+describe("the default deadline", () => {
+  const root = join(import.meta.dir, "..", "..");
+  const idleSeconds = [
+    {
+      where: "desktop/src-tauri/src/env.rs",
+      pattern: /"BUN_CONFIG_HTTP_IDLE_TIMEOUT"\.into\(\),\s*"(\d+)"/,
+    },
+    {
+      where: "agent-langgraph/Dockerfile",
+      pattern: /BUN_CONFIG_HTTP_IDLE_TIMEOUT=(\d+)/,
+    },
+    {
+      where: "agent-bot/Dockerfile",
+      pattern: /BUN_CONFIG_HTTP_IDLE_TIMEOUT=(\d+)/,
+    },
+  ];
+
+  for (const { where, pattern } of idleSeconds) {
+    test(`is no shorter than the wait for a silent model in ${where}`, () => {
+      const seconds = Number(
+        readFileSync(join(root, where), "utf8").match(pattern)?.[1],
+      );
+      expect(seconds).toBeGreaterThan(5 * 60);
+      expect(DEFAULT_DELIVERY_DEADLINE_MS).toBeGreaterThanOrEqual(
+        seconds * 1000,
+      );
+    });
+  }
 });

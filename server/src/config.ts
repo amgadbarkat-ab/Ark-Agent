@@ -52,6 +52,8 @@ export type DockerComputerConfig = {
   supervisorToken?: string;
   token?: string;
   allowPrivateHosts: boolean;
+  /** Where a digital employee's browser may go; see `privateBrowsingAllowed`. Absent means as above. */
+  browsePrivateHosts?: boolean;
   policy?: ActionPolicy;
 };
 
@@ -60,6 +62,8 @@ export type SharedComputerConfig = {
   baseUrl: string;
   token?: string;
   allowPrivateHosts: boolean;
+  /** Where a digital employee's browser may go; see `privateBrowsingAllowed`. Absent means as above. */
+  browsePrivateHosts?: boolean;
   policy?: ActionPolicy;
 };
 
@@ -78,6 +82,8 @@ export type SandboxComputerConfig = {
   templateFile: string;
   token?: string;
   allowPrivateHosts: boolean;
+  /** Where a digital employee's browser may go; see `privateBrowsingAllowed`. Absent means as above. */
+  browsePrivateHosts?: boolean;
   policy?: ActionPolicy;
 };
 
@@ -1311,6 +1317,49 @@ function privateHostsAllowed(environment: Environment): boolean {
 }
 
 /**
+ * Whether a digital employee's browser may open a private address, given the floor above.
+ *
+ * WHY THIS IS SEPARATE. `AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS` opens two different things at once: what
+ * this server may reach (its own Bots, the model on this computer, a person's Ollama) and where a
+ * digital employee may browse. The desktop app needs the first, because everything it runs is on this
+ * machine, and it set the switch for that reason alone. That also let every employee's browser open any
+ * private address: the customer's router page, a NAS, printers, other computers on the office network.
+ * The model chooses where to browse, so one prompt-injected page could send it there (device control,
+ * finding 1).
+ *
+ * `AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS=false` keeps the server's reach and closes browsing to the whole
+ * private range, which is what the desktop now writes. It can only narrow: without the floor, browsing
+ * private addresses is refused whatever this says. Unset keeps the floor's answer, so a development
+ * deployment that browses its own test pages is unchanged. Anything but `true` or `false` is refused at
+ * boot, because a typo here would otherwise leave browsing open without anybody being told.
+ */
+/**
+ * Where a digital employee's browser may go, for the one place that decides it (the computer
+ * gateway's navigation check). Everything else that reads `allowPrivateHosts` is this server's own
+ * reach, which the narrowing leaves alone.
+ */
+export function mayBrowsePrivateHosts(
+  computer: ComputerConfig | undefined,
+): boolean {
+  if (!computer) return false;
+  return computer.browsePrivateHosts ?? computer.allowPrivateHosts;
+}
+
+function privateBrowsingAllowed(
+  environment: Environment,
+  allowPrivateHosts: boolean,
+): boolean {
+  const raw = optional(environment, "AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS");
+  if (raw === undefined) return allowPrivateHosts;
+  if (raw !== "true" && raw !== "false") {
+    throw new Error(
+      `AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS must be true or false, not "${raw}".`,
+    );
+  }
+  return allowPrivateHosts && raw === "true";
+}
+
+/**
  * A duration a person would write, as milliseconds.
  *
  * `30m` rather than `1800000`, because this one is read and edited by whoever is deciding how long a
@@ -1354,6 +1403,10 @@ function computerConfig(environment: Environment): ComputerConfig | undefined {
   const computerToken = optional(environment, "COMPUTER_TOKEN");
 
   const allowPrivateHosts = privateHostsAllowed(environment);
+  // Written only when it narrows the floor, so a configuration that does not use it reads as before.
+  const browsing = privateBrowsingAllowed(environment, allowPrivateHosts);
+  const narrowed =
+    browsing === allowPrivateHosts ? {} : { browsePrivateHosts: browsing };
   const policy = actionPolicy(environment);
 
   /*
@@ -1372,6 +1425,7 @@ function computerConfig(environment: Environment): ComputerConfig | undefined {
         optional(environment, "COMPUTER_SANDBOX_TEMPLATE_FILE") ??
         "/etc/openbot/sandbox-template.json",
       allowPrivateHosts,
+      ...narrowed,
       ...(computerToken ? { token: computerToken } : {}),
       ...(policy ? { policy } : {}),
     };
@@ -1384,6 +1438,7 @@ function computerConfig(environment: Environment): ComputerConfig | undefined {
       provider: "docker",
       baseUrl: supervisorUrl,
       allowPrivateHosts,
+      ...narrowed,
       ...(supervisorToken ? { supervisorToken } : {}),
       ...(computerToken ? { token: computerToken } : {}),
       ...(policy ? { policy } : {}),
@@ -1399,6 +1454,7 @@ function computerConfig(environment: Environment): ComputerConfig | undefined {
     provider: "shared",
     baseUrl,
     allowPrivateHosts,
+    ...narrowed,
     ...(computerToken ? { token: computerToken } : {}),
     ...(policy ? { policy } : {}),
   };

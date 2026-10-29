@@ -479,15 +479,24 @@ const RELAY_CONTEXT_MESSAGES = 6;
 const LOCK_RENEW_EVERY_MS = 30_000;
 
 /**
- * How long one hop may run for by default.
+ * How long one hop may run for by default: as long as the rest of the stack waits for a silent model.
  *
- * Long enough for a real answer and short enough to be a wait rather than a hang. A Bot that reads a
- * corpus, drives a browser and writes a paragraph is minutes, not seconds, so a tight bound would
- * cut off working deliveries; but a person who has been told their question was handed on will not
- * wait a quarter of an hour to be told it was not, and the conversation stays locked for every
- * second of it.
+ * It was five minutes, which is a hang on a hosted model and an ordinary first answer on the one a
+ * desktop runs: Gemma reading a prompt on a laptop can be silent for longer than that before it
+ * writes a word, which is why the server and the Bots wait up to 30 minutes for it
+ * (`BUN_CONFIG_HTTP_IDLE_TIMEOUT=1800`, see desktop/src-tauri/src/env.rs). The DT Lab (v0.1.17,
+ * step 4) asked the Chief of Operations to get three risks from Customer Support: the "Asked
+ * Customer Support" card appeared, the lead acknowledged, and nothing else ever did. The colleague's
+ * run was cut at 300 s "after 1 events, the last RUN_STARTED", still waiting on the model; each retry
+ * asked the model from the beginning again, queued behind the call just abandoned (the model is not
+ * told it was), and the "it never answered" notice comes only after every attempt, half an hour on.
+ * A person's own turn on the same computer would have been answered.
+ *
+ * Still a bound, for everything the option above lists. The lock it holds that long is the scratch
+ * thread's on a forward hop; on a relay it is the person's conversation, which a run of their own on
+ * that model would hold for as long.
  */
-const DEFAULT_DELIVERY_DEADLINE_MS = 5 * 60_000;
+export const DEFAULT_DELIVERY_DEADLINE_MS = 30 * 60_000;
 
 /**
  * Wait for the run to be over, and fail if it failed.

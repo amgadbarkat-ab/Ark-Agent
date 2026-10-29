@@ -240,3 +240,59 @@ test("a computer that cannot be read is a failure the person can see", async () 
     await view.findByText("ArkAgent could not look at this computer."),
   ).toBeTruthy();
 });
+
+// Desk #64: the opt-in Nemotron is offered with its licence, and the first look never picks it.
+test("Nemotron is offered with its licence and never chosen for the person", async () => {
+  const sixteenGigabytes: LocalModelPlan = {
+    ...thirtyTwoGigabytes,
+    ramGib: 15.6,
+    gpu: false,
+    recommendation: {
+      kind: "model",
+      model: {
+        id: "gemma-4-e4b",
+        label: "Gemma 4 E4B",
+        sizeBytes: 5_154_941_280,
+      },
+    },
+    models: [
+      {
+        id: "gemma-4-e4b",
+        label: "Gemma 4 E4B",
+        sizeBytes: 5_154_941_280,
+        licence: "Apache 2.0",
+        optIn: false,
+        recommended: true,
+        ready: false,
+      },
+      {
+        id: "nemotron-3.5-bolt-e4b",
+        label: "Nemotron 3.5 Bolt E4B",
+        sizeBytes: 6_180_446_208,
+        licence: "OpenMDW-1.1",
+        optIn: true,
+        recommended: false,
+        ready: false,
+      },
+    ],
+    chosen: null,
+    toDownloadBytes: 5_200_000_000,
+  };
+  invokeHandler = async (_command, args) => ({
+    ...sixteenGigabytes,
+    chosen: (args as { model?: string | null }).model ?? "gemma-4-e4b",
+  });
+  const chosen: string[] = [];
+  const view = await renderPanel({ onChoose: (id) => chosen.push(id) });
+  const bolt = await view.findByRole("radio", {
+    name: /Nemotron 3\.5 Bolt E4B/,
+  });
+  expect((bolt as HTMLInputElement).checked).toBe(false);
+  expect(view.getByText(/OpenMDW-1\.1 licence · 6\.2 GB/)).toBeTruthy();
+  expect(view.getByText(/tuned by NVIDIA for tool use/)).toBeTruthy();
+  expect(view.getByText(/Apache 2\.0 licence · 5\.2 GB/)).toBeTruthy();
+  // The first look chooses Gemma for them; only a click chooses Nemotron.
+  expect(chosen).toEqual(["gemma-4-e4b"]);
+  await userEvent.click(bolt);
+  expect(chosen.at(-1)).toBe("nemotron-3.5-bolt-e4b");
+});

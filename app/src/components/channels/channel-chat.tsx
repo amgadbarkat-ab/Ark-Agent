@@ -255,7 +255,7 @@ export function ChannelChat({
 }) {
   // The core attaches the frontend tool registry; direct agent runs do not.
   const { copilotkit } = useCopilotKit();
-  // Mentions are scoped to the channel's permitted agents.
+  // The `@` menu lists every digital employee; who is inside the channel is decided at send time.
   const { data: agentProfiles } = useQuery(agentListQueryOptions());
   // An `@` for somebody outside this conversation starts one with them; see `addressedOutside`.
   const { startChosen } = useStartChannel();

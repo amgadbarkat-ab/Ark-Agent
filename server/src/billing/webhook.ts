@@ -110,6 +110,26 @@ export function createBillingWebhook(options: {
           ignored += 1;
           continue;
         }
+        /*
+         * A notice that a subscription ended (or never started), about a subscription the account has
+         * since replaced, is history: it must not end the one that replaced it. A customer who
+         * cancels and buys again has two subscriptions at the provider, and a delayed retry about the
+         * first can arrive after the second is running. Its time cannot be trusted to say so: a
+         * provider that is asked for the current state (Stripe) stamps every answer "now".
+         */
+        if (
+          event.providerSubscriptionId !== undefined &&
+          (event.status === "canceled" || event.status === "incomplete")
+        ) {
+          const current = await accounts.providerSubscriptionIdFor(
+            tenantId,
+            providerId,
+          );
+          if (current && current !== event.providerSubscriptionId) {
+            ignored += 1;
+            continue;
+          }
+        }
 
         let result: "applied" | "stale";
         try {

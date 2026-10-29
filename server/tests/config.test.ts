@@ -1,6 +1,10 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { configuredAuthProviders, loadConfig } from "../src/config";
+import {
+  configuredAuthProviders,
+  loadConfig,
+  mayBrowsePrivateHosts,
+} from "../src/config";
 
 // Intelligence is part of the MINIMUM contract, so it belongs in the base environment every other
 // case builds on. Leaving it out of the base would make most of this file assert the behaviour of a
@@ -946,6 +950,86 @@ describe("deployment configuration", () => {
       expect(config.computer?.allowPrivateHosts).toBe(false);
     },
   );
+
+  /*
+   * Device control, finding 1. The desktop needs this server to reach its own Bots and the model on
+   * this computer, and the switch that allows that also let every employee's browser open the
+   * customer's router page, NAS or printers. AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS=false closes the
+   * browsing half and leaves the server's reach alone.
+   */
+  describe("browsing private addresses, apart from this server's own reach", () => {
+    const quietly = <T>(load: () => T): T => {
+      const consoleWarn = spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        return load();
+      } finally {
+        consoleWarn.mockRestore();
+      }
+    };
+
+    test("the desktop's narrowing keeps the server's reach and closes browsing", () => {
+      for (const urlName of [
+        "COMPUTER_SUPERVISOR_URL",
+        "AGENT_COMPUTER_URL",
+      ] as const) {
+        const config = quietly(() =>
+          loadConfig({
+            ...baseEnvironment,
+            [urlName]: "http://127.0.0.1:4500",
+            AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS: "true",
+            AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS: "false",
+          }),
+        );
+        expect(config.computer?.allowPrivateHosts).toBe(true);
+        expect(config.computer?.browsePrivateHosts).toBe(false);
+        expect(mayBrowsePrivateHosts(config.computer)).toBe(false);
+      }
+    });
+
+    test("unset, browsing follows the floor as it always did", () => {
+      const open = quietly(() =>
+        loadConfig({
+          ...baseEnvironment,
+          AGENT_COMPUTER_URL: "http://localhost:4100",
+          AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS: "true",
+        }),
+      );
+      expect(open.computer?.browsePrivateHosts).toBeUndefined();
+      expect(mayBrowsePrivateHosts(open.computer)).toBe(true);
+      const closed = loadConfig({
+        ...baseEnvironment,
+        AGENT_COMPUTER_URL: "http://localhost:4100",
+      });
+      expect(mayBrowsePrivateHosts(closed.computer)).toBe(false);
+      expect(mayBrowsePrivateHosts(undefined)).toBe(false);
+    });
+
+    test("it can only narrow: without the floor, true opens nothing", () => {
+      const config = loadConfig({
+        ...baseEnvironment,
+        AGENT_COMPUTER_URL: "http://localhost:4100",
+        AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS: "true",
+      });
+      expect(config.computer?.allowPrivateHosts).toBe(false);
+      expect(mayBrowsePrivateHosts(config.computer)).toBe(false);
+    });
+
+    test.each(["no", "0", "False", "yes"])(
+      "a value that is not true or false (%p) is refused at boot",
+      (value) => {
+        expect(() =>
+          quietly(() =>
+            loadConfig({
+              ...baseEnvironment,
+              AGENT_COMPUTER_URL: "http://localhost:4100",
+              AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS: "true",
+              AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS: value,
+            }),
+          ),
+        ).toThrow("AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS must be true or false");
+      },
+    );
+  });
 
   test.each([
     ["Docker", "COMPUTER_SUPERVISOR_URL"],

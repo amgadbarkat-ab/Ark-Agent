@@ -2,3 +2,6 @@ ag2[ag-ui,anthropic,openai]
 fastapi
 python-multipart
 uvicorn[standard]
+# Held below 2: anthropic 2.x sends the key as "Authorization: Bearer" instead of "x-api-key" (see
+# agent-langgraph-agui/requirements.txt), which turned the provider-boundary tests red.
+anthropic<2
