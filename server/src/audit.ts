@@ -402,7 +402,17 @@ export const auditEventTypes = [
   "bot.icon_changed",
   "bot.primary_changed",
 
-  /* A change one digital employee asked for, and what its owner decided. */
+  /*
+   * Held for a person: a tool call set to ask first, or a browser action a boundary rule holds.
+   *
+   * Its own pair rather than a refusal with a flag, because nothing was refused: the action is
+   * waiting, and the row a reader wants next is the decision (`approval.*`, same request id) and
+   * then the outcome row the approved action writes (`mcp.call_*`, `computer.action_*`).
+   */
+  "mcp.call_held",
+  "computer.action_held",
+
+  /* Something a digital employee asked for that waits for a person, and what they decided. */
   "approval.requested",
   "approval.approved",
   "approval.rejected",

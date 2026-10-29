@@ -313,7 +313,13 @@ export function createHandoffDelivery(options: {
            * the longer the conversation that wanted it. A few recent turns keep the voice and the
            * pronouns right; the rest is weight.
            */
-          ...(work.answerIn ? prior.slice(-RELAY_CONTEXT_MESSAGES) : prior),
+          /*
+           * Except a hop that resumes the employee's own work, which needs what it was doing: the
+           * outcome it was waiting for means nothing without the request that led to it.
+           */
+          ...(work.answerIn && !work.resume
+            ? prior.slice(-RELAY_CONTEXT_MESSAGES)
+            : prior),
           { id: `handoff-${runId}`, role: "user", content: message },
         ];
         agent.threadId = where.threadId;

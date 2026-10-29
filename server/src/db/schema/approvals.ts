@@ -1,8 +1,10 @@
 /**
- * Approvals: a change one digital employee wants made to another's work, waiting for a person.
+ * Approvals: something a digital employee wants done that waits for a person.
  *
- * Its own file, by owner, like the other schema files. The table holds what was asked and what was
- * decided; the change itself is applied by the store when, and only when, the owner approves.
+ * A change to a colleague's work, a tool call or a browser action the policy holds for a person, or
+ * an approval card the employee raised in a conversation. Its own file, by owner, like the other
+ * schema files. The table holds what was asked and what was decided; the thing itself is done by the
+ * store when, and only when, the owner approves.
  */
 import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { agents, users } from "./core";
@@ -41,6 +43,17 @@ export const approvals = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     decidedBy: text("decided_by"),
+    /**
+     * The conversation the ask was made in, when there was one.
+     *
+     * Where the outcome is delivered: a held tool call that is approved runs, and what it answered
+     * goes back into this conversation so the employee can carry on. Recorded by the deployment from
+     * the run it signed, never taken from the model. Not a foreign key: a thread lives on the
+     * platform, not in this database.
+     */
+    threadId: text("thread_id"),
+    /** The run that asked, so the trail can tie a request to the turn that made it. */
+    runId: text("run_id"),
   },
   (table) => [
     index("approvals_owner_status_idx").on(

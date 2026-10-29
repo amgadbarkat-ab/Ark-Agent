@@ -1,10 +1,18 @@
+import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import type { Database } from "../db/client";
 import { approvals } from "../db/schema";
 
 /**
- * Changes one digital employee wants made to another's work, held until a person decides.
+ * What a digital employee wants done that waits for a person: one place, the person's "Needs you".
+ *
+ * Four kinds of thing arrive here. A lead asking to change a colleague's work (below). A tool call
+ * the gateway held because the tool is set to ask first (`held-calls.ts`). A browser action a
+ * boundary rule holds for a person (the same). And an approval card a digital employee raised in a
+ * conversation, registered here so the person sees it in the same list as everything else instead of
+ * only in a chat they may not have open — desk #69 was the Requests page saying "Nothing is waiting
+ * for you" while a card was waiting.
  *
  * WHY THIS EXISTS. The lead of a team can read its colleagues' routines and ask them for things. What
  * it must not do alone is change or delete what a colleague was set up to do: a routine that sends a
@@ -41,10 +49,33 @@ export type ApprovalRecord = {
   createdAt: Date;
   expiresAt: Date;
   decidedAt: Date | null;
+  /** Who decided, as a user id. Null until somebody has. */
+  decidedBy: string | null;
+  /** The conversation the ask was made in, when there was one. Where the outcome is delivered. */
+  threadId: string | null;
+  runId: string | null;
 };
 
-/** Applies one approved change and says, in a sentence, what it did. A throw is a failure, with its message. */
+/**
+ * Applies one approved change and says what it did. A throw is a failure, with its message.
+ *
+ * What it returns is kept on the row (cut to a sentence's length) and handed whole to the kind's
+ * `afterDecision`, which is how a tool's full answer reaches the conversation without the inbox
+ * holding a copy of somebody's data.
+ */
 export type ApprovalExecutor = (approval: ApprovalRecord) => Promise<string>;
+
+/**
+ * What happens once a decision is final: approved and applied, approved and failed, or rejected.
+ *
+ * Separate from the executor because a rejection runs no executor and still has somebody waiting on
+ * it: the digital employee whose call was held is told it was declined. Best-effort and after the
+ * fact — the decision is already on record and a delivery that fails must not undo it.
+ */
+export type ApprovalAfterDecision = (
+  approval: ApprovalRecord,
+  outcome: { text: string | null },
+) => Promise<void>;
 
 export class ApprovalNotFoundError extends Error {
   constructor() {
@@ -80,10 +111,30 @@ export type ApprovalInput = {
   targetId?: string;
   summary: string;
   payload: unknown;
+  /** The conversation and run the ask was made in, as the deployment knows them. */
+  threadId?: string;
+  runId?: string;
+  /**
+   * Makes asking twice the same ask.
+   *
+   * An approval card is registered by the browser that draws it, and a card is drawn again on every
+   * reload; the toolCallId it belongs to is the key, so the second registration finds the first
+   * rather than putting the same question in the list twice.
+   */
+  key?: string;
 };
 
 export type ApprovalStore = {
   request(input: ApprovalInput): Promise<ApprovalRecord>;
+  /** One request, owner-scoped: somebody else's id reads as missing. */
+  get(ownerUserId: string, id: string): Promise<ApprovalRecord | null>;
+  /**
+   * One request by id, whoever owns it, for the code that carries out an approved one.
+   *
+   * Not reachable from any route. The gateways read the row they are about to act on through this,
+   * so what runs is what the row says rather than what a caller passed in.
+   */
+  find(id: string): Promise<ApprovalRecord | null>;
   /** Newest first. `pending` is what is waiting; `all` adds what was decided, for the history. */
   list(
     ownerUserId: string,
@@ -108,11 +159,32 @@ export function createApprovalStore(
   database: Database,
   options: {
     executors: Record<string, ApprovalExecutor>;
+    /** Per kind, what happens once a decision is final. See {@link ApprovalAfterDecision}. */
+    afterDecision?: Record<string, ApprovalAfterDecision>;
     auditStore?: AuditStore;
     now?: () => Date;
   },
 ): ApprovalStore {
   const { executors, auditStore } = options;
+  const afterDecision = options.afterDecision ?? {};
+
+  /** Best-effort, logged, never thrown: the decision is on record whatever happens here. */
+  const settle = async (record: ApprovalRecord, text: string | null) => {
+    const after = afterDecision[record.kind];
+    if (!after) return;
+    try {
+      await after(record, { text });
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          type: "approval-after-decision-failed",
+          approval: record.id,
+          kind: record.kind,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  };
   const now = options.now ?? (() => new Date());
 
   const audit = async (
@@ -135,6 +207,14 @@ export function createApprovalStore(
         bot: record.requestedByAgentId,
         kind: record.kind,
         ...(record.targetAgentId ? { target: record.targetAgentId } : {}),
+        ...(record.targetId ? { subject: record.targetId } : {}),
+        ...(record.runId ? { run: record.runId } : {}),
+        // Who decided and when, on the decision rows. The row's own `actorUserId` says who as well;
+        // this keeps the answer in the payload an export carries.
+        ...(record.decidedBy ? { decidedBy: record.decidedBy } : {}),
+        ...(record.decidedAt
+          ? { decidedAt: record.decidedAt.toISOString() }
+          : {}),
         ...extra,
       },
     });
@@ -162,6 +242,9 @@ export function createApprovalStore(
         createdAt: approvals.createdAt,
         expiresAt: approvals.expiresAt,
         decidedAt: approvals.decidedAt,
+        decidedBy: approvals.decidedBy,
+        threadId: approvals.threadId,
+        runId: approvals.runId,
       })
       .from(approvals);
 
@@ -194,7 +277,17 @@ export function createApprovalStore(
         throw new ApprovalRefusedError("A request has to say what it changes.");
       }
       await lapse(input.ownerUserId);
-      const id = `apr_${crypto.randomUUID()}`;
+      const id = input.key
+        ? `apr_${createHash("sha256")
+            .update(`${input.ownerUserId}\u0000${input.kind}\u0000${input.key}`)
+            .digest("hex")
+            .slice(0, 32)}`
+        : `apr_${crypto.randomUUID()}`;
+      if (input.key) {
+        // Already asked: the same request, not a second one, and nothing new for the trail.
+        const [existing] = await readOne(id);
+        if (existing) return asRecord(existing);
+      }
       // The count and the insert are one step, so a model asking ten times at once cannot take the
       // cap with it.
       await database.transaction(async (transaction) => {
@@ -225,6 +318,8 @@ export function createApprovalStore(
           summary,
           payload: input.payload ?? {},
           expiresAt: new Date(now().getTime() + APPROVAL_TTL_MS),
+          threadId: input.threadId ?? null,
+          runId: input.runId ?? null,
         });
       });
       const [row] = await readOne(id);
@@ -232,6 +327,18 @@ export function createApprovalStore(
       const record = asRecord(row);
       await audit("approval.requested", record);
       return record;
+    },
+
+    async get(ownerUserId, id) {
+      await lapse(ownerUserId);
+      const [row] = await readOne(id);
+      if (!row || row.ownerUserId !== ownerUserId) return null;
+      return asRecord(row);
+    },
+
+    async find(id) {
+      const [row] = await readOne(id);
+      return row ? asRecord(row) : null;
     },
 
     async list(ownerUserId, which = "pending", limit = 50) {
@@ -302,21 +409,29 @@ export function createApprovalStore(
 
       if (decision === "reject") {
         await audit("approval.rejected", record, ownerUserId);
+        await settle(record, null);
         return record;
       }
 
+      /*
+       * The decision is written before the executor runs, so the trail says who approved what even
+       * when what they approved then fails — and in that order, so a reader sees the yes before the
+       * row that records what the yes did.
+       */
+      await audit("approval.approved", record, ownerUserId);
       const executor = executors[record.kind];
+      let text: string | null = null;
       try {
         if (!executor) throw new Error(`Nothing applies a ${record.kind}.`);
-        const result = await executor(record);
+        text = await executor(record);
         await database
           .update(approvals)
-          .set({ result: result.slice(0, 1000) })
+          .set({ result: text.slice(0, 1000) })
           .where(eq(approvals.id, id));
-        await audit("approval.approved", record, ownerUserId);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "It could not be applied.";
+        text = null;
         await database
           .update(approvals)
           .set({ status: "failed", result: message.slice(0, 1000) })
@@ -326,7 +441,9 @@ export function createApprovalStore(
         });
       }
       const [after] = await readOne(id);
-      return after ? asRecord(after) : record;
+      const final = after ? asRecord(after) : record;
+      await settle(final, text);
+      return final;
     },
   };
 }

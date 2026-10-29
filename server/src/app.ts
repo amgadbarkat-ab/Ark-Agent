@@ -1940,6 +1940,15 @@ export function createApp(
           // From the assertion, never the body: this is the name the audit row will carry.
           actorId: verdict.actorId,
           ...(verdict.initiator ? { initiator: verdict.initiator } : {}),
+          /*
+           * The run, from the same signed assertion: where a call held for a person's approval
+           * delivers its outcome. Never from the body, for the reason the actor is not — a Bot able
+           * to name the thread could drop a turn into a conversation it was never part of.
+           */
+          run: {
+            runId: verdict.run.runId,
+            ...(verdict.run.threadId ? { threadId: verdict.run.threadId } : {}),
+          },
         });
         // Worded by the helper the in-process door uses, so a framework Bot's model reads a vendor's
         // error as the vendor's and not as a result. Neither Bot words it on its way through.

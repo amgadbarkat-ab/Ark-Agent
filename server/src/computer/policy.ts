@@ -32,6 +32,20 @@ export type ActionPolicy = {
   deny: string[];
   /** Any expression true means permitted. Empty means nothing is permitted. */
   allow: string[];
+  /**
+   * Any expression true means a person decides: the action is held, a request goes to the person
+   * whose run it is, and it is carried out exactly as asked only once they approve it.
+   *
+   * Evaluated after `deny` and before `allow`. After deny, because a forbidden action is not made
+   * permissible by somebody clicking Approve; before allow, because the shipped allow list is
+   * `true`, and a rule meant to make a person look at every "Pay now" would otherwise never be
+   * reached. The owner's rule for device control (desk #27) is the reason it exists: no payment,
+   * send, form submit or delete without a named person approving.
+   *
+   * Optional, so a policy written before this existed — in configuration, in a saved row, in a
+   * test — still reads, as a policy that asks nobody, which is what it was.
+   */
+  approve?: string[];
 };
 
 /**
@@ -198,7 +212,15 @@ export type PolicyDecision = {
   /** Which expression decided it, so the audit row can say why and an operator can find the rule. */
   matched: string | null;
   /** Which list that expression came from. `default` means nothing matched and the floor applied. */
-  source: "deny" | "allow" | "default";
+  source: "deny" | "approve" | "allow" | "default";
+  /**
+   * True when a rule says a person has to approve this action first.
+   *
+   * `allowed` is false on such a decision and `forward` follows the mode, the same as a refusal: in
+   * `enforce` nothing runs until somebody approves it, and in `dry-run` it is recorded and let
+   * through. What the caller does differently is ask instead of refuse.
+   */
+  needsApproval?: boolean;
   /** True when the action should actually be carried out. False for a refusal in `enforce`. */
   forward: boolean;
   /** Why, in words that go in front of a person. */
@@ -316,6 +338,22 @@ export function evaluateActionPolicy(
     }
   }
 
+  // A broken approve rule asks. Of the three readings it is the one that neither does the action
+  // unseen nor refuses work a person could have said yes to.
+  for (const expression of policy?.approve ?? []) {
+    if (matches(expression, context, true)) {
+      return {
+        allowed: false,
+        mode,
+        matched: expression,
+        source: "approve",
+        needsApproval: true,
+        forward: mode === "dry-run",
+        reason: describeHold(context, expression),
+      };
+    }
+  }
+
   for (const expression of allow) {
     if (matches(expression, context, false)) {
       return {
@@ -339,6 +377,16 @@ export function evaluateActionPolicy(
       "No rule in this deployment's policy permits that action, so it was refused. " +
       "An administrator can add one.",
   };
+}
+
+/** What is being held, in the words the employee relays to the person. */
+function describeHold(context: PolicyContext, expression: string): string {
+  return describeRefusal(context, expression)
+    .replace(
+      "This deployment's policy does not allow that:",
+      "This deployment's policy needs a person to approve that first:",
+    )
+    .replace("is blocked by the rule", "is held by the rule");
 }
 
 /** A refusal a person can act on: what was refused, and on what. */
