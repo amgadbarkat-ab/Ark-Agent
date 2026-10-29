@@ -18,6 +18,7 @@ import {
 } from "@/components/channels/mention-handoff";
 import {
   seedMessage,
+  takeCarriedDraft,
   takeFirstMessage,
   transcriptMessages,
 } from "@/components/channels/transcript-messages";
@@ -278,6 +279,9 @@ export function ChannelChat({
     const pending = takeFirstMessage(channel.id);
     return pending ? seedMessage(pending, newId()) : null;
   });
+
+  /** Whatever was typed on the sending screen after the first message, put back in the box. */
+  const [carried] = useState(() => takeCarriedDraft(channel.id));
 
   /** Cleared by the send-on-mount effect without restarting it. */
   const seedRef = useRef(seed);
@@ -957,6 +961,7 @@ export function ChannelChat({
              * the caret is left where it is.
              */
             autoFocus={seed !== null}
+            {...(carried ? { initialDraft: carried } : {})}
             channelId={channel.id}
             /*
              * THE TURN, not the run. `say` waits for the runtime agent and the join before a run starts,

@@ -32,6 +32,7 @@ export function ConversationView({
   disabled = false,
   pending = false,
   autoFocus = false,
+  initialDraft,
   stopped,
   stoppable,
   queueWhileBusy = false,
@@ -71,6 +72,8 @@ export function ConversationView({
   pending?: boolean;
   /** Focus the composer the moment it can take a caret; forwarded to the composer. */
   autoFocus?: boolean;
+  /** Words to start the composer with; forwarded to the composer. */
+  initialDraft?: string;
   /** Why the last turn ended without an answer. Drawn at the end of the transcript, not here. */
   stopped?: string;
   /**
@@ -466,6 +469,7 @@ export function ConversationView({
         <Composer
           agents={agents}
           autoFocus={autoFocus}
+          {...(initialDraft ? { initialValue: initialDraft } : {})}
           {...(channelId ? { channelId } : {})}
           {...(commands ? { commands } : {})}
           className="w-full mt-auto"

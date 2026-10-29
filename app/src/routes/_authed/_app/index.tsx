@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AgentCard } from "@/components/agents/agent-card";
 import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
 import { Composer, toAgentOptions } from "@/components/channels/composer";
@@ -31,7 +31,11 @@ function RouteComponent() {
     isError: failed,
   } = useQuery(agentListQueryOptions());
   const explore = agents?.filter(isSharedWithYou);
-  const { start, startChosen, pending } = useStartChannel();
+  // What is in the box after a send, so it survives the page being replaced by the conversation.
+  const typed = useRef("");
+  const { start, startChosen, pending } = useStartChannel({
+    typedSince: () => typed.current,
+  });
   const [error, setError] = useState<string | null>(null);
 
   /** Default recipient when the composer draft has no mention. */
@@ -61,6 +65,9 @@ function RouteComponent() {
             agents={toAgentOptions(agents)}
             className="w-full max-w-2xl"
             disabled={!fallback}
+            onTextChange={(text) => {
+              typed.current = text;
+            }}
             onSubmit={async (draft) => {
               // A channel is pinned to one coworker for the life of its thread, so the coworker is
               // chosen now, before it is created. An `@` is an explicit choice and is honoured as-is.

@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { stashFirstMessage } from "@/components/channels/transcript-messages";
+import {
+  stashCarriedDraft,
+  stashFirstMessage,
+} from "@/components/channels/transcript-messages";
 import { createChannelMutationOptions } from "./mutations";
 import { channelKeys } from "./queries";
 import { routeMessage } from "./route";
@@ -35,7 +38,12 @@ export async function startWithChosen(input: {
  * Ordering matters: create, seed the channel cache, stash the first message, then navigate. That
  * keeps the first message visible while the channel thread joins.
  */
-export function useStartChannel() {
+export function useStartChannel(
+  options: {
+    /** What is in the sending screen's box now, carried into the conversation it opens. */
+    typedSince?: () => string;
+  } = {},
+) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createChannel = useMutation(createChannelMutationOptions(queryClient));
@@ -44,6 +52,10 @@ export function useStartChannel() {
     const channel = await createChannel.mutateAsync([agentId]);
     queryClient.setQueryData(channelKeys.detail(channel.id), channel);
     stashFirstMessage(channel.id, text);
+    // Read at the last moment, so everything typed while the employee was picked and the channel
+    // created comes along.
+    const typed = options.typedSince?.().trim();
+    if (typed) stashCarriedDraft(channel.id, typed);
     await navigate({
       params: { channelId: channel.id },
       replace: true,

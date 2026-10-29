@@ -13,6 +13,7 @@ import {
   isSegmentsEmpty,
   mergeAdjacentTextSegments,
   type Segment,
+  segmentsToPlainText,
   text,
 } from "prompt-area/helpers";
 import {
@@ -203,6 +204,11 @@ export type ComposerProps = {
   stoppable?: boolean;
   initialValue?: string;
   /**
+   * Told the plain text in the box whenever it changes, for a caller that has to keep what was
+   * typed when its page goes away (the home screen, while the first message starts a conversation).
+   */
+  onTextChange?: (text: string) => void;
+  /**
    * Files a caller's queue left behind, and WHY, reported so they read as a refusal rather than
    * vanishing.
    *
@@ -329,6 +335,7 @@ export function Composer({
   channelId,
   stoppable,
   initialValue,
+  onTextChange,
   droppedAttachments,
   // Nothing parked is the right answer for every caller without a queue, which is most of them.
   queuedAttachmentCount = 0,
@@ -338,6 +345,11 @@ export function Composer({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitInFlight = useRef(false);
+  const reportText = useRef(onTextChange);
+  reportText.current = onTextChange;
+  useEffect(() => {
+    reportText.current?.(segmentsToPlainText(value));
+  }, [value]);
   const promptAreaRef = useRef<PromptAreaHandle>(null);
   /**
    * The composer's outer element, and the reason the hook's own `containerRef` is left on the
