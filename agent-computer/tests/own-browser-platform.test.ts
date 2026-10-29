@@ -51,7 +51,7 @@ describe.skipIf(!executable)(
 
     afterAll(async () => {
       await computer?.stop();
-    });
+    }, 30_000);
 
     test("it says it is the person's browser", async () => {
       const health = await call("ana", "/health");

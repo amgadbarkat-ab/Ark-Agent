@@ -48,10 +48,11 @@ describe.skipIf(!executable)(
         ...(executable ? { executablePath: executable } : {}),
         args: refusePrivateNetworkArgs(),
       });
-    });
+      // An installed browser on Windows takes longer than the default five seconds to start.
+    }, 60_000);
     afterAll(async () => {
       await browser?.close();
-    });
+    }, 30_000);
 
     /** A shop at a public address, whose page and redirect point into the office network. */
     async function shop() {
@@ -114,6 +115,32 @@ describe.skipIf(!executable)(
       expect(String(answer)).toContain("ERR_PROXY_CONNECTION_FAILED");
       await context.close();
     });
+
+    test("a real public site loads through the proxy script", async () => {
+      // Every other case here is played by Playwright's routing and never reaches the network, so it
+      // never asks the script anything. This one does: the script resolves the name, finds it public
+      // and answers DIRECT. Skipped without a network, as the CI runners have one.
+      const online = await fetch("https://example.com/", {
+        signal: AbortSignal.timeout(10_000),
+      }).then(
+        (response) => response.ok,
+        () => false,
+      );
+      if (!online) {
+        console.warn(
+          "example.com unreachable; real-network case not exercised",
+        );
+        return;
+      }
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      const answer = await page.goto("https://example.com/", {
+        timeout: 30_000,
+      });
+      expect(answer?.status()).toBe(200);
+      expect(await page.title()).toContain("Example Domain");
+      await context.close();
+    }, 60_000);
 
     test("a public page still loads", async () => {
       const { context, page } = await shop();

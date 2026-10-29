@@ -73,4 +73,6 @@ jobs:
           OPENBOT_OWN_BROWSER_PLATFORM: "1"
           OPENBOT_OWN_BROWSER: "1"
           OWN_BROWSER_STAND_IN: ${{ matrix.target.browser }}
+          # agent-computer's own output in the log, so a failure names its cause.
+          OWN_BROWSER_DEBUG: "1"
         run: bun test tests/own-browser-platform.test.ts tests/private-network.test.ts
