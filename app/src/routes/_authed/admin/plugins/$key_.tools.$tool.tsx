@@ -44,7 +44,7 @@ const ON_CALL: {
     value: "ask",
     title: "Ask a person first",
     description:
-      "The call waits in the Requests of the person the employee is working for, with its exact arguments. It runs, exactly as shown, only if they approve; the employee is told either way and carries on.",
+      "The call waits in the person's Requests with its exact arguments, and runs as shown only if they approve.",
   },
   {
     value: "refuse",
@@ -209,7 +209,15 @@ function RouteComponent() {
         <PageRows>
           <div aria-label="When a digital employee calls it" role="radiogroup">
             {ON_CALL.map((option, index) => {
-              const chosen = (tool.onCall ?? "allow") === option.value;
+              /*
+               * The choice being saved, while it is saved: the radio would otherwise snap back to
+               * the old answer until the page is read again, which reads as the click not taking.
+               */
+              const inForce =
+                setOnCall.isPending && setOnCall.variables?.outcome
+                  ? setOnCall.variables.outcome
+                  : (tool.onCall ?? "allow");
+              const chosen = inForce === option.value;
               return (
                 <div key={option.value}>
                   <Item size="sm">
