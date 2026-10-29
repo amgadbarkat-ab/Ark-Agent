@@ -8,6 +8,29 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Approvals in the middle of a run (desk #5)
+
+- **A digital employee's action can wait for a person.** Each tool can be set to run, ask a person
+  first, or never run. With no setting, a tool that changes something asks first and a read-only one
+  runs. In the employee's own browser, clicking anything that submits, sends, pays, buys, transfers
+  or deletes waits for a person by default, as does pressing Enter outside a search box. An
+  administrator can change these rules on Boundaries. The employee says the action is waiting.
+- **When the person decides, the work carries on in the same conversation.** Approving runs exactly
+  the call that was asked for, with the stored arguments, never ones made up again. In the browser it
+  presses exactly the element that was approved, and nothing at all if the page changed meanwhile.
+  Declining runs nothing. Either way the employee is told and continues. This works for built-in
+  employees and for the hired employees that run in the bundled agent service.
+- **Requests is the one place for everything waiting on you, with a count in the sidebar.** It lists
+  held tool calls with their exact arguments, held browser actions, a lead's change requests, and the
+  approval cards employees raise in chat. A card answered in the chat clears from Requests, and one
+  decided in Requests answers the card (desk #69).
+- Every request, decision (who, when) and execution is in the audit trail.
+
+Known limits: after a held browser action is decided, the employee reports the outcome but cannot use
+its browser again until your next message. A request expires after 7 days without a note in the
+conversation. On the model on this computer, the in-chat approval card is one of the tools left out
+of a turn when the prompt would not fit; the held actions above do not depend on it.
+
 ## 0.1.18
 
 ### Digital employees

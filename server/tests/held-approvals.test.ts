@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import { z } from "zod";
 import {
   approvalDetails,
   CHAT_CARD_KIND,
@@ -26,7 +27,6 @@ import {
 import { bindRun } from "../src/copilot";
 import { toolCallOutcome } from "../src/plugins/call-outcome";
 import type { GrantedTool } from "../src/plugins/tools";
-import { z } from "zod";
 
 function click(name: string, type = ""): PolicyContext {
   return {
@@ -106,6 +106,16 @@ describe("the third outcome in the boundary", () => {
     expect(
       decide({ ...click(""), tool: { name: "computer_key" }, key: "Enter" }),
     ).toBe("approve");
+    // Except in a search box, where it is a query: holding every search stopped plain web lookups.
+    const enterIn = (role: string, type = "") => ({
+      ...click(""),
+      tool: { name: "computer_key" },
+      key: "Enter",
+      element: { ref: "e2", role, name: "Search", type },
+    });
+    expect(decide(enterIn("searchbox"))).toBe("allow");
+    expect(decide(enterIn("textbox", "search"))).toBe("allow");
+    expect(decide(enterIn("textbox"))).toBe("approve");
   });
 
   test("a saved policy keeps its approve list, and an old one without it still reads", () => {

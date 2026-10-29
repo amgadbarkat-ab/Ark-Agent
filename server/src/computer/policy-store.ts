@@ -49,11 +49,15 @@ export const ACTION_POLICY_TOPIC = "action_policy_changed";
  * buys, transfers or deletes. The word list is matched on whole words (`(^|[^a-z])…([^a-z]|$)`,
  * case-insensitive), because a bare `pay` would hold a click on "Display". The second catches Enter,
  * which submits whatever form has focus: the gateway cannot tell a search box from a payment form at
- * decision time (see `PolicyContext.intent`), so a rule that must hold a submission holds Enter.
+ * decision time (see `PolicyContext.intent`), so a rule that must hold a submission holds Enter —
+ * except in a search box. Holding every Enter stopped a plain web search for a person's approval,
+ * and half the device-control test tasks (docs/ark/25-device-control.md) start with one; a field
+ * the page itself marks as a search (role `searchbox`, or `type="search"`) is the one place an Enter
+ * is a query rather than a submission. A page that lies about that is a page the trap set covers.
  */
 export const DEFAULT_APPROVAL_RULES = [
   'intent == "activate" && (element.type == "submit" || matches(element.name, "(^|[^a-z])(submit|send|pay|pay now|purchase|buy|checkout|check out|place order|transfer|delete|remove)([^a-z]|$)"))',
-  'intent == "activate" && (key == "Enter" || key == "NumpadEnter")',
+  'intent == "activate" && (key == "Enter" || key == "NumpadEnter") && !(element.role == "searchbox" || element.type == "search")',
 ] as const;
 
 /**
