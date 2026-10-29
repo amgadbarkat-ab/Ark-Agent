@@ -2512,6 +2512,10 @@ mod model_tests {
             "Gemma 4 12B"
         );
         assert_eq!(
+            compose_local("nemotron-3.5-bolt-e4b")["ARK_OFFLINE_MODEL_LABEL"],
+            "Nemotron 3.5 Bolt E4B"
+        );
+        assert_eq!(
             compose_local("something-else")["ARK_OFFLINE_MODEL_LABEL"],
             "Offline model"
         );
@@ -2541,6 +2545,10 @@ mod model_tests {
         assert_eq!(window("gemma-4-26b-a4b"), "32768");
         assert_eq!(window("gemma-4-12b"), "16384");
         assert_eq!(window("gemma-4-e4b"), "16384");
+        // Desk #64: the opt-in Nemotron has Gemma 4's chat template, and a window set here is also
+        // what makes the Bots send it single-typed tool schemas (`LOCAL_MODEL` in agent-bot and
+        // agent-langgraph; shared/tool-schema.ts). So it must never be left empty for it.
+        assert_eq!(window("nemotron-3.5-bolt-e4b"), "16384");
         // One this app did not name gets the default, never nothing.
         assert_eq!(window("something-else"), "16384");
     }
