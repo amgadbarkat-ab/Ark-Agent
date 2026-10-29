@@ -8,6 +8,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Digital employees
+
+- **What you typed on the home screen while your message was being sent is kept** (DT Lab, v0.1.19).
+  The home box stays open while ArkAgent picks the employee for a new message, which with a slow model
+  can take a few seconds, and anything typed then was lost when the conversation opened. It now waits
+  in the conversation's message box, unsent.
+
 ## 0.1.20
 
 ### Device control, phase 1: your own browser (desk #27)

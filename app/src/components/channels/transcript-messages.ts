@@ -48,3 +48,24 @@ export function takeFirstMessage(channelId: string): string | null {
   firstMessages.delete(channelId);
   return text;
 }
+
+/**
+ * What the person typed after sending the first message, carried into the conversation it opens.
+ *
+ * The home composer stays writable while the employee is being picked, which with a slow model can
+ * take seconds, and people use that time to write their next message. The page it was typed on is
+ * then replaced, so without this those words went with it (DT Lab, v0.1.19). Same map and the same
+ * once-only taking as the first message, for the same reasons.
+ */
+const carriedDrafts = new Map<string, string>();
+
+export function stashCarriedDraft(channelId: string, text: string): void {
+  carriedDrafts.set(channelId, text);
+}
+
+/** Read what was typed during the start and forget it. Null when nothing was. */
+export function takeCarriedDraft(channelId: string): string | null {
+  const text = carriedDrafts.get(channelId) ?? null;
+  carriedDrafts.delete(channelId);
+  return text;
+}

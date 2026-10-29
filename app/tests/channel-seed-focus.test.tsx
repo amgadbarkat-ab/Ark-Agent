@@ -6,7 +6,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChannelChat } from "@/components/channels/channel-chat";
-import { stashFirstMessage } from "@/components/channels/transcript-messages";
+import {
+  stashCarriedDraft,
+  stashFirstMessage,
+} from "@/components/channels/transcript-messages";
 import type { AgentChannel } from "@/lib/channels/queries";
 import { queryClient } from "@/query-client";
 import { settleReactWork } from "./settle-react-work";
@@ -188,6 +191,20 @@ test("typing on after a first message sent from another screen lands in the comp
   const user = userEvent.setup({ document: view.container.ownerDocument });
   await user.keyboard("Also add the budget");
   expect(box.textContent).toBe("Also add the budget");
+  expect(runs).toHaveLength(1);
+});
+
+test("what was typed on the home screen while the employee was picked is waiting in the box", async () => {
+  // The home composer stays writable while the first message is routed, and the page is replaced
+  // when the conversation opens; `useStartChannel` stashes what was in the box at that moment.
+  stashFirstMessage(channel.id, "Draft the weekly report.");
+  stashCarriedDraft(channel.id, "and send it to Maria");
+  const view = mount();
+  await waitFor(() => expect(runs).toHaveLength(1));
+
+  const box = view.getByRole("textbox", { name: "Message" });
+  expect(box.textContent).toBe("and send it to Maria");
+  // Waiting, not sent: it is the person's next message, and only they decide when it goes.
   expect(runs).toHaveLength(1);
 });
 
