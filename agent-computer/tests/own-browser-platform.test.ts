@@ -36,10 +36,15 @@ async function call(
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  return {
+  const answer = {
     status: response.status,
     body: (await response.json().catch(() => ({}))) as Record<string, unknown>,
   };
+  // A failure here is on somebody else's machine, so what agent-computer said is the only clue.
+  if (answer.status >= 500) {
+    console.error(`${path} -> ${answer.status} ${JSON.stringify(answer.body)}`);
+  }
+  return answer;
 }
 
 describe.skipIf(!executable)(
