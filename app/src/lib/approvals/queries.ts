@@ -91,6 +91,9 @@ export function approvalQueryOptions(id: string | null) {
     },
     refetchInterval: (query) =>
       query.state.data && query.state.data.status !== "pending" ? false : 3_000,
+    // Including from a tab in the background: the usual way a card is decided from Requests is in
+    // another tab, and the run the card holds is waiting for exactly that.
+    refetchIntervalInBackground: true,
     retry: false,
   });
 }
