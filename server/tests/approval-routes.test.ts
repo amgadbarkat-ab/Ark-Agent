@@ -28,6 +28,10 @@ const record: ApprovalRecord = {
   createdAt: new Date("2026-10-18T10:00:00Z"),
   expiresAt: new Date("2026-10-25T10:00:00Z"),
   decidedAt: null,
+  decidedBy: null,
+  threadId: null,
+  runId: null,
+  channelId: null,
 };
 
 const requireUser: MiddlewareHandler<{ Variables: AppVariables }> = async (

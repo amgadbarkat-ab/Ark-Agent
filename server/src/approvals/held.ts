@@ -504,12 +504,10 @@ export function approvalDetails(
     return rows;
   }
   if (record.kind === CHAT_CARD_KIND && Array.isArray(payload.details)) {
-    return (payload.details as unknown[])
-      .filter(isObject)
-      .map((row) => ({
-        label: String(row.label ?? ""),
-        value: String(row.value ?? ""),
-      }));
+    return (payload.details as unknown[]).filter(isObject).map((row) => ({
+      label: String(row.label ?? ""),
+      value: String(row.value ?? ""),
+    }));
   }
   return [];
 }
