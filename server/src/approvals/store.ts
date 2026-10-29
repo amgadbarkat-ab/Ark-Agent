@@ -247,9 +247,15 @@ export function createApprovalStore(
         decidedBy: approvals.decidedBy,
         threadId: approvals.threadId,
         runId: approvals.runId,
+        /*
+         * The outer column is spelled out with its table. Interpolated as `${approvals.threadId}`
+         * drizzle writes a bare "thread_id", which inside this subquery is the mappings table's own
+         * column: the condition was always true and every request linked to the first conversation
+         * anybody had (found walking a remote employee's held call in the browser).
+         */
         channelId: sql<
           string | null
-        >`(select channel_id from intelligence_channel_mappings where intelligence_channel_mappings.thread_id = ${approvals.threadId} limit 1)`,
+        >`(select m.channel_id from intelligence_channel_mappings m where m.thread_id = "approvals"."thread_id" limit 1)`,
       })
       .from(approvals);
 

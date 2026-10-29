@@ -39,6 +39,9 @@ import { createDatabase } from "../src/db/client";
 import {
   agents,
   approvals,
+  channelMemberships,
+  channels,
+  intelligenceChannelMappings,
   mcpServers,
   mcpTools,
   pluginGrants,
@@ -523,6 +526,50 @@ describe("a tool call held for a person", () => {
       resume: true,
     });
     expect(String(offered[0]?.payload.task)).toContain("sent it");
+  });
+});
+
+describe("where a request was asked", () => {
+  test("each request links to its own conversation, not to somebody's first one", async () => {
+    const owner = await person();
+    const rita = await employee(owner);
+    const { plugins, inbox } = deployment();
+    const ids = [`ch-a-${suite}`, `ch-b-${suite}`];
+    try {
+      for (const [index, id] of ids.entries()) {
+        await database
+          .insert(channels)
+          .values({ id, name: id, description: "" });
+        await database
+          .insert(channelMemberships)
+          .values({ channelId: id, userId: owner.id });
+        await database.insert(intelligenceChannelMappings).values({
+          userId: owner.id,
+          channelId: id,
+          threadId: `thread-${index}-${suite}`,
+        });
+      }
+      for (const index of [0, 1]) {
+        await plugins.callTool({
+          ref: `${serverId}/${writeTool}`,
+          args: { to: `person-${index}` },
+          botId: rita.id,
+          actorId: owner.id,
+          run: { threadId: `thread-${index}-${suite}` },
+        });
+      }
+      const listed = await inbox.list(owner.id);
+      const byTarget = new Map(
+        listed.map((row) => [
+          (row.payload as { args: { to: string } }).args.to,
+          row.channelId,
+        ]),
+      );
+      expect(byTarget.get("person-0")).toBe(ids[0] as string);
+      expect(byTarget.get("person-1")).toBe(ids[1] as string);
+    } finally {
+      await database.delete(channels).where(inArray(channels.id, ids));
+    }
   });
 });
 
