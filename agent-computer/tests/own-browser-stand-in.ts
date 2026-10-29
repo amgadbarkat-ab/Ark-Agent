@@ -83,9 +83,9 @@ export async function startOwnBrowserComputer(
     hostResolverRules?: string;
     token?: string;
     /**
-     * Start the browser itself rather than through the shell wrapper, as the desktop does: for a real
-     * Chrome or Edge on Windows or macOS (own-browser-platform.test.ts), where the browser has its own
-     * sandbox and a `.cmd` wrapper could not pass on the pipe the browser is driven over.
+     * A real Chrome or Edge on Windows or macOS (own-browser-platform.test.ts), with its own sandbox:
+     * started as it is on Windows, where a `.cmd` wrapper could not pass on the pipe the browser is
+     * driven over, and on macOS with only the mock keychain added (see below).
      */
     direct?: boolean;
   } = {},
@@ -97,19 +97,27 @@ export async function startOwnBrowserComputer(
   const scratch = await mkdtemp(join(tmpdir(), "arkagent-own-browser-"));
   const profileDir = join(scratch, "ArkAgent browser profile");
   const wrapper = join(scratch, "chrome");
-  await writeFile(
-    wrapper,
-    [
-      "#!/bin/sh",
-      `exec "${chromium}" --no-sandbox ${
+  // What the wrapper adds, by platform. Linux's stand-in has no sandbox to run under in this
+  // container. A real macOS browser is given back the mock keychain Playwright normally uses: without
+  // it Chrome and Edge ask the system keychain for their storage key, which on a person's Mac is one
+  // "Allow" click and on a CI machine, with nobody to click, is a browser that never loads a page.
+  const added = options.direct
+    ? process.platform === "darwin"
+      ? "--use-mock-keychain"
+      : ""
+    : `--no-sandbox ${
         options.hostResolverRules
           ? `"--host-resolver-rules=${options.hostResolverRules}" --no-proxy-server`
           : ""
-      } "$@"`,
-      "",
-    ].join("\n"),
+      }`;
+  await writeFile(
+    wrapper,
+    ["#!/bin/sh", `exec "${chromium}" ${added} "$@"`, ""].join("\n"),
   );
   await chmod(wrapper, 0o755);
+  // Windows runs a shell script for nobody, and the browser there is started as it is.
+  const executable =
+    options.direct && process.platform === "win32" ? chromium : wrapper;
 
   const token = options.token ?? "own-browser-test-token";
   const port = await freePort();
@@ -129,7 +137,7 @@ export async function startOwnBrowserComputer(
         : {}),
       PORT: String(port),
       COMPUTER_TOKEN: token,
-      COMPUTER_OWN_BROWSER_EXECUTABLE: options.direct ? chromium : wrapper,
+      COMPUTER_OWN_BROWSER_EXECUTABLE: executable,
       COMPUTER_OWN_BROWSER_PROFILE: profileDir,
       // No screen in CI. On a person's computer the window is the point.
       COMPUTER_OWN_BROWSER_HEADLESS: "true",

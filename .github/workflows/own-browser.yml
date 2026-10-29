@@ -64,6 +64,16 @@ jobs:
           test -f "$BROWSER" || { echo "::error::$BROWSER is not on this runner image"; exit 1; }
       - run: bun install --frozen-lockfile
         working-directory: agent-computer
+      # Whether the runtime can drive the browser at all, under Node and under Bun, before any of our
+      # code is involved: Playwright talks to it over a pipe on extra file descriptors.
+      - name: Launch probe, Node and Bun
+        shell: bash
+        working-directory: agent-computer
+        env:
+          OWN_BROWSER_STAND_IN: ${{ matrix.target.browser }}
+        run: |
+          node tests/launch-probe.mjs
+          bun tests/launch-probe.mjs
       # Launched directly, as the desktop launches it: public pages only, so the product path runs
       # unchanged. Then the proxy script against the same browser, redirect hops included.
       - name: Desktop path on the installed browser
