@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.20
+
 ### Device control, phase 1: your own browser (desk #27)
 
 - **A digital employee can work in your own Chrome or Edge, on the desktop app, if you switch it
