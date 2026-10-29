@@ -11,6 +11,7 @@ import { eq, inArray } from "drizzle-orm";
 import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
 import {
+  approvalDetails,
   COMPUTER_ACTION_KIND,
   computerActionApprovals,
   computerActionExecutor,
@@ -39,20 +40,24 @@ import { createDatabase } from "../src/db/client";
 import {
   agents,
   approvals,
+  channelAgents,
   channelMemberships,
   channels,
   intelligenceChannelMappings,
   mcpServers,
   mcpTools,
   pluginGrants,
+  routines,
   users,
 } from "../src/db/schema";
+import { useRoutineTools } from "../src/plugins/builtin-routines";
 import { HELD_MARKER } from "../src/plugins/call-outcome";
 import {
   createPluginStore,
   PluginRefusedError,
   type PluginStore,
 } from "../src/plugins/store";
+import { createRoutineStore } from "../src/routines/store";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**
@@ -569,6 +574,138 @@ describe("where a request was asked", () => {
       expect(byTarget.get("person-1")).toBe(ids[1] as string);
     } finally {
       await database.delete(channels).where(inArray(channels.id, ids));
+    }
+  });
+});
+
+/**
+ * DT Lab, v0.1.19: a small model asked Routines for a routine with `channelId` set to the words "this
+ * current conversation". The call was held, the person approved it, and it then failed, because that
+ * is not a conversation. Through the real Routines transport and a real routine store, so what is
+ * asserted is the row a person approves and the routine that row then writes.
+ */
+describe("a routine held for a person", () => {
+  test("is held for the conversation it will post into, and approving it writes exactly that", async () => {
+    const owner = await person();
+    const rita = await employee(owner);
+    const stranger = await person();
+    const ours = `ch-routine-${suite}`;
+    const theirs = `ch-routine-theirs-${suite}`;
+    const thread = `thread-routine-${suite}`;
+    // The catalogue's row, added only when this database does not already hold it.
+    const added = await database
+      .insert(mcpServers)
+      .values({
+        id: "routines",
+        title: "Routines",
+        vendor: "ArkAgent",
+        url: "builtin://routines/",
+      })
+      .onConflictDoNothing()
+      .returning({ id: mcpServers.id });
+    await database
+      .insert(mcpTools)
+      .values({
+        serverId: "routines",
+        name: "create_routine",
+        description: "Set up a routine",
+        inputSchema: {},
+      })
+      .onConflictDoNothing();
+    await database.insert(pluginGrants).values({
+      kind: "mcp",
+      ref: "routines/create_routine",
+      agentId: rita.id,
+    });
+    useRoutineTools(createRoutineStore(database));
+    try {
+      for (const [id, who] of [
+        [ours, owner.id],
+        [theirs, stranger.id],
+      ] as const) {
+        await database.insert(channels).values({
+          id,
+          name: id === ours ? "Planning" : "Theirs",
+          description: "",
+        });
+        await database
+          .insert(channelMemberships)
+          .values({ channelId: id, userId: who });
+        await database
+          .insert(channelAgents)
+          .values({ channelId: id, agentId: rita.id });
+      }
+      await database
+        .insert(intelligenceChannelMappings)
+        .values({ userId: owner.id, channelId: ours, threadId: thread });
+
+      // Two runs in the same conversation: one wrote a phrase, one wrote somebody else's channel.
+      const { plugins, inbox } = (() => {
+        let gateway: PluginStore | undefined;
+        const store = createApprovalStore(database, {
+          executors: {
+            [TOOL_CALL_KIND]: toolCallExecutor((input) => {
+              if (!gateway) throw new Error("not built");
+              return gateway.callTool(input);
+            }),
+          },
+          auditStore: audit().store,
+        });
+        gateway = createPluginStore({
+          database,
+          auditStore: audit().store,
+          credentials: { readSecret: async () => null } as never,
+          encryptionKey: "k".repeat(64),
+          policy: () => policy,
+          approvals: toolCallApprovals(store),
+        });
+        return { plugins: gateway, inbox: store };
+      })();
+      for (const channelId of ["this current conversation", theirs]) {
+        const held = await plugins.callTool({
+          ref: "routines/create_routine",
+          args: {
+            instruction: `Post the summary (${channelId}).`,
+            cron: "0 9 * * *",
+            channelId,
+          },
+          botId: rita.id,
+          actorId: owner.id,
+          run: { runId: "run-routine", threadId: thread },
+        });
+        expect(held.held?.approvalId).toBeString();
+      }
+
+      const requests = await inbox.list(owner.id);
+      expect(requests).toHaveLength(2);
+      for (const request of requests) {
+        const payload = request.payload as { args: { channelId: string } };
+        expect(payload.args.channelId).toBe(ours);
+        expect(approvalDetails(request)).toContainEqual({
+          label: "channelId",
+          value: `Planning (${ours})`,
+        });
+        const decided = await inbox.decide(owner.id, request.id, "approve");
+        expect(decided.status).toBe("approved");
+      }
+
+      const written = await database
+        .select({ channelId: routines.channelId })
+        .from(routines)
+        .where(eq(routines.ownerUserId, owner.id));
+      expect(written.map((row) => row.channelId)).toEqual([ours, ours]);
+    } finally {
+      useRoutineTools(null);
+      await database.delete(routines).where(eq(routines.ownerUserId, owner.id));
+      await database
+        .delete(channels)
+        .where(inArray(channels.id, [ours, theirs]));
+      await database
+        .delete(pluginGrants)
+        .where(eq(pluginGrants.agentId, rita.id));
+      if (added.length > 0) {
+        await database.delete(mcpServers).where(eq(mcpServers.id, "routines"));
+      }
     }
   });
 });

@@ -37,6 +37,7 @@ import {
   channelAgents,
   channelMemberships,
   channels,
+  intelligenceChannelMappings,
   routineRuns,
   routineSweeps,
   routines,
@@ -165,6 +166,20 @@ export type RoutinePatch = Partial<{
 
 export type RoutineStore = {
   create(input: RoutineInput): Promise<Routine>;
+  /**
+   * The conversation a routine being written from a run would post into, before it is written.
+   *
+   * A channel id the model named is kept when the owner and this agent are both in it. Anything
+   * else — no id, a phrase where an id belongs, somebody else's conversation — falls back to the
+   * conversation the run is in, checked the same way. Null when neither holds, which leaves the
+   * write to refuse or to pick the one shared channel exactly as it always has.
+   */
+  targetChannel(input: {
+    ownerUserId: string;
+    agentId: string;
+    channelId?: string;
+    threadId?: string;
+  }): Promise<{ id: string; name: string } | null>;
   listFor(ownerUserId: string): Promise<RoutineSummary[]>;
   update(
     ownerUserId: string,
@@ -320,12 +335,13 @@ function nameThem(candidates: { id: string; name: string }[]): string {
 
 export function createRoutineStore(database: Database): RoutineStore {
   /**
-   * Where the reply lands, decided here rather than at the tool boundary.
+   * Where the reply lands, checked here whatever the tool boundary decided.
    *
-   * Discovery confirmed the conversation's own channel is not reachable at the tool layer, so a model
-   * asked to make a routine either names a channel or names nothing. Both are resolved against what
-   * the owner and this agent actually share, which is the only check that stops a routine posting
-   * one person's summary into another person's conversation.
+   * The tool boundary fills in the run's own conversation when it can (`targetChannel`), but a call
+   * can still arrive naming a channel or naming nothing — a run with no conversation, a model that
+   * named one we could not place. Both are resolved against what the owner and this agent actually
+   * share, which is the only check that stops a routine posting one person's summary into another
+   * person's conversation.
    */
   async function resolveChannel(
     ownerUserId: string,
@@ -511,8 +527,53 @@ export function createRoutineStore(database: Database): RoutineStore {
     return toRoutine(row);
   }
 
+  /** A channel the owner is a member of and this agent is in, and that has not been deleted. */
+  const sharedChannels = (ownerUserId: string, agentId: string) =>
+    database
+      .select({ id: channels.id, name: channels.name })
+      .from(channels)
+      .innerJoin(
+        channelMemberships,
+        and(
+          eq(channelMemberships.channelId, channels.id),
+          eq(channelMemberships.userId, ownerUserId),
+        ),
+      )
+      .innerJoin(
+        channelAgents,
+        and(
+          eq(channelAgents.channelId, channels.id),
+          eq(channelAgents.agentId, agentId),
+        ),
+      );
+
   return {
     update,
+
+    async targetChannel(input) {
+      if (input.channelId !== undefined) {
+        const [named] = await sharedChannels(input.ownerUserId, input.agentId)
+          .where(
+            and(eq(channels.id, input.channelId), isNull(channels.deletedAt)),
+          )
+          .limit(1);
+        if (named) return named;
+      }
+      if (input.threadId === undefined) return null;
+      const [current] = await sharedChannels(input.ownerUserId, input.agentId)
+        .innerJoin(
+          intelligenceChannelMappings,
+          eq(intelligenceChannelMappings.channelId, channels.id),
+        )
+        .where(
+          and(
+            eq(intelligenceChannelMappings.threadId, input.threadId),
+            isNull(channels.deletedAt),
+          ),
+        )
+        .limit(1);
+      return current ?? null;
+    },
 
     async create(input) {
       const instruction = validInstruction(input.instruction);

@@ -949,6 +949,14 @@ export function ChannelChat({
                 : undefined
             }
             agents={toAgentOptions(agentProfiles)}
+            /*
+             * The caret follows a first message here. It was sent from the home composer or
+             * `/channel/new`, which navigated away and took the focused box with it, so the person
+             * who just pressed Enter and goes on typing would otherwise be typing into the page body
+             * (DT Lab, v0.1.19). A conversation opened any other way was opened with the mouse, and
+             * the caret is left where it is.
+             */
+            autoFocus={seed !== null}
             channelId={channel.id}
             /*
              * THE TURN, not the run. `say` waits for the runtime agent and the join before a run starts,

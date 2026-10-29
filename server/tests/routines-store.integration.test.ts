@@ -514,6 +514,100 @@ describe("resolving the channel to post into", () => {
   });
 });
 
+/**
+ * The conversation a routine written from a run posts into, settled before the call is held.
+ *
+ * A small model wrote "this current conversation" where an id belongs; the call was held, approved,
+ * and then failed. Anything that is not a conversation this person and this agent share falls back
+ * to the conversation the run is in, and only a real shared id is kept.
+ */
+describe("settling the conversation a run's routine posts into", () => {
+  test("a phrase where an id belongs falls back to the conversation the run is in", async () => {
+    const { owner, agentId } = await setUp();
+    const current = await createChannel(owner, [agentId]);
+
+    const target = await store.targetChannel({
+      ownerUserId: owner.id,
+      agentId,
+      channelId: "this current conversation",
+      threadId: current.threadId,
+    });
+
+    expect(target).toEqual({ id: current.id, name: current.name });
+  });
+
+  test("a real conversation the owner and the agent share is kept", async () => {
+    const { owner, agentId, channel } = await setUp();
+    const current = await createChannel(owner, [agentId]);
+
+    const target = await store.targetChannel({
+      ownerUserId: owner.id,
+      agentId,
+      channelId: channel.id,
+      threadId: current.threadId,
+    });
+
+    expect(target?.id).toBe(channel.id);
+  });
+
+  test("another person's conversation is not accepted, and the run's own is used", async () => {
+    const { owner, agentId, channel: current } = await setUp();
+    const stranger = await createUser();
+    const strangerAgentId = await createAgent(stranger, "Their Bot");
+    const theirs = await createChannel(stranger, [strangerAgentId]);
+
+    const target = await store.targetChannel({
+      ownerUserId: owner.id,
+      agentId,
+      channelId: theirs.id,
+      threadId: current.threadId,
+    });
+
+    expect(target?.id).toBe(current.id);
+  });
+
+  test("a run in somebody else's conversation has nothing to fall back to", async () => {
+    const { owner, agentId } = await setUp();
+    const stranger = await createUser();
+    const strangerAgentId = await createAgent(stranger, "Their Bot");
+    const theirs = await createChannel(stranger, [strangerAgentId]);
+
+    expect(
+      await store.targetChannel({
+        ownerUserId: owner.id,
+        agentId,
+        channelId: "this current conversation",
+        threadId: theirs.threadId,
+      }),
+    ).toBeNull();
+    // And with no run at all, the write is left to decide, exactly as before.
+    expect(
+      await store.targetChannel({
+        ownerUserId: owner.id,
+        agentId,
+        channelId: "this current conversation",
+      }),
+    ).toBeNull();
+  });
+
+  test("a deleted conversation is neither kept nor fallen back to", async () => {
+    const { owner, agentId, channel } = await setUp();
+    await database
+      .update(channels)
+      .set({ deletedAt: new Date() })
+      .where(eq(channels.id, channel.id));
+
+    expect(
+      await store.targetChannel({
+        ownerUserId: owner.id,
+        agentId,
+        channelId: channel.id,
+        threadId: channel.threadId,
+      }),
+    ).toBeNull();
+  });
+});
+
 describe("reading a person's routines", () => {
   test("says the schedule in words and never in cron", async () => {
     const { owner, agentId, channel } = await setUp();
