@@ -16,7 +16,7 @@ function bearerToken(request: Request): string | null {
   return scheme?.toLowerCase() === "bearer" && token ? token : null;
 }
 
-function desktopAuthorized(request: Request, token: string) {
+export function desktopAuthorized(request: Request, token: string) {
   const given = bearerToken(request);
   return !!given && given.length === token.length && sameToken(given, token);
 }

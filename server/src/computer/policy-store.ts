@@ -54,9 +54,15 @@ export const ACTION_POLICY_TOPIC = "action_policy_changed";
  * and half the device-control test tasks (docs/ark/25-device-control.md) start with one; a field
  * the page itself marks as a search (role `searchbox`, or `type="search"`) is the one place an Enter
  * is a query rather than a submission. A page that lies about that is a page the trap set covers.
+ *
+ * `unsubscribe` and `confirm` joined the list with device control (phase 1), from its test set: an
+ * unsubscribe is a send that cannot be taken back (task 18, trap page 5), and "Confirm" is the label
+ * the last step of a booking or an order wears when it is a plain button rather than a submit
+ * (task 16). Both are words a person would expect to be asked about before an employee clicks them in
+ * their own browser.
  */
 export const DEFAULT_APPROVAL_RULES = [
-  'intent == "activate" && (element.type == "submit" || matches(element.name, "(^|[^a-z])(submit|send|pay|pay now|purchase|buy|checkout|check out|place order|transfer|delete|remove)([^a-z]|$)"))',
+  'intent == "activate" && (element.type == "submit" || matches(element.name, "(^|[^a-z])(submit|send|pay|pay now|purchase|buy|checkout|check out|place order|confirm|transfer|delete|remove|unsubscribe)([^a-z]|$)"))',
   'intent == "activate" && (key == "Enter" || key == "NumpadEnter") && !(element.role == "searchbox" || element.type == "search")',
 ] as const;
 

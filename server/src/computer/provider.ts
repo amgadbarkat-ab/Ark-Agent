@@ -95,6 +95,14 @@ export interface ComputerProvider {
    * ask, and there the comparison is skipped and behaviour is unchanged.
    */
   sessionOf?(botId: string): Promise<string | undefined>;
+  /**
+   * Whether this employee's computer is, right now, the person's own Chrome or Edge.
+   *
+   * Only the own-browser wrapper (own-browser.ts) answers it. The gateway asks it to hold that target
+   * to the strictest navigation rule whatever this deployment allows elsewhere, and to say so on the
+   * audit row; absent means a sandboxed computer, which is every deployment without the desktop app.
+   */
+  personsBrowser?(botId: string): boolean;
 }
 
 export type SharedComputerProviderOptions = {

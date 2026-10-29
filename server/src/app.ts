@@ -65,6 +65,7 @@ import type { VoiceSessionServices } from "./voice/session-routes";
 import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import type { HostAccessBroker } from "./host-access/broker";
 import { createHostAccessRoutes } from "./host-access/routes";
+import { createOwnBrowserRoutes } from "./computer/own-browser-routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import { parsePageLimit } from "./paging";
 import { requestObservability, unhandledError } from "./observability";
@@ -448,6 +449,14 @@ export function createApp(
    * for the person, and its outcome is not delivered into a conversation.
    */
   ownsConversation?: (actorId: string, threadId: string) => Promise<boolean>,
+  /**
+   * The person's own browser, which the desktop app offers and nothing else can (device control).
+   * Appended last, for the positional reason above. Absent leaves `/api/own-browser` unmounted.
+   */
+  ownBrowser?: Pick<
+    Parameters<typeof createOwnBrowserRoutes>[0],
+    "own" | "computerToken" | "forgetSnapshot"
+  >,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1617,6 +1626,19 @@ export function createApp(
         auditReader,
         ownsConversation,
       ),
+    );
+  }
+
+  if (ownBrowser) {
+    app.route(
+      "/api/own-browser",
+      createOwnBrowserRoutes({
+        ...ownBrowser,
+        desktopToken: desktopHostToken,
+        requireUser,
+        canUseBot,
+        auditStore,
+      }),
     );
   }
 

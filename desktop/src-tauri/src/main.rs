@@ -12,8 +12,8 @@ mod test_support;
 
 use openbot_desktop_lib::{
     acquire, deployment, deployment_release, engine, env as openbot_env, harness, host_access,
-    install, preparation, problem::Problem, provider, pull_metrics, quiet, stack, supervise, tray,
-    windows as win,
+    install, own_browser, preparation, problem::Problem, provider, pull_metrics, quiet, stack,
+    supervise, tray, windows as win,
 };
 
 const QUIT_CLEANUP_NOTICE_FILE: &str = ".openbot-quit-cleanup-notice";
@@ -27,6 +27,12 @@ use tauri::{Emitter, Manager};
 struct Shell {
     /// Session-only local folder authority; shutdown retires it before stopping the API server.
     host_access: Mutex<Option<host_access::HostAccess>>,
+    /// What switching on the person's own browser needs, known once the stack has started.
+    own_browser_launch: Mutex<Option<own_browser::Config>>,
+    /// The person's own browser while it is switched on and running (device control, phase 1).
+    own_browser: Mutex<Option<own_browser::OwnBrowser>>,
+    /// The two "Let digital employees use my browser" items, tray and window menu, kept in step.
+    own_browser_menu: Mutex<Vec<tauri::menu::CheckMenuItem<tauri::Wry>>>,
     /// Named, because a restart policy that cannot say which process died cannot start it again.
     children: Mutex<Vec<(&'static str, std::process::Child)>>,
     /// Native Linux engine API owned by this desktop session, kept through Stop/Start.
@@ -1720,6 +1726,17 @@ async fn start_stack_inner<R: tauri::Runtime>(
         .as_ref()
         .map(|owned| owned.address.clone())
         .ok_or_else(|| Problem::plain("The local container runtime is unavailable."))?;
+    // The person's own browser (device control, phase 1): what switching it on needs, kept for the
+    // menu, and started now if the person left it on. Before the folder access below takes the token.
+    remember_own_browser_launch(
+        &app,
+        &root,
+        &bun,
+        &logs,
+        ports.server,
+        &host_token,
+        secrets.get("COMPUTER_TOKEN").map(String::as_str),
+    );
     let config = host_access::HostAccessConfig::new(
         format!("http://127.0.0.1:{}", ports.server),
         host_token,
@@ -1742,9 +1759,173 @@ async fn start_stack_inner<R: tauri::Runtime>(
     })?;
     preparation::save_selected_root(&config, &root)?;
     supervise_host_processes(app.clone(), root, logs, bun, secrets, generation, ports);
+    if own_browser::enabled(&config) {
+        start_own_browser(app.clone());
+    }
 
     report(&app, "answering", true, "the API and the app are answering");
     Ok(())
+}
+
+/// Gather what switching on the person's own browser needs, once the stack is up.
+///
+/// No browser found is not a failure of Start: the person may never switch this on. It is said when
+/// they do.
+fn remember_own_browser_launch<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    root: &Path,
+    bun: &Path,
+    logs: &Path,
+    server_port: u16,
+    desktop_token: &str,
+    computer_token: Option<&str>,
+) {
+    let shell = app.state::<Shell>();
+    let browser = own_browser::find_browser(
+        std::env::consts::OS,
+        |key| std::env::var(key).ok(),
+        Path::is_file,
+    );
+    let data = app.path().app_data_dir().ok();
+    *shell.own_browser_launch.lock().unwrap() = match (browser, data, computer_token) {
+        (Some(browser), Some(data), Some(token)) => Some(own_browser::Config {
+            root: root.to_path_buf(),
+            bun: bun.to_path_buf(),
+            logs: logs.to_path_buf(),
+            server_port,
+            desktop_token: desktop_token.to_string(),
+            computer_token: token.to_string(),
+            browser,
+            profile: own_browser::profile_dir(&data),
+        }),
+        _ => None,
+    };
+}
+
+/// Show both menu items as on or off.
+fn show_own_browser_switch<R: tauri::Runtime>(app: &tauri::AppHandle<R>, on: bool) {
+    for item in app.state::<Shell>().own_browser_menu.lock().unwrap().iter() {
+        let _ = item.set_checked(on);
+    }
+}
+
+/// Turn the switch off and say so, for every way it can go off without the menu.
+fn switch_own_browser_off<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Ok(config) = app.path().app_config_dir() {
+        let _ = own_browser::set_enabled(&config, false);
+    }
+    show_own_browser_switch(app, false);
+}
+
+fn tell<R: tauri::Runtime>(app: &tauri::AppHandle<R>, title: &str, message: String) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    app.dialog()
+        .message(message)
+        .title(title)
+        .kind(MessageDialogKind::Warning)
+        .show(|_| {});
+}
+
+/// Open the person's browser for the digital employees, off the window's thread.
+///
+/// Installing the browser driver the first time and opening the browser take seconds, and a menu
+/// that freezes the window while they happen reads as ArkAgent hanging.
+fn start_own_browser<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+    std::thread::spawn(move || {
+        let shell = app.state::<Shell>();
+        if shell.own_browser.lock().unwrap().is_some() {
+            return;
+        }
+        let Some(config) = shell.own_browser_launch.lock().unwrap().clone() else {
+            // Not started yet: it opens with the next Start. Or nothing to open: say which.
+            if shell.root.lock().unwrap().is_some() {
+                switch_own_browser_off(&app);
+                tell(
+                    &app,
+                    "Chrome or Edge not found",
+                    "ArkAgent could not find Google Chrome or Microsoft Edge on this computer, so a digital employee cannot use your browser. Install one of them and switch this on again.".into(),
+                );
+            }
+            return;
+        };
+        let gone = app.clone();
+        match own_browser::OwnBrowser::start(&config, move || {
+            // The person closed the window, or it could not keep running: that is the switch off.
+            switch_own_browser_off(&gone);
+            let app = gone.clone();
+            std::thread::spawn(move || {
+                if let Some(browser) = app.state::<Shell>().own_browser.lock().unwrap().take() {
+                    browser.stop();
+                }
+            });
+        }) {
+            Ok(browser) => {
+                *shell.own_browser.lock().unwrap() = Some(browser);
+            }
+            Err(error) => {
+                switch_own_browser_off(&app);
+                tell(
+                    &app,
+                    "Your browser could not be opened",
+                    format!(
+                        "ArkAgent could not open your browser for the digital employees: {error}"
+                    ),
+                );
+            }
+        }
+    });
+}
+
+/// Close the person's browser for the digital employees, and tell the server first.
+fn stop_own_browser(shell: &Shell) {
+    let running = shell.own_browser.lock().unwrap().take();
+    if let Some(browser) = running {
+        browser.stop();
+    }
+}
+
+/// The menu item: ask before switching on, switch off at once.
+///
+/// Asked, in a native dialog, because this is the moment a person decides an employee may act in a
+/// browser on their own computer, and it should say plainly what that means. Switching off is never
+/// asked: stopping must always be one click.
+fn toggle_own_browser(app: &tauri::AppHandle) {
+    let Ok(config) = app.path().app_config_dir() else {
+        return;
+    };
+    if own_browser::enabled(&config) {
+        let _ = own_browser::set_enabled(&config, false);
+        show_own_browser_switch(app, false);
+        let app = app.clone();
+        std::thread::spawn(move || stop_own_browser(&app.state::<Shell>()));
+        return;
+    }
+    // The item flips itself when clicked; it shows "on" only once the person has said yes.
+    show_own_browser_switch(app, false);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+        let yes = app
+            .dialog()
+            .message(
+                "ArkAgent will open Chrome or Edge with a separate ArkAgent profile. None of your saved passwords or sign-ins are in it.\n\nA digital employee works in it only after you choose that employee on the Computers page. Payments, sending, submitting forms and deleting wait for your approval, and every action is recorded.\n\nYou can watch the window, take over from the app at any time, and close the window or switch this off to stop it.",
+            )
+            .title("Let digital employees use your browser?")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                "Switch on".into(),
+                "Cancel".into(),
+            ))
+            .blocking_show();
+        if !yes {
+            return;
+        }
+        if own_browser::set_enabled(&config, true).is_err() {
+            return;
+        }
+        show_own_browser_switch(&app, true);
+        start_own_browser(app);
+    });
 }
 
 /// This dedicated command accepts no setting, value, root or policy from the webview.
@@ -2013,6 +2194,10 @@ fn cleanup_host_state<C>(shell: &Shell, root: &Path, cleanup: C) -> Result<usize
 where
     C: FnOnce(&Path) -> Result<usize, Problem>,
 {
+    // The person's browser goes first, while the server is still there to be told it is off. Stop and
+    // Quit end it; the switch stays as the person left it, so it opens again with the next Start.
+    stop_own_browser(shell);
+    *shell.own_browser_launch.lock().unwrap() = None;
     // Also runs for startup replacement and failure recovery, so a retired authorization session
     // cannot leave a job running beside a new server. Keep failed cleanup owned for a later Stop.
     let host_access_result = {
@@ -3633,6 +3818,8 @@ fn chose(app: &tauri::AppHandle, item: &str) {
         // Stop without quitting: the stack is what costs something to leave running, and somebody
         // who wants it stopped does not necessarily want the application gone.
         "stop" => stop_from_menu(app.clone()),
+        // The one place the person's own browser is switched on (device control, phase 1).
+        "own_browser" => toggle_own_browser(app),
         // Exit rather than hide: quitting is a decision to stop, and the exit handler is what stops
         // the processes with it.
         "quit" => {
@@ -3728,7 +3915,36 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open ArkAgent", true, None::<&str>)?;
             let stop = MenuItem::with_id(app, "stop", "Stop ArkAgent", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
-            let menu = Menu::with_items(app, &[&open, &stop, &quit])?;
+            /*
+             * THE PERSON'S OWN BROWSER, SWITCHED HERE AND ONLY HERE (device control, phase 1).
+             *
+             * A native menu item rather than a control in the web app, so nothing a page shows and
+             * nothing a digital employee says can turn it on. Off unless the person turned it on.
+             */
+            let own_browser_on = app
+                .path()
+                .app_config_dir()
+                .map(|config| own_browser::enabled(&config))
+                .unwrap_or(false);
+            let own_browser_item = tauri::menu::CheckMenuItem::with_id(
+                app,
+                "own_browser",
+                "Let digital employees use my browser",
+                true,
+                own_browser_on,
+                None::<&str>,
+            )?;
+            let window_own_browser_item = tauri::menu::CheckMenuItem::with_id(
+                app,
+                "own_browser",
+                "Let digital employees use my browser",
+                true,
+                own_browser_on,
+                None::<&str>,
+            )?;
+            *app.state::<Shell>().own_browser_menu.lock().unwrap() =
+                vec![own_browser_item.clone(), window_own_browser_item.clone()];
+            let menu = Menu::with_items(app, &[&open, &own_browser_item, &stop, &quit])?;
 
             TrayIconBuilder::with_id("openbot")
                 .icon(tray::icon())
@@ -3755,7 +3971,12 @@ fn main() {
                 app,
                 "ArkAgent",
                 true,
-                &[&window_open, &window_stop, &window_quit],
+                &[
+                    &window_open,
+                    &window_own_browser_item,
+                    &window_stop,
+                    &window_quit,
+                ],
             )?;
             /*
              * AN EDIT MENU, WITHOUT WHICH COMMAND-V DOES NOTHING.

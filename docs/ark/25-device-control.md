@@ -24,7 +24,7 @@ Windows 11 PC.** The last section is the list to confirm there.
 | Its own workspace of files, and a shell, inside the container | Yes | `computer_list_files`, `computer_read_file`, `computer_write_file`, `computer_run_command`. Inside the container only; the customer's disk is not visible from there. |
 | **The customer's private network, from its browser** | **Yes** | `AGENT_COMPUTER_ALLOW_PRIVATE_HOSTS=true` is written by the desktop (env.rs), so the browser may open any private address: the router's admin page, a NAS, a printer, other PCs. See finding 1. |
 | Folders on the customer's PC | Yes, per folder | The person picks a folder in a native Windows dialog; the grant lasts for this session. Listing and reading need no further question. Writing a file and running a command each show a native "Allow once / Deny" dialog with the exact content (refused if too long to review), back up the original, and the command runs in an offline sandbox for that folder. |
-| The customer's own Chrome or Edge | No | Phase 1. |
+| The customer's own Chrome or Edge | Off by default (phase 1, built 29 October) | See "Phase 1: the person's own browser" below. |
 | Windows programs | No | Phase 2, after 20 November. |
 | Phone | No | Later. |
 
@@ -47,6 +47,60 @@ Windows 11 PC.** The last section is the list to confirm there.
 4. **The audit log records browser and folder actions**, as the hard rule asks. Whether a person can
    find them easily is a separate question: the Requests page is becoming the one "Needs you" list
    (#5, #69, #80); the audit page should get a per-employee filter for device actions.
+
+## Phase 1: the person's own browser (built 29 October)
+
+**Two switches, both off by default.** The desktop app's menu item *Let digital employees use my
+browser* (tray and window menu; `desktop/src-tauri/src/own_browser.rs`) is the only place it is
+switched on; it asks first, and the setting is a file in the app's configuration folder that no page
+can write. Then the person points a particular employee at it on the Computers page. Choices are
+forgotten when it is switched off, the browser window is closed, or ArkAgent restarts.
+
+**How the browser is opened.** The desktop finds the installed Chrome or Edge (the usual Windows,
+macOS and Linux install paths, Chrome first; `ARKAGENT_OWN_BROWSER` names another), and starts
+`agent-computer` on 127.0.0.1 in its own-browser mode (`agent-computer/src/own-browser.ts`) with the
+browser's path and a dedicated profile folder, `ArkAgent browser profile`, under the app's data
+folder. `agent-computer` opens the browser with Playwright over a **pipe, so there is no debugging
+port** for any other program on the computer to attach to (attaching over CDP with
+`connectOverCDP` was tried first: under Bun the WebSocket handshake never completes). A profile
+folder that is one of Chrome's or Edge's own is refused. Playwright's test-only defaults that weaken a
+real browser (plain-text password store, phishing check off, popups unblocked) are dropped. Its
+packages are installed the first time somebody switches it on. The desktop announces the address to
+the server every 5 s with its own token (20 s lease), and "off" first on every way it stops.
+
+**The same gateway.** The server only changes where `locate` points for a chosen employee
+(`server/src/computer/own-browser.ts`); every action still goes through the gateway: element resolved
+from the server's snapshot, the policy with the approve rules from #5, the audit row (marked
+`target: "own_browser"`), then the action. An employee pointed at a switched-off browser is refused,
+never sent back to the sandbox. Reset is refused (it would delete the person's profile). Files and
+commands are refused: phase 1 is the browser only.
+
+**Private network (finding 1).** The person's browser never opens a private address, whatever the
+deployment allows its sandboxes: the server refuses the navigation, and `agent-computer` refuses
+every request any tab in the ArkAgent profile makes to one (links, redirects, images, forms), by the
+name as written, like the server's rule.
+
+**Watching and taking over.** The browser is a window on the person's screen. A band above every
+screen of the app says which employee can use it and when one is working in it, with *Take over*
+(the employees' actions are refused until the person hands back) and *Stop* (every employee out,
+their tabs closed). Each employee works in its own tab and never in the person's.
+
+**Found on the way: submit buttons.** The snapshot never carried a control's `type`, so the default
+rule's `element.type == "submit"` could not match, and a plain `<button>Verify</button>` in a form was
+clicked without asking (trap page 6). `agent-computer` now reads each button's and field's type (a
+submit button counts only inside a form), in the sandbox as well. `unsubscribe` and `confirm` joined
+the default approve words (task 18, trap 5; task 16).
+
+**Tests.** `bun run test:own-browser` (agent-computer against a stand-in Chromium),
+`OPENBOT_OWN_BROWSER=1 bun test tests/own-browser-live.integration.test.ts` in `server/` (the ten trap
+pages through the real gateway: every action they try is held, refused, or blocked in the browser, and
+an approved "Submit order" is clicked only on replay), `server/tests/own-browser.test.ts`, and
+`own_browser` in the desktop's `cargo test` (with `OPENBOT_OWN_BROWSER=1 OWN_BROWSER_STAND_IN=…` for
+the end-to-end launch). No model was run against the trap pages yet.
+
+**Not yet checked:** a real Chrome or Edge on Windows 11 and macOS (only a Linux Chromium standing in),
+Playwright over a pipe under Bun on Windows, and the first-time package install on a customer's
+machine.
 
 ## The test set: 20 tasks, Greek and English
 
