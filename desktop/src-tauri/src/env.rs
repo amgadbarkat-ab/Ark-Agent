@@ -747,6 +747,9 @@ pub fn compose(
     // `bridge.rs`), none of which is browsing. So browsing the private range stays refused, as it is
     // on a hosted deployment. Read by servers from this release on; an older one ignores it.
     env.insert("AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS".into(), "false".into());
+    // The server's rule sees only the address an employee asks to open; a link, a redirect or a form
+    // on a public page leaves the browser without asking it. The computers refuse those themselves.
+    env.insert("COMPUTER_BLOCK_PRIVATE_NETWORK".into(), "true".into());
 
     // Which package the deployment runs. Without it the server falls back rather than using the one
     // that came with the deployment, and the Bots somebody was given are not the Bots they get.
@@ -1476,6 +1479,12 @@ HTTPS_PROXY=http://proxy:8080
             env.get("AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS")
                 .map(String::as_str),
             Some("false")
+        );
+        // Nor by a link or a redirect, which the server's rule never sees.
+        assert_eq!(
+            env.get("COMPUTER_BLOCK_PRIVATE_NETWORK")
+                .map(String::as_str),
+            Some("true")
         );
     }
 

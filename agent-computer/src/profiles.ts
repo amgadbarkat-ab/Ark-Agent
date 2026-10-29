@@ -37,11 +37,16 @@ import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
 import { profileDirectoryFor } from "./bot-id";
-import { browserModeFromEnv } from "./browser-mode";
 import { chooseEvictions, chooseIdle } from "./browser-eviction";
+import { browserModeFromEnv } from "./browser-mode";
 import { egressFor, egressLabel } from "./egress";
 import { numberFromEnv, settleWithin } from "./env";
 import { chooseLivePage } from "./live-page";
+import {
+  privateNetworkBlocked,
+  refusePrivateNetworkArgs,
+  refusePrivateRequests,
+} from "./private-network";
 import { botIdsIn } from "./profile-listing";
 
 // Re-exported so callers that already import it from here do not change, while the test imports it
@@ -93,6 +98,8 @@ const SINGLETON_FILES = ["SingletonLock", "SingletonSocket", "SingletonCookie"];
  */
 const SANDBOX_ENABLED = process.env.COMPUTER_SANDBOX === "on";
 const BROWSER_MODE = browserModeFromEnv(process.env.COMPUTER_BROWSER_MODE);
+/** Set by the desktop: an employee's browser never reaches the customer's own network. */
+const BLOCK_PRIVATE_NETWORK = privateNetworkBlocked(process.env);
 
 const LAUNCH_ARGS = [
   ...(SANDBOX_ENABLED ? [] : ["--no-sandbox"]),
@@ -413,7 +420,11 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
         const proxy = egressFor(botId, process.env);
         const context = await chromium.launchPersistentContext(dir, {
           headless: BROWSER_MODE === "headless",
-          args: LAUNCH_ARGS,
+          // The proxy script as well as the route below, because only the script sees a redirect.
+          args:
+            BLOCK_PRIVATE_NETWORK && !proxy
+              ? [...LAUNCH_ARGS, ...refusePrivateNetworkArgs()]
+              : LAUNCH_ARGS,
           // Playwright launches with `--enable-automation`, which sets `navigator.webdriver` and the
           // "controlled by automated software" banner. Dropped for the same reason as the flag above:
           // a person who takes the wheel should be able to sign in. Named explicitly so the sandbox
@@ -431,6 +442,9 @@ export function createProfiles(root: string, onClosed: BrowserClosed) {
           handleSIGHUP: false,
           ...(proxy ? { proxy } : {}),
         });
+        if (BLOCK_PRIVATE_NETWORK) {
+          await refusePrivateRequests(context, "private-address-refused");
+        }
         // Persistent contexts open with a page already; reuse it rather than leaving an extra blank tab.
         const page = context.pages()[0] ?? (await context.newPage());
         const record: LiveBrowser = {

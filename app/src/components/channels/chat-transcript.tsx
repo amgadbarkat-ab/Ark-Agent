@@ -9,6 +9,7 @@ import {
   IconBox,
   IconClock,
   IconFile,
+  IconUsersGroup,
   IconX,
 } from "@tabler/icons-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -46,6 +47,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
+import { readColleagueAnswer } from "@/lib/copilot/markers";
 import { markdownComponents } from "@/lib/markdown";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -551,6 +553,32 @@ function RoutineFiring({ instruction }: { instruction: string }) {
 }
 
 /**
+ * A colleague's answer, drawn as the colleague's.
+ *
+ * A colleague asked through the team runs where nobody can see it, and its answer is written into
+ * this conversation word for word when it comes back — see `shared/handoff-markers.ts`. It is stored
+ * as `role: "user"`, so without this it would sit on the right in the person's own bubble. Drawn
+ * start-aligned, under the colleague's name and as markdown, because it is a digital employee
+ * speaking and the person should be able to read exactly what it said.
+ */
+function ColleagueAnswer({ name, answer }: { name: string; answer: string }) {
+  return (
+    <div className="w-full">
+      <div className="mb-1 flex items-center gap-2 text-muted-foreground text-xs">
+        <IconUsersGroup aria-hidden className="size-4 shrink-0" />
+        <span className="font-medium">{name}</span>
+        <span>answered</span>
+      </div>
+      <Bubble align="start" variant="ghost" className="w-full">
+        <BubbleContent className="w-full">
+          <Streamdown components={markdownComponents}>{answer}</Streamdown>
+        </BubbleContent>
+      </Bubble>
+    </div>
+  );
+}
+
+/**
  * One drawn message, and it is memoised on PRIMITIVES ON PURPOSE.
  *
  * A streamed answer changes `messages` on every chunk, and `toVisibleChatItems` builds fresh objects
@@ -592,6 +620,19 @@ const TranscriptMessage = memo(function TranscriptMessage({
         <MessageContent>
           <Arriving delay={delay}>
             <RoutineFiring instruction={firing} />
+          </Arriving>
+        </MessageContent>
+      </MessageRow>
+    );
+  }
+  // The same check for a colleague's answer, which also arrives wearing the person's role.
+  const answered = isUser ? readColleagueAnswer(text) : null;
+  if (answered !== null) {
+    return (
+      <MessageRow align="start">
+        <MessageContent>
+          <Arriving delay={delay}>
+            <ColleagueAnswer name={answered.name} answer={answered.answer} />
           </Arriving>
         </MessageContent>
       </MessageRow>
@@ -1347,7 +1388,12 @@ export function isPersonSentMessage(
   role: "user" | "assistant",
   text: string,
 ): boolean {
-  return role === "user" && readFiring(text) === null;
+  // A colleague's relayed answer is the same case: stored as the person's turn, never sent by them.
+  return (
+    role === "user" &&
+    readFiring(text) === null &&
+    readColleagueAnswer(text) === null
+  );
 }
 
 /**

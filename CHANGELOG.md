@@ -26,6 +26,37 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   browser now reports which buttons submit a form, so the default "ask before submitting" rule holds
   a plain "Verify" or "Continue" button in a form, as it was meant to.
 
+### Digital employees
+
+- **Fixed: when one digital employee asked a colleague for something, you never saw the
+  colleague's answer.** Only the employee that asked was shown it, and a small local model could
+  report back with "Customer Support got back to me" and nothing else. The colleague's answer now
+  appears in your conversation word for word, under the colleague's name, before the employee that
+  asked reports on it, and that employee is told to pass every point on rather than sum it up.
+- **Fixed: an approved routine could fail because it named no real conversation.** When a digital
+  employee sets up or moves a routine and names a conversation that is not one of yours (a small
+  model wrote "this current conversation"), the routine now posts into the conversation you asked in.
+  The request you approve shows that conversation by name, and approving it runs exactly that.
+- **Fixed: the first words of your next message could go nowhere.** After you start a conversation
+  from the home screen or New chat, the message box of the conversation it opens now has the cursor,
+  so you can keep typing while your digital employee answers. Before, the cursor went away with the
+  screen you sent from, and what you typed next was lost until you clicked the box.
+
+### Security
+
+- **A public page could still redirect an employee's browser to the office network** (device control,
+  finding 1; DT Lab v0.1.19 step 9). The server refused a private address only when an employee asked
+  to open it, and the check added in device control phase 1 never saw redirects, because the browser
+  driver shows only the first address of a redirect. Both the employee's own browser on the desktop
+  and the person's own Chrome or Edge now refuse every request to a private address at the browser's
+  network layer, redirect hops and names that resolve to a private address included.
+
+### Desktop
+
+- **An older Docker Compose now says what to update** (DT Lab, v0.1.19). Compose 2.26 stopped the
+  start on "unknown flag: --pull", which named nothing to install. The app now says Compose is too
+  old and how to update it on this system.
+
 ## 0.1.19
 
 ### Approvals in the middle of a run (desk #5)

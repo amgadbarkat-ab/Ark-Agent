@@ -487,6 +487,38 @@ describe("relaying the answer home", () => {
     );
   });
 
+  /*
+   * Told "in a sentence or two" and "keep what matters", a small model reported that the colleague
+   * had answered and left out everything it said (DT Lab, v0.1.19, step 1).
+   */
+  test("the Bot that asked is told to pass the answer on in full, not to sum it up", async () => {
+    const { runner: sweeper, offered } = runner({
+      answer: "Three risks: no proof, no VAT, a precedent.",
+    });
+    await sweeper.sweep();
+    expect(offered[0]?.relayed).toBe(
+      "Three risks: no proof, no VAT, a precedent.",
+    );
+    expect(offered[0]?.task).toContain("give every point it made, in full");
+
+    const told: string[] = [];
+    const { runner: relaying } = runner({
+      claimed: [
+        {
+          kind: "bot.message",
+          key: "relay:run-1:abc",
+          payload: offered[0],
+          attempts: 1,
+        },
+      ] as unknown as WorkItem[],
+      deliver: async ({ message }) => {
+        told.push(message);
+      },
+    });
+    await relaying.sweep();
+    expect(told[0]).not.toContain("a sentence or two");
+  });
+
   test("its key is outside the run's own prefix, like the notice", async () => {
     const { runner: sweeper, calls } = runner({ answer: "Tuesday." });
 

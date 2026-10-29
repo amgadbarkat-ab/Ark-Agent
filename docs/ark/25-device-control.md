@@ -76,9 +76,15 @@ never sent back to the sandbox. Reset is refused (it would delete the person's p
 commands are refused: phase 1 is the browser only.
 
 **Private network (finding 1).** The person's browser never opens a private address, whatever the
-deployment allows its sandboxes: the server refuses the navigation, and `agent-computer` refuses
-every request any tab in the ArkAgent profile makes to one (links, redirects, images, forms), by the
-name as written, like the server's rule.
+deployment allows its sandboxes. Three layers: the server refuses the navigation; `agent-computer`
+refuses every request any tab in the ArkAgent profile makes to one (links, images, forms), by the name
+as written; and the browser is launched with a proxy script that sends every private destination
+nowhere, including **redirect hops**, which the per-request route never sees (Playwright hands a route
+only the first address of a redirect; measured 29 October), and **names that resolve to a private
+address**. The desktop's sandbox browsers get the same two browser-side layers
+(`COMPUTER_BLOCK_PRIVATE_NETWORK=true`), so a public page cannot redirect an employee to the router
+there either (desk #84, step 9). Not covered: a sandbox Bot routed through its own egress proxy, which
+replaces the script; that deployment enforces its network rules at the proxy.
 
 **Watching and taking over.** The browser is a window on the person's screen. A band above every
 screen of the app says which employee can use it and when one is working in it, with *Take over*

@@ -72,7 +72,11 @@ export type OwnBrowserComputer = {
 /**
  * Start `agent-computer` in own-browser mode, as the desktop does, and wait until it answers.
  *
- * `hostResolverRules` maps a public-looking name to this machine for the browser only.
+ * `hostResolverRules` maps a public-looking name to this machine for the browser only. That name then
+ * resolves to a private address, which the browser's proxy script refuses (private-network.ts), so
+ * the stand-in also turns the script off with `--no-proxy-server`, which Chromium takes over
+ * `--proxy-pac-url`. The per-request route still applies, and the script is tested on its own
+ * in private-network.test.ts.
  */
 export async function startOwnBrowserComputer(
   options: { hostResolverRules?: string; token?: string } = {},
@@ -90,7 +94,7 @@ export async function startOwnBrowserComputer(
       "#!/bin/sh",
       `exec "${chromium}" --no-sandbox ${
         options.hostResolverRules
-          ? `"--host-resolver-rules=${options.hostResolverRules}"`
+          ? `"--host-resolver-rules=${options.hostResolverRules}" --no-proxy-server`
           : ""
       } "$@"`,
       "",

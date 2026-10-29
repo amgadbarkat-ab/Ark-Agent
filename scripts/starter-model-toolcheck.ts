@@ -7,6 +7,11 @@
  *   bun scripts/starter-model-toolcheck.ts --url http://127.0.0.1:8080/v1 --token <token> \
  *     --model gemma-4-e2b --repeats 3
  *
+ * A hosted model, with its key in an environment variable rather than on the command line:
+ *
+ *   bun scripts/starter-model-toolcheck.ts --url https://api.inceptionlabs.ai/v1 \
+ *     --token-env INCEPTION_API_KEY --model mercury-3 --repeats 3
+ *
  * It exists because "native support for structured tool use" is on the model card and "works through
  * llama.cpp with our bot prompt" is not, and a small model that answers well but cannot call a tool is
  * no use as the starter model (docs/ark/22-starter-model.md). It reports; it does not gate. The one
@@ -402,9 +407,15 @@ async function main(argv: string[]): Promise<void> {
   }
   const url = values.get("url");
   if (!url) throw new Error("Give --url, like http://127.0.0.1:8080/v1");
+  // `--token-env NAME` reads the key from that variable, so a hosted provider's key is never typed
+  // on a command line, where it would stay in the shell's history and show in the process list.
+  const tokenEnv = values.get("token-env");
+  if (tokenEnv && !process.env[tokenEnv]?.trim()) {
+    throw new Error(`--token-env names ${tokenEnv}, which is not set.`);
+  }
   const options = {
     url: url.replace(/\/+$/, ""),
-    token: values.get("token"),
+    token: tokenEnv ? process.env[tokenEnv]?.trim() : values.get("token"),
     model: values.get("model") ?? "gemma-4-e4b",
     timeoutSeconds: Number(values.get("timeout") ?? 300),
   };

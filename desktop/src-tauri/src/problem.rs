@@ -114,6 +114,26 @@ pub fn said_about(output: &str) -> String {
                 cgroup controller, then try again."
             .into();
     }
+    // Every start runs `compose run --pull never` and `compose up --pull never`, so a missing image
+    // is reported rather than fetched. Compose 2.26, what the DT Lab's Linux machine had on 29
+    // October (desk #84), takes `--pull` on `up` but not on `run`, and the start stopped on its
+    // "unknown flag: --pull", which names nothing to install.
+    if lower.contains("unknown flag: --pull") {
+        let update = if cfg!(target_os = "linux") {
+            "Install Docker's own `docker-compose-plugin` package \
+             (docs.docker.com/compose/install/linux), or put the latest `docker-compose` from \
+             github.com/docker/compose/releases in ~/.docker/cli-plugins/."
+        } else if cfg!(target_os = "windows") {
+            "Update Docker Desktop, or put the latest `docker-compose` from \
+             github.com/docker/compose/releases beside the engine on PATH."
+        } else {
+            "Update Docker Desktop, or run `brew upgrade docker-compose`."
+        };
+        return format!(
+            "The Docker Compose on this computer is too old to start ArkAgent. {update} Then \
+             press Start again."
+        );
+    }
     if lower.contains("port is already allocated") || lower.contains("address already in use") {
         return "Something else on this computer is using a port ArkAgent needs. Close it, or \
                 restart the computer, and try again."
@@ -174,6 +194,15 @@ mod tests {
         );
         assert!(said.contains("pids_limit = 0"), "{said}");
         assert!(!said.contains("libpod-4bec"), "{said}");
+    }
+
+    #[test]
+    fn an_old_compose_says_what_to_update_rather_than_naming_a_flag() {
+        // What Compose 2.26 printed at the migration step on the DT Lab's machine (desk #84).
+        let said = said_about("unknown flag: --pull\nSee 'docker compose run --help'.");
+        assert!(said.contains("too old"), "{said}");
+        assert!(said.contains("Start again"), "{said}");
+        assert!(!said.contains("--pull"), "{said}");
     }
 
     #[test]

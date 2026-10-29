@@ -22,11 +22,14 @@ import { type BrowserContext, chromium, type Page } from "playwright";
 import { settleWithin } from "./env";
 import { chooseLivePage } from "./live-page";
 import {
-  isPrivateDestination,
   OWN_BROWSER_HAS_NO_RESET,
   OWN_BROWSER_IGNORED_DEFAULT_ARGS,
   type OwnBrowserSettings,
 } from "./own-browser";
+import {
+  refusePrivateNetworkArgs,
+  refusePrivateRequests,
+} from "./private-network";
 import type { BrowserClosed, ProfileSummary } from "./profiles";
 
 /** The size an employee's tab is drawn at, so a person's click on the live screen lands where they meant. */
@@ -44,6 +47,8 @@ const launchInstalledBrowser: LaunchOwnBrowser = (settings) =>
     executablePath: settings.executable,
     headless: settings.headless,
     ignoreDefaultArgs: OWN_BROWSER_IGNORED_DEFAULT_ARGS,
+    // Every request, redirect hops included, goes through this (see private-network.ts).
+    args: refusePrivateNetworkArgs(),
     // The person's computer has the sandbox Chromium expects; a container is what lacks it.
     chromiumSandbox: true,
     // The window's own size. Each employee's tab sets its own below.
@@ -81,22 +86,8 @@ export function createOwnBrowserProfiles(
    * opens in this profile follows the same rule as the one an employee is working in. The profile is
    * ArkAgent's; the person's everyday profile is a different folder and is untouched.
    */
-  const guard = async (context: BrowserContext): Promise<void> => {
-    await context.route("**/*", (route) => {
-      const url = route.request().url();
-      if (isPrivateDestination(url)) {
-        console.info(
-          JSON.stringify({
-            type: "own-browser-private-address-refused",
-            // The host only: a path can carry a token.
-            host: new URL(url).host,
-          }),
-        );
-        return route.abort("blockedbyclient");
-      }
-      return route.continue();
-    });
-  };
+  const guard = (context: BrowserContext): Promise<void> =>
+    refusePrivateRequests(context, "own-browser-private-address-refused");
 
   /**
    * The person's browser, started once.
