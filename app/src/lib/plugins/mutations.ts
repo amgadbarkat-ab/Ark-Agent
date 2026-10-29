@@ -150,6 +150,30 @@ export function setPluginGrantMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/**
+ * Set what happens when a digital employee calls one tool, or put it back to the default with null.
+ * Takes effect on the next call: the server reads it per call.
+ */
+export function setToolCallOutcomeMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (variables: {
+      serverId: string;
+      tool: string;
+      outcome: "allow" | "ask" | "refuse" | null;
+    }) => {
+      await client(
+        `/api/plugins/servers/${encodeURIComponent(variables.serverId)}/tools/${encodeURIComponent(variables.tool)}/on-call`,
+        {
+          method: "PUT",
+          body: { outcome: variables.outcome },
+          fallback: "That setting could not be saved.",
+        },
+      );
+    },
+    onSettled: () => invalidatePlugins(queryClient),
+  });
+}
+
 export function addCuratedServerMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     mutationFn: async (input: CuratedServerInput) => {

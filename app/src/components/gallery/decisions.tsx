@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { useApprovalCardSync } from "@/lib/approvals/card-sync";
+import { useDeclaredBotId } from "@/lib/copilot/active-bot";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
 import { Badge, GalleryFrame } from "./frame";
 
@@ -42,14 +44,34 @@ export const ApprovalCardProps = z.object({
 
 type ApprovalArgs = z.infer<typeof ApprovalCardProps>;
 
-export function ApprovalCard(props: Waiting<ApprovalArgs> & { name?: string }) {
+export function ApprovalCard(
+  props: Waiting<ApprovalArgs> & {
+    name?: string;
+    /** The tool call this card answers, from the runtime. Absent in the gallery's preview. */
+    toolCallId?: string;
+    /** The digital employee it was registered to, when the runtime says. */
+    agentId?: string;
+  },
+) {
   const { args, status, respond } = props;
   const [note, setNote] = useState("");
   const [sending, setSending] = useState<"approved" | "declined" | null>(null);
+  const declared = useDeclaredBotId();
+  // Listed in Requests while it waits, and kept in step with a decision taken there (desk #69).
+  const sync = useApprovalCardSync({
+    toolCallId: props.toolCallId,
+    agentId: props.agentId ?? declared,
+    waiting: status === "executing",
+    title: args.title,
+    summary: args.summary,
+    details: args.details,
+    respond,
+  });
 
   const answer = async (decision: "approved" | "declined") => {
     if (!respond) return;
     setSending(decision);
+    sync.record(decision);
     // Include the note in the same tool result that resumes the Bot.
     await respond({ decision, note: note.trim() || undefined });
   };

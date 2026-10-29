@@ -53,6 +53,7 @@ function BoundariesPage() {
   const [problem, setProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [draft, setDraft] = useState("");
+  const [approveDraft, setApproveDraft] = useState("");
 
   const [tested, setTested] = useState<{
     rule: string;
@@ -284,8 +285,84 @@ function BoundariesPage() {
         </ul>
       </PageSection>
 
+      {/*
+       * The third answer: a person approves it first. The owner's rule for device control (desk #27)
+       * is no payment, send, form submit or delete without a named person approving, and the shipped
+       * rules here say exactly that. A held action waits in the Requests of the person the employee
+       * is working for and is carried out on the very element they approved — a page that changed
+       * in the meantime is refused and asked again rather than clicked.
+       */}
       <PageSection
-        description="The floor, applied to anything the deny list did not catch. It is not a formality: an empty list here permits nothing, so a deployment that clears this refuses every action rather than allowing every action."
+        description="Checked after the refusals above and before the floor below. A matching action is not done: it waits in the Requests of the person the digital employee is working for, and is carried out exactly as shown only if they approve. If the page has changed by then, nothing is clicked and the employee asks again."
+        title="Ask a person first"
+      >
+        {(policy.approve ?? []).length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            No rules. Nothing waits for a person.
+          </p>
+        ) : (
+          <ul className="mt-2 divide-y divide-border rounded-md border border-border">
+            {(policy.approve ?? []).map((rule) => (
+              <li
+                className="flex items-center justify-between gap-4 px-3 py-2"
+                key={rule}
+              >
+                <code className="min-w-0 break-all font-mono text-xs">
+                  {rule}
+                </code>
+                <Button
+                  disabled={saving}
+                  onClick={() =>
+                    void save({
+                      ...policy,
+                      approve: (policy.approve ?? []).filter(
+                        (one) => one !== rule,
+                      ),
+                    })
+                  }
+                  size="sm"
+                  variant="ghost"
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-3 flex gap-2">
+          <Input
+            aria-label="A rule that asks a person first, written in CEL"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 font-mono text-xs"
+            onChange={(event) => {
+              setApproveDraft(event.target.value);
+              setSaved(false);
+            }}
+            placeholder='intent == "run_command"'
+            value={approveDraft}
+          />
+          <Button
+            disabled={saving || approveDraft.trim().length === 0}
+            onClick={() => {
+              const trimmed = approveDraft.trim();
+              if (!trimmed || (policy.approve ?? []).includes(trimmed)) return;
+              void save({
+                ...policy,
+                approve: [...(policy.approve ?? []), trimmed],
+              });
+              setApproveDraft("");
+            }}
+            size="sm"
+          >
+            Add rule
+          </Button>
+        </div>
+      </PageSection>
+
+      <PageSection
+        description="The floor, applied to anything the lists above did not catch. It is not a formality: an empty list here permits nothing, so a deployment that clears this refuses every action rather than allowing every action."
         title="Otherwise it may"
       >
         <ul className="mt-2 space-y-1">

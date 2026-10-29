@@ -14,12 +14,45 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { setPluginGrantMutationOptions } from "@/lib/plugins/mutations";
-import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
+import {
+  setPluginGrantMutationOptions,
+  setToolCallOutcomeMutationOptions,
+} from "@/lib/plugins/mutations";
+import {
+  pluginsPageQueryOptions,
+  type ToolCallOutcome,
+} from "@/lib/plugins/queries";
+
+/** The three answers, in the words the person choosing reads. */
+const ON_CALL: {
+  value: ToolCallOutcome;
+  title: string;
+  description: string;
+}[] = [
+  {
+    value: "allow",
+    title: "Run it",
+    description:
+      "The call goes out as soon as a digital employee makes it, after the boundaries are checked.",
+  },
+  {
+    value: "ask",
+    title: "Ask a person first",
+    description:
+      "The call waits in the Requests of the person the employee is working for, with its exact arguments. It runs, exactly as shown, only if they approve; the employee is told either way and carries on.",
+  },
+  {
+    value: "refuse",
+    title: "Never",
+    description:
+      "Refused every time, whoever asks. The employee is told an administrator switched it off.",
+  },
+];
 
 /**
  * One tool, and which Bots hold it.
@@ -61,6 +94,10 @@ function RouteComponent() {
 
   const setGrant = useMutation({
     ...setPluginGrantMutationOptions(queryClient),
+    onError: (thrown: Error) => setError(thrown.message),
+  });
+  const setOnCall = useMutation({
+    ...setToolCallOutcomeMutationOptions(queryClient),
     onError: (thrown: Error) => setError(thrown.message),
   });
 
@@ -120,7 +157,7 @@ function RouteComponent() {
       <PageSection
         description={
           tool.effect === "write"
-            ? "This tool changes something at the vendor. A boundary written about writes applies to it, and it is refused when one matches."
+            ? "This tool changes something at the vendor. A boundary written about writes applies to it, and unless an administrator says otherwise below, a person approves each call first."
             : "This tool only reads. A boundary written about writes does not apply to it."
         }
         title="What it does"
@@ -152,6 +189,78 @@ function RouteComponent() {
             </ItemActions>
           </Item>
         </PageRows>
+      </PageSection>
+
+      {/*
+       * The third answer beside allow and refuse: a person approves each call first. Its own
+       * section because it is a decision about the tool for every employee and every person, where
+       * the switches below are about one employee each. Radio rows, because exactly one is in force.
+       */}
+      <PageSection
+        description={
+          tool.onCallSet
+            ? "Set by an administrator for every digital employee that holds this tool."
+            : tool.effect === "write"
+              ? "Not set, so the default applies: a tool that changes things asks a person first."
+              : "Not set, so the default applies: a tool that only reads runs."
+        }
+        title="When a digital employee calls it"
+      >
+        <PageRows>
+          <div aria-label="When a digital employee calls it" role="radiogroup">
+            {ON_CALL.map((option, index) => {
+              const chosen = (tool.onCall ?? "allow") === option.value;
+              return (
+                <div key={option.value}>
+                  <Item size="sm">
+                    <ItemContent>
+                      <ItemTitle>{option.title}</ItemTitle>
+                      <ItemDescription>{option.description}</ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <input
+                        aria-label={option.title}
+                        checked={chosen}
+                        className="size-4 accent-current"
+                        disabled={setOnCall.isPending}
+                        name="on-call"
+                        onChange={() => {
+                          setError(null);
+                          setOnCall.mutate({
+                            serverId: key,
+                            tool: toolName,
+                            outcome: option.value,
+                          });
+                        }}
+                        type="radio"
+                        value={option.value}
+                      />
+                    </ItemActions>
+                  </Item>
+                  {index !== ON_CALL.length - 1 && <Separator />}
+                </div>
+              );
+            })}
+          </div>
+        </PageRows>
+        {tool.onCallSet ? (
+          <div className="mt-2">
+            <Button
+              disabled={setOnCall.isPending}
+              onClick={() =>
+                setOnCall.mutate({
+                  serverId: key,
+                  tool: toolName,
+                  outcome: null,
+                })
+              }
+              size="sm"
+              variant="ghost"
+            >
+              Use the default
+            </Button>
+          </div>
+        ) : null}
       </PageSection>
 
       <PageSection
