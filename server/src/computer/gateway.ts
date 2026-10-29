@@ -337,6 +337,15 @@ export function createComputerGateway(
   const pageFrames = options.pageFrames;
 
   /**
+   * Where it happened, when that was the person's own browser (device control), shaped to spread into
+   * a row. The rest of a row is the same as for any computer, because the decision was made the same
+   * way; this is what lets somebody reading the trail tell an action in their own Chrome from one in a
+   * sandbox.
+   */
+  const targetOf = (botId: string): { target?: "own_browser" } =>
+    provider.personsBrowser?.(botId) ? { target: "own_browser" } : {};
+
+  /**
    * Where this Bot's computer is, checked before anything is sent to it.
    *
    * The provider decides the address, and a provider is a plug: it can be this deployment's own
@@ -627,10 +636,12 @@ export function createComputerGateway(
     };
 
     const evaluated = evaluateActionPolicy(options.policy(), context);
+    const where = targetOf(botId);
     const row = {
       toolName,
       botId,
       actor,
+      ...where,
       element,
       ref,
       ...(subject.key ? { key: subject.key } : {}),
@@ -810,6 +821,7 @@ export function createComputerGateway(
         toolName,
         botId,
         actor,
+        ...where,
         element,
         ref,
         ...(subject.key ? { key: subject.key } : {}),
@@ -869,6 +881,7 @@ export function createComputerGateway(
     async takeControl(botId: string, actor: ActionActor) {
       const state = await post<ControlState>(botId, "/control/take", {});
       await writeControlEvent(auditStore, "computer.control_taken", {
+        ...targetOf(botId),
         botId,
         actor,
         // Carried onto the row so the trail says what the person was handed, not merely that they
@@ -881,6 +894,7 @@ export function createComputerGateway(
     async releaseControl(botId: string, actor: ActionActor) {
       const state = await post<ControlState>(botId, "/control/release", {});
       await writeControlEvent(auditStore, "computer.control_released", {
+        ...targetOf(botId),
         botId,
         actor,
       });
@@ -916,6 +930,7 @@ export function createComputerGateway(
     async stopComputer(botId: string, actor: ActionActor) {
       const result = await provider.stop(botId);
       await writeControlEvent(auditStore, "computer.stopped", {
+        ...targetOf(botId),
         botId,
         actor,
         reason: result.wasRunning
@@ -1032,7 +1047,21 @@ export function createComputerGateway(
         botId,
         actor,
         { targetUrl: url, input: { url }, ...(run ? { run } : {}) },
-        async () => transport.navigate(await locate(botId), botId, url),
+        async () =>
+          transport.navigate(
+            await locate(botId),
+            botId,
+            url,
+            /*
+             * The person's own browser never opens a private address, whatever this deployment allows
+             * its sandboxes (finding 1): it sits on their office network, next to the router. The
+             * browser process refuses these too; this is the same rule one step earlier, so the
+             * trail says why.
+             */
+            provider.personsBrowser?.(botId)
+              ? { allowPrivateHosts: false }
+              : undefined,
+          ),
       );
     },
 
@@ -1323,6 +1352,8 @@ async function write(
     toolName: string;
     botId: string;
     actor: ActionActor;
+    /** Set when the action reached the person's own browser rather than a sandboxed computer. */
+    target?: "own_browser";
     element: SnapshotElement | undefined;
     ref: string | undefined;
     /** Which key, for a keypress. Recorded because a keypress can act without naming a button. */
@@ -1366,6 +1397,7 @@ async function write(
       action: entry.toolName,
       bot: entry.botId,
       actor: entry.actor.id,
+      ...(entry.target ? { target: entry.target } : {}),
       page: entry.pageUrl,
       ref: entry.ref ?? null,
       /*
@@ -1451,6 +1483,8 @@ async function writeControlEvent(
     botId: string;
     actor: ActionActor;
     reason?: string;
+    /** The person's own browser, when that is the computer this happened on. */
+    target?: "own_browser";
   },
 ) {
   await recordAuditEvent(auditStore, {
@@ -1461,6 +1495,7 @@ async function writeControlEvent(
     payload: {
       bot: entry.botId,
       actor: entry.actor.id,
+      ...(entry.target ? { target: entry.target } : {}),
       ...(entry.reason ? { reason: entry.reason } : {}),
     },
   });

@@ -29,6 +29,7 @@ const PAGE = `<!doctype html><title>Supplier</title>
 <h1>Quote request</h1>
 <label>Company <input name="company"></label>
 <button onclick="document.title='clicked'">Check stock</button>
+<form><input name="q" type="search" aria-label="Search parts"><button>Request quote</button></form>
 <a href="http://127.0.0.1:PORT/router-admin">Router settings</a>
 <img alt="pixel" src="http://127.0.0.1:PORT/pixel.gif">`;
 
@@ -123,6 +124,19 @@ describe.skipIf(!asked)(
       });
       expect(clicked.status).toBe(200);
       expect((await call("ana", "/read")).body.title).toBe("clicked");
+    }, 30_000);
+
+    test("each control says what activating it does, which is what the server's approve rule reads", async () => {
+      const snapshot = await call("ana", "/snapshot", {});
+      const typeOf = (name: string) =>
+        (snapshot.body.elements as Array<Element & { type?: string }>).find(
+          (element) => element.name === name,
+        )?.type;
+      // An untyped button in a form sends it; the same button outside a form does not.
+      expect(typeOf("Request quote")).toBe("submit");
+      expect(typeOf("Check stock")).toBe("button");
+      expect(typeOf("Search parts")).toBe("search");
+      expect(typeOf("Company")).toBe("text");
     }, 30_000);
 
     test("the browser works in the dedicated profile it was given", async () => {

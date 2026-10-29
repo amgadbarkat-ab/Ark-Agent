@@ -412,12 +412,64 @@ async function snapshotPage(
 }> {
   session.snapshotId += 1;
   const yaml = await target.ariaSnapshot({ mode: "ai" });
+  const parsed = parseAriaSnapshot(yaml);
+  await describeControls(target, parsed.elements);
   return {
     snapshotId: session.snapshotId,
     url: target.url(),
     title: await target.title(),
-    ...parseAriaSnapshot(yaml),
+    ...parsed,
   };
+}
+
+/** The roles whose `type` decides what activating them does. */
+const TYPED_ROLES = new Set(["button", "textbox", "searchbox", "combobox"]);
+
+/**
+ * Read each button's and field's own `type` onto its entry, in place.
+ *
+ * The accessibility tree calls a submit button, a reset button and a plain button all "button", and
+ * the difference is the one the server's boundary needs: a press of a submit button sends the form.
+ * The DOM knows, including the case that matters most, a `<button>` with no `type` inside a form,
+ * which the browser treats as submit and so does this.
+ *
+ * One evaluation per control, all in flight together, each bounded: a control that has gone or does
+ * not answer keeps no type, which the boundary reads as "not known to be a submit". Never fatal: a
+ * snapshot without types is the snapshot this process returned before.
+ */
+async function describeControls(
+  target: Page,
+  elements: SnapshotElement[],
+): Promise<void> {
+  await Promise.all(
+    elements
+      .filter((element) => TYPED_ROLES.has(element.role))
+      .map(async (element) => {
+        const type = await target
+          .locator(`aria-ref=${element.ref}`)
+          .evaluate(
+            (node) => {
+              if (
+                !(node instanceof HTMLButtonElement) &&
+                !(node instanceof HTMLInputElement)
+              ) {
+                return "";
+              }
+              // A submit control sends a form only when it is in one. Outside a form an untyped
+              // `<button>` still reports `submit`, and pages are full of those; calling them submits
+              // would put every click on a modern page in front of a person.
+              if (node.type === "submit" || node.type === "image") {
+                return node.form ? "submit" : "button";
+              }
+              return node.type;
+            },
+            undefined,
+            { timeout: 1_000 },
+          )
+          .catch(() => "");
+        if (type) element.type = type;
+      }),
+  );
 }
 
 /**

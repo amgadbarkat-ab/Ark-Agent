@@ -73,6 +73,16 @@ export type SnapshotElement = {
   value?: string;
   disabled?: boolean;
   checked?: boolean;
+  /**
+   * The control's own `type`, for buttons and fields: `submit`, `button`, `search`, `text`.
+   *
+   * Not in the accessibility tree, which says "button" for all three kinds of button, so it is read
+   * from the element itself after the snapshot (index.ts, `describeControls`). It is what the
+   * server's default approve rule keys a form submission on (`element.type == "submit"`), and before
+   * this was read the rule could only ever match on a button's words: a plain `<button>Verify</button>`
+   * in a form submitted it without anybody being asked (found by the device-control trap pages).
+   */
+  type?: string;
 };
 
 /** The descriptor half of an entry: everything before the colon. */

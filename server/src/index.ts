@@ -108,6 +108,7 @@ import {
   createComputerProvider,
   describeComputerIsolation,
 } from "./computer/provider";
+import { createOwnBrowser, withOwnBrowser } from "./computer/own-browser";
 import { createSnapshotStore } from "./computer/snapshot-store";
 import { LOCAL_APP_ORIGINS, loadConfig, mayBrowsePrivateHosts } from "./config";
 import {
@@ -408,12 +409,31 @@ const cloudGate = createCloudGate({
     return row ? (row.runLocation === "device" ? "device" : "cloud") : null;
   },
 });
-const computerProvider = config.computer
+/**
+ * The person's own Chrome or Edge, which only the desktop app can offer (device control, phase 1).
+ *
+ * Present only when the desktop started this process, which is when it hands over the token its
+ * announcements carry. A hosted deployment has no person's computer to reach and no such door.
+ */
+const ownBrowser = process.env.OPENBOT_DESKTOP_HOST_TOKEN?.trim()
+  ? createOwnBrowser()
+  : undefined;
+const meteredProvider = config.computer
   ? meteredComputerProvider(createComputerProvider(config.computer), {
       meter: cloudMeter,
       tenantOf: botTenant,
     })
   : undefined;
+/*
+ * In front of the metering, not behind it: an employee in the person's own browser is on their
+ * computer, not in Ark's cloud, so nothing it does there is a cloud computer to count.
+ */
+const computerProvider =
+  meteredProvider && ownBrowser
+    ? withOwnBrowser(meteredProvider, ownBrowser, {
+        ...(config.computer?.token ? { token: config.computer.token } : {}),
+      })
+    : meteredProvider;
 
 if (computerProvider?.warm) {
   void computerProvider.warm();
@@ -451,6 +471,8 @@ const policyListener = await startPolicyListener(
 const bootAuditStore = createAuditStore(database, auditShipping);
 // One store: the gateway writes through it, a route reads it, and the sweep below takes the old ones out.
 const pageFrameStore = createPageFrameStore(database);
+// Shared with the own-browser routes, which forget an employee's last page when it changes computer.
+const snapshotStore = createSnapshotStore(database);
 // Housekeeping on a schedule: audit rows when asked for, screenshots always, one timer. See audit-retention.ts.
 const retentionSweeps = startRetentionSweeps(
   config.databaseUrl,
@@ -465,7 +487,7 @@ const computerGateway = computerProvider
       // In Postgres, so the ref a click carries resolves against the snapshot that produced it even
       // when the snapshot was taken by another server. A Map here would be blank on every replica
       // but the one that snapshotted, and the boundary would decide with no element to look at.
-      snapshots: createSnapshotStore(database),
+      snapshots: snapshotStore,
       // So wiping a profile takes the pictures of its signed-in pages with it, which is what the
       // sentence on that button already promised.
       pageFrames: pageFrameStore,
@@ -1671,6 +1693,14 @@ const app = createApp(
   memoryStore,
   // Whether a person is in the conversation a browser names, for a held action's outcome.
   createConversationOwnership(database),
+  // The person's own browser, on the desktop app only (device control, phase 1).
+  ownBrowser
+    ? {
+        own: ownBrowser,
+        computerToken: config.computer?.token,
+        forgetSnapshot: (botId: string) => snapshotStore.clear(botId),
+      }
+    : undefined,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

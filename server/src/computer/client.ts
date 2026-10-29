@@ -117,6 +117,8 @@ export interface ComputerTransport {
     baseUrl: string,
     botId: string,
     url: string,
+    /** Narrows the transport's own rule for one call; it can only close, never open. */
+    override?: { allowPrivateHosts?: boolean },
   ): Promise<NavigateResult>;
 }
 
@@ -226,9 +228,12 @@ export function createComputerTransport(
     baseUrl: string,
     botId: string,
     url: string,
+    override?: { allowPrivateHosts?: boolean },
   ): Promise<NavigateResult> {
     const verdict = checkNavigationTarget(url, {
-      allowPrivateHosts: options.allowPrivateHosts,
+      allowPrivateHosts:
+        options.allowPrivateHosts === true &&
+        override?.allowPrivateHosts !== false,
     });
     if (!verdict.allowed) {
       throw new NavigationRefusedError(verdict.reason);
