@@ -7,7 +7,9 @@ import { requireAdmin } from "../auth/guards";
 import { DEPLOYMENT_ROUTES } from "./deployment-routes";
 import {
   type ActionActor,
+  ActionHeldError,
   ActionRefusedError,
+  type ActionRun,
   type ComputerGateway,
   ComputerUnavailableError,
   ElementNotFoundError,
@@ -49,8 +51,18 @@ export function createComputerRoutes(
    * endpoint says it cannot answer rather than answering from nothing.
    */
   auditReader?: AuditReader,
+  /**
+   * Whether the person is in the conversation the browser says this action belongs to. A held
+   * action's outcome is delivered there, so a thread they are not in is dropped rather than trusted.
+   * Absent drops every thread: actions are still held, and their outcome goes nowhere.
+   */
+  ownsConversation?: (actorId: string, threadId: string) => Promise<boolean>,
 ) {
   const routes = new Hono<{ Variables: AppVariables }>();
+  const act = (
+    context: ComputerContext,
+    handler: ActHandler,
+  ): Promise<Response> => actWith(context, handler, ownsConversation);
 
   /**
    * Every route under a Bot id, in one place.
@@ -231,6 +243,7 @@ export function createComputerRoutes(
     const body = (await context.req.json().catch(() => null)) as {
       url?: unknown;
       toolCallId?: unknown;
+      threadId?: unknown;
     } | null;
     if (typeof body?.url !== "string" || !body.url.trim()) {
       return context.json({ error: "A web address is required." }, 400);
@@ -253,10 +266,12 @@ export function createComputerRoutes(
             : { userId: context.var.actor.id }),
         },
         body.url.trim(),
+        await runOf(context.var.actor.id, body, ownsConversation),
       );
       await keepFrameOf(botId, toolCallId, result.url, result.title);
       return context.json(result);
     } catch (error) {
+      if (error instanceof ActionHeldError) return heldResponse(context, error);
       if (error instanceof ActionRefusedError) {
         return context.json({ error: error.message, rule: error.rule }, 403);
       }
@@ -285,15 +300,15 @@ export function createComputerRoutes(
    * of its own beyond the shape of the request. Where a decision gets made is a single place.
    */
   routes.post("/:botId/click", (context) =>
-    act(context, (botId, actor, body, signal) => {
+    act(context, (botId, actor, body, signal, run) => {
       const ref = asRef(body);
       if (!ref) return badRef;
-      return gateway.click(botId, actor, ref, signal);
+      return gateway.click(botId, actor, ref, signal, run);
     }),
   );
 
   routes.post("/:botId/type", (context) =>
-    act(context, (botId, actor, body, signal) => {
+    act(context, (botId, actor, body, signal, run) => {
       const ref = asRef(body);
       if (!ref) return badRef;
       if (typeof body?.text !== "string") {
@@ -308,12 +323,13 @@ export function createComputerRoutes(
           submit: body?.submit === true,
         },
         signal,
+        run,
       );
     }),
   );
 
   routes.post("/:botId/key", (context) =>
-    act(context, (botId, actor, body, signal) => {
+    act(context, (botId, actor, body, signal, run) => {
       if (typeof body?.key !== "string" || !body.key) {
         return { error: "A key name is required, such as Enter or Tab." };
       }
@@ -326,16 +342,22 @@ export function createComputerRoutes(
           ...(ref ?? {}),
         },
         signal,
+        run,
       );
     }),
   );
 
   routes.post("/:botId/scroll", (context) =>
-    act(context, (botId, actor, body) => {
+    act(context, (botId, actor, body, _signal, run) => {
       if (!usableDeltaY(body?.deltaY)) return badDeltaY;
-      return gateway.scroll(botId, actor, {
-        ...(typeof body?.deltaY === "number" ? { deltaY: body.deltaY } : {}),
-      });
+      return gateway.scroll(
+        botId,
+        actor,
+        {
+          ...(typeof body?.deltaY === "number" ? { deltaY: body.deltaY } : {}),
+        },
+        run,
+      );
     }),
   );
 
@@ -570,21 +592,26 @@ export function createComputerRoutes(
   });
 
   routes.post("/:botId/files/list", (context) =>
-    act(context, (botId, actor, body) =>
-      gateway.listFiles(botId, actor, {
-        ...(typeof body?.path === "string" && body.path.trim()
-          ? { path: body.path.trim() }
-          : {}),
-      }),
+    act(context, (botId, actor, body, _signal, run) =>
+      gateway.listFiles(
+        botId,
+        actor,
+        {
+          ...(typeof body?.path === "string" && body.path.trim()
+            ? { path: body.path.trim() }
+            : {}),
+        },
+        run,
+      ),
     ),
   );
 
   routes.post("/:botId/files/read", (context) =>
-    act(context, (botId, actor, body) => {
+    act(context, (botId, actor, body, _signal, run) => {
       if (typeof body?.path !== "string" || !body.path.trim()) {
         return { error: "A file path is required." };
       }
-      return gateway.readFile(botId, actor, { path: body.path.trim() });
+      return gateway.readFile(botId, actor, { path: body.path.trim() }, run);
     }),
   );
 
@@ -597,7 +624,7 @@ export function createComputerRoutes(
    * computer as a RangeError 500 or a run that outlasts the transport backstop.
    */
   routes.post("/:botId/exec", (context) =>
-    act(context, (botId, actor, body, signal) => {
+    act(context, (botId, actor, body, signal, run) => {
       if (typeof body?.command !== "string" || !body.command.trim()) {
         return { error: "A command is required." };
       }
@@ -627,23 +654,29 @@ export function createComputerRoutes(
             : {}),
         },
         signal,
+        run,
       );
     }),
   );
 
   routes.post("/:botId/files/write", (context) =>
-    act(context, (botId, actor, body) => {
+    act(context, (botId, actor, body, _signal, run) => {
       if (typeof body?.path !== "string" || !body.path.trim()) {
         return { error: "A file path is required." };
       }
       if (typeof body?.contents !== "string") {
         return { error: "The contents to write are required." };
       }
-      return gateway.writeFile(botId, actor, {
-        path: body.path.trim(),
-        contents: body.contents,
-        append: body.append === true,
-      });
+      return gateway.writeFile(
+        botId,
+        actor,
+        {
+          path: body.path.trim(),
+          contents: body.contents,
+          append: body.append === true,
+        },
+        run,
+      );
     }),
   );
 
@@ -800,22 +833,53 @@ function usableDeltaY(value: unknown): boolean {
  * One place, so a new acting route cannot accidentally report a policy refusal as a server error, and
  * so the actor is derived the same way every time.
  */
-async function act(
+type ActHandler = (
+  botId: string,
+  actor: ActionActor,
+  body: Record<string, unknown> | null,
+  /**
+   * The person's Stop, as an abort.
+   *
+   * The surface aborts its request when Stop is pressed; Bun exposes that here, and every acting
+   * route passes it on so the abort reaches the Playwright call mid-click. Without it, Stop ended
+   * the run in the transcript while the click carried on landing on a live page, harmless most of
+   * the time, and not harmless on a Confirm button, which is exactly when Stop gets pressed.
+   */
+  signal: AbortSignal,
+  /** Which conversation this action belongs to, when the person is in it. */
+  run: ActionRun,
+) => Promise<unknown> | BadRequest;
+
+/**
+ * The run an action belongs to: the conversation the browser named, kept only if the person is in it.
+ */
+async function runOf(
+  actorId: string,
+  body: { threadId?: unknown } | null,
+  ownsConversation?: (actorId: string, threadId: string) => Promise<boolean>,
+): Promise<ActionRun> {
+  const threadId =
+    typeof body?.threadId === "string" ? body.threadId.trim() : "";
+  if (!threadId || threadId.length > 200 || !ownsConversation) return {};
+  const owns = await ownsConversation(actorId, threadId).catch(() => false);
+  return owns ? { threadId } : {};
+}
+
+/**
+ * Held for a person: 202, because the request was accepted and nothing has happened yet. Not a 403,
+ * which the surface draws as a boundary refusing, and not a failure.
+ */
+function heldResponse(context: ComputerContext, error: ActionHeldError) {
+  return context.json(
+    { held: true, approvalId: error.approvalId, reason: error.message },
+    202,
+  );
+}
+
+async function actWith(
   context: ComputerContext,
-  handler: (
-    botId: string,
-    actor: ActionActor,
-    body: Record<string, unknown> | null,
-    /**
-     * The person's Stop, as an abort.
-     *
-     * The surface aborts its request when Stop is pressed; Bun exposes that here, and every acting
-     * route passes it on so the abort reaches the Playwright call mid-click. Without it, Stop ended
-     * the run in the transcript while the click carried on landing on a live page, harmless most of
-     * the time, and not harmless on a Confirm button, which is exactly when Stop gets pressed.
-     */
-    signal: AbortSignal,
-  ) => Promise<unknown> | BadRequest,
+  handler: ActHandler,
+  ownsConversation?: (actorId: string, threadId: string) => Promise<boolean>,
 ) {
   // Always present on these routes, which all declare `:botId`. The fallback exists because this
   // helper is typed against a generic context that cannot know that, and a thrown "undefined bot"
@@ -839,12 +903,14 @@ async function act(
       },
       body,
       context.req.raw.signal,
+      await runOf(record.id, body, ownsConversation),
     );
     if (isBadRequest(result)) {
       return context.json(result, 400);
     }
     return context.json(result as Record<string, unknown>);
   } catch (error) {
+    if (error instanceof ActionHeldError) return heldResponse(context, error);
     // A policy refusal is the product working. 403 with the rule that refused it, so the surface can
     // tell the person which boundary they met rather than reporting a malfunction.
     if (error instanceof ActionRefusedError) {

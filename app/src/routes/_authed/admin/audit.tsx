@@ -434,6 +434,13 @@ const DECISIONS: Record<string, string> = {
   "computer.secret_supplied": "A person supplied a secret",
   "computer.reset": "The computer was reset",
   "computer.stopped": "A person pressed stop",
+  // Not "Blocked": nothing was refused. It waits for a person, and the decision is its own row.
+  "computer.action_held": "Waiting for a person's approval",
+  "mcp.call_held": "Waiting for a person's approval",
+  "approval.requested": "Asked a person",
+  "approval.approved": "A person approved",
+  "approval.rejected": "A person declined",
+  "approval.failed": "Approved, but it could not be carried out",
 
   "component.granted": "Granted to this digital employee",
   "component.revoked": "Taken away from this digital employee",

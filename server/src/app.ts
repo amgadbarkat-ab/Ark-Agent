@@ -442,6 +442,12 @@ export function createApp(
    * leaves `/api/agents/:agentId/memories` unmounted.
    */
   memories?: MemoryStore,
+  /**
+   * Whether a person is in the conversation a browser says an action belongs to. Appended last, for
+   * the positional reason above. Absent drops every such thread: a held browser action still waits
+   * for the person, and its outcome is not delivered into a conversation.
+   */
+  ownsConversation?: (actorId: string, threadId: string) => Promise<boolean>,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1609,6 +1615,7 @@ export function createApp(
         canUseBot,
         pageFrames,
         auditReader,
+        ownsConversation,
       ),
     );
   }
@@ -1775,7 +1782,10 @@ export function createApp(
   }
 
   if (approvals) {
-    app.route("/api/approvals", createApprovalRoutes(approvals, requireUser));
+    app.route(
+      "/api/approvals",
+      createApprovalRoutes(approvals, requireUser, canUseBot),
+    );
   }
 
   if (memories) {
@@ -1940,6 +1950,15 @@ export function createApp(
           // From the assertion, never the body: this is the name the audit row will carry.
           actorId: verdict.actorId,
           ...(verdict.initiator ? { initiator: verdict.initiator } : {}),
+          /*
+           * The run, from the same signed assertion: where a call held for a person's approval
+           * delivers its outcome. Never from the body, for the reason the actor is not — a Bot able
+           * to name the thread could drop a turn into a conversation it was never part of.
+           */
+          run: {
+            runId: verdict.run.runId,
+            ...(verdict.run.threadId ? { threadId: verdict.run.threadId } : {}),
+          },
         });
         // Worded by the helper the in-process door uses, so a framework Bot's model reads a vendor's
         // error as the vendor's and not as a result. Neither Bot words it on its way through.

@@ -39,6 +39,28 @@ const CURRENT = "current";
 export const ACTION_POLICY_TOPIC = "action_policy_changed";
 
 /**
+ * What a person approves before a digital employee does it, out of the box.
+ *
+ * The owner's rule for device control (desk #27): no payment, send, form submit or delete without a
+ * named person approving. Written as rules rather than built in, so a deployment sees them on the
+ * Boundaries page, can read exactly what they catch, and can loosen or extend them.
+ *
+ * The first catches a press of a control that submits a form or whose label says it sends, pays,
+ * buys, transfers or deletes. The word list is matched on whole words (`(^|[^a-z])…([^a-z]|$)`,
+ * case-insensitive), because a bare `pay` would hold a click on "Display". The second catches Enter,
+ * which submits whatever form has focus: the gateway cannot tell a search box from a payment form at
+ * decision time (see `PolicyContext.intent`), so a rule that must hold a submission holds Enter —
+ * except in a search box. Holding every Enter stopped a plain web search for a person's approval,
+ * and half the device-control test tasks (docs/ark/25-device-control.md) start with one; a field
+ * the page itself marks as a search (role `searchbox`, or `type="search"`) is the one place an Enter
+ * is a query rather than a submission. A page that lies about that is a page the trap set covers.
+ */
+export const DEFAULT_APPROVAL_RULES = [
+  'intent == "activate" && (element.type == "submit" || matches(element.name, "(^|[^a-z])(submit|send|pay|pay now|purchase|buy|checkout|check out|place order|transfer|delete|remove)([^a-z]|$)"))',
+  'intent == "activate" && (key == "Enter" || key == "NumpadEnter") && !(element.role == "searchbox" || element.type == "search")',
+] as const;
+
+/**
  * What a deployment allows when it has not said otherwise.
  *
  * Permissive, and written down rather than implied. The policy engine is fail-closed: an absent
@@ -53,6 +75,7 @@ export const DEFAULT_ACTION_POLICY: ActionPolicy = {
   mode: "enforce",
   deny: [],
   allow: ["true"],
+  approve: [...DEFAULT_APPROVAL_RULES],
 };
 
 export type PolicyStore = {
@@ -102,6 +125,7 @@ export function createPolicyStore(
               mode: next.mode,
               deny: next.deny,
               allow: next.allow,
+              approve: next.approve ?? [],
               updatedBy: by ?? null,
               updatedAt: new Date(),
             })
@@ -111,6 +135,7 @@ export function createPolicyStore(
                 mode: next.mode,
                 deny: next.deny,
                 allow: next.allow,
+                approve: next.approve ?? [],
                 updatedBy: by ?? null,
                 updatedAt: new Date(),
               },
@@ -152,6 +177,7 @@ export function createPolicyStore(
         mode: row.mode as ActionPolicy["mode"],
         deny: [...row.deny],
         allow: [...row.allow],
+        approve: [...(row.approve ?? [])],
       };
       return "the database";
     },
@@ -172,6 +198,7 @@ export function createPolicyStore(
             mode: row.mode as ActionPolicy["mode"],
             deny: [...row.deny],
             allow: [...row.allow],
+            approve: [...(row.approve ?? [])],
           }
         : clone(configured);
     },
@@ -204,6 +231,7 @@ function clone(policy: ActionPolicy): ActionPolicy {
     mode: policy.mode,
     deny: [...policy.deny],
     allow: [...policy.allow],
+    approve: [...(policy.approve ?? [])],
   };
 }
 
@@ -234,8 +262,12 @@ export function parseActionPolicy(
     };
   }
 
-  const lists: Record<"deny" | "allow", string[]> = { deny: [], allow: [] };
-  for (const key of ["deny", "allow"] as const) {
+  const lists: Record<"deny" | "allow" | "approve", string[]> = {
+    deny: [],
+    allow: [],
+    approve: [],
+  };
+  for (const key of ["deny", "allow", "approve"] as const) {
     const value = candidate[key] ?? [];
     if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
       return { ok: false, error: `${key} must be a list of expressions.` };
@@ -243,5 +275,13 @@ export function parseActionPolicy(
     lists[key] = value as string[];
   }
 
-  return { ok: true, policy: { mode, deny: lists.deny, allow: lists.allow } };
+  return {
+    ok: true,
+    policy: {
+      mode,
+      deny: lists.deny,
+      allow: lists.allow,
+      approve: lists.approve,
+    },
+  };
 }

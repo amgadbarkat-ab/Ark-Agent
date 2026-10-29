@@ -32,6 +32,11 @@ export type ActionPolicy = {
   mode: PolicyMode;
   deny: string[];
   allow: string[];
+  /**
+   * Rules that hold an action for a person's approval instead of refusing or permitting it. Checked
+   * after `deny` and before `allow`. Absent from a server older than the list.
+   */
+  approve?: string[];
 };
 
 export const computerKeys = {

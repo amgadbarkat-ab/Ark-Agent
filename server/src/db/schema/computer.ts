@@ -4,6 +4,7 @@
  * Split by owner so two people can add tables all day without touching the same lines. Add tables
  * here; never edit core.ts or coworker.ts to do it.
  */
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -35,6 +36,13 @@ export const actionPolicy = pgTable("action_policy", {
   mode: text("mode").notNull(),
   deny: text("deny").array().notNull(),
   allow: text("allow").array().notNull(),
+  /**
+   * Expressions that hold an action for a person's approval rather than refusing or permitting it.
+   *
+   * Defaulted to empty so a row saved before this existed reads as a policy that asks nobody, which
+   * is what it was.
+   */
+  approve: text("approve").array().notNull().default(sql`'{}'::text[]`),
   /** Who last changed it, for the Admin page and the trail. */
   updatedBy: text("updated_by"),
   updatedAt: timestamp("updated_at", { withTimezone: true })

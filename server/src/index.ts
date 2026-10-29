@@ -40,6 +40,17 @@ import { createRuntimeAgentLoader } from "./agents/runtime-agents";
 import { teamTools } from "./agents/team-tools";
 import { createApp } from "./app";
 import { approvalExecutors } from "./approvals/executors";
+import {
+  CHAT_CARD_KIND,
+  COMPUTER_ACTION_KIND,
+  chatCardExecutor,
+  computerActionApprovals,
+  computerActionExecutor,
+  resumeInConversation,
+  TOOL_CALL_KIND,
+  toolCallApprovals,
+  toolCallExecutor,
+} from "./approvals/held";
 import { createApprovalStore } from "./approvals/store";
 import {
   type AuditInitiator,
@@ -69,6 +80,7 @@ import {
   createChannelEventHub,
   startChannelActivityListener,
 } from "./channels/events";
+import { createConversationOwnership } from "./channels/conversation-owner";
 import { createChannelStore } from "./channels/routes";
 import { websocket as channelSocket } from "./channels/socket";
 import { createStallGuard } from "./channels/stall-guard";
@@ -461,6 +473,14 @@ const computerGateway = computerProvider
       // (AGENT_COMPUTER_BROWSE_PRIVATE_HOSTS; device control, finding 1).
       allowPrivateHosts: mayBrowsePrivateHosts(config.computer),
       token: config.computer?.token,
+      /*
+       * An action a boundary rule holds for a person goes to their Requests. Deferred: the inbox is
+       * built further down, because carrying out an approved action needs this gateway.
+       */
+      approvals: {
+        hold: (action) => computerActionApprovals(approvalStore).hold(action),
+        approved: (id) => computerActionApprovals(approvalStore).approved(id),
+      },
     })
   : undefined;
 
@@ -519,6 +539,14 @@ const pluginStore = createPluginStore({
    * attempted.
    */
   broker: composio?.broker,
+  /*
+   * A call held for a person goes to their Requests. Deferred for the same reason as the computer
+   * gateway's: carrying out an approved call needs this store.
+   */
+  approvals: {
+    hold: (call) => toolCallApprovals(approvalStore).hold(call),
+    approved: (id) => toolCallApprovals(approvalStore).approved(id),
+  },
 });
 
 // Logo metadata is optional; a vendor outage must not prevent the API from starting.
@@ -549,12 +577,28 @@ const routineStore = createRoutineStore(database);
 /** What a digital employee keeps in mind. This one writes, so it records who added and who deleted. */
 const memoryStore = createMemoryStore(database, { auditStore: bootAuditStore });
 
+/*
+ * The outcome of a held call goes back into the conversation it was asked in, as a turn of the
+ * employee's that carries on from there — the hand-off desk's queue, which already delivers a turn
+ * into a conversation durably and for any kind of employee. See approvals/held.ts.
+ */
+const resumeHeldWork = resumeInConversation(createWorkQueue(database));
+
 const approvalStore = createApprovalStore(database, {
-  executors: approvalExecutors({
-    routines: routineStore,
-    profiles: agentProfileStore,
-    memories: memoryStore,
-  }),
+  executors: {
+    ...approvalExecutors({
+      routines: routineStore,
+      profiles: agentProfileStore,
+      memories: memoryStore,
+    }),
+    [TOOL_CALL_KIND]: toolCallExecutor((input) => pluginStore.callTool(input)),
+    [COMPUTER_ACTION_KIND]: computerActionExecutor(() => computerGateway),
+    [CHAT_CARD_KIND]: chatCardExecutor,
+  },
+  afterDecision: {
+    [TOOL_CALL_KIND]: resumeHeldWork,
+    [COMPUTER_ACTION_KIND]: resumeHeldWork,
+  },
   auditStore: bootAuditStore,
 });
 useRoutineTools(routineStore);
@@ -1194,25 +1238,20 @@ const copilotRuntime = mountCopilotRuntime(
  * conversation. Every replica sweeps, and the queue decides which of them gets which hop, so adding a
  * replica adds delivery capacity rather than contention.
  *
- * Only where the capability is switched on. A deployment with a depth cap of zero never has a hop to
- * deliver, and a loop polling for work that cannot exist is a query a second for nothing.
- */
-/*
- * Both zeros switch the capability off, so both have to stop the loop.
- *
- * Gated on the depth alone, a deployment that set the fan-out cap to zero still swept every two
- * seconds for hops that can never be offered: roughly forty thousand claim transactions per replica
- * per day, for a feature it had turned off.
+ * ALWAYS, NOT ONLY WHERE HANDING WORK BETWEEN EMPLOYEES IS SWITCHED ON. It used to be gated on the
+ * two caps, because a deployment that set either to zero never had a hop to deliver. It does now: the
+ * outcome of a call held for a person's approval is delivered into its conversation through this
+ * same queue (approvals/held.ts), and a deployment that switched hand-offs off still has employees
+ * whose calls wait for a person. The wake-up below keeps the idle cost to the backstop poll.
  */
 /**
- * The queue's own wake-up, when handing work between Bots is switched on at all.
+ * The queue's own wake-up.
  *
- * Held at module scope so the shutdown below can give its connection back. Undefined on a
- * deployment with the capability off, which is a deployment that never started one.
+ * Held at module scope so the shutdown below can give its connection back.
  */
 let workOfferedListener: WorkOfferedListener | undefined;
 
-if (config.handoff.maxDepth > 0 && config.handoff.maxPerRun > 0) {
+{
   const runner = createHandoffRunner({
     queue: createWorkQueue(database),
     owner: workOwner("handoff"),
@@ -1630,6 +1669,8 @@ const app = createApp(
   approvalStore,
   // What each digital employee keeps in mind, for its owner to read and correct.
   memoryStore,
+  // Whether a person is in the conversation a browser names, for a held action's outcome.
+  createConversationOwnership(database),
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

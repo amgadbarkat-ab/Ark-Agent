@@ -23,6 +23,7 @@ import {
   removeSkillMutationOptions,
   saveSkillMutationOptions,
   setPluginGrantMutationOptions,
+  setToolCallOutcomeMutationOptions,
 } from "../src/lib/plugins/mutations";
 import { pluginKeys } from "../src/lib/plugins/queries";
 
@@ -169,6 +170,14 @@ const REFUSALS: {
       kind: "mcp" as const,
       ref: "linear/create_issue",
     },
+  },
+  {
+    name: "setting what happens when a tool is called",
+    route: "PUT /api/plugins/servers/linear/tools/create_issue/on-call",
+    status: 403,
+    message: "That setting could not be saved.",
+    factory: setToolCallOutcomeMutationOptions,
+    variables: { serverId: "linear", tool: "create_issue", outcome: "ask" },
   },
   {
     name: "adding a curated server",
@@ -525,6 +534,12 @@ const ENCODED_REQUESTS: {
     url: `/api/plugins/servers/${ENCODED_ID}/connection/recheck`,
     build: recheckBrokeredConnectionMutationOptions,
     variables: HOSTILE_ID,
+  },
+  {
+    name: "setting what happens when a tool is called",
+    url: `/api/plugins/servers/${ENCODED_ID}/tools/${ENCODED_ID}/on-call`,
+    build: setToolCallOutcomeMutationOptions,
+    variables: { serverId: HOSTILE_ID, tool: HOSTILE_ID, outcome: null },
   },
   {
     name: "removing a skill",

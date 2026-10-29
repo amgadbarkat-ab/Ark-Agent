@@ -88,6 +88,85 @@ export class ActionRefusedError extends Error {
   }
 }
 
+/**
+ * The action did not happen: a rule holds it for a person, and the request is in their Requests.
+ *
+ * Not a refusal and not a failure, so a surface can say "waiting for your approval" rather than
+ * "blocked" or "broken". The message is the sentence the employee is given to relay.
+ */
+export class ActionHeldError extends Error {
+  readonly approvalId: string;
+
+  constructor(message: string, approvalId: string) {
+    super(message);
+    this.name = "ActionHeldError";
+    this.approvalId = approvalId;
+  }
+}
+
+/** The acting tools, by the name a rule and the trail use for each. */
+export type ComputerActionName =
+  | "computer_navigate"
+  | "computer_click"
+  | "computer_type"
+  | "computer_key"
+  | "computer_scroll"
+  | "computer_read_file"
+  | "computer_list_files"
+  | "computer_run_command"
+  | "computer_write_file";
+
+/**
+ * A browser or computer action a rule held, as the inbox is asked to keep it.
+ *
+ * EVERYTHING NEEDED TO DO EXACTLY THIS LATER, AND TO KNOW IF IT IS NO LONGER THIS. The input is what
+ * is replayed; the element, the snapshot generation, the computer's run and the page are what the
+ * replay is checked against, because "click e13" an hour later is a click on whatever e13 is then.
+ */
+export type HeldComputerAction = {
+  ownerUserId: string;
+  botId: string;
+  action: ComputerActionName;
+  input: unknown;
+  ref?: string;
+  snapshotId?: number;
+  session?: string;
+  element: { role: string; name: string; type: string } | null;
+  pageUrl: string;
+  key?: string;
+  command?: string;
+  filePath?: string;
+  rule: string | null;
+  reason: string;
+  threadId?: string;
+  runId?: string;
+};
+
+/** An approved action, as the row the person approved says it. */
+export type ApprovedComputerAction = Omit<
+  HeldComputerAction,
+  "reason" | "threadId" | "runId"
+>;
+
+/** The inbox, as the computer gateway sees it. See `ToolCallApprovals` for why it is a seam. */
+export type ComputerActionApprovals = {
+  hold(action: HeldComputerAction): Promise<{ id: string; message: string }>;
+  approved(id: string): Promise<ApprovedComputerAction | null>;
+};
+
+/**
+ * Which run an action belongs to, and whether it is the replay of an approved one.
+ *
+ * `threadId` is where a held action's outcome is delivered, checked by the route against the
+ * person's own conversations before it gets here. `approvalId` is passed only by the code that
+ * carries out an approved request.
+ */
+export type ActionRun = {
+  threadId?: string;
+  runId?: string;
+  approvalId?: string;
+};
+
 /** Who is asking. The gateway records this; it does not decide it. */
 export type ActionActor = {
   /** The signed-in person, or the local actor when authentication is not configured. */
@@ -122,6 +201,11 @@ export type ComputerGatewayOptions = {
    * this deployment makes in as many words.
    */
   pageFrames?: PageFrameStore;
+  /**
+   * Where an action a rule holds for a person goes. Absent means nobody can be asked, and an action
+   * a rule holds is refused rather than carried out.
+   */
+  approvals?: ComputerActionApprovals;
 };
 
 export interface ComputerGateway {
@@ -135,50 +219,59 @@ export interface ComputerGateway {
     botId: string,
     actor: ActionActor,
     url: string,
+    run?: ActionRun,
   ): Promise<NavigateResult>;
   click(
     botId: string,
     actor: ActionActor,
     input: ClickInput,
     signal?: AbortSignal,
+    run?: ActionRun,
   ): Promise<ActionResult>;
   type(
     botId: string,
     actor: ActionActor,
     input: TypeInput,
     signal?: AbortSignal,
+    run?: ActionRun,
   ): Promise<ActionResult>;
   key(
     botId: string,
     actor: ActionActor,
     input: KeyInput,
     signal?: AbortSignal,
+    run?: ActionRun,
   ): Promise<ActionResult>;
   scroll(
     botId: string,
     actor: ActionActor,
     input: ScrollInput,
+    run?: ActionRun,
   ): Promise<ActionResult>;
   readFile(
     botId: string,
     actor: ActionActor,
     input: ReadFileInput,
+    run?: ActionRun,
   ): Promise<ReadFileResult>;
   listFiles(
     botId: string,
     actor: ActionActor,
     input: ListFilesInput,
+    run?: ActionRun,
   ): Promise<ListFilesResult>;
   runCommand(
     botId: string,
     actor: ActionActor,
     input: RunCommandInput,
     signal?: AbortSignal,
+    run?: ActionRun,
   ): Promise<RunCommandResult>;
   writeFile(
     botId: string,
     actor: ActionActor,
     input: WriteFileInput,
+    run?: ActionRun,
   ): Promise<WriteFileResult>;
   control(botId: string): Promise<ControlState>;
   requestHelp(
@@ -432,10 +525,14 @@ export function createComputerGateway(
    * show that sequence.
    */
   async function govern<T>(
-    toolName: string,
+    toolName: ComputerActionName,
     botId: string,
     actor: ActionActor,
     subject: {
+      /** The action's own input, exactly as it would be replayed. Held with the request. */
+      input: unknown;
+      /** Which run this is, and whether it carries out an approved request. */
+      run?: ActionRun;
       ref?: string;
       /** The generation the ref came from. A ref only resolves against its own snapshot. */
       snapshotId?: number;
@@ -529,8 +626,8 @@ export function createComputerGateway(
       mcp: { server: "", tool: "", effect: "" },
     };
 
-    const decision = evaluateActionPolicy(options.policy(), context);
-    await write(auditStore, {
+    const evaluated = evaluateActionPolicy(options.policy(), context);
+    const row = {
       toolName,
       botId,
       actor,
@@ -540,7 +637,116 @@ export function createComputerGateway(
       ...(subject.command ? { command: subject.command } : {}),
       filePath,
       pageUrl,
+    };
+
+    /*
+     * The replay of an approved action, checked against what the person approved before anything
+     * else is decided.
+     *
+     * The row says which employee, which person, which action and which input; all four have to be
+     * this call's. Then the page: an action on an element is approved for THAT element on THAT
+     * snapshot of THAT run of the computer, and if any of them moved while the request waited — a
+     * new snapshot, a navigation, a replaced container — nothing is done and the person is asked
+     * again. Clicking whatever now sits at the approved ref is the one outcome this must never have.
+     */
+    const approvalId = subject.run?.approvalId;
+    const approved = approvalId
+      ? await options.approvals?.approved(approvalId)
+      : undefined;
+    if (approvalId) {
+      const matches =
+        approved &&
+        approved.botId === botId &&
+        approved.ownerUserId === actor.id &&
+        approved.action === toolName &&
+        JSON.stringify(approved.input) === JSON.stringify(subject.input);
+      const samePage =
+        matches &&
+        (approved.pageUrl === pageUrl || toolName === "computer_navigate") &&
+        (!approved.ref ||
+          (stored?.snapshotId === approved.snapshotId &&
+            element !== undefined &&
+            element.role === approved.element?.role &&
+            element.name === approved.element?.name &&
+            (element.type ?? "") === (approved.element?.type ?? "") &&
+            (!approved.session || !session || approved.session === session)));
+      if (!matches || !samePage) {
+        const reason = !matches
+          ? "This action has no approval that matches it, so nothing was done."
+          : "The page has changed since this was approved, so nothing was done. Take a fresh look and ask again.";
+        await write(auditStore, {
+          ...row,
+          decision: {
+            ...evaluated,
+            allowed: false,
+            forward: false,
+            reason,
+          },
+          approval: approvalId,
+        });
+        throw matches
+          ? new StaleSnapshotError(reason)
+          : new ActionRefusedError(reason, null);
+      }
+    }
+
+    /*
+     * A rule that holds the action for a person: approved already, or asked now.
+     *
+     * Asked AFTER the refusal list has had its say (the engine evaluates deny first), so a forbidden
+     * action is never put in front of somebody to approve. A deployment with nobody to ask refuses,
+     * which is the boundary holding rather than being skipped.
+     */
+    let decision = evaluated;
+    if (evaluated.needsApproval && !evaluated.forward) {
+      if (approved) {
+        decision = {
+          ...evaluated,
+          allowed: true,
+          forward: true,
+          reason: "Approved by a person.",
+        };
+      } else if (!options.approvals) {
+        const reason = `${evaluated.reason} This deployment has nowhere to ask, so it was not done.`;
+        await write(auditStore, {
+          ...row,
+          decision: { ...evaluated, reason },
+        });
+        throw new ActionRefusedError(reason, evaluated.matched);
+      } else {
+        const held = await options.approvals.hold({
+          ownerUserId: actor.id,
+          botId,
+          action: toolName,
+          input: subject.input,
+          ...(ref ? { ref } : {}),
+          ...(snapshotId !== undefined ? { snapshotId } : {}),
+          ...(session ? { session } : {}),
+          element: element
+            ? {
+                role: element.role,
+                name: element.name,
+                type: element.type ?? "",
+              }
+            : null,
+          pageUrl,
+          ...(subject.key ? { key: subject.key } : {}),
+          ...(subject.command ? { command: subject.command } : {}),
+          ...(filePath ? { filePath } : {}),
+          rule: evaluated.matched,
+          reason: evaluated.reason,
+          ...(subject.run?.threadId ? { threadId: subject.run.threadId } : {}),
+          ...(subject.run?.runId ? { runId: subject.run.runId } : {}),
+        });
+        await write(auditStore, { ...row, decision, held: held.id });
+        throw new ActionHeldError(held.message, held.id);
+      }
+    }
+
+    await write(auditStore, {
+      ...row,
       decision,
+      ...(approvalId ? { approval: approvalId } : {}),
     });
     if (!decision.forward) {
       throw new ActionRefusedError(decision.reason, decision.matched);
@@ -611,6 +817,7 @@ export function createComputerGateway(
         filePath,
         pageUrl,
         decision,
+        ...(approvalId ? { approval: approvalId } : {}),
         failure: error instanceof Error ? error.message : "The action failed.",
         // A person pressing Stop mid-action is not the computer failing. The message still says so;
         // this keeps the row's type a stop, so a count of failed actions does not read every Stop as
@@ -819,12 +1026,12 @@ export function createComputerGateway(
      * The transport applies its target guard before it sends a request. This is
      * the minimum rule that applies even when the action policy permits the URL.
      */
-    navigate(botId: string, actor: ActionActor, url: string) {
+    navigate(botId: string, actor: ActionActor, url: string, run?: ActionRun) {
       return govern(
         "computer_navigate",
         botId,
         actor,
-        { targetUrl: url },
+        { targetUrl: url, input: { url }, ...(run ? { run } : {}) },
         async () => transport.navigate(await locate(botId), botId, url),
       );
     },
@@ -834,12 +1041,15 @@ export function createComputerGateway(
       actor: ActionActor,
       input: ClickInput,
       signal?: AbortSignal,
+      run?: ActionRun,
     ) {
       return govern(
         "computer_click",
         botId,
         actor,
         {
+          input,
+          ...(run ? { run } : {}),
           ref: input.ref,
           snapshotId: input.snapshotId,
           ...(signal ? { signal } : {}),
@@ -861,12 +1071,15 @@ export function createComputerGateway(
       actor: ActionActor,
       input: TypeInput,
       signal?: AbortSignal,
+      run?: ActionRun,
     ) {
       return govern(
         "computer_type",
         botId,
         actor,
         {
+          input,
+          ...(run ? { run } : {}),
           ref: input.ref,
           snapshotId: input.snapshotId,
           /*
@@ -890,6 +1103,7 @@ export function createComputerGateway(
       actor: ActionActor,
       input: KeyInput,
       signal?: AbortSignal,
+      run?: ActionRun,
     ) {
       return govern(
         "computer_key",
@@ -898,6 +1112,8 @@ export function createComputerGateway(
         // The key is part of the subject, so a rule can tell Enter from a letter. Form submission can
         // happen through a keypress as well as a click, so the policy context carries the key.
         {
+          input,
+          ...(run ? { run } : {}),
           ref: input.ref,
           snapshotId: input.snapshotId,
           key: input.key,
@@ -908,9 +1124,18 @@ export function createComputerGateway(
       );
     },
 
-    scroll(botId: string, actor: ActionActor, input: ScrollInput) {
-      return govern("computer_scroll", botId, actor, {}, () =>
-        post<ActionResult>(botId, "/scroll", input),
+    scroll(
+      botId: string,
+      actor: ActionActor,
+      input: ScrollInput,
+      run?: ActionRun,
+    ) {
+      return govern(
+        "computer_scroll",
+        botId,
+        actor,
+        { input, ...(run ? { run } : {}) },
+        () => post<ActionResult>(botId, "/scroll", input),
       );
     },
 
@@ -921,12 +1146,17 @@ export function createComputerGateway(
      * workspace accumulates whatever a Bot has saved across every task it has ever run, so which of
      * those files it may read back is a real question for a deployment to be able to answer.
      */
-    readFile(botId: string, actor: ActionActor, input: ReadFileInput) {
+    readFile(
+      botId: string,
+      actor: ActionActor,
+      input: ReadFileInput,
+      run?: ActionRun,
+    ) {
       return govern(
         "computer_read_file",
         botId,
         actor,
-        { filePath: input.path },
+        { filePath: input.path, input, ...(run ? { run } : {}) },
         () => post<ReadFileResult>(botId, "/files/read", input),
       );
     },
@@ -936,12 +1166,17 @@ export function createComputerGateway(
      * every task it has run is worth being able to restrict. A rule denying a folder hides it from the
      * listing as well as from reads, which is the consistent answer.
      */
-    listFiles(botId: string, actor: ActionActor, input: ListFilesInput) {
+    listFiles(
+      botId: string,
+      actor: ActionActor,
+      input: ListFilesInput,
+      run?: ActionRun,
+    ) {
       return govern(
         "computer_list_files",
         botId,
         actor,
-        { filePath: input.path ?? "." },
+        { filePath: input.path ?? ".", input, ...(run ? { run } : {}) },
         () => post<ListFilesResult>(botId, "/files/list", input),
       );
     },
@@ -958,12 +1193,18 @@ export function createComputerGateway(
       actor: ActionActor,
       input: RunCommandInput,
       caller?: AbortSignal,
+      run?: ActionRun,
     ) {
       return govern(
         "computer_run_command",
         botId,
         actor,
-        { command: input.command, ...(caller ? { signal: caller } : {}) },
+        {
+          command: input.command,
+          input,
+          ...(run ? { run } : {}),
+          ...(caller ? { signal: caller } : {}),
+        },
         () =>
           post<RunCommandResult>(
             botId,
@@ -975,12 +1216,17 @@ export function createComputerGateway(
       );
     },
 
-    writeFile(botId: string, actor: ActionActor, input: WriteFileInput) {
+    writeFile(
+      botId: string,
+      actor: ActionActor,
+      input: WriteFileInput,
+      run?: ActionRun,
+    ) {
       return govern(
         "computer_write_file",
         botId,
         actor,
-        { filePath: input.path },
+        { filePath: input.path, input, ...(run ? { run } : {}) },
         () => post<WriteFileResult>(botId, "/files/write", input),
       );
     },
@@ -1090,6 +1336,10 @@ async function write(
     failure?: string;
     /** Set when that non-success was a person pressing Stop, so the row is typed a stop, not a failure. */
     stopped?: boolean;
+    /** The request a held action is now waiting on. Makes the row a `computer.action_held`. */
+    held?: string;
+    /** The approved request this action carries out, on every row its replay writes. */
+    approval?: string;
   },
 ) {
   await recordAuditEvent(auditStore, {
@@ -1097,13 +1347,15 @@ async function write(
     // is that a reader can tell an action that happened from one that was permitted and then did not.
     // A stop is a third kind again: the action did not happen, but nothing broke, so it is neither a
     // failure to be counted as an outage nor an action that was carried out.
-    eventType: entry.stopped
-      ? "computer.action_stopped"
-      : entry.failure
-        ? "computer.action_failed"
-        : entry.decision.allowed
-          ? "computer.action_allowed"
-          : "computer.action_refused",
+    eventType: entry.held
+      ? "computer.action_held"
+      : entry.stopped
+        ? "computer.action_stopped"
+        : entry.failure
+          ? "computer.action_failed"
+          : entry.decision.allowed
+            ? "computer.action_allowed"
+            : "computer.action_refused",
     targetType: "computer",
     targetId: entry.botId,
     // Only ever a real users row. The audit table has a foreign key to it, so writing the local
@@ -1154,6 +1406,8 @@ async function write(
           ? "not in the current snapshot"
           : undefined,
       ...(entry.failure ? { failure: entry.failure } : {}),
+      ...(entry.held ? { approval: entry.held } : {}),
+      ...(entry.approval ? { approval: entry.approval } : {}),
       decision: {
         allowed: entry.decision.allowed,
         mode: entry.decision.mode,

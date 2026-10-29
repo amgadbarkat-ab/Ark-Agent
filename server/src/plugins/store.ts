@@ -40,6 +40,7 @@ import {
   pluginGrants,
   skills,
   skillTools,
+  toolCallRules,
 } from "../db/schema";
 import {
   accessFor,
@@ -71,6 +72,12 @@ import {
   toolkitOf,
   VERSION_ARG,
 } from "./composio";
+import {
+  HELD_MARKER,
+  type ToolCallApprovals,
+  type ToolCallOutcome,
+  toolCallOutcome,
+} from "./call-outcome";
 import { inspectToolArguments } from "./content-governance";
 import { type ListedTool, McpServerError } from "./mcp";
 import { registerDynamicClient } from "./oauth";
@@ -129,6 +136,14 @@ export type ToolRecord = {
    */
   destructive: boolean;
   grantedTo: string[];
+  /**
+   * What happens when a digital employee calls it: runs, asks a person first, or is refused.
+   *
+   * Always the answer in force, default or not, so a screen never has to work out the default
+   * itself and get it wrong. `onCallSet` says whether an administrator chose it.
+   */
+  onCall: ToolCallOutcome;
+  onCallSet: boolean;
 };
 
 /**
@@ -1162,6 +1177,14 @@ export type PluginStoreOptions = {
   broker?: ComposioBroker;
   /** Where the vendor sends people back; needed to (re)register a dynamic client. */
   redirectUri?: string;
+  /**
+   * Where a call that needs a person's approval goes, and where an approved one is read back from.
+   *
+   * Absent means this deployment has nobody to ask: a tool an administrator set to ask first is
+   * refused rather than run, and a tool nobody set keeps the behaviour it had before approvals
+   * existed. See `toolCallOutcome`.
+   */
+  approvals?: ToolCallApprovals;
 };
 
 /**
@@ -1189,6 +1212,28 @@ function schemeFor(connection: BrokerConnection): RecordedScheme | null {
 
 export function createPluginStore(options: PluginStoreOptions) {
   const { database, auditStore, credentials, encryptionKey } = options;
+  const approvals = options.approvals;
+
+  /** What an administrator set for each tool on these servers, keyed `<serverId>/<toolName>`. */
+  async function toolCallRulesFor(
+    serverIds: string[],
+  ): Promise<Map<string, ToolCallOutcome>> {
+    if (serverIds.length === 0) return new Map();
+    const rows = await database
+      .select()
+      .from(toolCallRules)
+      .where(inArray(toolCallRules.serverId, serverIds));
+    return new Map(
+      rows
+        .filter((row) =>
+          ["allow", "ask", "refuse"].includes(row.outcome as string),
+        )
+        .map((row) => [
+          `${row.serverId}/${row.toolName}`,
+          row.outcome as ToolCallOutcome,
+        ]),
+    );
+  }
   /*
    * Held rather than resolved, because the transport is a property of the entry and is not known
    * until a call names one. An injected vendor still wins over both, which is what keeps a test able
@@ -4069,6 +4114,7 @@ export function createPluginStore(options: PluginStoreOptions) {
        * grants that are the point here — see `mcpGrantsForServers`.
        */
       const grants = await mcpGrantsForServers(rows.map((row) => row.id));
+      const rules = await toolCallRulesFor(rows.map((row) => row.id));
       const advertised = new Set(
         tools.map((tool) => `${tool.serverId}/${tool.name}`),
       );
@@ -4121,15 +4167,23 @@ export function createPluginStore(options: PluginStoreOptions) {
             .filter((tool) => tool.serverId === row.id)
             .map((tool) => {
               const ref = `${tool.serverId}/${tool.name}`;
+              const effect = classifyTool(entry, tool.name, true, tool.effect);
+              const set = rules.get(ref) ?? null;
               return {
                 serverId: tool.serverId,
                 name: tool.name,
                 description: tool.description,
                 inputSchema: tool.inputSchema as Record<string, unknown>,
                 ref,
-                effect: classifyTool(entry, tool.name, true, tool.effect),
+                effect,
                 destructive: tool.destructive,
                 grantedTo: grants.get(ref) ?? [],
+                onCall: toolCallOutcome({
+                  set,
+                  effect,
+                  canAsk: Boolean(approvals),
+                }),
+                onCallSet: set !== null,
               };
             }),
           /*
@@ -4625,6 +4679,52 @@ export function createPluginStore(options: PluginStoreOptions) {
           ),
         );
       return rows.map((row) => row.ref);
+    },
+
+    /**
+     * Set what happens when a digital employee calls one tool, or put it back to the default.
+     *
+     * Applies to the next call, with nothing cached in between: `callTool` reads it per call, for the
+     * reason it reads the grant per call. Written to the trail like a grant, because "who made this
+     * tool stop asking" is the first question after a payment nobody approved.
+     */
+    async setToolCallOutcome(
+      serverId: string,
+      toolName: string,
+      outcome: ToolCallOutcome | null,
+      by: string,
+    ): Promise<void> {
+      await requireServer(serverId);
+      if (outcome === null) {
+        await database
+          .delete(toolCallRules)
+          .where(
+            and(
+              eq(toolCallRules.serverId, serverId),
+              eq(toolCallRules.toolName, toolName),
+            ),
+          );
+      } else {
+        await database
+          .insert(toolCallRules)
+          .values({ serverId, toolName, outcome, setBy: by })
+          .onConflictDoUpdate({
+            target: [toolCallRules.serverId, toolCallRules.toolName],
+            set: { outcome, setBy: by, updatedAt: new Date() },
+          });
+      }
+      await recordAuditEvent(auditStore, {
+        eventType: "configuration.changed",
+        targetType: "mcp_tool",
+        targetId: `${serverId}/${toolName}`,
+        payload: {
+          actor: by,
+          change: "tool_call_outcome_set",
+          server: serverId,
+          tool: toolName,
+          outcome: outcome ?? "default",
+        },
+      });
     },
 
     async grant(
@@ -7057,12 +7157,55 @@ export function createPluginStore(options: PluginStoreOptions) {
       botId: string;
       actorId: string;
       initiator?: AuditInitiator;
-    }): Promise<{ text: string; isError: boolean }> {
+      /**
+       * The run making the call, as the deployment knows it: where an approval's outcome goes back.
+       * From the signed run assertion on the callback door and from the runtime's own run on the
+       * in-process one, never from the model.
+       */
+      run?: { runId?: string; threadId?: string };
+      /**
+       * Carry out a call a person approved. Only the code that runs an approved request passes this,
+       * and when it does the ARGUMENTS COME FROM THE APPROVED ROW, not from `args`: what runs is what
+       * the person was shown, never something regenerated after they said yes.
+       */
+      approvalId?: string;
+    }): Promise<{
+      text: string;
+      isError: boolean;
+      /** Present when the call did not run and is waiting for a person. */
+      held?: { approvalId: string };
+    }> {
       const [serverId, ...rest] = input.ref.split("/");
       const toolName = rest.join("/");
       if (!serverId || !toolName) {
         throw new PluginRefusedError(`${input.ref} is not a tool.`, null);
       }
+
+      /*
+       * An approved call is the approved row, checked before anything else is asked.
+       *
+       * The row names the person, the employee, the tool and the arguments, and all four have to be
+       * this call's. Anything else — an id that is not approved, was declined, lapsed, or names a
+       * different tool — is refused here, so there is no way to reach the vendor past a held call
+       * by saying an approval exists.
+       */
+      const approved = input.approvalId
+        ? await approvals?.approved(input.approvalId)
+        : undefined;
+      if (input.approvalId) {
+        if (
+          !approved ||
+          approved.ref !== input.ref ||
+          approved.botId !== input.botId ||
+          approved.ownerUserId !== input.actorId
+        ) {
+          throw new PluginRefusedError(
+            "This call has no approval that matches it, so it was not made.",
+            null,
+          );
+        }
+      }
+      const callArgs = approved ? approved.args : input.args;
 
       /*
        * Who the trail says made this call, which is not what the call is made AS.
@@ -7118,7 +7261,7 @@ export function createPluginStore(options: PluginStoreOptions) {
       );
 
       const args = withoutEmptyOptionals(
-        input.args,
+        callArgs,
         advertised[0]?.inputSchema as Record<string, unknown> | undefined,
       );
 
@@ -7202,6 +7345,8 @@ export function createPluginStore(options: PluginStoreOptions) {
         server: serverId,
         tool: toolName,
         effect,
+        // The request a person approved, on every row an approved call writes.
+        ...(input.approvalId ? { approval: input.approvalId } : {}),
         /*
          * Whose credential this call goes out with.
          *
@@ -7239,7 +7384,14 @@ export function createPluginStore(options: PluginStoreOptions) {
        * stopped, true is one dry-run recorded and let past. The outcome row below is unchanged, so a
        * forwarded call still says separately whether the vendor answered.
        */
-      if (!verdict.allowed) {
+      /*
+       * A rule that asks for a person is not a refusal, and is not written as one: it is held below,
+       * after the content inspection, so a person is never asked to approve a call this deployment
+       * would refuse anyway. In dry-run it forwards like any other rule and the outcome row carries
+       * `source: "approve"` to say a person would have been asked.
+       */
+      const ruleAsks = verdict.needsApproval === true && !verdict.forward;
+      if (!verdict.allowed && !verdict.needsApproval) {
         await recordAuditEvent(auditStore, {
           eventType: "mcp.call_rejected",
           targetType: "mcp_tool",
@@ -7248,7 +7400,7 @@ export function createPluginStore(options: PluginStoreOptions) {
           payload: decided,
         });
       }
-      if (!verdict.forward) {
+      if (!verdict.forward && !ruleAsks) {
         throw new PluginRefusedError(verdict.reason, verdict.matched);
       }
 
@@ -7294,6 +7446,121 @@ export function createPluginStore(options: PluginStoreOptions) {
           contentDecision.reason === "sensitive_content"
             ? "The tool call was refused because its arguments contain credential material."
             : "The tool call was refused because its arguments could not be inspected safely.",
+          null,
+        );
+      }
+
+      /*
+       * The third answer: run, ask a person first, or refuse — per tool, read per call.
+       *
+       * After the grant, the boundary and the content inspection, so what is held is a call that
+       * would otherwise go out, and before any credential is read or vendor contacted, so a held call
+       * has touched nothing. See `call-outcome.ts` for the default.
+       */
+      const [setRule] = await database
+        .select({ outcome: toolCallRules.outcome })
+        .from(toolCallRules)
+        .where(
+          and(
+            eq(toolCallRules.serverId, serverId),
+            eq(toolCallRules.toolName, toolName),
+          ),
+        )
+        .limit(1);
+      const set =
+        setRule && ["allow", "ask", "refuse"].includes(setRule.outcome)
+          ? (setRule.outcome as ToolCallOutcome)
+          : null;
+      const outcome = toolCallOutcome({
+        set,
+        effect,
+        canAsk: Boolean(approvals),
+      });
+
+      if (outcome === "refuse") {
+        const reason = `An administrator has set ${toolName} on ${row.title} so that digital employees may not call it.`;
+        await recordAuditEvent(auditStore, {
+          eventType: "mcp.call_rejected",
+          targetType: "mcp_tool",
+          targetId: input.ref,
+          ...(input.initiator ? { initiator: input.initiator } : {}),
+          payload: {
+            ...decided,
+            decision: { ...decided.decision, carriedOut: false },
+            refusal: "tool_refused",
+            reason,
+          },
+        });
+        throw new PluginRefusedError(reason, null);
+      }
+
+      if ((outcome === "ask" || ruleAsks) && !approved) {
+        if (!approvals) {
+          const reason = `${toolName} on ${row.title} needs a person to approve it first, and this deployment has nowhere to ask, so it was not called.`;
+          await recordAuditEvent(auditStore, {
+            eventType: "mcp.call_rejected",
+            targetType: "mcp_tool",
+            targetId: input.ref,
+            ...(input.initiator ? { initiator: input.initiator } : {}),
+            payload: {
+              ...decided,
+              decision: { ...decided.decision, carriedOut: false },
+              refusal: "approval_unavailable",
+              reason,
+            },
+          });
+          throw new PluginRefusedError(reason, verdict.matched);
+        }
+        const held = await approvals.hold({
+          ownerUserId: input.actorId,
+          botId: input.botId,
+          ref: input.ref,
+          server: serverId,
+          serverTitle: row.title,
+          tool: toolName,
+          args: modelArgs,
+          version: advertised[0]?.version ?? null,
+          effect,
+          because: ruleAsks
+            ? { kind: "rule", rule: verdict.matched }
+            : { kind: "tool" },
+          ...(input.run?.threadId ? { threadId: input.run.threadId } : {}),
+          ...(input.run?.runId ? { runId: input.run.runId } : {}),
+          ...(input.initiator ? { initiator: input.initiator } : {}),
+        });
+        /*
+         * The request is the event: what was asked, of whom, and that nothing went out. Its id ties
+         * this row to the decision rows and to the outcome row the approved call will write.
+         */
+        await recordAuditEvent(auditStore, {
+          eventType: "mcp.call_held",
+          targetType: "mcp_tool",
+          targetId: input.ref,
+          ...(input.initiator ? { initiator: input.initiator } : {}),
+          payload: {
+            ...decided,
+            decision: { ...decided.decision, carriedOut: false },
+            approval: held.id,
+            heldBy: ruleAsks ? "rule" : "tool",
+          },
+        });
+        return {
+          text: `${HELD_MARKER} ${held.message}`,
+          isError: false,
+          held: { approvalId: held.id },
+        };
+      }
+
+      /*
+       * An approved call runs only as the action the person saw. A vendor that re-published the
+       * action since (a new version) may now do something else, so it is refused and asked again.
+       */
+      if (
+        approved &&
+        (approved.version ?? null) !== (advertised[0]?.version ?? null)
+      ) {
+        throw new PluginRefusedError(
+          `${toolName} on ${row.title} has changed since this call was approved, so it was not made. Ask again.`,
           null,
         );
       }
