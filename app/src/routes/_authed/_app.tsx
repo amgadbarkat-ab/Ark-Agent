@@ -5,6 +5,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar/app-sidebar";
+import { OwnBrowserIndicator } from "@/components/computer/own-browser-indicator";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { accountQueryOptions } from "@/lib/account/queries";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
@@ -48,6 +49,8 @@ function RouteComponent() {
     <SidebarShell className="h-svh overflow-hidden" width="340px">
       <AppSidebar />
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Above every screen: a digital employee working in the person's own browser is never out of sight. */}
+        <OwnBrowserIndicator />
         <Outlet />
       </main>
     </SidebarShell>

@@ -36,6 +36,12 @@ import {
   type HostFolderGrant,
   type HostAccessPendingOperation,
 } from "@/lib/computers/host-access";
+import {
+  isDriving,
+  type OwnBrowserStatus,
+  ownBrowserQueryOptions,
+  setOwnBrowserEmployeeMutationOptions,
+} from "@/lib/computers/own-browser";
 import { computerFleetQueryOptions } from "@/lib/computers/queries";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
@@ -52,6 +58,10 @@ function ComputersPage() {
 
   const fleet = useQuery(computerFleetQueryOptions());
   const hostAccess = useQuery(hostAccessQueryOptions());
+  const ownBrowser = useQuery(ownBrowserQueryOptions());
+  const setOwnBrowser = useMutation(
+    setOwnBrowserEmployeeMutationOptions(queryClient),
+  );
   const agents = useQuery(agentListQueryOptions());
   const setState = useMutation(setComputerStateMutationOptions(queryClient));
   const requestGrant = useMutation(
@@ -120,6 +130,21 @@ function ComputersPage() {
           Each digital employee has a computer of its own: its own container,
           its own files and its own browser profile.
         </p>
+      ) : null}
+
+      {ownBrowser.data?.desktop ? (
+        <OwnBrowserSection
+          botIds={(agents.data ?? []).map((agent) => agent.id)}
+          busyBotId={
+            setOwnBrowser.isPending
+              ? (setOwnBrowser.variables?.botId ?? null)
+              : null
+          }
+          nameFor={nameFor}
+          onChoose={(botId, use) => setOwnBrowser.mutate({ botId, use })}
+          problem={setOwnBrowser.error ? setOwnBrowser.error.message : null}
+          status={ownBrowser.data}
+        />
       ) : null}
 
       <HostFoldersSection
@@ -257,6 +282,102 @@ function ComputersPage() {
         .
       </p>
     </PageShell>
+  );
+}
+
+/**
+ * Which digital employees work in the person's own Chrome or Edge (device control, phase 1).
+ *
+ * Only on the desktop app, and only usable while its switch is on. The switch is not here on purpose:
+ * it lives in the desktop app's own menu, so nothing a page shows can turn somebody's browser on.
+ */
+function OwnBrowserSection({
+  botIds,
+  busyBotId,
+  nameFor,
+  onChoose,
+  problem,
+  status,
+}: {
+  botIds: string[];
+  busyBotId: string | null;
+  nameFor: (botId: string) => string;
+  onChoose: (botId: string, use: boolean) => void;
+  problem: string | null;
+  status: OwnBrowserStatus;
+}) {
+  const chosen = new Map(
+    status.employees.map((choice) => [choice.botId, choice]),
+  );
+  const sorted = Array.from(new Set([...botIds, ...chosen.keys()])).sort(
+    (left, right) => nameFor(left).localeCompare(nameFor(right)),
+  );
+  return (
+    <PageSection
+      description="Let a digital employee work in your own Chrome or Edge, in a separate ArkAgent profile with none of your saved passwords. Payments, sending, form submissions and deletions wait for your approval, and every action is recorded."
+      title="Your own browser"
+    >
+      {problem ? (
+        <p
+          className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
+          role="alert"
+        >
+          {problem}
+        </p>
+      ) : null}
+      {!status.available ? (
+        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+          Switched off. To use it, choose{" "}
+          <span className="font-medium">
+            Let digital employees use my browser
+          </span>{" "}
+          in the ArkAgent menu of the desktop app. Switching it off there, or
+          closing that browser window, ends it at once.
+        </p>
+      ) : null}
+      {sorted.length === 0 ? (
+        <PageEmpty>No digital employees yet.</PageEmpty>
+      ) : (
+        <PageRows>
+          {sorted.map((botId, index) => {
+            const choice = chosen.get(botId);
+            return (
+              <StaggerItem index={index} key={botId}>
+                <Item size="sm">
+                  <ItemContent>
+                    <ItemTitle title={botId}>{nameFor(botId)}</ItemTitle>
+                    <ItemDescription>
+                      {choice
+                        ? isDriving(choice)
+                          ? "Working in your browser now."
+                          : "Uses your browser."
+                        : "Uses its own browser in a sandbox."}
+                    </ItemDescription>
+                  </ItemContent>
+                  <ItemActions>
+                    <Button
+                      disabled={
+                        busyBotId === botId || (!choice && !status.available)
+                      }
+                      onClick={() => onChoose(botId, !choice)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      {busyBotId === botId
+                        ? "Working…"
+                        : choice
+                          ? "Back to its own browser"
+                          : "Use my browser"}
+                    </Button>
+                  </ItemActions>
+                </Item>
+                {index !== sorted.length - 1 && <Separator />}
+              </StaggerItem>
+            );
+          })}
+        </PageRows>
+      )}
+    </PageSection>
   );
 }
 
