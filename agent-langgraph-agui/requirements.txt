@@ -3,6 +3,10 @@ langgraph
 langchain
 langchain-openai
 langchain-anthropic
+# Held below 2: anthropic 2.x sends the key as "Authorization: Bearer" instead of "x-api-key", which
+# changes what reaches an Anthropic-compatible endpoint set with ANTHROPIC_BASE_URL. It arrived
+# unannounced through the unpinned langchain-anthropic and turned the provider-boundary tests red.
+anthropic>=0.120.0,<2
 langchain-google-genai
 fastapi
 python-multipart
