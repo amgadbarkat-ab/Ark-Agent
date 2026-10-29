@@ -66,7 +66,7 @@ export function goLiveChecks(facts: DeploymentFacts): Check[] {
       state: "todo",
       detail:
         facts.billing.id === "stripe"
-          ? "The payment provider (stripe) is in test mode, so no real money is taken. Stripe is supported in test mode only for now (docs/ark/25-stripe.md)."
+          ? "The payment provider (stripe) is in test mode, so no real money is taken. Stripe is supported in test mode only for now (docs/ark/26-stripe.md)."
           : `The payment provider (${facts.billing.id}) is in test mode, so no real money is taken. Switch to the live Paddle account once the sandbox run has passed.`,
     });
   } else {

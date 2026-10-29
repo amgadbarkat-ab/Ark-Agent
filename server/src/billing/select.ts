@@ -11,7 +11,7 @@ import { stripeBilling, stripeEnvironmentOf } from "./stripe";
  * payment; it refuses to start without a secret, so it cannot be turned on by accident half-configured.
  * `paddle` is the real one (Paddle Billing, decided 2026-10-08); it refuses to start unless every setting it needs is present and consistent.
  * `stripe` is the alternative for a deployment that sells through Stripe and handles its own tax. It is
- * test mode only for now: a live key is refused until the live run in docs/ark/25-stripe.md is done.
+ * test mode only for now: a live key is refused until the live run in docs/ark/26-stripe.md is done.
  */
 export function billingFromEnvironment(
   environment: Record<string, string | undefined>,
@@ -102,7 +102,7 @@ export function billingFromEnvironment(
      */
     if (stripeEnvironmentOf(secretKey) === "live") {
       throw new Error(
-        "STRIPE_SECRET_KEY is a live key, and Stripe is supported in test mode only for now. Use a test key (sk_test_... or rk_test_...); docs/ark/25-stripe.md says what is left before live.",
+        "STRIPE_SECRET_KEY is a live key, and Stripe is supported in test mode only for now. Use a test key (sk_test_... or rk_test_...); docs/ark/26-stripe.md says what is left before live.",
       );
     }
     const prices: Record<string, string> = {};

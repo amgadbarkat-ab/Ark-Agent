@@ -11,7 +11,7 @@ import { formEncode, STRIPE_API_VERSION, stripeEnvironmentOf } from "./stripe";
  * price, and moving subscribers onto it is a decision): a price that differs from the table is reported
  * as `drift` and left alone.
  *
- * Refuses a live key, as the server does (docs/ark/25-stripe.md). The webhook endpoint is made by hand
+ * Refuses a live key, as the server does (docs/ark/26-stripe.md). The webhook endpoint is made by hand
  * in Stripe's dashboard, because its signing secret is shown once and belongs in the secret store, not
  * in a script's output.
  */

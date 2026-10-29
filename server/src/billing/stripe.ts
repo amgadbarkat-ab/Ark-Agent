@@ -30,7 +30,7 @@ import {
  *
  * Not done: charging for what was used (`charge`, the cloud add-on). That stays Paddle's, and a Stripe
  * deployment that turns metered cloud running on finds each month left pending with a sentence saying
- * there is nothing to charge it to. See docs/ark/25-stripe.md.
+ * there is nothing to charge it to. See docs/ark/26-stripe.md.
  */
 
 export type StripeEnvironment = "test" | "live";
