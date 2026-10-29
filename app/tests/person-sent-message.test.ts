@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import {
+  frameColleagueAnswer,
+  readColleagueAnswer,
+} from "../../shared/handoff-markers";
 import { frameFiring } from "../../shared/routine-firing";
 import { isPersonSentMessage } from "../src/components/channels/chat-transcript";
 
@@ -20,6 +24,20 @@ describe("isPersonSentMessage", () => {
   test("a routine firing wears role: user but was never typed by anyone", () => {
     const firing = frameFiring("Check the queue and summarize backlog age.");
     expect(isPersonSentMessage("user", firing)).toBe(false);
+  });
+
+  test("a colleague's relayed answer wears role: user but is the colleague speaking", () => {
+    const answer = frameColleagueAnswer(
+      "Customer Support",
+      "1. No proof.\n2. No VAT.\n3. A precedent.",
+    );
+    expect(isPersonSentMessage("user", answer)).toBe(false);
+    expect(readColleagueAnswer(answer)).toEqual({
+      name: "Customer Support",
+      answer: "1. No proof.\n2. No VAT.\n3. A precedent.",
+    });
+    // A person's own message that merely mentions a colleague is still theirs.
+    expect(readColleagueAnswer("the answer from Customer Support?")).toBe(null);
   });
 
   test("an assistant message is never the person's, framed or not", () => {

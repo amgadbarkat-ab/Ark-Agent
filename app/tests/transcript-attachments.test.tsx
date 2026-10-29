@@ -17,6 +17,7 @@ import {
 } from "@/components/channels/chat-transcript";
 import type { QueuedMessage } from "@/components/channels/composer";
 import { attachmentUrl } from "@/lib/channels/attachments";
+import { frameColleagueAnswer } from "../../shared/handoff-markers";
 import { settleReactWork } from "./settle-react-work";
 
 /**
@@ -264,6 +265,27 @@ test("a plain string message renders exactly as before", () => {
   ]);
 
   expect(getByText("when does the offer expire?")).toBeTruthy();
+});
+
+/*
+ * Stored as the person's turn, so the transcript has to tell it apart: a colleague's answer is drawn
+ * under the colleague's name, whole, and without the frame that marks it (DT Lab, v0.1.19, step 1).
+ */
+test("a colleague's relayed answer is drawn as the colleague's, word for word", () => {
+  const { getByText, queryByText } = renderTranscript([
+    userMessage(
+      frameColleagueAnswer(
+        "Customer Support",
+        "No receipt means no proof the dinner was business.",
+      ),
+    ),
+  ]);
+
+  expect(getByText("Customer Support")).toBeTruthy();
+  expect(
+    getByText("No receipt means no proof the dinner was business."),
+  ).toBeTruthy();
+  expect(queryByText(/Passed on word for word/)).toBeNull();
 });
 
 test("two files sent together are drawn as one row, not two", () => {

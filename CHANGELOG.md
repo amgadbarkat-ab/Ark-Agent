@@ -26,6 +26,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   browser now reports which buttons submit a form, so the default "ask before submitting" rule holds
   a plain "Verify" or "Continue" button in a form, as it was meant to.
 
+### Digital employees
+
+- **Fixed: when one digital employee asked a colleague for something, you never saw the
+  colleague's answer.** Only the employee that asked was shown it, and a small local model could
+  report back with "Customer Support got back to me" and nothing else. The colleague's answer now
+  appears in your conversation word for word, under the colleague's name, before the employee that
+  asked reports on it, and that employee is told to pass every point on rather than sum it up.
+
 ### Security
 
 - **A public page could still redirect an employee's browser to the office network** (device control,
