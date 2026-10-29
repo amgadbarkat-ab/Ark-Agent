@@ -224,7 +224,9 @@ describe("a tool call held for a person", () => {
     expect(request?.requestedByAgentId).toBe(rita.id);
     expect(request?.threadId).toBe("thread-1");
     expect(request?.runId).toBe("run-1");
-    expect((request?.payload as { args: unknown }).args).toEqual(ARGS);
+    expect((request?.payload as { args?: unknown } | undefined)?.args).toEqual(
+      ARGS,
+    );
 
     // The request, its decision rows to come, and the call's outcome share one id.
     const held = rows.find((row) => row.eventType === "mcp.call_held");
