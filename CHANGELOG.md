@@ -13,6 +13,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **The Windows installer now includes Node 24.22.1 and its licence**, so the installer is about
   27 MB (was about 5 MB). Nothing extra is downloaded on your PC. macOS and Linux are unchanged.
 
+### Models
+
+- **Inception · Mercury 3 is a named choice** under Models, with your own Inception key: a very fast
+  model with a 1M-token context, billed by Inception to your account (new accounts start with a free
+  allowance). Inception's documentation does not say how it keeps or uses prompts, so check its terms
+  before sending customer data.
+
 ### Digital employees
 
 - **What you typed on the home screen while your message was being sent is kept** (DT Lab, v0.1.19).

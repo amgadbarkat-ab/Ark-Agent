@@ -186,6 +186,24 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
     ],
   },
   {
+    id: "inception",
+    name: "Inception · Mercury 3",
+    tier: "paid",
+    protocol: "openai",
+    baseUrl: "https://api.inceptionlabs.ai/v1",
+    baseUrlEditable: false,
+    keyRequired: true,
+    keyHelpUrl: "https://platform.inceptionlabs.ai/dashboard/api-keys",
+    suggestedModels: ["mercury-3"],
+    modelFilter: "^mercury-3",
+    summary:
+      "Mercury 3, a very fast model with a 1M-token context, billed by Inception to your own account.",
+    notes: [
+      "New Inception accounts start with a free allowance of tokens; after that it is billed per token.",
+      "Inception's documentation does not say how it keeps or uses prompts. Check its terms before sending customer data.",
+    ],
+  },
+  {
     id: "xai",
     name: "xAI (Grok)",
     tier: "paid",
