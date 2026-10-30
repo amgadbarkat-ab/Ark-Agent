@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.21
+
 ### Desktop
 
 - **The Windows installer now includes Node 24.22.1 and its licence**, so the installer is about
