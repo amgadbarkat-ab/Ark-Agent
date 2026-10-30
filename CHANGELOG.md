@@ -10,11 +10,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ### Desktop
 
-- **Device control now works on Windows: the part that drives your Chrome or Edge runs under Node,
-  which comes inside the Windows installer** (Node 24.22.1, about 90 MB unpacked, with its licence).
-  Under Bun it could not drive the browser on Windows at all. Nothing is downloaded on your PC for it;
-  if the installed copy is missing, ArkAgent says so and installing again repairs it. macOS and Linux
-  are unchanged.
+- **The Windows installer now includes Node 24.22.1 and its licence**, so the installer is about
+  27 MB (was about 5 MB). Nothing extra is downloaded on your PC. macOS and Linux are unchanged.
 
 ### Digital employees
 
@@ -22,6 +19,11 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   The home box stays open while ArkAgent picks the employee for a new message, which with a slow model
   can take a few seconds, and anything typed then was lost when the conversation opened. It now waits
   in the conversation's message box, unsent.
+
+### Changed
+
+- **The Mastra Bot image installs the dependency versions it was tested with.** It had no lockfile and
+  took the newest release of everything at build time; it now builds from `agent-mastra/bun.lock`.
 
 ## 0.1.20
 
