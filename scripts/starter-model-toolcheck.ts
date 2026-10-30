@@ -261,14 +261,13 @@ export function judge(wanted: Case, message: Message): Verdict {
     }
   }
   for (const [name, needle] of Object.entries(wanted.expect.contains ?? {})) {
-    if (
-      !String(args[name] ?? "")
-        .toLowerCase()
-        .includes(needle.toLowerCase())
-    ) {
+    const sent = String(args[name] ?? "");
+    if (!sent.toLowerCase().includes(needle.toLowerCase())) {
+      // What the model sent, so a miss can be read: a search in the person's own script is not
+      // the same failure as a search for the wrong thing.
       return {
         ok: false,
-        why: `argument ${name} does not contain "${needle}"`,
+        why: `argument ${name} does not contain "${needle}" (sent ${JSON.stringify(sent.slice(0, 80))})`,
       };
     }
   }
@@ -296,9 +295,44 @@ export async function attempt(
     token?: string;
     model: string;
     timeoutSeconds: number;
+    /** How many times a 429 is waited out before it counts as a failure. */
+    rateLimitRetries?: number;
+    wait?: (seconds: number) => Promise<void>;
   },
   wanted: Case,
 ): Promise<Attempt> {
+  const retries = options.rateLimitRetries ?? 4;
+  const wait =
+    options.wait ??
+    ((seconds: number) =>
+      new Promise((done) => setTimeout(done, seconds * 1000)));
+  // A free tier answers 429 when asked too fast, which says nothing about the model's tool calls
+  // (desk #83: rounds 2 and 3 of Mercury 3 were all 429). So it is waited out, as the provider
+  // asks in Retry-After; only the answered request is timed, so the wait is not the model's.
+  for (let retry = 0; ; retry += 1) {
+    const { retryAfter, ...result } = await once(options, wanted);
+    if (result.verdict.why !== "HTTP 429" || retry >= retries) {
+      return result;
+    }
+    const asked = Number(retryAfter);
+    await wait(
+      Math.min(
+        60,
+        Number.isFinite(asked) && asked > 0 ? asked : 5 * 2 ** retry,
+      ),
+    );
+  }
+}
+
+async function once(
+  options: {
+    url: string;
+    token?: string;
+    model: string;
+    timeoutSeconds: number;
+  },
+  wanted: Case,
+): Promise<Attempt & { retryAfter?: string | null }> {
   const started = performance.now();
   const response = await fetch(`${options.url}/chat/completions`, {
     method: "POST",
@@ -328,6 +362,7 @@ export async function attempt(
       language: wanted.language,
       verdict: { ok: false, why: `HTTP ${response.status}` },
       seconds: (performance.now() - started) / 1000,
+      retryAfter: response.headers.get("retry-after"),
     };
   }
   const body = (await response.json()) as {
