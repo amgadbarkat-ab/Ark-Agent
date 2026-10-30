@@ -155,6 +155,55 @@ pub const NODE_ENTRY: &str = "dist/own-browser.mjs";
 /// where it should be: a damaged or partial installation, which installing again repairs.
 pub const NODE_MISSING: &str = "Device control on Windows needs the Node that comes with ArkAgent, and it is missing from this installation. Install ArkAgent again to repair it.";
 
+/// Whether a browser from an earlier session still has the ArkAgent profile open.
+///
+/// Chrome and Edge will not open a profile another of their processes holds, and all they say is
+/// that they exited. A window left open from before ArkAgent restarted (an update, a crash) held it
+/// that way, and switching on failed with "exit status: 1" until the person found and closed it
+/// (DT Lab, v0.1.21). Asked before starting, so the person is told which window to close.
+pub fn profile_in_use(profile: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        // A symbolic link to "<host>-<pid>" while the browser runs. One left by a browser that has
+        // gone names a process that is no longer there, and the browser itself clears it.
+        let Ok(target) = std::fs::read_link(profile.join("SingletonLock")) else {
+            return false;
+        };
+        let Some(pid) = target
+            .to_string_lossy()
+            .rsplit('-')
+            .next()
+            .and_then(|pid| pid.parse::<libc::pid_t>().ok())
+            .filter(|pid| *pid > 0)
+        else {
+            return false;
+        };
+        // Signal 0 only asks whether the process exists; one owned by somebody else still does.
+        let alive = unsafe { libc::kill(pid, 0) } == 0;
+        alive || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        // Held open, unshared, for as long as the browser runs; a stale one opens.
+        let lock = profile.join("lockfile");
+        lock.exists()
+            && std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(&lock)
+                .is_err()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = profile;
+        false
+    }
+}
+
+/// What the person is told when [`profile_in_use`].
+pub const PROFILE_IN_USE: &str = "an ArkAgent browser window from before is still open. Close that window, then switch this on again.";
+
 /// Whether `agent-computer` runs under Node here rather than Bun.
 ///
 /// Windows only. Playwright drives the browser over a pipe on extra file descriptors, and Bun on
@@ -367,6 +416,9 @@ impl OwnBrowser {
         }
         std::fs::create_dir_all(&config.profile)
             .map_err(|error| format!("could not make the ArkAgent browser profile: {error}"))?;
+        if profile_in_use(&config.profile) {
+            return Err(PROFILE_IN_USE.into());
+        }
         std::fs::create_dir_all(&config.logs).map_err(|error| error.to_string())?;
         let port = free_loopback_port().map_err(|error| error.to_string())?;
         let log = std::fs::File::create(config.logs.join("own-browser.log"))
@@ -511,6 +563,52 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_profile_still_held_by_a_browser_from_before_is_noticed() {
+        let profile = scratch("held-profile");
+        std::fs::create_dir_all(&profile).unwrap();
+        // No lock: free.
+        assert!(!profile_in_use(&profile));
+        // A lock naming a process that is running: this test's own.
+        let lock = profile.join("SingletonLock");
+        std::os::unix::fs::symlink(format!("box-{}", std::process::id()), &lock).unwrap();
+        assert!(profile_in_use(&profile));
+        // A lock left by a browser that has gone: free.
+        let mut gone = std::process::Command::new("true").spawn().unwrap();
+        let pid = gone.id();
+        gone.wait().unwrap();
+        std::fs::remove_file(&lock).unwrap();
+        std::os::unix::fs::symlink(format!("box-{pid}"), &lock).unwrap();
+        assert!(!profile_in_use(&profile));
+        // Something that is not a lock the browser wrote: free, rather than a guess.
+        std::fs::remove_file(&lock).unwrap();
+        std::os::unix::fs::symlink("not-a-pid", &lock).unwrap();
+        assert!(!profile_in_use(&profile));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_profile_still_held_by_a_browser_from_before_is_noticed() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let profile = scratch("held-profile");
+        std::fs::create_dir_all(&profile).unwrap();
+        assert!(!profile_in_use(&profile));
+        let lock = profile.join("lockfile");
+        std::fs::write(&lock, b"").unwrap();
+        // Left behind and not held: free.
+        assert!(!profile_in_use(&profile));
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&lock)
+            .unwrap();
+        assert!(profile_in_use(&profile));
+        drop(held);
+        assert!(!profile_in_use(&profile));
     }
 
     #[test]
