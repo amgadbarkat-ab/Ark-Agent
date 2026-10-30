@@ -83,6 +83,13 @@ describe("judging an answer", () => {
     ).toBe(false);
   });
 
+  test("a missing word says what the model searched for instead", () => {
+    expect(
+      judge(byId("search-ar"), call("search_web", { query: "سعر خام برنت" }))
+        .why,
+    ).toBe('argument query does not contain "brent" (sent "سعر خام برنت")');
+  });
+
   test("no tool call where one is needed fails", () => {
     expect(
       judge(byId("search-en"), { content: "I think it is about 80." }).why,
@@ -180,6 +187,67 @@ describe("running against a server", () => {
       byId("search-en"),
     );
     expect(result.verdict).toEqual({ ok: false, why: "HTTP 503" });
+  });
+
+  test("a rate limit is waited out as the provider asks, and is not the model's failure", async () => {
+    let calls = 0;
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: () => {
+        calls += 1;
+        if (calls < 3) {
+          return new Response("slow down", {
+            status: 429,
+            headers: calls === 1 ? { "retry-after": "7" } : {},
+          });
+        }
+        return Response.json({
+          choices: [{ message: call("search_web", { query: "Brent price" }) }],
+        });
+      },
+    });
+    servers.push(server);
+    const waits: number[] = [];
+    const result = await attempt(
+      {
+        url: `http://127.0.0.1:${server.port}/v1`,
+        model: "m",
+        timeoutSeconds: 5,
+        wait: async (seconds) => {
+          waits.push(seconds);
+        },
+      },
+      byId("search-en"),
+    );
+    expect(result.verdict.ok).toBe(true);
+    // Retry-After when given, otherwise a backoff.
+    expect(waits).toEqual([7, 10]);
+  });
+
+  test("a rate limit that never lifts is still a failure, after the retries", async () => {
+    let calls = 0;
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: () => {
+        calls += 1;
+        return new Response("slow down", { status: 429 });
+      },
+    });
+    servers.push(server);
+    const result = await attempt(
+      {
+        url: `http://127.0.0.1:${server.port}/v1`,
+        model: "m",
+        timeoutSeconds: 5,
+        rateLimitRetries: 2,
+        wait: async () => {},
+      },
+      byId("search-en"),
+    );
+    expect(result.verdict).toEqual({ ok: false, why: "HTTP 429" });
+    expect(calls).toBe(3);
   });
 });
 
