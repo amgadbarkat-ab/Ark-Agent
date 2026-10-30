@@ -73,10 +73,13 @@ from `dist/own-browser.mjs`, which the desktop builds from the source with `bun 
 every switch-on (so it is never older than the source beside it). Bun on Windows cannot drive the
 browser at all (see the last section). The server inside it is `Bun.serve` under Bun and `node:http`
 with `ws` under Node, with the same routes, token check, loopback-only bind and live-screen protocol
-(`agent-computer/src/serve.ts`). The Node comes from a copy shipped with the app (`node/node.exe` in
-its resources) or from `ARKAGENT_NODE`; neither shipping nor downloading one is built yet, so until
-then switching it on in Windows says *"Device control on Windows needs Node, which this build doesn't
-include yet."* macOS and Linux stay on Bun.
+(`agent-computer/src/serve.ts`). The Node is the copy inside the Windows installer (`node/node.exe` in
+its resources, with Node's licence beside it), as the owner chose on 30 October (desk #85): no download
+on the customer's PC. Its version and every byte are pinned in `desktop/src-tauri/node-runtime.json`
+from nodejs.org's SHASUMS256.txt; `desktop/scripts/fetch-node.ts` fetches and verifies it in the
+Windows build, which fails if a byte differs, and the build checks the finished installer contains it.
+`ARKAGENT_NODE` can name another for development. If the shipped copy is missing, switching it on says
+so and that installing again repairs it. macOS and Linux stay on Bun.
 
 **The same gateway.** The server only changes where `locate` points for a chosen employee
 (`server/src/computer/own-browser.ts`); every action still goes through the gateway: element resolved

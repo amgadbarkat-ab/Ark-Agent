@@ -118,13 +118,17 @@ jobs:
       - name: Prepare internal build version
         run: bun scripts/desktop-version.ts internal
         working-directory: desktop
+      # Shipped inside the installer (desk #85), as desktop.yml does; see there.
+      - name: Node for the Windows installer
+        run: bun scripts/fetch-node.ts
+        working-directory: desktop
       - name: Build and sign
         env:
           WINDOWS_SIGNING: keyvault
           OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_ID: ${{ vars.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_ID }}
           OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET: ${{ secrets.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET }}
           OPENBOT_GOOGLE_MODEL_OAUTH_QUOTA_PROJECT: ${{ vars.OPENBOT_GOOGLE_MODEL_OAUTH_QUOTA_PROJECT }}
-        run: bun run tauri build --config src-tauri/tauri.windows-signing.conf.json --config src-tauri/tauri.build-version.conf.json --bundles nsis
+        run: bun run tauri build --config src-tauri/tauri.windows-signing.conf.json --config src-tauri/tauri.build-version.conf.json --config src-tauri/tauri.windows-node.conf.json --bundles nsis
         working-directory: desktop
       # Tauri restores the unsigned build output after bundling. Verify the app
       # employees receive by extracting its signed payload from the installer.
