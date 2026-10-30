@@ -33,14 +33,17 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
-import { setBotModelMutationOptions } from "@/lib/models/mutations";
+import {
+  clearDefaultModelMutationOptions,
+  setBotModelMutationOptions,
+} from "@/lib/models/mutations";
 import {
   botModelChoicesQueryOptions,
-  type ModelCatalogue,
   type LocalModels,
+  localModelsQueryOptions,
+  type ModelCatalogue,
   type ModelConnection,
   type ModelProviderTier,
-  localModelsQueryOptions,
   modelCatalogueQueryOptions,
   modelConnectionsQueryOptions,
 } from "@/lib/models/queries";
@@ -145,7 +148,10 @@ function ModelsPage() {
           <PageRows>
             {offline ? (
               <>
-                <OfflineModelRow offline={offline} />
+                <OfflineModelRow
+                  offline={offline}
+                  otherDefault={connections.data?.find((c) => c.isDefault)}
+                />
                 {(connections.data?.length ?? 0) > 0 && <Separator />}
               </>
             ) : null}
@@ -270,14 +276,21 @@ function ModelsPage() {
 /**
  * The model ArkAgent runs on this computer, listed first because it is the one that was downloaded for
  * this person. It is the deployment's own model, so it is not edited here: it is what answers unless a
- * model of their own is chosen below.
+ * model of their own is their default. It is not a connection, so its "Make default" clears theirs:
+ * without it, the first model a person added took over and the only way back was to remove it.
  */
 function OfflineModelRow({
   offline,
+  otherDefault,
 }: {
   offline: NonNullable<LocalModels["offline"]>;
+  /** The person's own connection that is their default instead, if one is. */
+  otherDefault: ModelConnection | undefined;
 }) {
   const running = offline.state === "running";
+  const makeDefault = useMutation(
+    clearDefaultModelMutationOptions(queryClient),
+  );
   return (
     <Item size="sm">
       <ItemMedia variant="icon">
@@ -286,6 +299,11 @@ function OfflineModelRow({
       <ItemContent>
         <ItemTitle>
           ArkAgent offline model · {offline.label}
+          {otherDefault ? null : (
+            <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
+              Default
+            </span>
+          )}
           <span
             className={`rounded-md px-1.5 py-0.5 font-normal text-xs ${
               running
@@ -298,10 +316,30 @@ function OfflineModelRow({
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
           {running
-            ? "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model."
+            ? otherDefault
+              ? `Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your default is ${otherDefault.label} now; make this the default to use it again.`
+              : "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model."
             : "It is installed, but it is not answering right now. Open ArkAgent from its window to start it again."}
         </ItemDescription>
+        {makeDefault.error ? (
+          <ItemDescription className="text-destructive" role="alert">
+            {makeDefault.error.message}
+          </ItemDescription>
+        ) : null}
       </ItemContent>
+      {running && otherDefault ? (
+        <ItemActions>
+          <Button
+            disabled={makeDefault.isPending}
+            onClick={() => makeDefault.mutate()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Make default
+          </Button>
+        </ItemActions>
+      ) : null}
     </Item>
   );
 }

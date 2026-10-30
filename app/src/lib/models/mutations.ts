@@ -76,6 +76,19 @@ export function setDefaultModelMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/** Back to the model that comes with the deployment: the offline model on the desktop. */
+export function clearDefaultModelMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (): Promise<void> => {
+      await client("/api/models/default", {
+        method: "DELETE",
+        fallback: "Could not change your default model",
+      });
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
 /** What testing a connection answers: it works and here are its models, or why it does not. */
 export type ModelProbe =
   | { ok: true; models: string[] }

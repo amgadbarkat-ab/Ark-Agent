@@ -55,6 +55,12 @@ export type ModelConnectionStore = {
   /** Removing the default hands that role to the person's oldest remaining connection. */
   remove: (userId: string, id: string) => Promise<boolean>;
   setDefault: (userId: string, id: string) => Promise<ModelConnection | null>;
+  /**
+   * None of the person's connections is their default any more, so their runs use the model that
+   * comes with the deployment: the offline model on the desktop. Answers the connection that was the
+   * default, if one was.
+   */
+  clearDefault: (userId: string) => Promise<ModelConnection | null>;
   /** The person's default connection, without opening its key. */
   getDefault: (userId: string) => Promise<ModelConnection | null>;
   /** The named connection, or the person's default, with its key opened. */
@@ -241,6 +247,20 @@ export function createModelConnectionStore(
           .returning();
         return row ? view(row) : null;
       });
+    },
+
+    async clearDefault(userId) {
+      const [row] = await database
+        .update(modelConnections)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(modelConnections.userId, userId),
+            eq(modelConnections.isDefault, true),
+          ),
+        )
+        .returning();
+      return row ? view(row) : null;
     },
 
     async getDefault(userId) {

@@ -423,6 +423,25 @@ export function modelConnectionRoutes(options: {
     return context.json({ connection });
   });
 
+  /*
+   * Back to the model that comes with the deployment. On the desktop that is the offline model,
+   * which is not a connection and so had no "Make default" of its own: the first model a person
+   * added became their default, and the only way back was to remove it (DT Lab, v0.1.21).
+   */
+  app.delete("/default", async (context) => {
+    if (!store) return unavailable(context);
+    const was = await store.clearDefault(context.var.actor.id);
+    if (was) {
+      await record({
+        eventType: "model.default_changed",
+        actorUserId: context.var.actor.id,
+        targetId: was.id,
+        payload: { providerId: null, model: null, from: was.model },
+      });
+    }
+    return context.json({ cleared: true });
+  });
+
   // Which Bot thinks with which of the person's connections, where it is not their default.
   app.get("/bots", async (context) => {
     if (!store) return unavailable(context);

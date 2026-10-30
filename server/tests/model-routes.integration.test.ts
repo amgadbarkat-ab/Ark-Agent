@@ -404,6 +404,36 @@ describe("the trail", () => {
     expect(JSON.stringify(trail)).not.toContain("SECRET");
   });
 
+  test("going back to the deployment's own model clears the default and records which one stopped", async () => {
+    const ann = await person();
+    const app = appFor(ann);
+    const { connection } = await (
+      await call(app, "POST", "/connections", {
+        providerId: "ollama",
+        model: "llama3",
+      })
+    ).json();
+    expect(connection.isDefault).toBe(true);
+    const cleared = await call(app, "DELETE", "/default");
+    expect(cleared.status).toBe(200);
+    const { connections } = await (
+      await call(app, "GET", "/connections")
+    ).json();
+    expect(connections.some((c: { isDefault: boolean }) => c.isDefault)).toBe(
+      false,
+    );
+    expect(trail.at(-1)).toMatchObject({
+      eventType: "model.default_changed",
+      actorUserId: ann,
+      targetId: connection.id,
+      payload: { providerId: null, model: null, from: "llama3" },
+    });
+    // Nothing left to clear: still fine, and nothing more on the trail.
+    const before = trail.length;
+    expect((await call(app, "DELETE", "/default")).status).toBe(200);
+    expect(trail.length).toBe(before);
+  });
+
   test("records removing a key, and a coworker being given a different model", async () => {
     const ann = await person();
     const app = appFor(ann);
