@@ -105,7 +105,7 @@ jobs:
       - run: bun run typecheck
         working-directory: desktop
       - name: Desktop version regressions
-        run: bun test scripts/desktop-version.test.ts
+        run: bun test scripts/desktop-version.test.ts scripts/node-runtime.test.ts
         working-directory: desktop
       - name: Prepare build version
         # bash on every platform: the Windows runner's default shell is PowerShell, which does not
@@ -123,9 +123,18 @@ jobs:
       # Bundling is included because the bundle is the product, and because the failures live
       # there: the Windows resource step needs an .ico, and macOS wants an .icns, neither of
       # which a compile would miss.
-      - run: bun run tauri build --config src-tauri/tauri.build-version.conf.json
+      # Device control on Windows runs agent-computer under Node (own_browser.rs), and the owner chose
+      # to ship it in the installer rather than download it on a customer's PC (desk #85). Pinned in
+      # node-runtime.json; a byte that differs fails the build here.
+      - name: Node for the Windows installer
+        if: matrix.platform.name == 'windows'
+        run: bun scripts/fetch-node.ts
+        working-directory: desktop
+      - run: bun run tauri build --config src-tauri/tauri.build-version.conf.json $EXTRA_CONFIG
+        shell: bash
         working-directory: desktop
         env:
+          EXTRA_CONFIG: ${{ matrix.platform.name == 'windows' && '--config src-tauri/tauri.windows-node.conf.json' || '' }}
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform.name == 'macos' && '-' || '' }}
           # Where the app downloads a release from: the company's own website, because customers
           # download from there and the repository is private. Unset builds fall back to GitHub.
@@ -133,6 +142,18 @@ jobs:
           OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_ID: ${{ vars.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_ID }}
           OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET: ${{ secrets.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET }}
           OPENBOT_GOOGLE_MODEL_OAUTH_QUOTA_PROJECT: ${{ vars.OPENBOT_GOOGLE_MODEL_OAUTH_QUOTA_PROJECT }}
+      # The installer is what a customer runs, so that is where Node has to be, not the build folder.
+      - name: Node is inside the Windows installer
+        if: matrix.platform.name == 'windows'
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem 'desktop/src-tauri/target/release/bundle/nsis/*-setup.exe' -File)
+          if ($installers.Count -ne 1) { throw 'Expected exactly one NSIS installer.' }
+          $listing = & 7z l $installers[0].FullName
+          foreach ($name in @('node.exe', 'LICENSE')) {
+            if (-not ($listing | Select-String -SimpleMatch "node\$name")) { throw "node\$name is not in the installer." }
+          }
+          "Installer size: {0:N1} MB" -f ($installers[0].Length / 1MB)
       - name: Verify packaged Mac version and ad-hoc signature
         if: matrix.platform.name == 'macos'
         run: |

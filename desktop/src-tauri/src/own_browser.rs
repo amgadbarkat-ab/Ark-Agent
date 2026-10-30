@@ -151,9 +151,9 @@ const BUN_ENTRY: &str = "src/index.ts";
 /// finds the same installed packages.
 pub const NODE_ENTRY: &str = "dist/own-browser.mjs";
 
-/// What a person on Windows is told while no Node comes with ArkAgent.
-pub const NODE_MISSING: &str =
-    "Device control on Windows needs Node, which this build doesn't include yet.";
+/// What a person on Windows is told when the Node the installer ships (node-runtime.json) is not
+/// where it should be: a damaged or partial installation, which installing again repairs.
+pub const NODE_MISSING: &str = "Device control on Windows needs the Node that comes with ArkAgent, and it is missing from this installation. Install ArkAgent again to repair it.";
 
 /// Whether `agent-computer` runs under Node here rather than Bun.
 ///
@@ -692,7 +692,7 @@ mod tests {
         );
         let refused = launcher("windows", bun, None).unwrap_err();
         assert_eq!(refused, NODE_MISSING);
-        assert!(refused.contains("Windows needs Node"));
+        assert!(refused.contains("Install ArkAgent again"));
         // macOS and Linux stay on Bun, with the source, even when a Node is configured.
         for os in ["macos", "linux"] {
             assert_eq!(

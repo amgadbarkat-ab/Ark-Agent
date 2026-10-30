@@ -10,9 +10,11 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ### Desktop
 
-- **On Windows, the part of device control that drives your browser runs under Node** once Node is
-  available to the app. It could not drive Chrome or Edge on Windows under Bun at all. Nothing changes
-  yet: this build does not include Node, so switching device control on in Windows says so.
+- **Device control now works on Windows: the part that drives your Chrome or Edge runs under Node,
+  which comes inside the Windows installer** (Node 24.22.1, about 90 MB unpacked, with its licence).
+  Under Bun it could not drive the browser on Windows at all. Nothing is downloaded on your PC for it;
+  if the installed copy is missing, ArkAgent says so and installing again repairs it. macOS and Linux
+  are unchanged.
 
 ### Digital employees
 
