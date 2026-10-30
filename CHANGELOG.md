@@ -14,6 +14,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   Models became your default, and the only way back to ArkAgent's offline model was to remove it.
   The offline model's row now has **Make default** whenever another model is your default.
 
+### Digital employees
+
+- **A colleague asked for help answers the question instead of introducing itself** (DT Lab, v0.1.21).
+  On the small offline model, Customer Support asked by Chief of Operations for three risks of a €310
+  dinner without a receipt replied with a description of its own job. The request it receives now asks
+  for the answer itself, with no greeting or introduction.
+
 ## 0.1.21
 
 ### Desktop

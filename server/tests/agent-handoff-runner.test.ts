@@ -154,6 +154,20 @@ describe("delivering a hop", () => {
     );
   });
 
+  test("the colleague is asked for the answer itself, not to introduce itself", async () => {
+    // "Answer as yourself" sent a small local model into its role's self-description instead of the
+    // task (DT Lab, v0.1.21).
+    const { runner: sweep, delivered } = runner();
+
+    await sweep.sweep();
+
+    const message = delivered[0]?.message ?? "";
+    expect(message).toEndWith(
+      "Reply with the answer itself, written for the person, who can see it. No greeting and no introduction: they know who you are.",
+    );
+    expect(message).not.toContain("as yourself");
+  });
+
   test("the run it starts carries the depth this hop reached", async () => {
     const { runner: sweep, delivered } = runner();
 

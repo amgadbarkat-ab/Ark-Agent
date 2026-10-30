@@ -603,7 +603,13 @@ function attribute(work: HandoffWork): string {
     lines.push(`What a good answer looks like: ${work.expecting}`);
   lines.push(
     "",
-    "Answer in this conversation as yourself. The person can see it, so write it for them rather than for the digital employee that asked.",
+    /*
+     * The answer itself, and no introduction. "Answer as yourself" was read by a small local model as
+     * "say who you are": on Gemma 4 E2B with Customer Support's role, all eight of eight answers
+     * opened with the role's whole self-description and never reached the risks it was asked for
+     * (DT Lab, v0.1.21, the €310 hand-off). With this line, eight of eight listed the risks.
+     */
+    "Reply with the answer itself, written for the person, who can see it. No greeting and no introduction: they know who you are.",
   );
   return lines.join("\n");
 }
