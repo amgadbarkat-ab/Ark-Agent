@@ -89,8 +89,8 @@ jobs:
           node tests/launch-probe.mjs
           bun tests/launch-probe.mjs
       # Launched directly, as the desktop launches it, under the runtime the desktop uses on this
-      # platform: public pages only, so the product path runs unchanged. Then the proxy script against
-      # the same browser, redirect hops included, and the server on both runtimes (serve.test.ts).
+      # platform: public pages only, so the product path runs unchanged; the server on both runtimes
+      # (serve.test.ts); and, where the runner can launch it, the proxy script against the same browser.
       - name: Desktop path on the installed browser (${{ matrix.target.runtime }})
         shell: bash
         working-directory: agent-computer
@@ -101,4 +101,9 @@ jobs:
           OWN_BROWSER_RUNTIME: ${{ matrix.target.runtime }}
           # agent-computer's own output in the log, so a failure names its cause.
           OWN_BROWSER_DEBUG: "1"
-        run: bun test tests/own-browser-platform.test.ts tests/private-network.test.ts tests/serve.test.ts
+          # private-network.test.ts launches the browser from the test runner itself, which is Bun, and
+          # Bun cannot drive a browser on Windows (the launch probe above). Its cases are not lost there:
+          # the platform test proves the redirect to the router refused on Windows, through the product
+          # under Node. On the Bun jobs it runs as well.
+          ALSO: ${{ matrix.target.runtime == 'bun' && 'tests/private-network.test.ts' || '' }}
+        run: bun test tests/own-browser-platform.test.ts tests/serve.test.ts $ALSO
