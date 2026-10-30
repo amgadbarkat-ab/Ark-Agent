@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.22
+
 ### Models
 
 - **The offline model can be your default again** (DT Lab, v0.1.21). The first model you added under
