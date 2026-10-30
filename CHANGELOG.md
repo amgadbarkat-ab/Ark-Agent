@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Models
+
+- **The offline model can be your default again** (DT Lab, v0.1.21). The first model you added under
+  Models became your default, and the only way back to ArkAgent's offline model was to remove it.
+  The offline model's row now has **Make default** whenever another model is your default.
+
 ## 0.1.21
 
 ### Desktop

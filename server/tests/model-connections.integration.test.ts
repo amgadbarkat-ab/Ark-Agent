@@ -133,6 +133,23 @@ describe("model connections", () => {
     expect(a.id).not.toBe(b.id);
   });
 
+  test("clearing the default leaves none, so runs use the deployment's own model, until one is chosen", async () => {
+    const ann = await person();
+    const a = await store.create(ann, ollama("A"));
+    const b = await store.create(ann, ollama("B"));
+    expect((await store.clearDefault(ann))?.id).toBe(a.id);
+    expect((await store.list(ann)).some((c) => c.isDefault)).toBe(false);
+    expect(await store.getDefault(ann)).toBeNull();
+    expect(await store.open(ann)).toBeNull();
+    // Nothing to clear the second time, and removing a connection does not bring a default back.
+    expect(await store.clearDefault(ann)).toBeNull();
+    expect(await store.remove(ann, a.id)).toBe(true);
+    expect(await store.getDefault(ann)).toBeNull();
+    // Choosing one again works as before.
+    expect((await store.setDefault(ann, b.id))?.isDefault).toBe(true);
+    expect((await store.open(ann))?.id).toBe(b.id);
+  });
+
   test("removing the default hands the role to the oldest remaining; removing another leaves it", async () => {
     const ann = await person();
     const a = await store.create(ann, ollama("A"));
