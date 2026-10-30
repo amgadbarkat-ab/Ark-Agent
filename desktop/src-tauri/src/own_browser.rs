@@ -14,6 +14,9 @@
 //! there only when the person has also chosen that for the employee, and every action still goes
 //! through its gateway (snapshot-resolved element, policy, approval, audit).
 //!
+//! ON WINDOWS `agent-computer` runs under Node rather than Bun, because Bun there cannot drive the
+//! browser at all ([`runs_on_node`]). Until a Node comes with ArkAgent, switching it on there says so.
+//!
 //! WHAT SWITCHING IT OFF DOES, and closing the browser window, and Stop, and Quit: the announcement
 //! becomes "off" (the server forgets every choice), and the process and its browser end.
 //!
@@ -141,6 +144,66 @@ pub fn profile_dir(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join(PROFILE_FOLDER)
 }
 
+/// What Bun runs: `agent-computer`'s source, as it is.
+const BUN_ENTRY: &str = "src/index.ts";
+
+/// What Node runs: the single file `bun run build:node` makes from that source, beside it so Node
+/// finds the same installed packages.
+pub const NODE_ENTRY: &str = "dist/own-browser.mjs";
+
+/// What a person on Windows is told while no Node comes with ArkAgent.
+pub const NODE_MISSING: &str =
+    "Device control on Windows needs Node, which this build doesn't include yet.";
+
+/// Whether `agent-computer` runs under Node here rather than Bun.
+///
+/// Windows only. Playwright drives the browser over a pipe on extra file descriptors, and Bun on
+/// Windows cannot hand a child those: the launch times out, where under Node the same browser opens
+/// and loads a page in seconds. Connecting over a debugging port or to a Playwright server hangs
+/// under Bun there too (docs/ark/25-device-control.md). macOS and Linux work under Bun and stay on it.
+pub fn runs_on_node(os: &str) -> bool {
+    os == "windows"
+}
+
+/// Where a Node shipped inside ArkAgent would be. Nothing puts one there yet: whether Node comes in
+/// the installer or is downloaded on first switch-on is still open, and either lands here.
+pub fn bundled_node(resource_dir: &Path, os: &str) -> PathBuf {
+    resource_dir
+        .join("node")
+        .join(if os == "windows" { "node.exe" } else { "node" })
+}
+
+/// The Node to run `agent-computer` with: the shipped one if it is there, else the one
+/// `ARKAGENT_NODE` names, read from this app's own environment as `ARKAGENT_OWN_BROWSER` is.
+///
+/// Never a `node` found on the PATH. Whatever happens to be installed there is a version nobody
+/// tested this with, and the person did not choose it for this.
+pub fn find_node(
+    bundled: Option<&Path>,
+    env: impl Fn(&str) -> Option<String>,
+    exists: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    if let Some(bundled) = bundled.filter(|path| exists(path)) {
+        return Some(bundled.to_path_buf());
+    }
+    let named = env("ARKAGENT_NODE").filter(|value| !value.trim().is_empty())?;
+    let named = PathBuf::from(named.trim());
+    exists(&named).then_some(named)
+}
+
+/// The program that runs `agent-computer` and the file it is given, or why it cannot start here.
+pub fn launcher(
+    os: &str,
+    bun: &Path,
+    node: Option<&Path>,
+) -> Result<(PathBuf, &'static str), String> {
+    if !runs_on_node(os) {
+        return Ok((bun.to_path_buf(), BUN_ENTRY));
+    }
+    node.map(|node| (node.to_path_buf(), NODE_ENTRY))
+        .ok_or_else(|| NODE_MISSING.to_string())
+}
+
 /// The settings `agent-computer` is started with. A function of its inputs so a test can read it.
 ///
 /// No debugging port and no address to connect to: the browser is opened by that process over a
@@ -171,6 +234,8 @@ pub fn computer_env(
 pub struct Config {
     pub root: PathBuf,
     pub bun: PathBuf,
+    /// Node, where this platform runs `agent-computer` under it (see [`runs_on_node`]).
+    pub node: Option<PathBuf>,
     pub logs: PathBuf,
     pub server_port: u16,
     pub desktop_token: String,
@@ -215,6 +280,27 @@ pub fn ensure_dependencies(root: &Path, bun: &Path) -> Result<(), String> {
     }
     Err(format!(
         "installing what drives your browser failed: {}",
+        crate::quiet::said(&output.stderr)
+    ))
+}
+
+/// Make what Node runs from the source beside it.
+///
+/// On every start rather than once. Updating ArkAgent replaces the source and leaves this folder's
+/// other files alone, so a build kept from the last version would run old code next to new; Bun
+/// builds it in well under a second. Built here rather than shipped so a checkout and a release
+/// take the same path, and Bun is already on every computer this app runs on.
+pub fn build_for_node(root: &Path, bun: &Path) -> Result<(), String> {
+    let output = command(bun)
+        .current_dir(root.join("agent-computer"))
+        .args(["run", "build:node"])
+        .output()
+        .map_err(|error| format!("could not run bun build: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(format!(
+        "preparing what drives your browser failed: {}",
         crate::quiet::said(&output.stderr)
     ))
 }
@@ -264,7 +350,21 @@ impl OwnBrowser {
     /// `on_gone` is called once if it ends without being asked to: the person closed the window, or
     /// the browser could not keep running. The caller treats that as the switch going off.
     pub fn start(config: &Config, on_gone: impl FnOnce() + Send + 'static) -> Result<Self, String> {
+        Self::start_on(std::env::consts::OS, config, on_gone)
+    }
+
+    /// [`Self::start`] as it is on `os`, so the Node path can be run on a machine that is not Windows.
+    fn start_on(
+        os: &str,
+        config: &Config,
+        on_gone: impl FnOnce() + Send + 'static,
+    ) -> Result<Self, String> {
+        // Asked first: nothing is installed for a start that cannot happen.
+        let (program, entry) = launcher(os, &config.bun, config.node.as_deref())?;
         ensure_dependencies(&config.root, &config.bun)?;
+        if runs_on_node(os) {
+            build_for_node(&config.root, &config.bun)?;
+        }
         std::fs::create_dir_all(&config.profile)
             .map_err(|error| format!("could not make the ArkAgent browser profile: {error}"))?;
         std::fs::create_dir_all(&config.logs).map_err(|error| error.to_string())?;
@@ -273,10 +373,10 @@ impl OwnBrowser {
             .map_err(|error| error.to_string())?;
         let err = log.try_clone().map_err(|error| error.to_string())?;
 
-        let mut process = command(&config.bun);
+        let mut process = command(&program);
         process
             .current_dir(config.root.join("agent-computer"))
-            .arg("src/index.ts")
+            .arg(entry)
             .envs(computer_env(
                 &config.browser,
                 &config.profile,
@@ -556,6 +656,89 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    #[test]
+    fn node_is_the_shipped_copy_else_the_named_one_and_never_a_guess() {
+        let resources = Path::new(r"C:\Program Files\ArkAgent\resources");
+        let shipped = bundled_node(resources, "windows");
+        assert!(shipped.starts_with(resources) && shipped.ends_with("node.exe"));
+        let named = PathBuf::from(r"C:\Tools\node\node.exe");
+        let env = env_of(&[("ARKAGENT_NODE", r"C:\Tools\node\node.exe")]);
+
+        // Shipped and present wins over a named one.
+        let found = find_node(Some(&shipped), &env, |path| {
+            path == shipped || path == named
+        });
+        assert_eq!(found, Some(shipped.clone()));
+        // No shipped copy: the named one, if it is there.
+        assert_eq!(
+            find_node(Some(&shipped), &env, |path| path == named),
+            Some(named.clone())
+        );
+        // Named and missing, or nothing named: none, whatever else is installed.
+        assert_eq!(find_node(Some(&shipped), &env, |_| false), None);
+        assert_eq!(
+            find_node(None, env_of(&[("ARKAGENT_NODE", "  ")]), |_| true),
+            None
+        );
+    }
+
+    #[test]
+    fn windows_runs_it_under_node_and_says_so_when_there_is_none() {
+        let bun = Path::new("/usr/local/bin/bun");
+        let node = Path::new(r"C:\Tools\node\node.exe");
+        assert_eq!(
+            launcher("windows", bun, Some(node)),
+            Ok((node.to_path_buf(), NODE_ENTRY))
+        );
+        let refused = launcher("windows", bun, None).unwrap_err();
+        assert_eq!(refused, NODE_MISSING);
+        assert!(refused.contains("Windows needs Node"));
+        // macOS and Linux stay on Bun, with the source, even when a Node is configured.
+        for os in ["macos", "linux"] {
+            assert_eq!(
+                launcher(os, bun, Some(node)),
+                Ok((bun.to_path_buf(), "src/index.ts"))
+            );
+        }
+    }
+
+    #[test]
+    fn what_node_runs_is_what_agent_computer_builds() {
+        let manifest =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../agent-computer/package.json");
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
+        let build = manifest["scripts"]["build:node"].as_str().unwrap();
+        assert!(
+            build.contains(&format!("--outfile={NODE_ENTRY}")),
+            "build:node must write {NODE_ENTRY}: {build}"
+        );
+    }
+
+    #[test]
+    fn a_refused_start_installs_nothing() {
+        // No Node on Windows is answered before anything is installed or built: the root here has no
+        // agent-computer at all, and the answer is still the Node one.
+        let root = scratch("no-node");
+        let config = Config {
+            root: root.clone(),
+            bun: PathBuf::from("bun"),
+            node: None,
+            logs: root.join("logs"),
+            server_port: 1,
+            desktop_token: "desktop-token".into(),
+            computer_token: "computer-token".into(),
+            browser: PathBuf::from("chrome"),
+            profile: profile_dir(&root),
+        };
+        let error = OwnBrowser::start_on("windows", &config, || {})
+            .err()
+            .expect("it refuses");
+        assert_eq!(error, NODE_MISSING);
+        assert!(!config.profile.exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// A server that answers every request 200 and keeps the bodies of the announcements.
     fn announcement_sink() -> (u16, Arc<Mutex<Vec<String>>>) {
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
@@ -585,6 +768,8 @@ mod tests {
     /// `agent-computer`'s packages and a Chromium:
     ///
     ///   OPENBOT_OWN_BROWSER=1 OWN_BROWSER_STAND_IN=/path/to/chrome cargo test --lib own_browser
+    ///
+    /// With OWN_BROWSER_RUNTIME=node it starts as Windows does, under Node (ARKAGENT_NODE, or `node`).
     #[test]
     fn switching_on_opens_the_browser_announces_it_and_switching_off_ends_it() {
         if std::env::var("OPENBOT_OWN_BROWSER").as_deref() != Ok("1") {
@@ -607,10 +792,20 @@ mod tests {
             std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
         let bun = std::env::var("BUN").unwrap_or_else(|_| "bun".into());
+        let on_node = std::env::var("OWN_BROWSER_RUNTIME").as_deref() == Ok("node");
+        let os = if on_node {
+            "windows"
+        } else {
+            std::env::consts::OS
+        };
+        let node = on_node.then(|| {
+            PathBuf::from(std::env::var("ARKAGENT_NODE").unwrap_or_else(|_| "node".into()))
+        });
         let (server_port, bodies) = announcement_sink();
         let config = Config {
             root,
             bun: PathBuf::from(bun),
+            node,
             logs: scratch.join("logs"),
             server_port,
             desktop_token: "desktop-token".into(),
@@ -618,7 +813,7 @@ mod tests {
             browser: wrapper,
             profile: profile_dir(&scratch),
         };
-        let browser = OwnBrowser::start(&config, || {}).expect("it starts");
+        let browser = OwnBrowser::start_on(os, &config, || {}).expect("it starts");
         std::thread::sleep(Duration::from_millis(500));
         let announced = bodies.lock().unwrap().clone();
         let url = announced

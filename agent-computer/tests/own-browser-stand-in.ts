@@ -11,7 +11,7 @@
  *
  * No Playwright import: the server's tests use this too, and the server does not depend on it.
  */
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -31,6 +31,33 @@ export function standInBrowser(): string | null {
     if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/**
+ * How `agent-computer` is started: under this test's own Bun, as on macOS, Linux and in a container,
+ * or with OWN_BROWSER_RUNTIME=node as the Node build Windows runs (src/serve.ts says why). The build
+ * is made fresh from this checkout every time, as the desktop makes it, so a stale one is never what
+ * passes. OWN_BROWSER_NODE names the Node to use when it is not `node` on the PATH.
+ */
+export function computerCommand(): { command: string; args: string[] } {
+  const directory = join(import.meta.dir, "..");
+  if (process.env.OWN_BROWSER_RUNTIME !== "node") {
+    return {
+      command: process.execPath,
+      args: [join(directory, "src", "index.ts")],
+    };
+  }
+  const built = spawnSync(process.execPath, ["run", "build:node"], {
+    cwd: directory,
+    encoding: "utf8",
+  });
+  if (built.status !== 0) {
+    throw new Error(`bun run build:node failed: ${built.stderr}`);
+  }
+  return {
+    command: process.env.OWN_BROWSER_NODE?.trim() || "node",
+    args: [join(directory, "dist", "own-browser.mjs")],
+  };
 }
 
 export async function freePort(): Promise<number> {
@@ -121,8 +148,8 @@ export async function startOwnBrowserComputer(
 
   const token = options.token ?? "own-browser-test-token";
   const port = await freePort();
-  const entry = join(import.meta.dir, "..", "src", "index.ts");
-  const child = spawn(process.execPath, [entry], {
+  const { command, args } = computerCommand();
+  const child = spawn(command, args, {
     env: {
       PATH: process.env.PATH ?? "",
       HOME: scratch,
@@ -162,7 +189,14 @@ export async function startOwnBrowserComputer(
       child.kill("SIGTERM");
       await Promise.race([exited, Bun.sleep(5_000)]);
       child.kill("SIGKILL");
-      await rm(scratch, { recursive: true, force: true });
+      // Retried, because on Windows the browser can hold its profile for a moment after the process
+      // that opened it is gone; a temporary folder left behind is not a failed test.
+      await rm(scratch, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 200,
+      }).catch(() => undefined);
     },
   };
 }
