@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { computerCommand } from "./own-browser-stand-in";
 
 /**
  * The live screen, driven against the real process with a real browser.
@@ -182,6 +184,10 @@ async function stopped(botId: string): Promise<boolean> {
   return body.wasRunning === true;
 }
 
+/** Ends the Node build's process, when the run asked for one. */
+let stopNode = () => {};
+let ready = false;
+
 beforeAll(async () => {
   if (!asked) return;
   root = await mkdtemp(join(tmpdir(), "agent-computer-live-screen-"));
@@ -193,6 +199,28 @@ beforeAll(async () => {
   process.env.PROFILES_DIR = join(root, "profiles");
   process.env.WORKSPACE_DIR = join(root, "workspace");
   await mkdir(join(root, "profiles"), { recursive: true });
+  // With OWN_BROWSER_RUNTIME=node, the same process as Windows runs it: the Node build, whose server
+  // is node:http and `ws` rather than Bun's (src/serve.ts). Everything below is the same either way.
+  if (process.env.OWN_BROWSER_RUNTIME === "node") {
+    const { command, args } = computerCommand();
+    const child = spawn(command, args, {
+      env: process.env,
+      stdio: "inherit",
+    });
+    stopNode = () => child.kill("SIGKILL");
+    await until(
+      () => ready,
+      30_000,
+      "the Node build to answer",
+      async () => {
+        ready = await fetch(`${BASE}/health`).then(
+          (response) => response.ok,
+          () => false,
+        );
+      },
+    );
+    return;
+  }
   // After the environment is set, because the module reads it while it loads, and behind the flag,
   // because this is the import that needs Playwright present.
   await import("../src/index");
@@ -218,6 +246,7 @@ afterAll(async () => {
       () => undefined,
     );
   }
+  stopNode();
   await rm(root, { recursive: true, force: true });
   // Generous, because it is stopping real browsers: the default hook budget is shorter than a
   // Chromium shutdown and the file would fail on its own cleanup rather than on anything it tested.

@@ -1,0 +1,109 @@
+name: Own browser
+
+# Device control drives the customer's own Chrome or Edge (desk #27). Every other test of it stands
+# Playwright's Chromium in for that browser on Linux, which proves nothing about the two places it
+# actually runs: an installed Edge or Chrome on Windows and on macOS, started by agent-computer over a
+# pipe, with its own sandbox and a profile folder on that platform's paths. GitHub's Windows and macOS
+# machines have both browsers installed, so this runs the desktop's own path there. agent-computer
+# runs as the desktop runs it: under Node on Windows, where Bun cannot pass Playwright its pipe, and
+# under Bun on macOS (desktop/src-tauri/src/own_browser.rs, `runs_on_node`).
+on:
+  pull_request:
+    paths:
+      - "agent-computer/**"
+      - "desktop/src-tauri/src/own_browser.rs"
+      - ".github/workflows/own-browser.yml"
+  push:
+    branches: [main]
+    paths:
+      - "agent-computer/**"
+      - "desktop/src-tauri/src/own_browser.rs"
+      - ".github/workflows/own-browser.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: own-browser-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  browser:
+    name: own browser (${{ matrix.target.name }})
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: windows edge
+            runner: windows-latest
+            browser: C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+            runtime: node
+          - name: windows chrome
+            runner: windows-latest
+            browser: C:\Program Files\Google\Chrome\Application\chrome.exe
+            runtime: node
+          - name: macos chrome
+            runner: macos-latest
+            browser: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+            runtime: bun
+          - name: macos edge
+            runner: macos-latest
+            browser: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
+            runtime: bun
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      # Said out loud rather than skipped: a runner image without the browser would otherwise pass
+      # every test by skipping it.
+      - name: The browser is installed
+        shell: bash
+        env:
+          BROWSER: ${{ matrix.target.browser }}
+        run: |
+          test -f "$BROWSER" || { echo "::error::$BROWSER is not on this runner image"; exit 1; }
+      # The runner image's own Node. agent-computer's Node build needs 22 or newer, and a runner
+      # image that moved below that would otherwise fail somewhere less obvious.
+      - name: Node 22 or newer is installed
+        shell: bash
+        run: |
+          node --version
+          node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' \
+            || { echo "::error::agent-computer's Node build needs Node 22 or newer"; exit 1; }
+      - run: bun install --frozen-lockfile
+        working-directory: agent-computer
+      # Whether the runtime can drive the browser at all, under Node and under Bun, before any of our
+      # code is involved: Playwright talks to it over a pipe on extra file descriptors.
+      - name: Launch probe, Node and Bun
+        shell: bash
+        working-directory: agent-computer
+        env:
+          OWN_BROWSER_STAND_IN: ${{ matrix.target.browser }}
+        run: |
+          node tests/launch-probe.mjs
+          bun tests/launch-probe.mjs
+      # Launched directly, as the desktop launches it, under the runtime the desktop uses on this
+      # platform: public pages only, so the product path runs unchanged; the server on both runtimes
+      # (serve.test.ts); and, where the runner can launch it, the proxy script against the same browser.
+      - name: Desktop path on the installed browser (${{ matrix.target.runtime }})
+        shell: bash
+        working-directory: agent-computer
+        env:
+          OPENBOT_OWN_BROWSER_PLATFORM: "1"
+          OPENBOT_OWN_BROWSER: "1"
+          OWN_BROWSER_STAND_IN: ${{ matrix.target.browser }}
+          OWN_BROWSER_RUNTIME: ${{ matrix.target.runtime }}
+          # agent-computer's own output in the log, so a failure names its cause.
+          OWN_BROWSER_DEBUG: "1"
+          # private-network.test.ts launches the browser from the test runner itself, which is Bun, and
+          # Bun cannot drive a browser on Windows (the launch probe above). Its cases are not lost there:
+          # the platform test proves the redirect to the router refused on Windows, through the product
+          # under Node. On the Bun jobs it runs as well.
+          ALSO: ${{ matrix.target.runtime == 'bun' && 'tests/private-network.test.ts' || '' }}
+        run: bun test tests/own-browser-platform.test.ts tests/serve.test.ts $ALSO

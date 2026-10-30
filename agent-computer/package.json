@@ -6,14 +6,17 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "build:node": "bun build src/index.ts --target=node --format=esm --packages=external --outfile=dist/own-browser.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "playwright": "1.62.1",
     "spiffe": "^0.5.1",
+    "ws": "8.21.3",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@types/ws": "8.18.1",
     "typescript": "^5.9.3"
   }
 }

@@ -68,6 +68,16 @@ real browser (plain-text password store, phishing check off, popups unblocked) a
 packages are installed the first time somebody switches it on. The desktop announces the address to
 the server every 5 s with its own token (20 s lease), and "off" first on every way it stops.
 
+**Under Node on Windows, Bun elsewhere.** On Windows `agent-computer` runs under Node 22 or newer,
+from `dist/own-browser.mjs`, which the desktop builds from the source with `bun run build:node` on
+every switch-on (so it is never older than the source beside it). Bun on Windows cannot drive the
+browser at all (see the last section). The server inside it is `Bun.serve` under Bun and `node:http`
+with `ws` under Node, with the same routes, token check, loopback-only bind and live-screen protocol
+(`agent-computer/src/serve.ts`). The Node comes from a copy shipped with the app (`node/node.exe` in
+its resources) or from `ARKAGENT_NODE`; neither shipping nor downloading one is built yet, so until
+then switching it on in Windows says *"Device control on Windows needs Node, which this build doesn't
+include yet."* macOS and Linux stay on Bun.
+
 **The same gateway.** The server only changes where `locate` points for a chosen employee
 (`server/src/computer/own-browser.ts`); every action still goes through the gateway: element resolved
 from the server's snapshot, the policy with the approve rules from #5, the audit row (marked
@@ -104,9 +114,9 @@ an approved "Submit order" is clicked only on replay), `server/tests/own-browser
 `own_browser` in the desktop's `cargo test` (with `OPENBOT_OWN_BROWSER=1 OWN_BROWSER_STAND_IN=…` for
 the end-to-end launch). No model was run against the trap pages yet.
 
-**Not yet checked:** a real Chrome or Edge on Windows 11 and macOS (only a Linux Chromium standing in),
-Playwright over a pipe under Bun on Windows, and the first-time package install on a customer's
-machine.
+**Not yet checked:** a real Chrome or Edge on a customer's Windows 11 PC and Mac (GitHub's Windows
+and macOS machines run them in CI, `.github/workflows/own-browser.yml`), how Node reaches a
+customer's PC, and the first-time package install on a customer's machine.
 
 ## The test set: 20 tasks, Greek and English
 
@@ -172,3 +182,10 @@ gateway does not cover.
    "Allow once / Deny"; Deny stops it.
 4. The audit page lists each browser and folder action with the employee's name.
 5. With the app closed, no browser or folder action can run.
+6. The browser part runs under Node, not Bun. Measured 29 October on GitHub's Windows machine:
+   under Bun 1.3.14 Playwright cannot drive Edge or Chrome at all (the launch times out, because Bun
+   on Windows cannot pass the extra pipe the browser is driven over; connecting over CDP or to a
+   Playwright server hangs at the handshake as well), while under Node 22 the same Edge opens and
+   loads a page in 3.4 s. So the desktop starts `agent-computer` under Node on Windows. Still to
+   decide and confirm: how Node arrives (inside the installer, or downloaded checksum-pinned on first
+   switch-on), and that with it in place step 1 works from the menu on a real PC.

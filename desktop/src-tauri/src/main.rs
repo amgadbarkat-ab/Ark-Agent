@@ -1786,11 +1786,22 @@ fn remember_own_browser_launch<R: tauri::Runtime>(
         |key| std::env::var(key).ok(),
         Path::is_file,
     );
+    // Only Windows uses it, and none there is said when the person switches this on.
+    let node = own_browser::find_node(
+        app.path()
+            .resource_dir()
+            .ok()
+            .map(|dir| own_browser::bundled_node(&dir, std::env::consts::OS))
+            .as_deref(),
+        |key| std::env::var(key).ok(),
+        Path::is_file,
+    );
     let data = app.path().app_data_dir().ok();
     *shell.own_browser_launch.lock().unwrap() = match (browser, data, computer_token) {
         (Some(browser), Some(data), Some(token)) => Some(own_browser::Config {
             root: root.to_path_buf(),
             bun: bun.to_path_buf(),
+            node,
             logs: logs.to_path_buf(),
             server_port,
             desktop_token: desktop_token.to_string(),

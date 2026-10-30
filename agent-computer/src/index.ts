@@ -1,6 +1,5 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { serve } from "bun";
 import type { Page } from "playwright";
 import {
   cutAtCodeUnits,
@@ -44,6 +43,7 @@ import {
   parseScrollDelta,
 } from "./request-validation";
 import { type InputMessage, startScreencast } from "./screencast";
+import { serve } from "./serve";
 import { createShell } from "./shell";
 import { createViewerSlot, type ViewerSlot } from "./viewer";
 import { startVirtualDisplay } from "./virtual-display";
@@ -554,7 +554,7 @@ const FOLLOW_INTERVAL_MS = 1_000;
 /** What a live-screen socket carries: the Bot whose screen it is showing. */
 type StreamData = { botId: string };
 
-serve<StreamData>({
+await serve<StreamData>({
   port: PORT,
   /*
    * Loopback only when this drives the person's own browser. A container is reached across the
@@ -1224,7 +1224,7 @@ serve<StreamData>({
           url.pathname,
           body,
           // The caller going away is the stop signal: the surface aborts its request, the server
-          // aborts the one it made to this computer, and Bun aborts this one in turn.
+          // aborts the one it made to this computer, and the runtime aborts this one in turn.
           request.signal,
         );
         return json({ ...detail, elapsedMs: Date.now() - startedAt });

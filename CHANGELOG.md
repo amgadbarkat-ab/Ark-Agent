@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Desktop
+
+- **On Windows, the part of device control that drives your browser runs under Node** once Node is
+  available to the app. It could not drive Chrome or Edge on Windows under Bun at all. Nothing changes
+  yet: this build does not include Node, so switching device control on in Windows says so.
+
 ### Digital employees
 
 - **What you typed on the home screen while your message was being sent is kept** (DT Lab, v0.1.19).

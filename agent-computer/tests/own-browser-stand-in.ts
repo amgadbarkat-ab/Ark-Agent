@@ -11,7 +11,7 @@
  *
  * No Playwright import: the server's tests use this too, and the server does not depend on it.
  */
-import { type ChildProcess, spawn } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -31,6 +31,33 @@ export function standInBrowser(): string | null {
     if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/**
+ * How `agent-computer` is started: under this test's own Bun, as on macOS, Linux and in a container,
+ * or with OWN_BROWSER_RUNTIME=node as the Node build Windows runs (src/serve.ts says why). The build
+ * is made fresh from this checkout every time, as the desktop makes it, so a stale one is never what
+ * passes. OWN_BROWSER_NODE names the Node to use when it is not `node` on the PATH.
+ */
+export function computerCommand(): { command: string; args: string[] } {
+  const directory = join(import.meta.dir, "..");
+  if (process.env.OWN_BROWSER_RUNTIME !== "node") {
+    return {
+      command: process.execPath,
+      args: [join(directory, "src", "index.ts")],
+    };
+  }
+  const built = spawnSync(process.execPath, ["run", "build:node"], {
+    cwd: directory,
+    encoding: "utf8",
+  });
+  if (built.status !== 0) {
+    throw new Error(`bun run build:node failed: ${built.stderr}`);
+  }
+  return {
+    command: process.env.OWN_BROWSER_NODE?.trim() || "node",
+    args: [join(directory, "dist", "own-browser.mjs")],
+  };
 }
 
 export async function freePort(): Promise<number> {
@@ -79,7 +106,16 @@ export type OwnBrowserComputer = {
  * in private-network.test.ts.
  */
 export async function startOwnBrowserComputer(
-  options: { hostResolverRules?: string; token?: string } = {},
+  options: {
+    hostResolverRules?: string;
+    token?: string;
+    /**
+     * A real Chrome or Edge on Windows or macOS (own-browser-platform.test.ts), with its own sandbox:
+     * started as it is on Windows, where a `.cmd` wrapper could not pass on the pipe the browser is
+     * driven over, and on macOS with only the mock keychain added (see below).
+     */
+    direct?: boolean;
+  } = {},
 ): Promise<OwnBrowserComputer> {
   const chromium = standInBrowser();
   if (!chromium) {
@@ -88,30 +124,47 @@ export async function startOwnBrowserComputer(
   const scratch = await mkdtemp(join(tmpdir(), "arkagent-own-browser-"));
   const profileDir = join(scratch, "ArkAgent browser profile");
   const wrapper = join(scratch, "chrome");
-  await writeFile(
-    wrapper,
-    [
-      "#!/bin/sh",
-      `exec "${chromium}" --no-sandbox ${
+  // What the wrapper adds, by platform. Linux's stand-in has no sandbox to run under in this
+  // container. A real macOS browser is given back the mock keychain Playwright normally uses: without
+  // it Chrome and Edge ask the system keychain for their storage key, which on a person's Mac is one
+  // "Allow" click and on a CI machine, with nobody to click, is a browser that never loads a page.
+  const added = options.direct
+    ? process.platform === "darwin"
+      ? "--use-mock-keychain"
+      : ""
+    : `--no-sandbox ${
         options.hostResolverRules
           ? `"--host-resolver-rules=${options.hostResolverRules}" --no-proxy-server`
           : ""
-      } "$@"`,
-      "",
-    ].join("\n"),
+      }`;
+  await writeFile(
+    wrapper,
+    ["#!/bin/sh", `exec "${chromium}" ${added} "$@"`, ""].join("\n"),
   );
   await chmod(wrapper, 0o755);
+  // Windows runs a shell script for nobody, and the browser there is started as it is.
+  const executable =
+    options.direct && process.platform === "win32" ? chromium : wrapper;
 
   const token = options.token ?? "own-browser-test-token";
   const port = await freePort();
-  const entry = join(import.meta.dir, "..", "src", "index.ts");
-  const child = spawn(process.execPath, [entry], {
+  const { command, args } = computerCommand();
+  const child = spawn(command, args, {
     env: {
       PATH: process.env.PATH ?? "",
       HOME: scratch,
+      // Windows will not start a browser without these; harmless elsewhere.
+      ...(options.direct
+        ? {
+            SystemRoot: process.env.SystemRoot ?? "",
+            LOCALAPPDATA: process.env.LOCALAPPDATA ?? "",
+            TEMP: process.env.TEMP ?? "",
+            TMP: process.env.TMP ?? "",
+          }
+        : {}),
       PORT: String(port),
       COMPUTER_TOKEN: token,
-      COMPUTER_OWN_BROWSER_EXECUTABLE: wrapper,
+      COMPUTER_OWN_BROWSER_EXECUTABLE: executable,
       COMPUTER_OWN_BROWSER_PROFILE: profileDir,
       // No screen in CI. On a person's computer the window is the point.
       COMPUTER_OWN_BROWSER_HEADLESS: "true",
@@ -136,7 +189,14 @@ export async function startOwnBrowserComputer(
       child.kill("SIGTERM");
       await Promise.race([exited, Bun.sleep(5_000)]);
       child.kill("SIGKILL");
-      await rm(scratch, { recursive: true, force: true });
+      // Retried, because on Windows the browser can hold its profile for a moment after the process
+      // that opened it is gone; a temporary folder left behind is not a failed test.
+      await rm(scratch, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 200,
+      }).catch(() => undefined);
     },
   };
 }
