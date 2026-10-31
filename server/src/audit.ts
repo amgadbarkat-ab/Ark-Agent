@@ -441,6 +441,11 @@ export const auditEventTypes = [
   "agent.handoff_offered",
   "agent.handoff_refused",
   /*
+   * The person asked several colleagues in one message (desk #87): who, which colleagues, and how
+   * many were left out by the cap. Each colleague's hop still has its own offered/refused row.
+   */
+  "team.fanout",
+  /*
    * And what became of one, which is a different question from whether it was accepted.
    *
    * `delivered` is the other Bot's turn being on record. `failed` is a hop that will be tried again.

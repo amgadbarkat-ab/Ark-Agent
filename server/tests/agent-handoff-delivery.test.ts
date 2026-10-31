@@ -147,6 +147,24 @@ describe("turning a hop into a turn", () => {
   });
 
   /*
+   * The person's own browser is reached only through tools the browser app runs, and a hop has no
+   * browser attached: it is given none. That is what keeps a colleague asked in a fan-out (desk #87)
+   * — or any hop — away from device control, so it is pinned here rather than assumed.
+   */
+  test("a hop's run is given no browser-side tools, so it can never drive the person's browser", async () => {
+    const { delivery: deliver, requests } = delivery(FINISHED);
+
+    await deliver.deliver({
+      work: { ...WORK, fanout: true },
+      message: "m",
+      shown: "s",
+      assertion: "signed-assertion",
+    });
+
+    expect(requests[0]?.input.tools).toEqual([]);
+  });
+
+  /*
    * A run that errored said nothing in the conversation. Treating it as delivered finishes the work
    * and leaves the person waiting for an answer that will never come.
    */

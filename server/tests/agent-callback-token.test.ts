@@ -54,6 +54,15 @@ describe("the run assertion", () => {
     });
   });
 
+  test("carries a fan-out run's mark, and only when it was set (desk #87)", () => {
+    expect(
+      readRunAssertion(mintRunAssertion({ ...RUN, fanout: true }, KEY), KEY),
+    ).toMatchObject({ fanout: true });
+    expect(
+      readRunAssertion(mintRunAssertion(RUN, KEY), KEY),
+    ).not.toHaveProperty("fanout");
+  });
+
   test("is refused when signed with another key", () => {
     const signed = mintRunAssertion(RUN, "another-key");
     expect(readRunAssertion(signed, KEY)).toBeNull();

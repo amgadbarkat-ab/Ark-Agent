@@ -65,6 +65,8 @@ export type HandoffWork = {
    * of it is up to the model; that the person can read it is not.
    */
   relayed?: string;
+  /** One of several colleagues the person asked at once (desk #87): it answers and hands nothing on. */
+  fanout?: boolean;
 };
 
 export type HandoffDelivery = {
@@ -206,8 +208,16 @@ export function createHandoffRunner(options: {
         /*
          * Pass it on, not sum it up. "Keep what matters" let a small model decide nothing did: asked
          * for three risks, the person was told the colleague had got back, and nothing else.
+         *
+         * Except for a fan-out (desk #87): that answer is already in the conversation word for word
+         * under its colleague's name (`summarise`), and the person asked that colleague directly. The
+         * lead only says it has come, in a line; passing on every point again would print each answer
+         * twice, once for every colleague asked. The mark stays on, so the relay hands nothing on.
          */
-        task: `You asked ${work.toName ?? work.toBotId} to help with this: ${work.task}\n\nIt answered:\n\n${clip(answer)}\n\nPass its answer on to the person: say it came from ${work.toName ?? work.toBotId} and give every point it made, in full. Do not shorten it to a summary or leave any of it out.`,
+        ...(work.fanout ? { fanout: true } : {}),
+        task: work.fanout
+          ? `${work.toName ?? work.toBotId} has answered the person's question, and its answer is shown above in full. Say in one short sentence that ${work.toName ?? work.toBotId} has answered. Do not repeat, summarise or add to its answer.`
+          : `You asked ${work.toName ?? work.toBotId} to help with this: ${work.task}\n\nIt answered:\n\n${clip(answer)}\n\nPass its answer on to the person: say it came from ${work.toName ?? work.toBotId} and give every point it made, in full. Do not shorten it to a summary or leave any of it out.`,
       } as unknown as Record<string, unknown>,
     });
 

@@ -543,6 +543,30 @@ describe("relaying the answer home", () => {
     expect(key).toContain("run-1:abc");
   });
 
+  test("a fan-out answer is shown in full once, and the lead only says it has come (desk #87)", async () => {
+    const { runner: sweeper, offered } = runner({
+      claimed: [
+        {
+          kind: "bot.message",
+          key: "run-1:fan",
+          payload: { ...WORK, toName: "Marketing", fanout: true },
+          attempts: 1,
+        },
+      ],
+      answer: "A stand, two banners and the brochure in Greek.",
+    });
+
+    await sweeper.sweep();
+
+    expect(offered[0]).toMatchObject({
+      relayed: "A stand, two banners and the brochure in Greek.",
+      fanout: true,
+    });
+    expect(offered[0]?.task).toContain("one short sentence");
+    expect(offered[0]?.task).not.toContain("give every point");
+    expect(offered[0]?.task).not.toContain("brochure");
+  });
+
   /* A relay of a relay is a loop. The `answerIn` marker that stops a notice stops this too. */
   test("a relay is not itself relayed", async () => {
     const { runner: sweeper, offered } = runner({

@@ -180,6 +180,11 @@ export type HandoffCaps = {
    * wide it goes: the ceiling that stays true when the other two multiply.
    */
   maxPerRequest: number;
+  /**
+   * How many colleagues one message of the person's may ask at once (desk #87), counted apart from
+   * `maxPerRun`. Only used when `teamFanout` is on.
+   */
+  maxFanout: number;
 };
 
 /** Where the app is served from on a developer's own machine, in every spelling a browser might use. */
@@ -451,6 +456,13 @@ export type DeploymentConfig = {
   /** How far one Bot handing work to another may go. */
   handoff: HandoffCaps;
   /**
+   * Whether a message naming several colleagues asks each of them directly (desk #87).
+   *
+   * Off unless `TEAM_FANOUT_ENABLED=true`: a pilot, merged dark, and turned on for a customer only
+   * with a separate yes. Off, a message naming several colleagues behaves as before.
+   */
+  teamFanout: boolean;
+  /**
    * The secret a Bot presents when it calls a tool back through this server.
    *
    * A framework Bot runs its own tool loop, in its own process, which is what makes it a real
@@ -497,7 +509,18 @@ function handoffCaps(environment: Environment): HandoffCaps {
     maxDepth: read("BOT_HANDOFF_MAX_DEPTH", 5),
     maxPerRun: read("BOT_HANDOFF_MAX_PER_RUN", 3),
     maxPerRequest: read("BOT_HANDOFF_MAX_PER_REQUEST", 20),
+    maxFanout: read("TEAM_FANOUT_MAX", 6),
   };
+}
+
+/** `TEAM_FANOUT_ENABLED`, which only an explicit `true` turns on and anything unclear refuses. */
+function teamFanoutEnabled(environment: Environment): boolean {
+  const raw = optional(environment, "TEAM_FANOUT_ENABLED")?.trim();
+  if (!raw || raw === "false") return false;
+  if (raw === "true") return true;
+  throw new Error(
+    `TEAM_FANOUT_ENABLED must be true or false, not ${JSON.stringify(raw)}`,
+  );
 }
 
 /** What the Models screen is told about the model ArkAgent runs on this computer. */
@@ -1873,6 +1896,7 @@ export function loadConfig(
       : {}),
     computer: computerConfig(environment),
     handoff: handoffCaps(environment),
+    teamFanout: teamFanoutEnabled(environment),
     ...(optional(environment, "AGENT_TOOL_TOKEN")
       ? { agentToolToken: optional(environment, "AGENT_TOOL_TOKEN") as string }
       : {}),
