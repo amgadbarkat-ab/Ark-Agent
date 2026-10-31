@@ -45,6 +45,11 @@ export type HandoffEnvelope = {
   constraints?: string;
   /** What good looks like coming back: a list, a number, a recommendation with reasons. */
   expecting?: string;
+  /**
+   * The person asked several colleagues at once, and this is one of them (desk #87). Set by the
+   * deployment, never by a model: `team_ask` builds its envelope from three fields and not this one.
+   */
+  fanout?: boolean;
 };
 
 /** How far this may go, in numbers a deployment chooses rather than constants. */
@@ -167,6 +172,21 @@ export function createHandoffDesk(options: {
        * arrives in the signed assertion, so it is the deployment's number rather than anything the
        * model can edit, and it is already correct on whichever pod this run landed on.
        */
+      /*
+       * A fan-out run hands nothing on (desk #87). The person asked several colleagues at once and
+       * each answers for itself; one that passed its part to somebody else would multiply the runs
+       * the person agreed to, and the depth cap alone would still allow it. Here rather than in
+       * `team_ask`, because this is where every hop is counted, whoever asks for it.
+       */
+      if (from.fanout) {
+        return refuse(
+          from,
+          target,
+          "fanout",
+          "The person asked you together with other colleagues, so answer for yourself and do not hand this on.",
+        );
+      }
+
       const depth = from.depth ?? 0;
       if (depth >= caps.maxDepth) {
         return refuse(
@@ -370,6 +390,7 @@ export function createHandoffDesk(options: {
               }
             : {}),
           toName: found.name,
+          ...(envelope.fanout ? { fanout: true } : {}),
           task,
           ...(envelope.constraints
             ? { constraints: envelope.constraints }

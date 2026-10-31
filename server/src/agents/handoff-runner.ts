@@ -65,6 +65,8 @@ export type HandoffWork = {
    * of it is up to the model; that the person can read it is not.
    */
   relayed?: string;
+  /** One of several colleagues the person asked at once (desk #87): it answers and hands nothing on. */
+  fanout?: boolean;
 };
 
 export type HandoffDelivery = {

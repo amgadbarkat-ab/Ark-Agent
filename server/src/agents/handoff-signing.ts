@@ -21,6 +21,7 @@ export function handoffDeliveryRunAssertion(
     depth: work.depth,
     ...(work.initiator ? { initiator: work.initiator } : {}),
     ...(work.request ? { request: work.request } : {}),
+    ...(work.fanout ? { fanout: true } : {}),
   };
 }
 

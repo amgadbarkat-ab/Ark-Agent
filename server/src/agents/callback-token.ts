@@ -124,6 +124,13 @@ export type RunAssertion = {
    * request.
    */
   request?: string;
+  /**
+   * This run answers a message the person sent to several colleagues at once (desk #87).
+   *
+   * Signed for the reason depth is: it decides what the run may do next, and a run that could edit it
+   * could hand the work on again. A fan-out run answers for itself and hands nothing on.
+   */
+  fanout?: boolean;
 };
 
 type SignedRun = RunAssertion & { exp: number };
@@ -204,6 +211,7 @@ export function readRunAssertion(
       ...(typeof payload.request === "string" && payload.request
         ? { request: payload.request }
         : {}),
+      ...(payload.fanout === true ? { fanout: true } : {}),
     };
   } catch {
     return null;

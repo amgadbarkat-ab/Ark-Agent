@@ -4,6 +4,7 @@ import {
   HANDOFF_KIND,
   type HandoffCaps,
 } from "../src/agents/handoff";
+import { handoffDeliveryRunAssertion } from "../src/agents/handoff-signing";
 import type {
   AgentProfile,
   AgentProfileStore,
@@ -149,6 +150,56 @@ describe("handing work to another Bot", () => {
       actorId: "user-1",
       // One deeper than the run that asked, so the cap keeps counting across pods.
       depth: 1,
+    });
+  });
+
+  test("a hop the person sent to several colleagues at once is marked so (desk #87)", async () => {
+    const { desk: handoff, rows } = desk();
+
+    await handoff.send({
+      from: FROM,
+      target: "Researcher",
+      envelope: { task: "find the outage window", fanout: true },
+    });
+
+    expect(rows[0]?.payload).toMatchObject({
+      toBotId: "researcher",
+      fanout: true,
+    });
+  });
+
+  test("the colleague's own run keeps the fan-out mark, so it is what refuses the next hop", () => {
+    const work = {
+      fromBotId: "assistant",
+      toBotId: "researcher",
+      actorId: "user-1",
+      threadId: "thread-1",
+      runId: "run-1",
+      depth: 1,
+      task: "find the outage window",
+    };
+    expect(
+      handoffDeliveryRunAssertion({ ...work, fanout: true }, "run-2"),
+    ).toMatchObject({ botId: "researcher", fanout: true });
+    expect(handoffDeliveryRunAssertion(work, "run-2")).not.toHaveProperty(
+      "fanout",
+    );
+  });
+
+  test("a colleague answering a fan-out hands nothing on (desk #87)", async () => {
+    const { desk: handoff, rows, events } = desk();
+
+    const outcome = await handoff.send({
+      from: { ...FROM, depth: 1, fanout: true },
+      target: "Researcher",
+      envelope: { task: "find the outage window" },
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(rows).toHaveLength(0);
+    expect(events.at(-1)).toMatchObject({
+      eventType: "agent.handoff_refused",
+      payload: { reason: "fanout" },
     });
   });
 
