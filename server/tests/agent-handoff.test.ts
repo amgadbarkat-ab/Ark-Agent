@@ -186,6 +186,33 @@ describe("handing work to another Bot", () => {
     );
   });
 
+  test("a fan-out is capped at six colleagues, apart from the per-run cap of three", async () => {
+    const { desk: handoff, rows } = desk();
+    const ask = (n: number) =>
+      handoff.send({
+        from: FROM,
+        target: "Researcher",
+        envelope: { task: `part ${n}`, fanout: true },
+      });
+
+    const outcomes = [];
+    for (let n = 1; n <= 7; n += 1) outcomes.push(await ask(n));
+
+    expect(outcomes.slice(0, 6).every((outcome) => outcome.ok)).toBe(true);
+    expect(outcomes[6]?.ok).toBe(false);
+    expect(rows).toHaveLength(6);
+    // The lead's own hand-off in the same run still has its own three.
+    expect(
+      (
+        await handoff.send({
+          from: FROM,
+          target: "Researcher",
+          envelope: { task: "its own question" },
+        })
+      ).ok,
+    ).toBe(true);
+  });
+
   test("a colleague answering a fan-out hands nothing on (desk #87)", async () => {
     const { desk: handoff, rows, events } = desk();
 

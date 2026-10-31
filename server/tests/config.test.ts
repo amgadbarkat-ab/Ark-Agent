@@ -1207,6 +1207,8 @@ describe("how far a Bot may hand work on", () => {
       maxDepth: 5,
       maxPerRun: 3,
       maxPerRequest: 20,
+      // Six colleagues at once, used only when TEAM_FANOUT_ENABLED is on (desk #87).
+      maxFanout: 6,
     });
   });
 
@@ -1217,7 +1219,31 @@ describe("how far a Bot may hand work on", () => {
         BOT_HANDOFF_MAX_DEPTH: "0",
         BOT_HANDOFF_MAX_PER_RUN: "10",
       }).handoff,
-    ).toEqual({ maxDepth: 0, maxPerRun: 10, maxPerRequest: 20 });
+    ).toEqual({
+      maxDepth: 0,
+      maxPerRun: 10,
+      maxPerRequest: 20,
+      maxFanout: 6,
+    });
+  });
+
+  test("asks several colleagues at once only when a deployment says so (desk #87)", () => {
+    expect(loadConfig(baseEnvironment).teamFanout).toBe(false);
+    expect(
+      loadConfig({ ...baseEnvironment, TEAM_FANOUT_ENABLED: "false" })
+        .teamFanout,
+    ).toBe(false);
+    expect(
+      loadConfig({ ...baseEnvironment, TEAM_FANOUT_ENABLED: " true " })
+        .teamFanout,
+    ).toBe(true);
+    expect(() =>
+      loadConfig({ ...baseEnvironment, TEAM_FANOUT_ENABLED: "yes" }),
+    ).toThrow("TEAM_FANOUT_ENABLED");
+    expect(
+      loadConfig({ ...baseEnvironment, TEAM_FANOUT_MAX: "4" }).handoff
+        .maxFanout,
+    ).toBe(4);
   });
 
   test("refuses a cap that is not a whole number", () => {
