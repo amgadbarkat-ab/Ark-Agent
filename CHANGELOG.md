@@ -8,6 +8,21 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Greek lists show one item per line** (DT Lab, Wine24). When an answer wrote its bullets as `•`
+  or `–` rather than as a markdown list, the whole list came out as one paragraph. Those lines are
+  now drawn as a list, and so are several `•` items strung along one line.
+- **No more capital letters in the middle of a Greek word.** A capital Greek letter between two
+  lowercase ones («επιβεβαιΩθεί»), which some models write and Greek spelling never has, is shown
+  in lowercase. Words in capitals, and code, are left as written.
+
+### Desktop
+
+- **Help → About ArkAgent** shows which version you have. It is also in the tray menu.
+- **If the app ever closes unexpectedly, it leaves a note** in `.logs/desktop-crash.log` in your
+  ArkAgent folder. Please send it with any report of the window disappearing.
+
 ## 0.1.23
 
 ### Conversations
