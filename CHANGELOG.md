@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.23
+
 ### Conversations
 
 - **A long table no longer freezes the window while it streams** (DT Lab, Wine24). Every few
