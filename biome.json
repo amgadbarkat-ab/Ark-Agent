@@ -10,6 +10,7 @@
       "!desktop/src-tauri/gen",
       "!**/target",
       "!brand/brand-tokens.json",
+      "!.specify",
       "!brand/brand-tokens.css",
       "!brand/logos/logo-icon-bars.svg",
       "!mobile/android/build",
