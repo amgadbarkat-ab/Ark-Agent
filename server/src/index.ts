@@ -1701,6 +1701,8 @@ const app = createApp(
         forgetSnapshot: (botId: string) => snapshotStore.clear(botId),
       }
     : undefined,
+  // Asking several colleagues in one message (desk #87); only mounted when TEAM_FANOUT_ENABLED is on.
+  handoffDesk,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

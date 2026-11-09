@@ -95,6 +95,8 @@ import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
+import { createFanoutRoutes } from "./channels/fanout-routes";
+import type { HandoffDesk } from "./agents/handoff";
 import { jsonBodyLimit } from "./body-limit";
 import { originGuard } from "./origin-guard";
 import { requestShape } from "./request-shape";
@@ -457,6 +459,12 @@ export function createApp(
     Parameters<typeof createOwnBrowserRoutes>[0],
     "own" | "computerToken" | "forgetSnapshot"
   >,
+  /**
+   * The hand-off desk, for a person asking several colleagues in one message (desk #87). Appended
+   * last, for the positional reason above. Absent, or `TEAM_FANOUT_ENABLED` off, leaves
+   * `/api/team-fanout` unmounted, and a message naming several colleagues goes to the lead as before.
+   */
+  teamFanoutDesk?: HandoffDesk,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1738,6 +1746,19 @@ export function createApp(
     app.route(
       "/api/channels",
       createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
+    );
+  }
+
+  if (config.teamFanout && channelStore && auditStore && teamFanoutDesk) {
+    app.route(
+      "/api/team-fanout",
+      createFanoutRoutes({
+        channels: channelStore,
+        desk: teamFanoutDesk,
+        auditStore,
+        encryptionKey: config.keyEncryptionKey,
+        requireUser,
+      }),
     );
   }
 

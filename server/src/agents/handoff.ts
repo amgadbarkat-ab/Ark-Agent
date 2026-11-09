@@ -45,6 +45,11 @@ export type HandoffEnvelope = {
   constraints?: string;
   /** What good looks like coming back: a list, a number, a recommendation with reasons. */
   expecting?: string;
+  /**
+   * The person asked several colleagues at once, and this is one of them (desk #87). Set by the
+   * deployment, never by a model: `team_ask` builds its envelope from three fields and not this one.
+   */
+  fanout?: boolean;
 };
 
 /** How far this may go, in numbers a deployment chooses rather than constants. */
@@ -58,7 +63,16 @@ export type HandoffCaps = {
    * wide. Absent means no ceiling beyond the other two.
    */
   maxPerRequest?: number;
+  /**
+   * How many colleagues one message of the person's may ask at once (desk #87). Counted apart from
+   * `maxPerRun`, which bounds what a model chooses to hand on; this bounds what the person chose.
+   * Absent means `DEFAULT_MAX_FANOUT`.
+   */
+  maxFanout?: number;
 };
+
+/** Colleagues one message may ask at once when the deployment does not say. */
+export const DEFAULT_MAX_FANOUT = 6;
 
 export type HandoffOutcome =
   | { ok: true; to: string; toName: string }
@@ -167,6 +181,21 @@ export function createHandoffDesk(options: {
        * arrives in the signed assertion, so it is the deployment's number rather than anything the
        * model can edit, and it is already correct on whichever pod this run landed on.
        */
+      /*
+       * A fan-out run hands nothing on (desk #87). The person asked several colleagues at once and
+       * each answers for itself; one that passed its part to somebody else would multiply the runs
+       * the person agreed to, and the depth cap alone would still allow it. Here rather than in
+       * `team_ask`, because this is where every hop is counted, whoever asks for it.
+       */
+      if (from.fanout) {
+        return refuse(
+          from,
+          target,
+          "fanout",
+          "The person asked you together with other colleagues, so answer for yourself and do not hand this on.",
+        );
+      }
+
       const depth = from.depth ?? 0;
       if (depth >= caps.maxDepth) {
         return refuse(
@@ -311,10 +340,18 @@ export function createHandoffDesk(options: {
         .update(`${from.actorId}\u0000${from.request ?? from.runId}`)
         .digest("hex")
         .slice(0, 32)}:`;
-      const runPrefix = `${requestPrefix}${createHash("sha256")
+      const runHash = createHash("sha256")
         .update(from.runId)
         .digest("hex")
-        .slice(0, 32)}:`;
+        .slice(0, 32);
+      /*
+       * A fan-out is counted under its own prefix, still inside the request's. The lead's own
+       * `team_ask` hops in the same run keep their per-run cap, and every hop of either kind still
+       * counts towards the request's ceiling.
+       */
+      const runPrefix = envelope.fanout
+        ? `${requestPrefix}fanout:${runHash}:`
+        : `${requestPrefix}${runHash}:`;
       const key = `${runPrefix}${createHash("sha256")
         .update(
           JSON.stringify([
@@ -336,7 +373,12 @@ export function createHandoffDesk(options: {
          * under its own prefix, so the rows are the count.
          */
         atMost: [
-          { keyPrefix: runPrefix, max: caps.maxPerRun },
+          {
+            keyPrefix: runPrefix,
+            max: envelope.fanout
+              ? (caps.maxFanout ?? DEFAULT_MAX_FANOUT)
+              : caps.maxPerRun,
+          },
           ...(caps.maxPerRequest !== undefined
             ? [{ keyPrefix: requestPrefix, max: caps.maxPerRequest }]
             : []),
@@ -370,6 +412,7 @@ export function createHandoffDesk(options: {
               }
             : {}),
           toName: found.name,
+          ...(envelope.fanout ? { fanout: true } : {}),
           task,
           ...(envelope.constraints
             ? { constraints: envelope.constraints }
