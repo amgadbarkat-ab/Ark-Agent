@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.24
+
 ### Conversations
 
 - **Greek lists show one item per line** (DT Lab, Wine24). When an answer wrote its bullets as `•`
