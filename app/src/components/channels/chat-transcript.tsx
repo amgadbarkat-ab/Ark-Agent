@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePacedText } from "@/hooks/use-paced-text";
+import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { readColleagueAnswer } from "@/lib/copilot/markers";
@@ -561,7 +562,11 @@ function RoutineFiring({ instruction }: { instruction: string }) {
 function PacedMarkdown({ text }: { text: string }) {
   const paced = usePacedText(text);
   return useMemo(
-    () => <Streamdown components={markdownComponents}>{paced}</Streamdown>,
+    () => (
+      <Streamdown components={markdownComponents}>
+        {tidyAnswer(paced)}
+      </Streamdown>
+    ),
     [paced],
   );
 }
@@ -585,7 +590,9 @@ function ColleagueAnswer({ name, answer }: { name: string; answer: string }) {
       </div>
       <Bubble align="start" variant="ghost" className="w-full">
         <BubbleContent className="w-full">
-          <Streamdown components={markdownComponents}>{answer}</Streamdown>
+          <Streamdown components={markdownComponents}>
+            {tidyAnswer(answer)}
+          </Streamdown>
         </BubbleContent>
       </Bubble>
     </div>
@@ -1381,7 +1388,7 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
     >
       {body ? (
         <Streamdown components={markdownComponents}>
-          {forDisplay(body)}
+          {tidyAnswer(forDisplay(body))}
         </Streamdown>
       ) : null}
     </ToolLine>

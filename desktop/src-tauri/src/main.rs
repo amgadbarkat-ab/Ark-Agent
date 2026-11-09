@@ -11,9 +11,9 @@ mod desktop_host_access;
 mod test_support;
 
 use openbot_desktop_lib::{
-    acquire, deployment, deployment_release, engine, env as openbot_env, harness, host_access,
-    install, own_browser, preparation, problem::Problem, provider, pull_metrics, quiet, stack,
-    supervise, tray, windows as win,
+    about, acquire, crash_log, deployment, deployment_release, engine, env as openbot_env, harness,
+    host_access, install, own_browser, preparation, problem::Problem, provider, pull_metrics,
+    quiet, stack, supervise, tray, windows as win,
 };
 
 const QUIT_CLEANUP_NOTICE_FILE: &str = ".openbot-quit-cleanup-notice";
@@ -3831,6 +3831,7 @@ fn chose(app: &tauri::AppHandle, item: &str) {
         "stop" => stop_from_menu(app.clone()),
         // The one place the person's own browser is switched on (device control, phase 1).
         "own_browser" => toggle_own_browser(app),
+        "about" => show_about(app),
         // Exit rather than hide: quitting is a decision to stop, and the exit handler is what stops
         // the processes with it.
         "quit" => {
@@ -3840,11 +3841,29 @@ fn chose(app: &tauri::AppHandle, item: &str) {
     }
 }
 
+/// Help → About ArkAgent: the version, in a box of its own (desk #73). Not blocking, so the menu
+/// thread is never held while the box is open.
+fn show_about(app: &tauri::AppHandle) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    let mut dialog = app
+        .dialog()
+        .message(about::text(about::version()))
+        .title(about::TITLE)
+        .kind(MessageDialogKind::Info);
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.parent(&window);
+    }
+    dialog.show(|_| {});
+}
+
 fn quit_menu_accelerator() -> Option<&'static str> {
     Some(QUIT_MENU_ACCELERATOR)
 }
 
 fn main() {
+    // Before anything else can fail: a panic in a release build on Windows has no console to go to
+    // (desk #73, the window that vanished), so it is written beside the other logs.
+    crash_log::install(stack::default_root(), about::version().to_string());
     tauri::Builder::default()
         // A second launch is somebody looking for the window they already have, not a request for a
         // second stack. Without this both copies bind the same ports and the loser reports a
@@ -3926,6 +3945,7 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open ArkAgent", true, None::<&str>)?;
             let stop = MenuItem::with_id(app, "stop", "Stop ArkAgent", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
+            let tray_about = MenuItem::with_id(app, "about", about::TITLE, true, None::<&str>)?;
             /*
              * THE PERSON'S OWN BROWSER, SWITCHED HERE AND ONLY HERE (device control, phase 1).
              *
@@ -3955,7 +3975,8 @@ fn main() {
             )?;
             *app.state::<Shell>().own_browser_menu.lock().unwrap() =
                 vec![own_browser_item.clone(), window_own_browser_item.clone()];
-            let menu = Menu::with_items(app, &[&open, &own_browser_item, &stop, &quit])?;
+            let menu =
+                Menu::with_items(app, &[&open, &own_browser_item, &stop, &tray_about, &quit])?;
 
             TrayIconBuilder::with_id("openbot")
                 .icon(tray::icon())
@@ -4017,7 +4038,20 @@ fn main() {
                     &PredefinedMenuItem::select_all(app, None)?,
                 ],
             )?;
-            app.set_menu(Menu::with_items(app, &[&openbot, &edit])?)?;
+            // Help → About ArkAgent, where a person looks for which version they have (desk #73).
+            let help = Submenu::with_items(
+                app,
+                "Help",
+                true,
+                &[&MenuItem::with_id(
+                    app,
+                    "about",
+                    about::TITLE,
+                    true,
+                    None::<&str>,
+                )?],
+            )?;
+            app.set_menu(Menu::with_items(app, &[&openbot, &edit, &help])?)?;
             app.on_menu_event(|app, event| chose(app, event.id().as_ref()));
             Ok(())
         })
