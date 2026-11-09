@@ -8,6 +8,10 @@ langchain-anthropic
 # unannounced through the unpinned langchain-anthropic and turned the provider-boundary tests red.
 anthropic>=0.120.0,<2
 langchain-google-genai
+# Held below 3: google-genai 3.0.0 (6 Nov 2026) calls Gemini at /v1/ instead of /v1beta/, which changes
+# what reaches a Google-compatible endpoint. It arrived through the unpinned langchain-google-genai and
+# turned the provider-boundary tests red, the same way anthropic 2.x did.
+google-genai>=2,<3
 fastapi
 python-multipart
 uvicorn[standard]

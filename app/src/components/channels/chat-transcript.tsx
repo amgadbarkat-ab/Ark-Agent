@@ -22,6 +22,7 @@ import {
   useState,
 } from "react";
 import { Streamdown } from "streamdown";
+import { ChannelAvatar } from "@/components/channels/avatar";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import {
   Dialog,
@@ -45,6 +46,7 @@ import {
   useMessageScroller,
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePacedText } from "@/hooks/use-paced-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { readColleagueAnswer } from "@/lib/copilot/markers";
@@ -66,7 +68,6 @@ import {
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
 import { ToolRenderBoundary } from "./tool-boundary";
-import { ChannelAvatar } from "@/components/channels/avatar";
 import { ToolLine } from "./tool-line";
 import { VoiceChatCard } from "./voice-chat-card";
 
@@ -553,6 +554,19 @@ function RoutineFiring({ instruction }: { instruction: string }) {
 }
 
 /**
+ * An answer's markdown, redrawn at the pace `usePacedText` sets while it streams. The drawn markdown
+ * is kept until the paced text changes, so a piece arriving between paces re-renders this component
+ * and not the markdown.
+ */
+function PacedMarkdown({ text }: { text: string }) {
+  const paced = usePacedText(text);
+  return useMemo(
+    () => <Streamdown components={markdownComponents}>{paced}</Streamdown>,
+    [paced],
+  );
+}
+
+/**
  * A colleague's answer, drawn as the colleague's.
  *
  * A colleague asked through the team runs where nobody can see it, and its answer is written into
@@ -694,9 +708,10 @@ const TranscriptMessage = memo(function TranscriptMessage({
                  * code block or an unclosed bold marker is the NORMAL state for most of a run, and a
                  * plain markdown parser draws that as literal asterisks and backticks until the
                  * closing token arrives, so the answer visibly rewrites itself as it lands. This
-                 * closes them for the duration.
+                 * closes them for the duration. Paced, so a long table does not freeze the window
+                 * while it streams; see `usePacedText`.
                  */
-                <Streamdown components={markdownComponents}>{text}</Streamdown>
+                <PacedMarkdown text={text} />
               )}
             </BubbleContent>
           </Bubble>

@@ -56,11 +56,20 @@ languages with out-of-the-box support for 35+; **Greek is not named, so Greek qu
 | --- | --- | --- | --- | --- |
 | Gemma 4 E4B | `google/gemma-4-E4B-it-qat-q4_0-gguf` | `gemma-4-E4B_q4_0-it.gguf` | 5,154,941,280 | `676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee` |
 | Gemma 4 E2B | `google/gemma-4-E2B-it-qat-q4_0-gguf` | `gemma-4-E2B_q4_0-it.gguf` | 3,349,516,256 | `fa401b55b07ee70a54c6dae3903c783a6e65064312529ea57175cb5f8dec6634` |
-| Gemma 4 26B A4B (company server only) | `google/gemma-4-26B-A4B-it-qat-q4_0-gguf` | `gemma-4-26B_q4_0-it.gguf` | 14,439,363,584 | `3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d` |
+| Gemma 4 12B | `google/gemma-4-12B-it-qat-q4_0-gguf` | `gemma-4-12b-it-qat-q4_0.gguf` | 6,975,879,296 | `93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b` |
+| Gemma 4 26B A4B | `google/gemma-4-26B-A4B-it-qat-q4_0-gguf` | `gemma-4-26B_q4_0-it.gguf` | 14,439,363,584 | `3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d` |
+| Nemotron 3.5 Bolt E4B (opt-in, OpenMDW-1.1) | `nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB` | `Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf` | 6,180,446,208 | `c8af2b8aea10a690a1d9491db744a9446660173cb38fc489612b556615a69612` |
 
 Each repository also holds an `mmproj` file for images; text work does not need it, so it is not downloaded. The
 memory the files need is the file size plus working memory and the operating system: E2B suits a computer with 8 GB,
-E4B one with 12 GB or more. Still to check by running them: that tool calls through llama.cpp are reliable with our bot
+E4B one with 12 GB or more.
+
+**What the desktop app offers today** (`desktop/src-tauri/src/local_model.rs`, the source of truth if this table and
+it ever disagree): every model the computer's memory fits, best first, and the first is recommended. Gemma 4 26B A4B
+from 28 GB of memory (with a 32,768-token window), Gemma 4 12B from 24 GB, E4B from 12 GB, E2B from 8 GB. Nemotron 3.5
+Bolt E4B (NVIDIA's tool-use post-training of E4B, desk #64) is listed from 16 GB but never recommended or picked
+automatically: a person has to choose it. Gemma 4 31B is not offered on a computer; it is the server-side model in
+option 2 below. Still to check by running them: that tool calls through llama.cpp are reliable with our bot
 prompt, Greek answers, and speed on a typical laptop.
 
 ## Where it runs, now

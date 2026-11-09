@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **A long table no longer freezes the window while it streams** (DT Lab, Wine24). Every few
+  characters of an answer redrew the whole answer, so a long table took longer and longer to draw:
+  the window stopped responding, and when the answer was complete it still seemed to be streaming
+  while the screen caught up. A streaming answer is now redrawn a few times a second, and the last
+  of it shows as soon as it arrives.
+
 ## 0.1.22
 
 ### Models
