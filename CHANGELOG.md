@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.27
+
 ### Desktop
 
 - **The message box no longer flickers on Windows** (Amgad, v0.1.26). Since 0.1.25 the window
