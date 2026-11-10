@@ -2,7 +2,12 @@ import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render } from "@testing-library/react";
-import { ApprovalCard, cardWords } from "@/components/gallery/decisions";
+import type { z } from "zod";
+import {
+  ApprovalCard,
+  type ApprovalCardProps,
+  cardWords,
+} from "@/components/gallery/decisions";
 
 /**
  * A Greek approval card spoke English in its own controls (DT Lab, v0.1.25, desk #73): the reason
@@ -13,7 +18,7 @@ beforeAll(() => GlobalRegistrator.register());
 afterEach(() => cleanup());
 afterAll(() => GlobalRegistrator.unregister());
 
-function draw(args: Parameters<typeof ApprovalCard>[0]["args"]) {
+function draw(args: z.infer<typeof ApprovalCardProps>) {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <ApprovalCard
