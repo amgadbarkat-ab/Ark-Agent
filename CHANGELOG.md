@@ -18,6 +18,17 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   returns to the message box with the window, unless you were typing somewhere else or a dialog is
   open.
 
+### Coming next
+
+Not in this release, and being worked on:
+
+- A label on each answer naming the model that wrote it.
+- Per-employee controls: a token cap with a usage view, "ask me first" for long tasks, and routine
+  results in a thread of their own.
+- Asking several colleagues in one message. It is built and switched off until it has been tested.
+- Workflows (a schedule, employee steps, an approval and a notification on one canvas), and more
+  connectors: Teams, Outlook, OneDrive and SharePoint, Gmail, Calendar and Drive, and Notion.
+
 ## 0.1.24
 
 ### Conversations
