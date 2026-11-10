@@ -28,6 +28,7 @@ import {
 } from "react";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { IconWaveform } from "@/components/icons/waveform";
+import { useFocusOnReturn } from "@/hooks/use-focus-on-return";
 import {
   attachmentUrl,
   classifyAttachment,
@@ -1297,6 +1298,16 @@ export function Composer({
     claimedAutoFocus.current = true;
     promptAreaRef.current?.focus();
   }, [autoFocus, disabled, isBusy, dictation.busy]);
+
+  /*
+   * The caret comes back to the message box when the window does (desk #73): restored from the
+   * taskbar, the first characters typed used to go nowhere until the box was clicked. Only when the
+   * caret is free; see `shouldTakeFocus`.
+   */
+  useFocusOnReturn(
+    () => promptAreaRef.current?.focus(),
+    !(disabled || isBusy || dictation.busy),
+  );
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -19,12 +19,19 @@
  * the content-security policy's `font-src 'self'` allows it. Inter stays behind it as the fallback for the
  * moment before the file arrives.
  */
+/*
+ * NOT FOR GREEK (desk #73). Geist has only a handful of Greek letters, and maps lowercase ω (U+03C9) to
+ * its capital Ω glyph, so every ω in Greek text was drawn as Ω («τΩν», «όπΩς») while the letters around
+ * it came from the fallback. The Greek blocks are left out of this face, so Greek is drawn whole by the
+ * next font in the stack, which has all of it.
+ */
 @font-face {
   font-family: "Geist";
   src: url("/fonts/Geist-Variable.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-036F, U+0400-1EFF, U+2000-10FFFF;
 }
 
 html {

@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Greek ω is drawn as ω again** (DT Lab, Wine24). The app's typeface maps lowercase ω to its
+  capital Ω, so every ω in Greek text, typed or answered, showed as Ω («τΩν», «όπΩς»). Greek
+  is now drawn entirely in a typeface that has all of it, in the app and in the setup window.
+- **Typing right after you come back to the window reaches the message box.** Restored from the
+  taskbar, the first few characters used to go nowhere until the box was clicked. The caret now
+  returns to the message box with the window, unless you were typing somewhere else or a dialog is
+  open.
+
 ## 0.1.24
 
 ### Conversations
