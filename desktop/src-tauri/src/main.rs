@@ -3884,7 +3884,10 @@ fn keyboard_to_the_page<R: tauri::Runtime>(window: &tauri::Window<R>) {
 const WINDOW_RETURNED_GAP: std::time::Duration = std::time::Duration::from_secs(1);
 
 fn window_returned_is_due(last: Option<std::time::Instant>, now: std::time::Instant) -> bool {
-    last.is_none_or(|last| now.saturating_duration_since(last) >= WINDOW_RETURNED_GAP)
+    match last {
+        None => true,
+        Some(last) => now.saturating_duration_since(last) >= WINDOW_RETURNED_GAP,
+    }
 }
 
 /// Help → About ArkAgent: the version, in a box of its own (desk #73). Not blocking, so the menu
