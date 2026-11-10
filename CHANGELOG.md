@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.26
+
 ### Conversations
 
 - **Typing straight after Alt+Tab reaches the message box, first word included** (DT Lab,
