@@ -40,9 +40,53 @@ export const ApprovalCardProps = z.object({
     ),
   approveLabel: z.string().optional().describe("Defaults to Approve"),
   rejectLabel: z.string().optional().describe("Defaults to Decline"),
+  reasonLabel: z
+    .string()
+    .optional()
+    .describe(
+      "The hint in the box where the person may give a reason, in the same language as the card. Defaults to 'A reason, if you want to give one'",
+    ),
 });
 
 type ApprovalArgs = z.infer<typeof ApprovalCardProps>;
+
+/**
+ * The card's own words, in the language its text is written in (desk #73: a Greek card had an English
+ * reason box, badge and buttons). Greek when the title or summary is; English otherwise. What the
+ * model names itself (`approveLabel`, `rejectLabel`, `reasonLabel`) always wins.
+ */
+const CARD_WORDS = {
+  en: {
+    reason: "A reason, if you want to give one",
+    waiting: "Waiting on you",
+    approved: "Approved",
+    declined: "Declined",
+    approve: "Approve",
+    decline: "Decline",
+    sending: "Sending…",
+    preparing: "Preparing the request…",
+  },
+  el: {
+    reason: "Αιτιολογία, αν θέλετε να δώσετε",
+    waiting: "Περιμένει εσάς",
+    approved: "Εγκρίθηκε",
+    declined: "Απορρίφθηκε",
+    approve: "Έγκριση",
+    decline: "Απόρριψη",
+    sending: "Αποστολή…",
+    preparing: "Προετοιμασία του αιτήματος…",
+  },
+} as const;
+
+export function cardWords(
+  ...texts: Array<string | undefined>
+): (typeof CARD_WORDS)[keyof typeof CARD_WORDS] {
+  return texts.some(
+    (text) => text && /[\u0370-\u03FF\u1F00-\u1FFF]/u.test(text),
+  )
+    ? CARD_WORDS.el
+    : CARD_WORDS.en;
+}
 
 export function ApprovalCard(
   props: Waiting<ApprovalArgs> & {
@@ -76,10 +120,12 @@ export function ApprovalCard(
     await respond({ decision, note: note.trim() || undefined });
   };
 
+  const words = cardWords(args.title, args.summary);
+
   if (status === "inProgress") {
     return (
       <GalleryFrame title={args.title ?? "Waiting for the assistant…"}>
-        <p className="text-sm text-muted-foreground">Preparing the request…</p>
+        <p className="text-sm text-muted-foreground">{words.preparing}</p>
       </GalleryFrame>
     );
   }
@@ -92,10 +138,10 @@ export function ApprovalCard(
       action={
         decided ? (
           <Badge tone={decided === "approved" ? "positive" : "negative"}>
-            {decided === "approved" ? "Approved" : "Declined"}
+            {decided === "approved" ? words.approved : words.declined}
           </Badge>
         ) : (
-          <Badge tone="caution">Waiting on you</Badge>
+          <Badge tone="caution">{words.waiting}</Badge>
         )
       }
       title={args.title}
@@ -103,10 +149,13 @@ export function ApprovalCard(
       <p className="text-sm">{args.summary}</p>
 
       {args.details?.length ? (
-        <dl className="mt-3 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <dl className="mt-3 grid grid-cols-[minmax(0,11rem)_1fr] gap-x-4 gap-y-1.5 text-sm">
           {args.details.map((detail) => (
             <div className="contents" key={detail.label}>
-              <dt className="truncate text-muted-foreground">{detail.label}</dt>
+              {/* Wrapped, never cut: «Αποστολέας / παραλήπτης» lost its second word (desk #73). */}
+              <dt className="break-words text-muted-foreground">
+                {detail.label}
+              </dt>
               <dd className="min-w-0 break-words">{detail.value}</dd>
             </div>
           ))}
@@ -116,11 +165,11 @@ export function ApprovalCard(
       {decided ? null : (
         <div className="mt-4 space-y-2">
           <input
-            aria-label="A reason, if you want to give one"
+            aria-label={args.reasonLabel ?? words.reason}
             className="w-full rounded-md border border-border bg-transparent px-3 py-1.5 text-sm"
             disabled={Boolean(sending)}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="A reason, if you want to give one"
+            placeholder={args.reasonLabel ?? words.reason}
             value={note}
           />
           <div className="flex gap-2">
@@ -130,8 +179,8 @@ export function ApprovalCard(
               size="sm"
             >
               {sending === "approved"
-                ? "Sending…"
-                : (args.approveLabel ?? "Approve")}
+                ? words.sending
+                : (args.approveLabel ?? words.approve)}
             </Button>
             <Button
               disabled={Boolean(sending)}
@@ -140,8 +189,8 @@ export function ApprovalCard(
               variant="outline"
             >
               {sending === "declined"
-                ? "Sending…"
-                : (args.rejectLabel ?? "Decline")}
+                ? words.sending
+                : (args.rejectLabel ?? words.decline)}
             </Button>
           </div>
         </div>

@@ -8,6 +8,29 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Typing straight after Alt+Tab reaches the message box, first word included** (DT Lab,
+  Wine24). Coming back with Alt+Tab and typing at once lost the first word. A key typed while the
+  caret is nowhere now moves it into the message box and lands there. Shortcuts, other fields,
+  menus and open dialogs keep their keys, and a capital N on its way is a letter, not a new chat.
+- **Approval cards speak the card's language.** A Greek card's reason box, status and default
+  buttons are now in Greek, and long labels («Αποστολέας / παραλήπτης») wrap instead of being cut.
+
+### Desktop
+
+- **After an upgrade, ArkAgent updates its software and starts by itself.** It used to open as
+  "ArkAgent is stopped" until you chose Update and start. If the download fails, it says why and
+  leaves Update and start for you.
+
+### Coming next
+
+- An answer that keeps streaming after its approval card has appeared.
+- The Requests count not always updating when a card arrives.
+- A rare "socket connection closed" that works on a retry.
+- A label on each answer naming the model that wrote it, per-employee controls, asking several
+  colleagues in one message, Workflows and more connectors (as listed for 0.1.25).
+
 ## 0.1.25
 
 ### Conversations
