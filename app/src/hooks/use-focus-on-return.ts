@@ -63,3 +63,55 @@ export function useFocusOnReturn(focus: () => void, enabled = true) {
     };
   }, [enabled]);
 }
+
+/** Widgets that read letter keys themselves (type-ahead in a menu or list, arrows in tabs). */
+const KEYBOARD_WIDGETS =
+  '[role="menu"], [role="menubar"], [role="listbox"], [role="tree"], [role="grid"], [role="tablist"], [role="radiogroup"], [role="slider"], [role="combobox"]';
+
+function inKeyboardWidget(element: Element | null): boolean {
+  return element instanceof HTMLElement && !!element.closest(KEYBOARD_WIDGETS);
+}
+
+/** Keys that act on a focused button or link: never taken from one. */
+const PRESSES = new Set([" ", "Enter"]);
+
+function isPressable(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  return (
+    element.tagName === "BUTTON" ||
+    element.tagName === "A" ||
+    element.getAttribute("role") === "button" ||
+    element.getAttribute("role") === "link"
+  );
+}
+
+/**
+ * Typing with the caret nowhere goes into the message box, first character included (desk #73).
+ *
+ * Back with Alt+Tab, a person types at once: before the window-returned signal above has moved the
+ * caret, so the first word was lost ("test ", DT Lab, v0.1.25). Here a printable key that arrives
+ * while nothing editable has the caret moves it to the message box during that same keystroke, and
+ * the browser then writes the character there. Shortcuts (Ctrl, Cmd, Alt), keys that are not
+ * characters, Space or Enter on a focused button, and keys inside a menu, list or tabs are left
+ * alone, as is everything while a dialog is open or the person is in another field.
+ */
+export function useTypeToFocus(focus: () => void, enabled = true) {
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key.length !== 1) return;
+      if (PRESSES.has(event.key) && isPressable(document.activeElement)) return;
+      if (inKeyboardWidget(document.activeElement)) return;
+      if (!shouldTakeFocus()) return;
+      focusRef.current();
+    };
+    // Capture, so the caret has moved before anything else on the page reads the keystroke.
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [enabled]);
+}

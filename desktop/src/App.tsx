@@ -117,6 +117,13 @@ export function App() {
   const [resuming, setResuming] = useState(false);
   const [checkingResume, setCheckingResume] = useState(true);
   const savedLaunch = useRef<string | null>(null);
+  /*
+   * Set when reopening the last setup was refused only because this app is newer than the software it
+   * runs, which is what every upgrade looks like (desk #73: DT Lab opened v0.1.25 to "ArkAgent is
+   * stopped" and had to press Update and start). Owed once per launch, and paid by the effect below
+   * with this render's state, as if the person had pressed the button.
+   */
+  const updateOwed = useRef(false);
   const [preparation, setPreparation] = useState<{
     key: string;
     status: "preparing" | "complete" | "failed";
@@ -291,7 +298,10 @@ export function App() {
           setRecoveryFailure(null);
           await invoke("show_openbot");
         } catch (error) {
-          if (active) recoverFromStart(error);
+          if (active) {
+            if (updateNeeded(asProblem(error))) updateOwed.current = true;
+            recoverFromStart(error);
+          }
         } finally {
           if (active) {
             setBusy(false);
@@ -558,6 +568,18 @@ export function App() {
       setBusy(false);
     }
   }
+
+  /*
+   * Pay the update an upgrade owes (see `updateOwed`): exactly what Update and start does, pressed for
+   * the person, once, with the same conditions that enable the button. If it fails, the screen shows
+   * why and the button is still there.
+   */
+  useEffect(() => {
+    if (!updateOwed.current || busy || running || !updating) return;
+    if (!modelCanStart()) return;
+    updateOwed.current = false;
+    void start();
+  });
 
   // Nothing else on this screen can be done until the machine allows it, so nothing else is shown.
   if (blockerFailure) {

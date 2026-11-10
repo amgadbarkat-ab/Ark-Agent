@@ -28,7 +28,7 @@ import {
 } from "react";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { IconWaveform } from "@/components/icons/waveform";
-import { useFocusOnReturn } from "@/hooks/use-focus-on-return";
+import { useFocusOnReturn, useTypeToFocus } from "@/hooks/use-focus-on-return";
 import {
   attachmentUrl,
   classifyAttachment,
@@ -1304,10 +1304,10 @@ export function Composer({
    * taskbar, the first characters typed used to go nowhere until the box was clicked. Only when the
    * caret is free; see `shouldTakeFocus`.
    */
-  useFocusOnReturn(
-    () => promptAreaRef.current?.focus(),
-    !(disabled || isBusy || dictation.busy),
-  );
+  const canTakeCaret = !(disabled || isBusy || dictation.busy);
+  useFocusOnReturn(() => promptAreaRef.current?.focus(), canTakeCaret);
+  // And a keystroke that arrives first, as after Alt+Tab, takes it there itself.
+  useTypeToFocus(() => promptAreaRef.current?.focus(), canTakeCaret);
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

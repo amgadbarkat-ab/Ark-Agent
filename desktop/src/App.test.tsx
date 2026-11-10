@@ -669,7 +669,7 @@ test("a failed automatic reopen offers recovery without retrying or installing",
   expect(view.getByRole("heading", { name: "Connect your AI" })).toBeTruthy();
 });
 
-test("an updated app downloads its new software with one press, then starts", async () => {
+test("after an upgrade, the new software is downloaded and started with no press (desk #73)", async () => {
   setupRootConfiguration("/tmp/updated-app", async () => ({
     ...savedOpenAiConfiguration(),
     saved: { ...savedOpenAiConfiguration().saved, model: "open-ai-api-key" },
@@ -684,21 +684,50 @@ test("an updated app downloads its new software with one press, then starts", as
       };
     return previous(command, args);
   };
-  const view = await renderApp();
-  expect((await view.findByRole("alert")).textContent).toContain(
-    "was updated to v0.1.13",
-  );
-  expect(installationCalls()).toHaveLength(0);
-  const update = view.getByRole("button", { name: "Update and start" });
-  expect(update).toHaveProperty("disabled", false);
-  await userEvent.click(update);
+  await renderApp();
+  // Nobody presses Update and start: reopening after an upgrade does it, once.
   await waitFor(() => expect(starts).toBe(2));
+  expect(installationCalls()).toHaveLength(1);
   // Installed again first, which is what fetches the new version, and then started.
   const commands = invokeCalls.map((call) => call.command);
   expect(commands).toContain("prepare_installation");
   expect(commands.lastIndexOf("prepare_installation")).toBeLessThan(
     commands.lastIndexOf("start_stack"),
   );
+});
+
+test("an upgrade whose download fails shows why and does not try again by itself", async () => {
+  setupRootConfiguration("/tmp/updated-app-offline", async () => ({
+    ...savedOpenAiConfiguration(),
+    saved: { ...savedOpenAiConfiguration().saved, model: "open-ai-api-key" },
+    launch: { harness: { id: "langgraph" } },
+  }));
+  const previous = invokeHandler;
+  let starts = 0;
+  let prepares = 0;
+  invokeHandler = async (command, args) => {
+    if (command === "start_stack" && ++starts >= 1)
+      throw {
+        said: "ArkAgent was updated to v0.1.26. Choose Update and start to download its new software, once; your digital employees, conversations and keys stay as they are.",
+      };
+    if (command === "prepare_installation" && ++prepares >= 1)
+      throw {
+        said: "The new software could not be downloaded. Check the connection.",
+      };
+    return previous(command, args);
+  };
+  const view = await renderApp();
+  expect((await view.findByRole("alert")).textContent).toContain(
+    "could not be downloaded",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  // Tried by itself once, and no more: the person decides when to try again.
+  expect(prepares).toBe(1);
+  expect(starts).toBe(1);
+  // The same screen a pressed Update and start reaches when its download fails.
+  expect(
+    view.getByRole("heading", { name: "ArkAgent is not ready yet" }),
+  ).toBeTruthy();
 });
 
 test("menu Stop retains the installed root for explicit Start without the wizard", async () => {

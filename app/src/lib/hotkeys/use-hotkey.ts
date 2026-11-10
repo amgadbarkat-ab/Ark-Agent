@@ -39,7 +39,14 @@ export function useHotkey(id: HotkeyId, handler: () => void) {
       if (!matchesHotkey(event, combo)) {
         return;
       }
-      if (!combo.mod && !combo.alt && isEditable(event.target)) {
+      // The target is where the key was pressed; the active element is where it is going. Typing that
+      // arrived with the caret nowhere is moved into the message box (`useTypeToFocus`), and a capital
+      // N on its way there is a letter, not a new chat.
+      if (
+        !combo.mod &&
+        !combo.alt &&
+        (isEditable(event.target) || isEditable(document.activeElement))
+      ) {
         return;
       }
       event.preventDefault();
