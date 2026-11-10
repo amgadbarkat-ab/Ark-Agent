@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.25
+
 ### Conversations
 
 - **Greek ω is drawn as ω again** (DT Lab, Wine24). The app's typeface maps lowercase ω to its
