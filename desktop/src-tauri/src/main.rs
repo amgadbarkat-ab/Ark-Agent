@@ -3847,17 +3847,44 @@ const WINDOW_RETURNED_SCRIPT: &str = "window.dispatchEvent(new Event('arkagent:w
 
 /// The window is active again: give the keyboard to the page inside it, and tell the page (desk #73).
 ///
-/// Restored from the taskbar, the window became active while the web view inside it was not told,
-/// so the first characters typed went nowhere until the message box was clicked (DT Lab, Linux,
-/// v0.1.24: "The qu" lost). Focusing the web view hands it the keyboard; the event lets the page put
-/// the caret in the message box, which it does only when nothing else the person can type into has it.
+/// Restored from the taskbar on Linux, the window became active while the web view inside it was not
+/// told, so the first characters typed went nowhere until the message box was clicked (DT Lab,
+/// v0.1.24: "The qu" lost). There, focusing the web view hands it the keyboard. The event lets the
+/// page put the caret in the message box, which it does only when nothing else the person can type
+/// into has it.
+///
+/// LINUX ONLY for the web view's focus. On Windows the web view library already moves focus into the
+/// page whenever the window gains it (`WM_SETFOCUS`), and doing it again here made the window lose and
+/// regain focus in a loop: the message box's outline blinked several times a second and typing broke
+/// (Amgad's Windows PC, v0.1.26). And at most once a second on every platform, so no focus event this
+/// causes can bring it back.
 fn keyboard_to_the_page<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    static LAST: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let now = std::time::Instant::now();
+        if !window_returned_is_due(*last, now) {
+            return;
+        }
+        *last = Some(now);
+    }
     let Some(webview) = window.app_handle().get_webview_window(window.label()) else {
         return;
     };
-    let page: &tauri::Webview<R> = webview.as_ref();
-    let _ = page.set_focus();
+    #[cfg(target_os = "linux")]
+    {
+        let page: &tauri::Webview<R> = webview.as_ref();
+        let _ = page.set_focus();
+    }
     let _ = webview.eval(WINDOW_RETURNED_SCRIPT);
+}
+
+/// The shortest gap between two hand-overs of the keyboard. A person switching back to the window
+/// twice within it loses nothing: the page keeps the caret where the first one put it.
+const WINDOW_RETURNED_GAP: std::time::Duration = std::time::Duration::from_secs(1);
+
+fn window_returned_is_due(last: Option<std::time::Instant>, now: std::time::Instant) -> bool {
+    last.is_none_or(|last| now.saturating_duration_since(last) >= WINDOW_RETURNED_GAP)
 }
 
 /// Help → About ArkAgent: the version, in a box of its own (desk #73). Not blocking, so the menu
@@ -4142,6 +4169,20 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn focus_handed_to_the_page_at_most_once_a_second() {
+        let start = std::time::Instant::now();
+        assert!(super::window_returned_is_due(None, start));
+        assert!(!super::window_returned_is_due(
+            Some(start),
+            start + std::time::Duration::from_millis(300)
+        ));
+        assert!(super::window_returned_is_due(
+            Some(start),
+            start + std::time::Duration::from_millis(1000)
+        ));
+    }
+
     #[test]
     fn the_window_returned_event_is_the_one_the_page_listens_for() {
         let page = include_str!("../../../app/src/hooks/use-focus-on-return.ts");

@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Desktop
+
+- **The message box no longer flickers on Windows** (Amgad, v0.1.26). Since 0.1.25 the window
+  passed the keyboard to the page each time it was focused, and on Windows that made it lose and
+  regain focus in a loop: the box's outline blinked several times a second and typing broke.
+  Windows already does this hand-over itself, so ArkAgent now does it only on Linux, and never
+  more than once a second.
+
 ## 0.1.26
 
 ### Conversations
