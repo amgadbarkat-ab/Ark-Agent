@@ -8,6 +8,27 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Greek ω is drawn as ω again** (DT Lab, Wine24). The app's typeface maps lowercase ω to its
+  capital Ω, so every ω in Greek text, typed or answered, showed as Ω («τΩν», «όπΩς»). Greek
+  is now drawn entirely in a typeface that has all of it, in the app and in the setup window.
+- **Typing right after you come back to the window reaches the message box.** Restored from the
+  taskbar, the first few characters used to go nowhere until the box was clicked. The caret now
+  returns to the message box with the window, unless you were typing somewhere else or a dialog is
+  open.
+
+### Coming next
+
+Not in this release, and being worked on:
+
+- A label on each answer naming the model that wrote it.
+- Per-employee controls: a token cap with a usage view, "ask me first" for long tasks, and routine
+  results in a thread of their own.
+- Asking several colleagues in one message. It is built and switched off until it has been tested.
+- Workflows (a schedule, employee steps, an approval and a notification on one canvas), and more
+  connectors: Teams, Outlook, OneDrive and SharePoint, Gmail, Calendar and Drive, and Notion.
+
 ## 0.1.24
 
 ### Conversations

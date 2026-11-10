@@ -3841,6 +3841,25 @@ fn chose(app: &tauri::AppHandle, item: &str) {
     }
 }
 
+/// What the page hears when its window becomes the active one again: `WINDOW_RETURNED` in
+/// `app/src/hooks/use-focus-on-return.ts`, which puts the caret back in the message box.
+const WINDOW_RETURNED_SCRIPT: &str = "window.dispatchEvent(new Event('arkagent:window-returned'))";
+
+/// The window is active again: give the keyboard to the page inside it, and tell the page (desk #73).
+///
+/// Restored from the taskbar, the window became active while the web view inside it was not told,
+/// so the first characters typed went nowhere until the message box was clicked (DT Lab, Linux,
+/// v0.1.24: "The qu" lost). Focusing the web view hands it the keyboard; the event lets the page put
+/// the caret in the message box, which it does only when nothing else the person can type into has it.
+fn keyboard_to_the_page<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    let Some(webview) = window.app_handle().get_webview_window(window.label()) else {
+        return;
+    };
+    let page: &tauri::Webview<R> = webview.as_ref();
+    let _ = page.set_focus();
+    let _ = webview.eval(WINDOW_RETURNED_SCRIPT);
+}
+
 /// Help → About ArkAgent: the version, in a box of its own (desk #73). Not blocking, so the menu
 /// thread is never held while the box is open.
 fn show_about(app: &tauri::AppHandle) {
@@ -3915,11 +3934,13 @@ fn main() {
         // menu item that points at nothing: `get_webview_window` returns None from then on, and the
         // only way back is to quit and start again, with a stack still running that nothing on
         // screen can reach.
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            tauri::WindowEvent::Focused(true) => keyboard_to_the_page(window),
+            _ => {}
         })
         .setup(|app| {
             if let Some(root) = app
@@ -4121,6 +4142,13 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_window_returned_event_is_the_one_the_page_listens_for() {
+        let page = include_str!("../../../app/src/hooks/use-focus-on-return.ts");
+        assert!(page.contains("\"arkagent:window-returned\""));
+        assert!(super::WINDOW_RETURNED_SCRIPT.contains("'arkagent:window-returned'"));
+    }
+
     use super::*;
     use std::io::{Read, Write};
 
