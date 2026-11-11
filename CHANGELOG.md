@@ -17,6 +17,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   administrator adds the connector under Plugins, and each person presses Connect. A client an
   administrator registers still takes precedence. While Google has not yet verified the app, Gmail
   and Drive work only for the test users listed in its project, who reconnect every 7 days.
+  Personal Microsoft accounts connect straight away; in a company, its IT administrator approves
+  ArkAgent once until Microsoft has verified the publisher.
 
 ## 0.1.29
 

@@ -443,6 +443,13 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
           df -h /
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # Public resolvers for RUN steps (11 Nov 2026): from 14:03 UTC GitHub's runners stopped
+          # resolving archive.ubuntu.com inside BuildKit's container, with nothing changed here, and
+          # every image build failed at apt-get. Fixed servers keep a build independent of that.
+          buildkitd-config-inline: |
+            [dns]
+              nameservers = ["1.1.1.1", "8.8.8.8"]
       # Loaded rather than pushed: this runs on pull requests, including from forks, and it proves
       # the image builds without granting anything the ability to publish one.
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -593,6 +600,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          # Public resolvers for RUN steps (11 Nov 2026): from 14:03 UTC GitHub's runners stopped
+          # resolving archive.ubuntu.com inside BuildKit's container, with nothing changed here, and
+          # every image build failed at apt-get. Fixed servers keep a build independent of that.
+          buildkitd-config-inline: |
+            [dns]
+              nameservers = ["1.1.1.1", "8.8.8.8"]
       # A Dockerfile the release does not publish is one a machine would build from source, so the
       # list and the tree have to agree. Checked here rather than trusted, because the failure is
       # silent: the release succeeds and a laptop somewhere compiles the app.
