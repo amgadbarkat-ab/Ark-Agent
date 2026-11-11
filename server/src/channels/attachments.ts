@@ -11,6 +11,15 @@ import {
 } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import {
+  classifyAttachment,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_DOCUMENT_BYTES,
+  MAX_FILE_BYTES,
+  MAX_IMAGE_BYTES,
+  namesNoFormat,
+  unreadableReason,
+} from "../../../shared/attachments";
 import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
 import {
@@ -19,15 +28,8 @@ import {
   channels,
   intelligenceChannelMappings,
 } from "../db/schema";
-import {
-  classifyAttachment,
-  MAX_ATTACHMENTS_PER_MESSAGE,
-  MAX_FILE_BYTES,
-  MAX_IMAGE_BYTES,
-  namesNoFormat,
-} from "../../../shared/attachments";
-import type { StoredAttachment } from "./attachment-parts";
 import { sniffMimeType } from "./attachment-mime";
+import type { StoredAttachment } from "./attachment-parts";
 
 function megabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
@@ -822,11 +824,30 @@ export function createChannelAttachmentRoutes(
     }
 
     if (kind === "unsupported") {
+      // A PDF or an older Office file gets the sentence that says what to do about it (desk #83).
+      // The browser's claim is consulted for that, since the sniffed answer for such a file is
+      // "just bytes"; it decides the wording only, never whether the file is taken.
+      const reason =
+        unreadableReason(file.type, file.name) ??
+        unreadableReason(mimeType, file.name);
       return context.json(
         {
-          error: `'${name}' is not a file type this app can read${describeType(mimeType)}.`,
+          error: reason
+            ? `'${name}' ${reason}.`
+            : `'${name}' is not a file type this app can read${describeType(mimeType)}.`,
         },
         415,
+      );
+    }
+
+    if (kind === "document" && bytes.byteLength > MAX_DOCUMENT_BYTES) {
+      return context.json(
+        {
+          error: `'${name}' is larger than the ${megabytes(
+            MAX_DOCUMENT_BYTES,
+          )} limit for Word and Excel files.`,
+        },
+        413,
       );
     }
 

@@ -3,6 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { BuiltInAgentClassicConfig } from "@copilotkit/runtime/v2";
 import type { ProviderProtocol } from "../../../shared/model-providers";
 import { requestWithSingleTypes } from "../../../shared/tool-schema";
+import { fetchWithImageFallback } from "./image-fallback";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -75,7 +76,8 @@ export function languageModelFor(
   choice: ModelChoice,
   fetchImpl: GuardedFetch,
 ): ConnectionLanguageModel {
-  const fetch = guarded(fetchImpl);
+  // A model that takes no images is told one was attached, instead of failing the conversation.
+  const fetch = fetchWithImageFallback(guarded(fetchImpl));
 
   if (choice.protocol === "anthropic") {
     const anthropic = createAnthropic({
@@ -138,7 +140,9 @@ export function deploymentChatModel(
   const built = createOpenAI({
     apiKey: environment.OPENAI_API_KEY?.trim() || NO_KEY,
     baseURL: baseUrl.replace(/\/+$/, ""),
-    ...(local ? { fetch: forLocalTemplate(globalThis.fetch) } : {}),
+    fetch: fetchWithImageFallback(
+      local ? forLocalTemplate(globalThis.fetch) : globalThis.fetch,
+    ),
   }).chat(model) as ConnectionLanguageModel;
   deploymentModels.set(key, built);
   return built;

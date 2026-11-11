@@ -1,5 +1,6 @@
 import type { AttachmentsConfig } from "@copilotkit/react-core/v2";
 import {
+  ACCEPTED_DOCUMENT_MIME,
   ACCEPTED_IMAGE_MIME,
   ACCEPTED_TEXT_MIME,
   attachmentUrl,
@@ -159,6 +160,9 @@ function isUploadedAttachment(body: unknown): body is UploadedAttachment {
 export const FILE_PICKER_ACCEPT = [
   ...ACCEPTED_IMAGE_MIME,
   ...ACCEPTED_TEXT_MIME,
+  ...ACCEPTED_DOCUMENT_MIME,
+  ".docx",
+  ".xlsx",
   ".png",
   ".jpg",
   ".jpeg",

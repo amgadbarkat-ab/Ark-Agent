@@ -2,7 +2,10 @@ import {
   attachmentUrl,
   classifyAttachment,
   MAX_EXTRACTED_CHARACTERS,
+  mediaTypeOf,
+  XLSX_MIME,
 } from "../../../shared/attachments";
+import { docxText, UnreadableDocument, xlsxText } from "./office-text";
 
 /**
  * What `load` hands back for an attachment id: the bytes and the metadata
@@ -109,13 +112,54 @@ export function attachmentIdsIn(content: unknown): string[] {
  * happen — which is the class of failure this whole function exists to avoid.
  */
 function extractDocumentText(bytes: Buffer): string {
-  const full = bytes.toString("utf8");
+  return cutForModel(bytes.toString("utf8"));
+}
+
+/** The cut described above, for text however it was come by: a text file's bytes, or a document's words. */
+function cutForModel(full: string): string {
   if (full.length <= MAX_EXTRACTED_CHARACTERS) return full;
   const sliced = full.slice(0, MAX_EXTRACTED_CHARACTERS);
   const last = sliced.charCodeAt(sliced.length - 1);
   const splitAPair = last >= 0xd800 && last <= 0xdbff;
   const cut = splitAPair ? sliced.slice(0, -1) : sliced;
   return `${cut}\n\n[attachment truncated at ${cut.length} characters]`;
+}
+
+/**
+ * A Word or Excel file, as the text in it (desk #83).
+ *
+ * The model is told what the file was, because "Attached file x.xlsx" followed by comma-separated
+ * lines otherwise reads as a CSV somebody misnamed. A file that cannot be read is a note saying
+ * so and why, on every path, including the message being asked about: the file is there and the
+ * person may see it, so failing the turn would be refusing an answer over a file's contents, and a
+ * model that knows the file could not be read can say that.
+ */
+function documentPart(attachment: StoredAttachment): {
+  type: "text";
+  text: string;
+} {
+  const sheet = mediaTypeOf(attachment.mimeType) === XLSX_MIME;
+  const what = sheet ? "an Excel workbook" : "a Word document";
+  let text: string;
+  try {
+    text = sheet ? xlsxText(attachment.bytes) : docxText(attachment.bytes);
+  } catch (error) {
+    const why = error instanceof UnreadableDocument ? error.message : "damaged";
+    return {
+      type: "text",
+      text: `[attachment "${attachment.name}" is ${what} that could not be read (${why}). Tell the person so.]`,
+    };
+  }
+  if (!text.trim()) {
+    return {
+      type: "text",
+      text: `[attachment "${attachment.name}" is ${what} with no text in it]`,
+    };
+  }
+  return {
+    type: "text",
+    text: `Attached file "${attachment.name}" (${what}, given here as its text):\n\n${cutForModel(text)}`,
+  };
 }
 
 /**
@@ -477,6 +521,10 @@ async function resolvePart(
       type: "text",
       text: `Attached file "${attachment.name}":\n\n${text}`,
     };
+  }
+
+  if (kind === "document") {
+    return documentPart(attachment);
   }
 
   if (kind !== "image") return unreadableNote(part, id, attachment.mimeType);

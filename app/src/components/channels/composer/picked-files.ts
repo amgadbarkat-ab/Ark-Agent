@@ -1,10 +1,12 @@
 import {
   classifyAttachment,
   MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_DOCUMENT_BYTES,
   MAX_FILE_BYTES,
   MAX_IMAGE_BYTES,
   mediaTypeOf,
   namesNoFormat,
+  unreadableReason,
 } from "@/lib/channels/attachments";
 import { newId } from "@/lib/new-id";
 import type { RejectedFile } from "./rejected-files";
@@ -74,9 +76,32 @@ export function screenPickedFiles(
      */
     const unnamed = kind === "unsupported" && namesNoFormat(mediaType);
 
+    /*
+     * A PDF or an older Office file is refused with what to do about it (desk #83: "'test-page.pdf'
+     * is not a file type this chat accepts" told nobody anything). Asked before the unnamed case is
+     * let through, because Windows gives a `.pdf` no type when no PDF program is installed, and
+     * sending that to the server to be refused in the same words is a round trip for nothing.
+     */
+    const reason =
+      kind === "unsupported" ? unreadableReason(file.type, file.name) : null;
+    if (reason) {
+      rejected.push(reject(file, `'${file.name}' ${reason}.`));
+      continue;
+    }
+
     if (kind === "unsupported" && !unnamed) {
       rejected.push(
         reject(file, `'${file.name}' is not a file type this chat accepts.`),
+      );
+      continue;
+    }
+
+    if (kind === "document" && file.size > MAX_DOCUMENT_BYTES) {
+      rejected.push(
+        reject(
+          file,
+          `'${file.name}' is too large for a Word or Excel attachment (limit ${formatBytes(MAX_DOCUMENT_BYTES)}).`,
+        ),
       );
       continue;
     }

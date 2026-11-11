@@ -1,9 +1,13 @@
 import {
+  ACCEPTED_DOCUMENT_MIME,
   ACCEPTED_IMAGE_MIME,
   ACCEPTED_TEXT_MIME,
+  DOCX_MIME,
   mediaTypeOf,
   namesNoFormat,
+  XLSX_MIME,
 } from "../../../shared/attachments";
+import { officeKindOf } from "./office-text";
 
 /**
  * The text claims this function will hand back under their own name.
@@ -144,6 +148,18 @@ export function sniffMimeType(bytes: Uint8Array, claimed: string): string {
   if (sniffedImage) return sniffedImage;
 
   /*
+   * A Word or Excel file is a zip, and which of the two it is comes from what the archive holds,
+   * never from the claim (desk #83). Earned from the bytes for the same reason an image's name is:
+   * Windows gives a `.docx` no type at all when Word is not installed, and a claim alone would let
+   * any zip be stored under a document's name.
+   */
+  if (hasSignature(bytes, [0x50, 0x4b, 0x03, 0x04])) {
+    const office = officeKindOf(bytes);
+    if (office === "docx") return DOCX_MIME;
+    if (office === "xlsx") return XLSX_MIME;
+  }
+
+  /*
    * `mediaTypeOf`, NOT A LOCAL COPY OF WHAT IT DOES.
    *
    * This line used to be `claimed.toLowerCase().split(";")[0].trim()` —
@@ -212,6 +228,12 @@ export function sniffMimeType(bytes: Uint8Array, claimed: string): string {
    * failure, which is the right direction for this to break in.
    */
   if ((ACCEPTED_IMAGE_MIME as readonly string[]).includes(normalizedClaim)) {
+    return "application/octet-stream";
+  }
+
+  // And a document claim the archive did not bear out, for the same reason: reaching this line
+  // with one means the bytes are not that document.
+  if ((ACCEPTED_DOCUMENT_MIME as readonly string[]).includes(normalizedClaim)) {
     return "application/octet-stream";
   }
 

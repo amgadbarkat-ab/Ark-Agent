@@ -1,13 +1,17 @@
 import { afterAll, afterEach, describe, expect, spyOn, test } from "bun:test";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import {
   attachmentUrl,
+  DOCX_MIME,
   MAX_ATTACHMENTS_PER_MESSAGE,
   MAX_FILE_BYTES,
   MAX_IMAGE_BYTES,
+  XLSX_MIME,
 } from "../../shared/attachments";
 import { createApp, UPLOAD_BODY_LIMIT_BYTES } from "../src/app";
 import type { AppVariables } from "../src/auth/guards";
@@ -17,8 +21,8 @@ import {
   createAttachmentRoutes,
   createChannelAttachmentRoutes,
   loadAttachmentForTurn,
-  markAttachmentsSent,
   MAX_STAGED_ATTACHMENTS_PER_UPLOADER,
+  markAttachmentsSent,
 } from "../src/channels/attachments";
 import { loadConfig } from "../src/config";
 import type { Database } from "../src/db/client";
@@ -601,6 +605,62 @@ describe("POST /:channelId/attachments", () => {
     expect(response.status).toBe(415);
     const body = (await response.json()) as { error: string };
     expect(body.error).toContain("application/zip");
+  });
+
+  test("a Word file is accepted and stored as one, whatever the browser called it (desk #83)", async () => {
+    const { app, database: db, channelId } = await harness();
+    const bytes = readFileSync(join(import.meta.dir, "fixtures", "order.docx"));
+    // Windows reports no type for a .docx when Word is not installed.
+    const file = new File([bytes], "order.docx", { type: "" });
+
+    const response = await upload(app, channelId, file);
+
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { id: string; mimeType: string };
+    expect(body.mimeType).toBe(DOCX_MIME);
+    const [row] = await db
+      .select({ mimeType: attachments.mimeType })
+      .from(attachments)
+      .where(eq(attachments.id, body.id));
+    expect(row?.mimeType).toBe(DOCX_MIME);
+  });
+
+  test("an Excel file is accepted", async () => {
+    const { app, channelId } = await harness();
+    const bytes = readFileSync(join(import.meta.dir, "fixtures", "wines.xlsx"));
+    const response = await upload(
+      app,
+      channelId,
+      new File([bytes], "wines.xlsx", { type: XLSX_MIME }),
+    );
+    expect(response.status).toBe(201);
+  });
+
+  test("a PDF and an older Word file are refused with what to do about it", async () => {
+    const { app, channelId } = await harness();
+    const pdf = await upload(
+      app,
+      channelId,
+      new File([new TextEncoder().encode("%PDF-1.7\n")], "test-page.pdf", {
+        type: "application/pdf",
+      }),
+    );
+    expect(pdf.status).toBe(415);
+    expect(((await pdf.json()) as { error: string }).error).toBe(
+      "'test-page.pdf' is a PDF, which ArkAgent cannot read yet. Word (.docx), Excel (.xlsx), text and CSV files can be attached.",
+    );
+
+    const doc = await upload(
+      app,
+      channelId,
+      new File([new Uint8Array([0xd0, 0xcf, 0x11, 0xe0])], "old.doc", {
+        type: "application/msword",
+      }),
+    );
+    expect(doc.status).toBe(415);
+    expect(((await doc.json()) as { error: string }).error).toContain(
+      "Save it as .docx",
+    );
   });
 
   test("the ninth staged attachment in one upload group is refused", async () => {
