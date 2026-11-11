@@ -722,6 +722,17 @@ pub fn compose(
         format!("http://127.0.0.1:{}", ports.server),
     );
 
+    // Where a vendor sends a person back to after they consent to a connector (desk #83: Gmail
+    // could not be connected on a desktop install, because the Plugins page had no address to give
+    // Google and said to set this). The API on this machine, as `localhost`, because that is the
+    // spelling Google and Microsoft both accept over plain http for a redirect URI. Loopback, so it
+    // is not an address anybody else reaches, which is what the server checks before it lets a
+    // single-user deployment have one.
+    env.insert(
+        "OPENBOT_PUBLIC_URL".into(),
+        format!("http://localhost:{}", ports.server),
+    );
+
     env.extend(ports.settings());
     env.insert(
         "OPENBOT_TOOL_URL".into(),
@@ -1517,6 +1528,26 @@ HTTPS_PROXY=http://proxy:8080
         assert_eq!(
             env.get("OPENBOT_SINGLE_USER").map(String::as_str),
             Some("true")
+        );
+    }
+
+    #[test]
+    fn a_connector_has_a_loopback_address_to_be_sent_back_to() {
+        let ports = Ports {
+            server: 52101,
+            ..Ports::default()
+        };
+        let env = compose(
+            &Model::default(),
+            &engine_status(None),
+            &ports,
+            &pinned(),
+            None,
+            &BTreeMap::new(),
+        );
+        assert_eq!(
+            env.get("OPENBOT_PUBLIC_URL").map(String::as_str),
+            Some("http://localhost:52101")
         );
     }
 

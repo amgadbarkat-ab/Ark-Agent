@@ -8,6 +8,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Desktop
+
+- **Connectors can be connected on a desktop install** (DT Lab, Gmail). The Plugins page said
+  "This deployment has no public URL… Set OPENBOT_PUBLIC_URL", so no consent could finish.
+  ArkAgent Desktop now gives its own server a loopback address. The page shows the redirect
+  address to register with Google or Microsoft: `http://localhost:3001/api/plugins/oauth/callback`,
+  or with your own server port. **Connect** opens the vendor's sign-in in your web browser, where
+  Google allows it, and the connection shows up when you come back to ArkAgent.
+
 ## 0.1.28
 
 ### Conversations

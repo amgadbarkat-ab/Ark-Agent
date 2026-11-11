@@ -38,6 +38,28 @@ export function externalAddress(
   return url.origin === new URL(here).origin ? null : url.toString();
 }
 
+/**
+ * Opens a web address in the person's own browser when this page is inside ArkAgent Desktop, and says
+ * whether it did. False in an ordinary browser, where the caller navigates as it always has.
+ *
+ * For a vendor's consent screen above all (desk #83). Google refuses to show its sign-in inside an
+ * embedded web view, and a consent completed in the person's browser comes back to this computer's
+ * own server just the same: the callback is sessionless and carries its own sealed state.
+ */
+export function openInBrowser(address: string): boolean {
+  const open = desktopOpener();
+  if (!open) return false;
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  void open("plugin:opener|open_url", { url: url.toString() });
+  return true;
+}
+
 export function installExternalLinks(): void {
   if (typeof document === "undefined") return;
   // The capture phase, so a link inside a dialog or a menu that stops the click from bubbling still counts.
