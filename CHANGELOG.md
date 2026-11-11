@@ -8,6 +8,44 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **An image sent to a model that cannot see images no longer breaks the chat** (DT Lab, Mercury
+  3). It used to show a raw red `400 … Image inputs are not supported`, and every later message
+  in that chat failed the same way. Now the model is told an image was attached that it cannot
+  see, says so in its own words, and the conversation carries on. ArkAgent remembers the model,
+  so the next message doesn't hit the refusal first.
+- **Word (.docx) and Excel (.xlsx) files can be attached.** The model reads the document's text,
+  and each sheet's rows with their columns kept in place, up to 8 MB. A PDF, or an older .doc or
+  .xls file, is refused with a sentence saying what to attach instead; reading PDFs comes next.
+- **Conversation titles are plain words in the conversation's language.** A title or preview no
+  longer shows `**` or `- ` marks, and a Greek conversation gets a Greek title.
+- **Rename a conversation** from its menu in the sidebar: Rename…, then a name up to 60
+  characters.
+
+### Plugins
+
+- **Gmail, read only.** Under Plugins and Connected accounts, each person can connect their own
+  Gmail. A digital employee can then search it with Gmail's own search words (`from:`,
+  `subject:`, `newer_than:7d`), list the inbox, and read a message: its headers, its text, and
+  the names of its attachments. Nothing is sent, deleted, labelled or marked read.
+  - **Setup:** an administrator needs a Google OAuth client with the Gmail API turned on. The same
+    client Google Drive uses works. While Google's project is in Testing mode, only the test users
+    it lists can connect, which suits a test mailbox.
+  - It has been tested against recorded answers, not yet against a real mailbox, and the page
+    says so.
+
+### Coming next
+
+- Reading PDF attachments. This needs a PDF library added to ArkAgent, which waits for a yes.
+- Named group conversations with a member picker.
+- The interface in Greek. Today only answers and approval cards follow the conversation's
+  language.
+- A warning before a large local model is chosen for a computer with a small graphics card. For
+  now, on a computer with a 4 GB card, choose Gemma 4 E4B or E2B in the desktop app's list of
+  local models; Gemma 4 26B gave no reply there.
+- An answer that keeps streaming after its approval card has appeared.
+
 ## 0.1.27
 
 ### Desktop
