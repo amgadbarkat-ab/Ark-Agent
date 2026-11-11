@@ -824,7 +824,7 @@ export function createChannelAttachmentRoutes(
     }
 
     if (kind === "unsupported") {
-      // A PDF or an older Office file gets the sentence that says what to do about it (desk #83).
+      // An older Office file gets the sentence that says what to do about it (desk #83).
       // The browser's claim is consulted for that, since the sniffed answer for such a file is
       // "just bytes"; it decides the wording only, never whether the file is taken.
       const reason =
@@ -845,7 +845,7 @@ export function createChannelAttachmentRoutes(
         {
           error: `'${name}' is larger than the ${megabytes(
             MAX_DOCUMENT_BYTES,
-          )} limit for Word and Excel files.`,
+          )} limit for Word, Excel and PDF files.`,
         },
         413,
       );

@@ -77,10 +77,10 @@ export function screenPickedFiles(
     const unnamed = kind === "unsupported" && namesNoFormat(mediaType);
 
     /*
-     * A PDF or an older Office file is refused with what to do about it (desk #83: "'test-page.pdf'
-     * is not a file type this chat accepts" told nobody anything). Asked before the unnamed case is
-     * let through, because Windows gives a `.pdf` no type when no PDF program is installed, and
-     * sending that to the server to be refused in the same words is a round trip for nothing.
+     * An older Office file is refused with what to do about it (desk #83: "is not a file type this
+     * chat accepts" told nobody anything). Asked before the unnamed case is let through, because
+     * Windows gives a `.doc` no type when Word is not installed, and sending that to the server to
+     * be refused in the same words is a round trip for nothing.
      */
     const reason =
       kind === "unsupported" ? unreadableReason(file.type, file.name) : null;
@@ -100,7 +100,7 @@ export function screenPickedFiles(
       rejected.push(
         reject(
           file,
-          `'${file.name}' is too large for a Word or Excel attachment (limit ${formatBytes(MAX_DOCUMENT_BYTES)}).`,
+          `'${file.name}' is too large for a Word, Excel or PDF attachment (limit ${formatBytes(MAX_DOCUMENT_BYTES)}).`,
         ),
       );
       continue;

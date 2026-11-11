@@ -5,9 +5,11 @@ import {
   DOCX_MIME,
   mediaTypeOf,
   namesNoFormat,
+  PDF_MIME,
   XLSX_MIME,
 } from "../../../shared/attachments";
 import { officeKindOf } from "./office-text";
+import { isPdf } from "./pdf-text";
 
 /**
  * The text claims this function will hand back under their own name.
@@ -158,6 +160,10 @@ export function sniffMimeType(bytes: Uint8Array, claimed: string): string {
     if (office === "docx") return DOCX_MIME;
     if (office === "xlsx") return XLSX_MIME;
   }
+
+  // A PDF by its signature, for the same reason: Windows gives a `.pdf` no type when no PDF program
+  // is installed, and a claim alone would let any bytes be stored under a PDF's name.
+  if (isPdf(bytes)) return PDF_MIME;
 
   /*
    * `mediaTypeOf`, NOT A LOCAL COPY OF WHAT IT DOES.

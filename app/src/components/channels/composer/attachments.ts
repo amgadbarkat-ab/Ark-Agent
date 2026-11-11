@@ -163,6 +163,7 @@ export const FILE_PICKER_ACCEPT = [
   ...ACCEPTED_DOCUMENT_MIME,
   ".docx",
   ".xlsx",
+  ".pdf",
   ".png",
   ".jpg",
   ".jpeg",

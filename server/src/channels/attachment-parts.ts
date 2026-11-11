@@ -3,9 +3,11 @@ import {
   classifyAttachment,
   MAX_EXTRACTED_CHARACTERS,
   mediaTypeOf,
+  PDF_MIME,
   XLSX_MIME,
 } from "../../../shared/attachments";
 import { docxText, UnreadableDocument, xlsxText } from "./office-text";
+import { pdfText } from "./pdf-text";
 
 /**
  * What `load` hands back for an attachment id: the bytes and the metadata
@@ -126,7 +128,7 @@ function cutForModel(full: string): string {
 }
 
 /**
- * A Word or Excel file, as the text in it (desk #83).
+ * A Word, Excel or PDF file, as the text in it (desk #83).
  *
  * The model is told what the file was, because "Attached file x.xlsx" followed by comma-separated
  * lines otherwise reads as a CSV somebody misnamed. A file that cannot be read is a note saying
@@ -134,15 +136,21 @@ function cutForModel(full: string): string {
  * person may see it, so failing the turn would be refusing an answer over a file's contents, and a
  * model that knows the file could not be read can say that.
  */
-function documentPart(attachment: StoredAttachment): {
+async function documentPart(attachment: StoredAttachment): Promise<{
   type: "text";
   text: string;
-} {
-  const sheet = mediaTypeOf(attachment.mimeType) === XLSX_MIME;
-  const what = sheet ? "an Excel workbook" : "a Word document";
+}> {
+  const mediaType = mediaTypeOf(attachment.mimeType);
+  const pdf = mediaType === PDF_MIME;
+  const sheet = mediaType === XLSX_MIME;
+  const what = pdf ? "a PDF" : sheet ? "an Excel workbook" : "a Word document";
   let text: string;
   try {
-    text = sheet ? xlsxText(attachment.bytes) : docxText(attachment.bytes);
+    text = pdf
+      ? await pdfText(attachment.bytes)
+      : sheet
+        ? xlsxText(attachment.bytes)
+        : docxText(attachment.bytes);
   } catch (error) {
     const why = error instanceof UnreadableDocument ? error.message : "damaged";
     return {
@@ -153,7 +161,9 @@ function documentPart(attachment: StoredAttachment): {
   if (!text.trim()) {
     return {
       type: "text",
-      text: `[attachment "${attachment.name}" is ${what} with no text in it]`,
+      text: pdf
+        ? `[attachment "${attachment.name}" is a PDF with no text in it, most likely a scan. This app cannot read the words in a scanned picture. Tell the person so, and that a PDF saved from a document, or the document itself, can be read.]`
+        : `[attachment "${attachment.name}" is ${what} with no text in it]`,
     };
   }
   return {
@@ -524,7 +534,7 @@ async function resolvePart(
   }
 
   if (kind === "document") {
-    return documentPart(attachment);
+    return await documentPart(attachment);
   }
 
   if (kind !== "image") return unreadableNote(part, id, attachment.mimeType);

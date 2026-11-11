@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **PDF files can be attached and read.** The model reads each page's text, with the pages marked,
+  up to 8 MB per file. A scanned PDF has no text to read, so the model says it is a scan; a
+  password-protected PDF is named as locked. PDFs are read with unpdf (Mozilla's PDF.js, MIT).
+
 ## 0.1.28
 
 ### Conversations
