@@ -1,4 +1,9 @@
-import { IconPin, IconPinnedOff, IconTrash } from "@tabler/icons-react";
+import {
+  IconPencil,
+  IconPin,
+  IconPinnedOff,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { memo, useState } from "react";
@@ -17,8 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   deleteChannelMutationOptions,
+  renameChannelMutationOptions,
   setChannelPinnedMutationOptions,
 } from "@/lib/channels/mutations";
 import type { MessageListEmphasis } from "@/lib/settings/message-list";
@@ -29,7 +36,7 @@ import { ChannelItemContent } from "./channel-item-content";
  * Memoized roster row. `use-channel-events` preserves unchanged row identity, and
  * `content-visibility` keeps off-screen rows cheap without virtualization.
  *
- * Right-click opens Pin and Delete. Deleting is confirmed in a dialog that names the channel,
+ * Right-click opens Pin, Rename and Delete. Deleting is confirmed in a dialog that names the channel,
  * because the row it was invoked on is one of several identical-looking rows.
  */
 export const Channel = memo(function Channel({
@@ -72,6 +79,8 @@ export const Channel = memo(function Channel({
   const setPinned = useMutation(setChannelPinnedMutationOptions(queryClient));
   const deleteChannel = useMutation(deleteChannelMutationOptions(queryClient));
   const [confirming, setConfirming] = useState(false);
+  /** The title the rename dialog opens on, while it is open; null while it is closed. */
+  const [renaming, setRenaming] = useState<string | null>(null);
   /**
    * Why a pin did not take, said on the row it was asked of.
    *
@@ -145,6 +154,12 @@ export const Channel = memo(function Channel({
             {pinned ? "Unpin channel" : "Pin channel"}
           </ContextMenuItem>
           <ContextMenuItem
+            onClick={() => setRenaming(summary || lastMessage || "")}
+          >
+            <IconPencil />
+            Rename…
+          </ContextMenuItem>
+          <ContextMenuItem
             variant="destructive"
             onClick={() => {
               // A refusal from a previous attempt is not news about this one.
@@ -161,6 +176,13 @@ export const Channel = memo(function Channel({
         <p className="px-2 pb-1 text-destructive text-xs" role="alert">
           {pinProblem}
         </p>
+      ) : null}
+      {renaming !== null ? (
+        <RenameChannelDialog
+          channelId={channelId}
+          current={renaming}
+          onClose={() => setRenaming(null)}
+        />
       ) : null}
       <Dialog
         onOpenChange={(open) => {
@@ -204,3 +226,94 @@ export const Channel = memo(function Channel({
     </>
   );
 });
+
+/**
+ * Rename a conversation (desk #83: right-click offered only Pin and Delete). Opens on its current
+ * title; the new one is the conversation's, so every member sees it.
+ */
+export function RenameChannelDialog(props: {
+  channelId: string;
+  current: string;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) props.onClose();
+      }}
+      open
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename conversation</DialogTitle>
+          <DialogDescription>
+            Everyone in the conversation sees the new name.
+          </DialogDescription>
+        </DialogHeader>
+        <RenameChannelForm {...props} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The dialog's form, on its own so it can be exercised without a dialog around it. */
+export function RenameChannelForm({
+  channelId,
+  current,
+  onClose,
+}: {
+  channelId: string;
+  current: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const rename = useMutation(renameChannelMutationOptions(queryClient));
+  const [title, setTitle] = useState(current);
+
+  const save = async () => {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    try {
+      await rename.mutateAsync({ channelId, title: trimmed });
+    } catch {
+      // Shown in the form, which stays open.
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <form
+      className="contents"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+    >
+      <Input
+        aria-label="Conversation name"
+        autoFocus
+        maxLength={60}
+        onChange={(event) => setTitle(event.target.value)}
+        value={title}
+      />
+      {rename.error ? (
+        <p className="text-destructive text-sm" role="alert">
+          {rename.error.message}
+        </p>
+      ) : null}
+      <DialogFooter>
+        <Button onClick={onClose} size="sm" type="button" variant="ghost">
+          Cancel
+        </Button>
+        <Button
+          disabled={rename.isPending || !title.trim()}
+          size="sm"
+          type="submit"
+        >
+          {rename.isPending ? "Saving…" : "Save"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}

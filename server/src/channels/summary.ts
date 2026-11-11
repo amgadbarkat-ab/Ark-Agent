@@ -18,7 +18,7 @@ import {
 } from "../db/schema";
 import { DEFAULT_MAX_ATTEMPTS, type WorkQueue } from "../work/queue";
 import { CHANNEL_ACTIVITY_TOPIC, type ChannelActivityEvent } from "./events";
-import { oneLine } from "./text";
+import { oneLine, withoutMarkdown } from "./text";
 
 export const CHANNEL_SUMMARY_KIND = "channel.summary";
 
@@ -248,7 +248,10 @@ async function summariseOne(
   const answer = await options.title(excerpt, owner.userId);
   if (!answer) return "nothing to name it with";
 
-  const title = oneLine(stripWrappingQuotes(answer), MAX_SUMMARY_GRAPHEMES);
+  const title = oneLine(
+    withoutMarkdown(stripWrappingQuotes(answer)),
+    MAX_SUMMARY_GRAPHEMES,
+  );
   if (!title) return "nothing to name it with";
 
   return await options.database.transaction<Attempt>(
