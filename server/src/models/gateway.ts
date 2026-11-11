@@ -3,6 +3,7 @@ import { providerById } from "../../../shared/model-providers";
 import type { ModelConnectionStore } from "./connections";
 import { readModelGrant } from "./grant";
 import { sendWithImageFallback } from "./image-fallback";
+import { sendWithModelLimits } from "./rate-limit";
 import {
   STARTER_CONNECTION_ID,
   StarterBusyError,
@@ -214,8 +215,10 @@ export function modelGatewayRoutes(options: {
       upstream =
         json === undefined
           ? await dispatch(body)
-          : await sendWithImageFallback(target, json, (payload) =>
-              dispatch(payload === json ? body : payload),
+          : await sendWithModelLimits(target, json, (limited) =>
+              sendWithImageFallback(target, limited, (payload) =>
+                dispatch(payload === json ? body : payload),
+              ),
             );
     } catch (error) {
       if (request.signal.aborted) return new Response(null, { status: 499 });

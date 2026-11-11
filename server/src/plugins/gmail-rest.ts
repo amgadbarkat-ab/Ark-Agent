@@ -2,9 +2,11 @@
  * Gmail over Google's REST API, for the catalogue's `gmail` entry (desk #83: DT Lab needs a Gmail test
  * mailbox, and Gmail was listed as "Not yet").
  *
- * Read only, exactly as Microsoft 365 is: search, list and read, and nothing that sends, deletes,
- * labels or marks as read. The scope is `gmail.readonly`, so Google itself refuses anything else, and
- * the tools below are the only things a digital employee is offered.
+ * Search, list and read, and one write: `send_message` (desk #83, the Wine24 email scene). Nothing
+ * deletes, labels or marks as read. The scopes are `gmail.readonly` and `gmail.send`, so Google
+ * itself refuses anything else, and the tools below are the only things a digital employee is
+ * offered. `send_message` is on the catalogue's write list, so every call to it is held for the
+ * person to approve, with the message shown, before it goes.
  *
  * The same Google OAuth client an administrator set up for Google Drive works here; each person
  * connects their own mailbox, and an answer only ever comes from the mailbox of whoever asked.
@@ -13,6 +15,12 @@
  * markup taken out, when a message has no plain part). Attachments are named, never fetched.
  */
 import { cutAtCodeUnits } from "../channels/text";
+import {
+  bodyFrom,
+  MAX_RECIPIENTS,
+  recipientsFrom,
+  subjectFrom,
+} from "./mail-send";
 import { MAX_RESULT_CHARS, type McpCallResult, type McpTool } from "./mcp";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -57,6 +65,29 @@ const TOOLS: readonly McpTool[] = Object.freeze([
       required: ["messageId"],
     },
   },
+  {
+    name: "send_message",
+    description:
+      "Send an email from your Gmail. The person is shown the message and approves it before it is sent. Plain text. Use to and cc for addresses, separated by commas.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        to: {
+          type: "string",
+          description:
+            "Who it is to: one or more email addresses, separated by commas.",
+        },
+        cc: {
+          type: "string",
+          description:
+            "Optional. Copied to: email addresses, separated by commas.",
+        },
+        subject: { type: "string", description: "The subject line." },
+        body: { type: "string", description: "The message, as plain text." },
+      },
+      required: ["to", "subject", "body"],
+    },
+  },
 ]);
 
 type Connection = { url: string; token?: string };
@@ -72,6 +103,7 @@ async function request(
   connection: Connection,
   path: string,
   query: Record<string, string | string[]>,
+  post?: unknown,
 ): Promise<{ ok: true; body: unknown } | { ok: false; message: string }> {
   if (!connection.token) {
     return { ok: false, message: "No credential was available for this call." };
@@ -86,7 +118,12 @@ async function request(
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { authorization: `Bearer ${connection.token}` },
+      method: post === undefined ? "GET" : "POST",
+      headers: {
+        authorization: `Bearer ${connection.token}`,
+        ...(post === undefined ? {} : { "content-type": "application/json" }),
+      },
+      ...(post === undefined ? {} : { body: JSON.stringify(post) }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
@@ -111,11 +148,18 @@ async function request(
     } catch {
       // Not JSON: the status alone.
     }
+    // A grant made before sending was added has no permission to send: the fix is to connect again.
+    const reconnect =
+      response.status === 403 && /insufficient|scope/i.test(detail)
+        ? " Connect Gmail again in Settings, then Connected accounts, so it can ask for permission to send."
+        : "";
     return {
       ok: false,
-      message: detail
-        ? `Gmail refused this request (${response.status}): ${detail}`
-        : `Gmail refused this request (${response.status}).`,
+      message: `${
+        detail
+          ? `Gmail refused this request (${response.status}): ${detail}`
+          : `Gmail refused this request (${response.status}).`
+      }${reconnect}`,
     };
   }
 
@@ -147,6 +191,47 @@ function header(message: Message, name: string): string | undefined {
   return message.payload?.headers?.find(
     (each) => each.name?.toLowerCase() === lower,
   )?.value;
+}
+
+/** Text as base64url, which is how Gmail takes a whole message. */
+function base64url(text: string): string {
+  return Buffer.from(text, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/** A header value in UTF-8, as RFC 2047 says to write one that is not plain ASCII. */
+function encodedWord(text: string): string {
+  return /^[\x20-\x7e]*$/.test(text)
+    ? text
+    : `=?UTF-8?B?${Buffer.from(text, "utf8").toString("base64")}?=`;
+}
+
+/**
+ * One plain-text message as RFC 5322 text. Every header value here has already been checked to be
+ * on one line (see `mail-send.ts`), so nothing in it can add a header the person did not approve.
+ */
+export function rfc822(message: {
+  to: string[];
+  cc: string[];
+  subject: string;
+  body: string;
+}): string {
+  const body = Buffer.from(message.body.replace(/\r?\n/g, "\r\n"), "utf8")
+    .toString("base64")
+    .replace(/.{1,76}/g, "$&\r\n");
+  return [
+    `To: ${message.to.join(", ")}`,
+    ...(message.cc.length > 0 ? [`Cc: ${message.cc.join(", ")}`] : []),
+    `Subject: ${encodedWord(message.subject)}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    body,
+  ].join("\r\n");
 }
 
 /** Gmail's base64url body data, as text. */
@@ -328,6 +413,39 @@ export async function callTool(
     const text = bodyText(message);
     lines.push("", text || "(This message has no text.)");
     return asResult(lines.join("\n"));
+  }
+
+  if (toolName === "send_message") {
+    const to = recipientsFrom(args.to, "to");
+    if (!to.ok) return failure(to.message);
+    const cc = recipientsFrom(args.cc, "cc");
+    if (!cc.ok) return failure(cc.message);
+    if (to.addresses.length === 0) {
+      return failure("A message needs at least one address to send to.");
+    }
+    if (to.addresses.length + cc.addresses.length > MAX_RECIPIENTS) {
+      return failure(
+        `A message may go to at most ${MAX_RECIPIENTS} addresses in all.`,
+      );
+    }
+    const subject = subjectFrom(args.subject);
+    if (!subject) return failure("A message needs a subject.");
+    const body = bodyFrom(args.body);
+    if (!body) return failure("A message needs some text to send.");
+    const raw = base64url(
+      rfc822({ to: to.addresses, cc: cc.addresses, subject, body }),
+    );
+    const result = await request(
+      connection,
+      "/users/me/messages/send",
+      {},
+      { raw },
+    );
+    if (!result.ok) return failure(result.message);
+    const sent = result.body as { id?: string };
+    return asResult(
+      `Sent to ${[...to.addresses, ...cc.addresses].join(", ")}: "${subject}".${sent.id ? ` Message id: ${sent.id}.` : ""}`,
+    );
   }
 
   return failure(

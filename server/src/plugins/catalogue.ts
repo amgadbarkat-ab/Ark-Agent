@@ -251,7 +251,16 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
       authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: "https://oauth2.googleapis.com/token",
       revokeUrl: "https://oauth2.googleapis.com/revoke",
-      scopes: Object.freeze(["https://www.googleapis.com/auth/gmail.readonly"]),
+      /*
+       * Read, and send (desk #83, the Wine24 email scene). `gmail.send` lets a message be sent and
+       * nothing else: it cannot read, delete or label. It is a "sensitive" scope rather than a
+       * "restricted" one, so it needs no security assessment. Sending is `send_message`, a write, so
+       * every send waits for the person's approval with the message shown.
+       */
+      scopes: Object.freeze([
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+      ]),
       // For the reason given on Drive's entry: no refresh token without both.
       authorizationParams: Object.freeze({
         access_type: "offline",
@@ -362,6 +371,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
         "offline_access",
         "User.Read",
         "Mail.Read",
+        // Sending only, held for approval like every write: `outlook_send_mail` (desk #83).
+        "Mail.Send",
         "Calendars.Read",
         "Chat.Read",
         "Files.Read.All",

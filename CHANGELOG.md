@@ -8,6 +8,25 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Mercury 3 no longer stops with "429 Rate limit reached: output token limit exceeded"**
+  (DT Lab). ArkAgent asked Inception for no output limit, and its free tier allows 100,000 output
+  tokens a minute, so a turn's few calls could use the minute up between them. Each call now asks
+  for at most 8,192 tokens of output. A 429 is retried after the wait Inception asks for (at most
+  20 seconds, twice). If Inception still refuses, the conversation says so plainly: wait a
+  minute, or choose another model.
+
+### Plugins
+
+- **Gmail and Microsoft 365 can send an email, after you approve it** (DT Lab, Wine24). A digital
+  employee drafts the message; the approval card shows who it goes to, the subject and the text,
+  and nothing is sent until you approve. Plain text, to and cc only. Microsoft keeps a copy in Sent
+  Items.
+  - **Connect again once:** an account connected before this release has no permission to send.
+    Press Connect on Gmail or Microsoft 365 again, and the error message says so too.
+  - Needs `gmail.send` on the Google project, and `Mail.Send` on the Microsoft app.
+
 ## 0.1.31
 
 ### Desktop
