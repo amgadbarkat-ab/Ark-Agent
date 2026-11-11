@@ -275,6 +275,10 @@ describe("a run at the limit", () => {
     await until(() => text(waiting.events).length > 0);
     waiting.subscription.unsubscribe();
     first.finishAll();
+    // The first run's place is given back through the database, which a busy machine does not do in
+    // any fixed time (it took longer than 150 ms in the v0.1.27 release run). Wait for it, then give
+    // the stopped run time to start if it wrongly would: it must not.
+    await until(async () => (await slots.activeBots(ann.tenantId)) === 0);
     await new Promise((r) => setTimeout(r, 150));
     expect(second.runs).toHaveLength(0);
     expect(await slots.activeBots(ann.tenantId)).toBe(0);
