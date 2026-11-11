@@ -27,6 +27,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { openInBrowser } from "@/lib/external-links";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import {
   connectionsQueryOptions,
@@ -71,6 +72,14 @@ function RouteComponent() {
       if (authorizationUrl === null) {
         setNotice(
           "This deployment answered without a consent link, so there was nowhere to send you and nothing was connected. Try again, and tell an administrator if it persists.",
+        );
+        return;
+      }
+      // Inside ArkAgent Desktop the consent screen opens in the person's own browser, where Google
+      // allows it; this page picks the new connection up when the window has focus again.
+      if (openInBrowser(authorizationUrl)) {
+        setNotice(
+          "Finish signing in in your web browser. When it says you are connected, come back to ArkAgent.",
         );
         return;
       }
