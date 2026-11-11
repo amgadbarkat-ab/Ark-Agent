@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.32
+
 ### Conversations
 
 - **Mercury 3 no longer stops with "429 Rate limit reached: output token limit exceeded"**
