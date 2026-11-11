@@ -52,7 +52,12 @@ export const DATA_SERVICES: readonly DataService[] = [
   {
     id: "gmail",
     name: "Gmail",
-    summary: "Your mail.",
+    summary:
+      "Search and read your mail. Read only: nothing is sent, deleted or marked read.",
+    connector: "google-gmail",
+    setup:
+      "A Google OAuth client (the same one Google Drive uses works), with the Gmail API turned on and its client id and secret added by an administrator",
+    untested: true,
   },
   {
     id: "google-calendar",

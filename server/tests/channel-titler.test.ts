@@ -172,3 +172,27 @@ describe("a title asked of the model the person chose", () => {
     expect(await title("Asked: ...", "person-1")).toBe("From the deployment");
   });
 });
+
+test("the title is asked for in the person's language, as plain words (desk #83)", async () => {
+  let sent: { messages: Array<{ role: string; content: string }> } | undefined;
+  const titler = createChannelTitler({
+    model: "m",
+    resolveApiKey: async () => "k",
+    environment: { OPENAI_BASE_URL: "https://models.example/v1" },
+    fetchImpl: (async (_url: string, init: RequestInit) => {
+      sent = JSON.parse(String(init.body));
+      return Response.json({
+        choices: [{ message: { content: "Διαχείριση κάβας" } }],
+      });
+    }) as unknown as typeof fetch,
+  });
+
+  expect(await titler("Asked: Γεια σου, χρειάζομαι βοήθεια με την κάβα")).toBe(
+    "Διαχείριση κάβας",
+  );
+  const system = sent?.messages.find(
+    (message) => message.role === "system",
+  )?.content;
+  expect(system).toContain("language the person wrote in");
+  expect(system).toContain("no markdown");
+});

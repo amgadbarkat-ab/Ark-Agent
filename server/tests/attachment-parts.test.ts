@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_EXTRACTED_CHARACTERS } from "../../shared/attachments";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  DOCX_MIME,
+  MAX_EXTRACTED_CHARACTERS,
+  XLSX_MIME,
+} from "../../shared/attachments";
 import {
   newInlineBudget,
   resolveAttachmentParts,
@@ -926,5 +932,72 @@ describe("a run's inlining budget", () => {
     // Every part is still accounted for — the ones past the bound say so rather than vanishing.
     expect(result).toHaveLength(40);
     expect(JSON.stringify(result[1])).toContain("not included");
+  });
+});
+
+describe("a Word or Excel file reaches the model as its text (desk #83)", () => {
+  const fixture = (name: string) =>
+    readFileSync(join(import.meta.dir, "fixtures", name));
+  const part = (id: string, filename: string) => [
+    {
+      type: "document",
+      source: { type: "url", value: `/api/attachments/${id}` },
+      metadata: { attachmentId: id, filename },
+    },
+  ];
+
+  test("a workbook is its sheets, and the model is told what the file was", async () => {
+    const result = (await resolveAttachmentParts(
+      part("x1", "wines.xlsx"),
+      loadFrom({
+        x1: {
+          mimeType: XLSX_MIME,
+          name: "wines.xlsx",
+          bytes: fixture("wines.xlsx"),
+        },
+      }),
+    )) as Array<{ type: string; text: string }>;
+
+    expect(result[0]?.type).toBe("text");
+    expect(result[0]?.text).toStartWith(
+      'Attached file "wines.xlsx" (an Excel workbook, given here as its text):\n\nSheet "wines":\nΚρασί,Περιοχή,Τιμή,Σε απόθεμα\n',
+    );
+  });
+
+  test("a document is its paragraphs", async () => {
+    const result = (await resolveAttachmentParts(
+      part("d1", "order.docx"),
+      loadFrom({
+        d1: {
+          mimeType: DOCX_MIME,
+          name: "order.docx",
+          bytes: fixture("order.docx"),
+        },
+      }),
+    )) as Array<{ type: string; text: string }>;
+
+    expect(result[0]?.text).toContain(
+      "(a Word document, given here as its text):\n\nΔοκιμή εγγράφου\nΗ παραγγελία πρέπει να επιβεβαιωθεί",
+    );
+  });
+
+  test("a file that cannot be read is a note saying so, and the turn still runs", async () => {
+    const result = (await resolveAttachmentParts(
+      part("d2", "broken.docx"),
+      loadFrom({
+        d2: {
+          mimeType: DOCX_MIME,
+          name: "broken.docx",
+          bytes: Buffer.from("not a zip at all"),
+        },
+      }),
+      // The message being asked about, where a missing file fails the turn. This one is not missing.
+      "fail",
+    )) as Array<{ type: string; text: string }>;
+
+    expect(result[0]).toEqual({
+      type: "text",
+      text: '[attachment "broken.docx" is a Word document that could not be read (not a zip archive). Tell the person so.]',
+    });
   });
 });

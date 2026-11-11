@@ -81,6 +81,9 @@ function fakeStore(
     async setPinned(receivedActor, id, pinned) {
       calls.push(["setPinned", receivedActor, id, pinned]);
     },
+    async rename(receivedActor, id, title) {
+      calls.push(["rename", receivedActor, id, title]);
+    },
     async markRead(receivedActor, id) {
       calls.push(["markRead", receivedActor, id]);
     },
@@ -453,6 +456,40 @@ describe("channel routes", () => {
       },
     );
 
+    expect(response.status).toBe(400);
+    expect(await json(response)).toEqual({ error });
+    expect(store.calls).toEqual([]);
+  });
+
+  test("renames through the authenticated actor, as one line (desk #83)", async () => {
+    const store = fakeStore();
+    const response = await appFor(store).request(
+      "http://openbot.test/channel-1/title",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "  Wine24\nπαραγγελίες  " }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await json(response)).toEqual({ title: "Wine24 παραγγελίες" });
+    expect(store.calls).toEqual([
+      ["rename", actor, "channel-1", "Wine24 παραγγελίες"],
+    ]);
+  });
+
+  test.each([
+    ["{", "Title input must be a JSON object."],
+    [JSON.stringify({}), "Give the conversation a name."],
+    [JSON.stringify({ title: "   " }), "Give the conversation a name."],
+    [JSON.stringify({ title: 7 }), "Give the conversation a name."],
+  ])("rejects a title body that names nothing: %p", async (body, error) => {
+    const store = fakeStore();
+    const response = await appFor(store).request(
+      "http://openbot.test/channel-1/title",
+      { method: "PUT", headers: { "content-type": "application/json" }, body },
+    );
     expect(response.status).toBe(400);
     expect(await json(response)).toEqual({ error });
     expect(store.calls).toEqual([]);
@@ -1264,6 +1301,47 @@ describe("channel pinning", () => {
         (channel) => channel.id === created.id,
       )?.pinned,
     ).toBe(false);
+  });
+});
+
+describe("channel rename (desk #83)", () => {
+  test("a member's title is every member's, and the titler does not write over it", async () => {
+    const actor = await createPersistentUser();
+    const agentId = await createPersistentAgent({
+      name: "Renamable agent",
+      owner: actor,
+    });
+    const created = await persistentStore.create(actor, [agentId]);
+    createdChannelIds.push(created.id);
+
+    await persistentStore.rename(actor, created.id, "Wine24 orders");
+
+    const [row] = await database
+      .select({ summary: channels.summary, summaryAt: channels.summaryAt })
+      .from(channels)
+      .where(eq(channels.id, created.id));
+    expect(row?.summary).toBe("Wine24 orders");
+    expect(row?.summaryAt).not.toBeNull();
+  });
+
+  test("somebody who is not in the conversation cannot rename it", async () => {
+    const member = await createPersistentUser();
+    const outsider = await createPersistentUser();
+    const agentId = await createPersistentAgent({
+      name: "Members-only rename agent",
+      owner: member,
+    });
+    const created = await persistentStore.create(member, [agentId]);
+    createdChannelIds.push(created.id);
+
+    await expect(
+      persistentStore.rename(outsider, created.id, "Mine now"),
+    ).rejects.toBeInstanceOf(ChannelNotFoundError);
+    const [row] = await database
+      .select({ summary: channels.summary })
+      .from(channels)
+      .where(eq(channels.id, created.id));
+    expect(row?.summary).toBeNull();
   });
 });
 

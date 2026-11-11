@@ -21,7 +21,6 @@ import type { AgentActor, AgentProfile } from "../agents/profile-types";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import type { Database } from "../db/client";
-import { parsePageLimit } from "../paging";
 import {
   agentProfiles,
   channelAgents,
@@ -29,13 +28,14 @@ import {
   channels,
   intelligenceChannelMappings,
 } from "../db/schema";
+import { parsePageLimit } from "../paging";
 import {
   CHANNEL_ACTIVITY_TOPIC,
   type ChannelActivityEvent,
   type ChannelEventHub,
 } from "./events";
 import { upgradeWebSocket } from "./socket";
-import { oneLine } from "./text";
+import { oneLine, withoutMarkdown } from "./text";
 import type { ThreadIdentity } from "./thread-identity";
 
 export type AgentChannel = {
@@ -195,6 +195,12 @@ export type ChannelStore = {
   /** Stamp the caller's own membership as read now. Throws ChannelNotFoundError for a non-member. */
   markRead(actor: AgentActor, channelId: string): Promise<void>;
   /**
+   * Give the conversation the title a member chose (desk #83: there was no rename). The title is
+   * the conversation's, so every member sees it; the automatic titler only writes an empty one, so
+   * a chosen title is never written over. Throws ChannelNotFoundError for a non-member.
+   */
+  rename(actor: AgentActor, channelId: string, title: string): Promise<void>;
+  /**
    * Hide the channel for every member. Soft: the row and the thread survive, every read filters.
    * Throws ChannelNotFoundError for a non-member and ChannelPackageOwnedError for a channel the
    * tenant package defines, which configuration owns rather than any member.
@@ -254,8 +260,12 @@ const MAX_CHANNEL_NAME_CODE_POINTS = 120;
 const MAX_ACTIVITY_GRAPHEMES = 200;
 
 /** Reduce a message to the one line a roster draws. See `oneLine` for why it is shared. */
+/** The longest title a person may give a conversation: as long as the automatic ones. */
+const MAX_TITLE_GRAPHEMES = 60;
+
 function previewOf(text: string) {
-  return oneLine(text, MAX_ACTIVITY_GRAPHEMES);
+  // Shown as the conversation's title until it is named, so as plain words (desk #83).
+  return oneLine(withoutMarkdown(text), MAX_ACTIVITY_GRAPHEMES);
 }
 
 function channelName(names: string[]) {
@@ -678,6 +688,58 @@ export function createChannelStore(
         });
       }
       return { channels: [...summaries.values()], nextCursor };
+    },
+
+    async rename(actor, channelId, title) {
+      await database.transaction(
+        async (transaction) => {
+          const updated = await transaction
+            .update(channels)
+            .set({
+              summary: title,
+              summaryAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(channels.id, channelId),
+                isNull(channels.deletedAt),
+                exists(
+                  transaction
+                    .select({ one: sql`1` })
+                    .from(channelMemberships)
+                    .where(
+                      and(
+                        eq(channelMemberships.channelId, channelId),
+                        eq(channelMemberships.userId, actor.id),
+                      ),
+                    ),
+                ),
+              ),
+            )
+            .returning({ id: channels.id });
+          // Not a member, no such channel, or a deleted one: the same answer every way.
+          if (updated.length === 0) throw new ChannelNotFoundError(channelId);
+
+          const members = await transaction
+            .select({ userId: channelMemberships.userId })
+            .from(channelMemberships)
+            .where(eq(channelMemberships.channelId, channelId));
+          // The same event the titler sends, so every member's roster takes the new title in place.
+          const event: ChannelActivityEvent = {
+            channelId,
+            memberIds: members.map((member) => member.userId),
+            lastMessage: null,
+            lastMessageAt: null,
+            lastMessageAgentId: null,
+            summary: title,
+          };
+          await transaction.execute(
+            sql`select pg_notify(${CHANNEL_ACTIVITY_TOPIC}, ${JSON.stringify(event)})`,
+          );
+        },
+        { isolationLevel: "read committed" },
+      );
     },
 
     async setPinned(actor, channelId, pinned) {
@@ -1304,6 +1366,31 @@ export function createChannelRoutes(
         pinned,
       );
       return context.json({ pinned });
+    } catch (error) {
+      return mapStoreError(context, error);
+    }
+  });
+
+  routes.put("/:channelId/title", requireUser, async (context) => {
+    const body = await context.req.json().catch(() => null);
+    if (!isChannelInputObject(body)) {
+      return context.json({ error: "Title input must be a JSON object." }, 400);
+    }
+    const { title: raw } = body as { title?: unknown };
+    // One line, as long as an automatic title may be, and never empty: a blank name is not a name.
+    const title =
+      typeof raw === "string" ? oneLine(raw, MAX_TITLE_GRAPHEMES) : "";
+    if (!title) {
+      return context.json({ error: "Give the conversation a name." }, 400);
+    }
+
+    try {
+      await store.rename(
+        context.var.actor,
+        context.req.param("channelId"),
+        title,
+      );
+      return context.json({ title });
     } catch (error) {
       return mapStoreError(context, error);
     }

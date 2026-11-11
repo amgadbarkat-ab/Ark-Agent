@@ -112,6 +112,24 @@ export function setChannelPinnedMutationOptions(queryClient: QueryClient) {
 }
 
 /**
+ * Give a conversation the title a person chose (desk #83). The server announces it to every member,
+ * and the roster is refetched here too so the person who renamed it sees it at once.
+ */
+export function renameChannelMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (variables: { channelId: string; title: string }) => {
+      await client(`/api/channels/${variables.channelId}/title`, {
+        method: "PUT",
+        body: { title: variables.title },
+        fallback: "Could not rename this conversation",
+      });
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: channelKeys.all }),
+  });
+}
+
+/**
  * Stamp a channel read for this member, patching the cache before the wire answers.
  *
  * Patched in onMutate rather than refetched on success: the dot must clear the instant the channel

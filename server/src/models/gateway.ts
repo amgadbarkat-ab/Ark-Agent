@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { providerById } from "../../../shared/model-providers";
 import type { ModelConnectionStore } from "./connections";
 import { readModelGrant } from "./grant";
+import { sendWithImageFallback } from "./image-fallback";
 import {
   STARTER_CONNECTION_ID,
   StarterBusyError,
@@ -192,12 +193,30 @@ export function modelGatewayRoutes(options: {
 
     let upstream: Response;
     try {
-      upstream = await send(target, {
-        method: request.method,
-        headers,
-        ...(body ? { body } : {}),
-        signal: request.signal,
-      });
+      const dispatch = (payload?: ArrayBuffer | string) =>
+        send(target, {
+          method: request.method,
+          headers,
+          ...(payload === undefined ? {} : { body: payload }),
+          signal: request.signal,
+        });
+      /*
+       * A hired digital employee's request for a model comes through here, and a model that takes no
+       * images must not break its conversation either (desk #83); see `image-fallback.ts`. Only a
+       * JSON body is read as text, and only when it could hold an image: the bytes go on untouched
+       * otherwise.
+       */
+      const json =
+        body &&
+        (request.headers.get("content-type") ?? "").includes("application/json")
+          ? new TextDecoder().decode(body)
+          : undefined;
+      upstream =
+        json === undefined
+          ? await dispatch(body)
+          : await sendWithImageFallback(target, json, (payload) =>
+              dispatch(payload === json ? body : payload),
+            );
     } catch (error) {
       if (request.signal.aborted) return new Response(null, { status: 499 });
       if (error instanceof StarterBusyError) {

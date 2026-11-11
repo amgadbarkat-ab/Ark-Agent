@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  ACCEPTED_DOCUMENT_MIME,
   MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_DOCUMENT_BYTES,
   MAX_FILE_BYTES,
   MAX_IMAGE_BYTES,
 } from "@/lib/channels/attachments";
@@ -200,5 +202,59 @@ describe("screenPickedFiles", () => {
     expect(result.accepted).toEqual([good1, good2]);
     expect(result.rejected).toHaveLength(1);
     expect(result.rejected[0].name).toBe("bad.svg");
+  });
+});
+
+describe("Word, Excel and PDF picks (desk #83)", () => {
+  const [DOCX, XLSX] = ACCEPTED_DOCUMENT_MIME;
+
+  test("a Word and an Excel file are accepted", () => {
+    const docx = file("order.docx", DOCX);
+    const xlsx = file("wines.xlsx", XLSX);
+    const result = screenPickedFiles([docx, xlsx], { alreadyStaged: 0 });
+    expect(result.accepted).toEqual([docx, xlsx]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  test("a Word file Windows gave no type goes to the server to be looked at", () => {
+    const docx = file("order.docx", "");
+    expect(screenPickedFiles([docx], { alreadyStaged: 0 }).accepted).toEqual([
+      docx,
+    ]);
+  });
+
+  test("a Word file over the limit is refused, naming the limit", () => {
+    const big = file("huge.docx", DOCX, MAX_DOCUMENT_BYTES + 1);
+    const result = screenPickedFiles([big], { alreadyStaged: 0 });
+    expect(result.accepted).toEqual([]);
+    expect(result.rejected[0]?.reason).toContain(
+      "too large for a Word or Excel attachment",
+    );
+  });
+
+  test("a PDF is refused with what can be attached instead, typed or not", () => {
+    for (const type of ["application/pdf", ""]) {
+      const result = screenPickedFiles([file("test-page.pdf", type)], {
+        alreadyStaged: 0,
+      });
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected[0]?.reason).toBe(
+        "'test-page.pdf' is a PDF, which ArkAgent cannot read yet. Word (.docx), Excel (.xlsx), text and CSV files can be attached.",
+      );
+    }
+  });
+
+  test("an older .doc or .xls says to save it in the newer format", () => {
+    const result = screenPickedFiles(
+      [
+        file("old.doc", "application/msword"),
+        file("old.xls", "application/vnd.ms-excel"),
+      ],
+      { alreadyStaged: 0 },
+    );
+    expect(result.rejected.map((one) => one.reason)).toEqual([
+      "'old.doc' is an older Word file. Save it as .docx and attach that.",
+      "'old.xls' is an older Excel file. Save it as .xlsx and attach that.",
+    ]);
   });
 });

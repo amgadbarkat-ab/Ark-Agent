@@ -48,3 +48,32 @@ export function oneLine(text: string, maxGraphemes: number): string {
   if (graphemes.length <= maxGraphemes) return collapsed;
   return `${graphemes.slice(0, maxGraphemes - 1).join("")}…`;
 }
+
+/**
+ * Markdown's marks taken off, for a line that is shown as plain text: a sidebar preview, a title
+ * (desk #83: a conversation was listed as "- **test-note.txt**: …" until it was named).
+ *
+ * Only marks that frame text are removed, so a line keeps every word it had: list bullets and
+ * numbers, heading hashes and quote marks at the start of a line; bold, italic, strikethrough and
+ * code around words; a link or image down to its text. An asterisk or underscore between two
+ * letters (`snake_case`, `2*3`) is not emphasis and stays.
+ */
+export function withoutMarkdown(text: string): string {
+  return text
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(
+          /^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+(?:\[[ xX]\]\s+)?|\d{1,3}[.)]\s+)/u,
+          "",
+        )
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+        .replace(/(\*\*|__|~~)(?=\S)(.+?)(?<=\S)\1/gu, "$2")
+        .replace(
+          /(^|[^\p{L}\p{N}*_])([*_])(?=\S)(.+?)(?<=\S)\2(?![\p{L}\p{N}])/gu,
+          "$1$3",
+        )
+        .replace(/`+([^`]+)`+/gu, "$1"),
+    )
+    .join("\n");
+}
