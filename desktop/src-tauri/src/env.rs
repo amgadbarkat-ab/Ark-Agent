@@ -39,6 +39,38 @@ pub struct Ports {
     pub harness: Option<u16>,
 }
 
+/**
+ * ArkAgent's own OAuth clients for connectors, as the release build was given them.
+ *
+ * Clients of the kind Google and Microsoft define for an app on a person's own computer, where
+ * nothing in the binary can be kept secret: Google's "Desktop app" client, whose secret Google says
+ * is not treated as one, and Microsoft's public client, which has none. Every consent also carries
+ * PKCE. Registered by the publisher, ZEUS FINANCIAL MONOPROSOPI I.K.E.
+ */
+const BUILTIN_OAUTH: [(&str, Option<&str>); 3] = [
+    (
+        "ARKAGENT_GOOGLE_OAUTH_CLIENT_ID",
+        option_env!("ARKAGENT_GOOGLE_OAUTH_CLIENT_ID"),
+    ),
+    (
+        "ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET",
+        option_env!("ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET"),
+    ),
+    (
+        "ARKAGENT_MICROSOFT_OAUTH_CLIENT_ID",
+        option_env!("ARKAGENT_MICROSOFT_OAUTH_CLIENT_ID"),
+    ),
+];
+
+/// The built-in clients that are present, trimmed. One that is absent or blank is left out.
+fn insert_builtin_oauth(env: &mut BTreeMap<String, String>, values: &[(&str, Option<&str>)]) {
+    for (name, value) in values {
+        if let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) {
+            env.insert((*name).into(), value.into());
+        }
+    }
+}
+
 impl Default for Ports {
     fn default() -> Self {
         Self {
@@ -732,6 +764,11 @@ pub fn compose(
         "OPENBOT_PUBLIC_URL".into(),
         format!("http://localhost:{}", ports.server),
     );
+
+    // ArkAgent's own Google and Microsoft apps for connectors, so a person can connect Gmail, Drive
+    // or Outlook without registering an app of their own (desk #83). Built into this binary by the
+    // release workflow; a build without them leaves the server asking an administrator, as before.
+    insert_builtin_oauth(&mut env, &BUILTIN_OAUTH);
 
     env.extend(ports.settings());
     env.insert(
@@ -1529,6 +1566,29 @@ HTTPS_PROXY=http://proxy:8080
             env.get("OPENBOT_SINGLE_USER").map(String::as_str),
             Some("true")
         );
+    }
+
+    #[test]
+    fn built_in_connector_apps_are_passed_on_only_when_the_build_has_them() {
+        let mut env = BTreeMap::new();
+        insert_builtin_oauth(
+            &mut env,
+            &[
+                (
+                    "ARKAGENT_GOOGLE_OAUTH_CLIENT_ID",
+                    Some(" id.apps.googleusercontent.com "),
+                ),
+                ("ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET", Some("")),
+                ("ARKAGENT_MICROSOFT_OAUTH_CLIENT_ID", None),
+            ],
+        );
+        assert_eq!(
+            env.get("ARKAGENT_GOOGLE_OAUTH_CLIENT_ID")
+                .map(String::as_str),
+            Some("id.apps.googleusercontent.com")
+        );
+        assert!(!env.contains_key("ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET"));
+        assert!(!env.contains_key("ARKAGENT_MICROSOFT_OAUTH_CLIENT_ID"));
     }
 
     #[test]

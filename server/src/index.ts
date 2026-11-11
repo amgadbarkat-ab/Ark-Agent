@@ -151,6 +151,7 @@ import { createOverviewStore } from "./overview/store";
 import { createOnboardingStore } from "./people/onboarding";
 import { createPeopleStore } from "./people/store";
 import { createTermsStore } from "./people/terms";
+import { builtinOAuthClientsFrom } from "./plugins/builtin-oauth-clients";
 import { useRoutineTools } from "./plugins/builtin-routines";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
@@ -541,6 +542,9 @@ if (composio) useComposioClient(composio.actions);
 const pluginStore = createPluginStore({
   database,
   auditStore: bootAuditStore,
+  // ArkAgent's own Google and Microsoft apps, which the desktop build supplies (desk #83). Unset on
+  // a hosted deployment, where an administrator registers their own.
+  builtinClients: builtinOAuthClientsFrom(process.env),
   credentials: credentialStore,
   encryptionKey: config.keyEncryptionKey,
   policy: () => policyStore.get(),
