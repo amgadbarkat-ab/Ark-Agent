@@ -8,12 +8,6 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
-### Conversations
-
-- **PDF files can be attached and read.** The model reads each page's text, with the pages marked,
-  up to 8 MB per file. A scanned PDF has no text to read, so the model says it is a scan; a
-  password-protected PDF is named as locked. PDFs are read with unpdf (Mozilla's PDF.js, MIT).
-
 ## 0.1.28
 
 ### Conversations
@@ -23,9 +17,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   in that chat failed the same way. Now the model is told an image was attached that it cannot
   see, says so in its own words, and the conversation carries on. ArkAgent remembers the model,
   so the next message doesn't hit the refusal first.
-- **Word (.docx) and Excel (.xlsx) files can be attached.** The model reads the document's text,
-  and each sheet's rows with their columns kept in place, up to 8 MB. A PDF, or an older .doc or
-  .xls file, is refused with a sentence saying what to attach instead; reading PDFs comes next.
+- **Word (.docx), Excel (.xlsx) and PDF files can be attached**, up to 8 MB each.
+  - The model reads a Word document's text, and each sheet's rows with their columns kept in place.
+  - A PDF is read page by page, with the pages marked. A scanned PDF has no text to read, so the
+    model says it is a scan; a password-protected PDF is named as locked. PDFs are read with unpdf
+    (Mozilla's PDF.js, MIT).
+  - An older .doc or .xls file is refused with a sentence saying to save it as .docx or .xlsx.
 - **Conversation titles are plain words in the conversation's language.** A title or preview no
   longer shows `**` or `- ` marks, and a Greek conversation gets a Greek title.
 - **Rename a conversation** from its menu in the sidebar: Rename…, then a name up to 60
@@ -45,7 +42,6 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ### Coming next
 
-- Reading PDF attachments. This needs a PDF library added to ArkAgent, which waits for a yes.
 - Named group conversations with a member picker.
 - The interface in Greek. Today only answers and approval cards follow the conversation's
   language.
