@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.29
+
 ### Desktop
 
 - **Connectors can be connected on a desktop install** (DT Lab, Gmail). The Plugins page said
