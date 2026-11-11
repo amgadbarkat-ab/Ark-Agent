@@ -13,11 +13,10 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 ### Plugins
 
 - **Gmail, Google Drive and Microsoft 365 connect without registering an app of your own** on
-  ArkAgent Desktop. The desktop build carries ArkAgent's own Google and Microsoft apps, registered
-  by the publisher, ZEUS FINANCIAL MONOPROSOPI I.K.E. An administrator adds the connector under
-  Plugins, and each person presses Connect. A client an administrator registers still takes
-  precedence. While Google has not yet verified the app, Gmail and Drive work only for the test
-  users listed in its project, who reconnect every 7 days.
+  ArkAgent Desktop. The desktop build carries ArkAgent's own Google and Microsoft apps. An
+  administrator adds the connector under Plugins, and each person presses Connect. A client an
+  administrator registers still takes precedence. While Google has not yet verified the app, Gmail
+  and Drive work only for the test users listed in its project, who reconnect every 7 days.
 
 ## 0.1.29
 
