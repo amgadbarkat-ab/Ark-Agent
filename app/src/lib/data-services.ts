@@ -35,7 +35,7 @@ export const DATA_SERVICES: readonly DataService[] = [
     id: "microsoft-365",
     name: "Microsoft 365",
     summary:
-      "Outlook mail, Calendar, Teams chats and SharePoint and OneDrive files. Read only.",
+      "Outlook mail, Calendar, Teams chats and SharePoint and OneDrive files. Reads, and sends mail only after you approve each message.",
     connector: "microsoft-365",
     setup:
       "An app registered in Microsoft Entra, with its client id and secret added by an administrator",
@@ -53,7 +53,7 @@ export const DATA_SERVICES: readonly DataService[] = [
     id: "gmail",
     name: "Gmail",
     summary:
-      "Search and read your mail. Read only: nothing is sent, deleted or marked read.",
+      "Search and read your mail, and send a message once you approve it. Nothing is deleted or marked read.",
     connector: "google-gmail",
     setup:
       "A Google OAuth client (the same one Google Drive uses works), with the Gmail API turned on and its client id and secret added by an administrator",

@@ -7,6 +7,7 @@ import {
   decodeBody,
   htmlToText,
   listTools,
+  rfc822,
 } from "../src/plugins/gmail-rest";
 import { MAX_RESULT_CHARS } from "../src/plugins/mcp";
 import { transportFor } from "../src/plugins/transport";
@@ -40,7 +41,12 @@ afterEach(() => {
   expect(escapedToNetwork).toEqual([]);
 });
 
-type Seen = { url: URL; method: string; authorization: string | null };
+type Seen = {
+  url: URL;
+  method: string;
+  authorization: string | null;
+  body?: unknown;
+};
 
 /** Answers by path: the listing, then each message by id. */
 function stubGmail(
@@ -53,6 +59,7 @@ function stubGmail(
       url,
       method: options?.method ?? "GET",
       authorization: new Headers(options?.headers).get("authorization"),
+      body: options?.body ? JSON.parse(String(options.body)) : undefined,
     });
     const { body, status } = answer(url);
     return new Response(JSON.stringify(body), {
@@ -74,7 +81,7 @@ const headers = (values: Record<string, string>) =>
   Object.entries(values).map(([name, value]) => ({ name, value }));
 
 describe("the entry and the transport", () => {
-  test("Gmail is a read-only, per-person connector on Gmail's own host", () => {
+  test("Gmail is a per-person connector on Gmail's own host: read, plus send", () => {
     const entry = catalogueEntry("google-gmail");
     expect(entry?.transport).toBe("gmail-rest");
     expect(entry?.host).toBe("https://gmail.googleapis.com");
@@ -82,6 +89,7 @@ describe("the entry and the transport", () => {
     if (entry?.auth.kind !== "user-oauth") throw new Error("not user-oauth");
     expect(entry.auth.scopes).toEqual([
       "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
     ]);
     expect(entry.auth.authorizationParams).toEqual({
       access_type: "offline",
@@ -99,16 +107,22 @@ describe("the entry and the transport", () => {
     ).toBe(callTool);
   });
 
-  test("it advertises exactly the tools it handles, and none of them writes", async () => {
+  test("it advertises exactly the tools it handles, and only sending writes", async () => {
     const tools = await listTools(connection);
     expect(tools.map((tool) => tool.name)).toEqual([
       "search_messages",
       "list_recent_messages",
       "read_message",
+      "send_message",
     ]);
     const entry = catalogueEntry("google-gmail");
     for (const tool of tools) {
-      expect(entry?.writeTools).not.toContain(tool.name);
+      if (tool.name === "send_message") {
+        // On the write list, so every send is held for the person's approval.
+        expect(entry?.writeTools).toContain(tool.name);
+      } else {
+        expect(entry?.writeTools).not.toContain(tool.name);
+      }
     }
   });
 
@@ -365,5 +379,94 @@ describe("decoding", () => {
 
   test("numeric entities and unknown ones", () => {
     expect(htmlToText("&#937;&#x3c9; &bogus;")).toBe("Ωω &bogus;");
+  });
+});
+
+describe("sending a message (desk #83, the Wine24 email scene)", () => {
+  const fromRaw = (raw: string) =>
+    Buffer.from(raw.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
+      "utf8",
+    );
+
+  test("goes to Gmail's send endpoint as one plain-text message, Greek intact", async () => {
+    const seen = stubGmail(() => ({ body: { id: "sent-1" } }));
+    const result = await callTool(connection, "send_message", {
+      to: "anna@example.com, desk@wine24.example",
+      cc: "boss@wine24.example",
+      subject: "Παραγγελία 42",
+      body: "Καλημέρα,\nη παραγγελία στάλθηκε.",
+    });
+
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain(
+      "Sent to anna@example.com, desk@wine24.example, boss@wine24.example",
+    );
+    expect(result.text).toContain("sent-1");
+    expect(seen[0]?.method).toBe("POST");
+    expect(seen[0]?.url.pathname).toBe("/gmail/v1/users/me/messages/send");
+    expect(seen[0]?.authorization).toBe("Bearer test-token");
+    const message = fromRaw((seen[0]?.body as { raw: string }).raw);
+    expect(message).toContain("To: anna@example.com, desk@wine24.example\r\n");
+    expect(message).toContain("Cc: boss@wine24.example\r\n");
+    expect(message).toContain(
+      `Subject: =?UTF-8?B?${Buffer.from("Παραγγελία 42").toString("base64")}?=\r\n`,
+    );
+    const body = message.split("\r\n\r\n")[1] ?? "";
+    expect(
+      Buffer.from(body.replace(/\r\n/g, ""), "base64").toString("utf8"),
+    ).toBe("Καλημέρα,\r\nη παραγγελία στάλθηκε.");
+  });
+
+  test("an address with a line break in it is refused before Google is asked", async () => {
+    for (const to of [
+      "anna@example.com\nBcc: thief@evil.test",
+      "Anna <anna@example.com>",
+      "not an address",
+    ]) {
+      const result = await callTool(connection, "send_message", {
+        to,
+        subject: "x",
+        body: "y",
+      });
+      expect(result.isError).toBe(true);
+    }
+  });
+
+  test("a subject cannot add a header", () => {
+    const message = rfc822({
+      to: ["a@example.com"],
+      cc: [],
+      subject: "Hello",
+      body: "x",
+    });
+    expect(message.split("\r\n\r\n")[0]?.split("\r\n")).toHaveLength(5);
+  });
+
+  test("a message with no recipient, subject or text is refused", async () => {
+    for (const args of [
+      { subject: "s", body: "b" },
+      { to: "a@example.com", body: "b" },
+      { to: "a@example.com", subject: "s", body: "  " },
+    ]) {
+      expect((await callTool(connection, "send_message", args)).isError).toBe(
+        true,
+      );
+    }
+  });
+
+  test("a grant made before sending existed says to connect again", async () => {
+    stubGmail(() => ({
+      body: {
+        error: { message: "Request had insufficient authentication scopes." },
+      },
+      status: 403,
+    }));
+    const result = await callTool(connection, "send_message", {
+      to: "a@example.com",
+      subject: "s",
+      body: "b",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("Connect Gmail again");
   });
 });
