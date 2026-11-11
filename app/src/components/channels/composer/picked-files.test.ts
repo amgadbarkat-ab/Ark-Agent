@@ -206,7 +206,7 @@ describe("screenPickedFiles", () => {
 });
 
 describe("Word, Excel and PDF picks (desk #83)", () => {
-  const [DOCX, XLSX] = ACCEPTED_DOCUMENT_MIME;
+  const [DOCX, XLSX, PDF] = ACCEPTED_DOCUMENT_MIME;
 
   test("a Word and an Excel file are accepted", () => {
     const docx = file("order.docx", DOCX);
@@ -228,20 +228,26 @@ describe("Word, Excel and PDF picks (desk #83)", () => {
     const result = screenPickedFiles([big], { alreadyStaged: 0 });
     expect(result.accepted).toEqual([]);
     expect(result.rejected[0]?.reason).toContain(
-      "too large for a Word or Excel attachment",
+      "too large for a Word, Excel or PDF attachment",
     );
   });
 
-  test("a PDF is refused with what can be attached instead, typed or not", () => {
+  test("a PDF is accepted, typed or not (an untyped one is looked at by the server)", () => {
+    expect(PDF).toBe("application/pdf");
     for (const type of ["application/pdf", ""]) {
-      const result = screenPickedFiles([file("test-page.pdf", type)], {
-        alreadyStaged: 0,
-      });
-      expect(result.accepted).toEqual([]);
-      expect(result.rejected[0]?.reason).toBe(
-        "'test-page.pdf' is a PDF, which ArkAgent cannot read yet. Word (.docx), Excel (.xlsx), text and CSV files can be attached.",
-      );
+      const pdf = file("test-page.pdf", type);
+      const result = screenPickedFiles([pdf], { alreadyStaged: 0 });
+      expect(result.accepted).toEqual([pdf]);
+      expect(result.rejected).toEqual([]);
     }
+  });
+
+  test("a PDF over the limit is refused, naming the limit", () => {
+    const big = file("tender.pdf", PDF, MAX_DOCUMENT_BYTES + 1);
+    const result = screenPickedFiles([big], { alreadyStaged: 0 });
+    expect(result.rejected[0]?.reason).toContain(
+      "too large for a Word, Excel or PDF attachment",
+    );
   });
 
   test("an older .doc or .xls says to save it in the newer format", () => {

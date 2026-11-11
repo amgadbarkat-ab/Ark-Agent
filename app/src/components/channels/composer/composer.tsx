@@ -1052,9 +1052,10 @@ export function Composer({
           mayTruncate:
             attachment.status !== "uploading" &&
             attachment.size !== undefined &&
-            // A Word or Excel file's size is mostly styling, and says nothing about how much text
-            // is in it: a 300 KB document is a few pages. No warning from its bytes.
-            !/\.(docx|xlsx)$/i.test(attachment.filename ?? "") &&
+            // A Word, Excel or PDF file's size is mostly styling, fonts and pictures, and says
+            // nothing about how much text is in it: a 300 KB document is a few pages. No warning
+            // from its bytes.
+            !/\.(docx|xlsx|pdf)$/i.test(attachment.filename ?? "") &&
             mayBeTruncatedForModel(attachment.size),
         })),
     [staged],

@@ -66,8 +66,8 @@ export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 export const MAX_FILE_BYTES = 1024 * 1024;
 
 /**
- * How large a Word or Excel file may be uploaded. The image ceiling, because these are archives
- * whose size is mostly pictures and styling: the text that reaches the model is cut at
+ * How large a Word, Excel or PDF file may be uploaded. The image ceiling, because these are files
+ * whose size is mostly pictures, fonts and styling: the text that reaches the model is cut at
  * `MAX_EXTRACTED_CHARACTERS` like any other file's.
  */
 export const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
@@ -138,13 +138,15 @@ export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export const PDF_MIME = "application/pdf";
 
 /**
- * Word and Excel files (desk #83). The server reads the words and the cells out of them and gives
- * the model that text; the file itself is kept as it was uploaded. A claim to be one of these is
- * checked against what the archive holds, exactly as an image claim is checked against its bytes.
+ * Word, Excel and PDF files (desk #83). The server reads the words and the cells out of them and
+ * gives the model that text; the file itself is kept as it was uploaded. A claim to be one of these
+ * is checked against the bytes (what the archive holds, or the PDF signature), exactly as an image
+ * claim is.
  */
-export const ACCEPTED_DOCUMENT_MIME = [DOCX_MIME, XLSX_MIME] as const;
+export const ACCEPTED_DOCUMENT_MIME = [DOCX_MIME, XLSX_MIME, PDF_MIME] as const;
 
 /**
  * THE MEDIA TYPE ON ITS OWN: LOWER CASE, PARAMETERS GONE — AND THE ONLY FORM ANYTHING HERE COMPARES.
@@ -234,7 +236,7 @@ export function classifyAttachment(mimeType: string): AttachmentKind {
  * than "not a file type this chat accepts" (desk #83). Null when there is nothing better to say.
  *
  * The name is consulted as well as the type because Windows reports no type at all for a file whose
- * program is not installed, and a `.pdf` with no type is still a PDF to the person holding it.
+ * program is not installed, and a `.doc` with no type is still a Word file to the person holding it.
  */
 export function unreadableReason(
   mimeType: string,
@@ -242,9 +244,6 @@ export function unreadableReason(
 ): string | null {
   const mediaType = mediaTypeOf(mimeType);
   const extension = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
-  if (mediaType === "application/pdf" || extension === "pdf") {
-    return "is a PDF, which ArkAgent cannot read yet. Word (.docx), Excel (.xlsx), text and CSV files can be attached";
-  }
   if (mediaType === "application/msword" || extension === "doc") {
     return "is an older Word file. Save it as .docx and attach that";
   }

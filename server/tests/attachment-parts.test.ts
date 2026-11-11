@@ -482,19 +482,19 @@ describe("what a stored attachment becomes is decided by its bytes, not by the p
     // reachable the day a type leaves the accepted lists with rows of it still in the table, and
     // the answer must not be mojibake — the model has to be told it cannot see the file.
     const result = (await resolveAttachmentParts(
-      partOf("document", "pdf1", "invoice.pdf"),
+      partOf("document", "rtf1", "invoice.rtf"),
       loadFrom({
-        pdf1: {
-          mimeType: "application/pdf",
-          name: "invoice.pdf",
-          bytes: Buffer.from("%PDF-1.7", "utf8"),
+        rtf1: {
+          mimeType: "application/rtf",
+          name: "invoice.rtf",
+          bytes: Buffer.from("{\\rtf1 hello}", "utf8"),
         },
       }),
     )) as Array<Record<string, unknown>>;
 
     expect(result[0]).toEqual({
       type: "text",
-      text: '[attachment "invoice.pdf" is a application/pdf file, which cannot be put in front of the model]',
+      text: '[attachment "invoice.rtf" is a application/rtf file, which cannot be put in front of the model]',
     });
   });
 
@@ -998,6 +998,61 @@ describe("a Word or Excel file reaches the model as its text (desk #83)", () => 
     expect(result[0]).toEqual({
       type: "text",
       text: '[attachment "broken.docx" is a Word document that could not be read (not a zip archive). Tell the person so.]',
+    });
+  });
+
+  test("a PDF is its text, page by page", async () => {
+    const result = (await resolveAttachmentParts(
+      part("p1", "tender.pdf"),
+      loadFrom({
+        p1: {
+          mimeType: "application/pdf",
+          name: "tender.pdf",
+          bytes: fixture("tender.pdf"),
+        },
+      }),
+    )) as Array<{ type: string; text: string }>;
+
+    expect(result[0]?.text).toStartWith(
+      'Attached file "tender.pdf" (a PDF, given here as its text):\n\n[Page 1]\nTender 2026/17: first page.',
+    );
+    expect(result[0]?.text).toContain("[Page 2]");
+    expect(result[0]?.text).toContain("Closing date: 30 November 2026.");
+  });
+
+  test("a scanned PDF says it has no text, and why", async () => {
+    const result = (await resolveAttachmentParts(
+      part("p2", "scan.pdf"),
+      loadFrom({
+        p2: {
+          mimeType: "application/pdf",
+          name: "scan.pdf",
+          bytes: fixture("scan.pdf"),
+        },
+      }),
+    )) as Array<{ type: string; text: string }>;
+
+    expect(result[0]?.text).toContain(
+      '[attachment "scan.pdf" is a PDF with no text in it, most likely a scan.',
+    );
+  });
+
+  test("a locked PDF says it is locked, and the turn still runs", async () => {
+    const result = (await resolveAttachmentParts(
+      part("p3", "locked.pdf"),
+      loadFrom({
+        p3: {
+          mimeType: "application/pdf",
+          name: "locked.pdf",
+          bytes: fixture("locked.pdf"),
+        },
+      }),
+      "fail",
+    )) as Array<{ type: string; text: string }>;
+
+    expect(result[0]).toEqual({
+      type: "text",
+      text: '[attachment "locked.pdf" is a PDF that could not be read (protected with a password). Tell the person so.]',
     });
   });
 });

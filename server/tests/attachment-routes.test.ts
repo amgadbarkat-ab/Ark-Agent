@@ -636,20 +636,36 @@ describe("POST /:channelId/attachments", () => {
     expect(response.status).toBe(201);
   });
 
-  test("a PDF and an older Word file are refused with what to do about it", async () => {
+  test("a PDF is taken, typed or not, and stored as a PDF", async () => {
     const { app, channelId } = await harness();
-    const pdf = await upload(
+    const bytes = readFileSync(join(import.meta.dir, "fixtures", "order.pdf"));
+    for (const type of ["application/pdf", ""]) {
+      const response = await upload(
+        app,
+        channelId,
+        new File([bytes], "test-page.pdf", { type }),
+      );
+      expect(response.status).toBe(201);
+      expect(((await response.json()) as { mimeType: string }).mimeType).toBe(
+        "application/pdf",
+      );
+    }
+  });
+
+  test("bytes that only claim to be a PDF are refused", async () => {
+    const { app, channelId } = await harness();
+    const response = await upload(
       app,
       channelId,
-      new File([new TextEncoder().encode("%PDF-1.7\n")], "test-page.pdf", {
+      new File([new Uint8Array([0x00, 0x01, 0x02, 0x03])], "fake.pdf", {
         type: "application/pdf",
       }),
     );
-    expect(pdf.status).toBe(415);
-    expect(((await pdf.json()) as { error: string }).error).toBe(
-      "'test-page.pdf' is a PDF, which ArkAgent cannot read yet. Word (.docx), Excel (.xlsx), text and CSV files can be attached.",
-    );
+    expect(response.status).toBe(415);
+  });
 
+  test("an older Word file is refused with what to do about it", async () => {
+    const { app, channelId } = await harness();
     const doc = await upload(
       app,
       channelId,
