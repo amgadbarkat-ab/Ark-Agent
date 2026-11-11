@@ -56,9 +56,18 @@ jobs:
         with:
           workspaces: desktop/src-tauri
       # Linux is the only target needing system libraries, and it needs them even to check.
-      - run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - timeout-minutes: 15
+        run: |
+          # Public resolvers, and apt that gives up rather than waits (11 Nov 2026): from 14:02 UTC the
+          # runner's own resolver stopped answering for security.ubuntu.com, and apt-get install then
+          # hung for over an hour with nothing on screen. Fixed servers and bounded retries keep this
+          # step a few minutes long either way.
+          sudo mkdir -p /etc/systemd/resolved.conf.d
+          printf '[Resolve]\nDNS=1.1.1.1 8.8.8.8\nDomains=~.\n' | sudo tee /etc/systemd/resolved.conf.d/public-dns.conf >/dev/null
+          sudo systemctl restart systemd-resolved
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $APT update -qq
+          sudo apt-get $APT install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: cargo fmt --check
         working-directory: desktop/src-tauri
       - run: cargo clippy --all-targets -- -D warnings
@@ -99,9 +108,18 @@ jobs:
           workspaces: desktop/src-tauri
           key: ${{ matrix.platform.name }}
       - if: matrix.platform.name == 'linux'
+        timeout-minutes: 15
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # Public resolvers, and apt that gives up rather than waits (11 Nov 2026): from 14:02 UTC the
+          # runner's own resolver stopped answering for security.ubuntu.com, and apt-get install then
+          # hung for over an hour with nothing on screen. Fixed servers and bounded retries keep this
+          # step a few minutes long either way.
+          sudo mkdir -p /etc/systemd/resolved.conf.d
+          printf '[Resolve]\nDNS=1.1.1.1 8.8.8.8\nDomains=~.\n' | sudo tee /etc/systemd/resolved.conf.d/public-dns.conf >/dev/null
+          sudo systemctl restart systemd-resolved
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $APT update -qq
+          sudo apt-get $APT install -y -qq libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: bun install --frozen-lockfile
         working-directory: desktop
       - run: bun run typecheck

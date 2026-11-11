@@ -8,6 +8,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Desktop
+
+- **v0.1.30 again, with installers.** v0.1.30's desktop installers could not be built: GitHub's build
+  machines stopped reaching Ubuntu's package servers for part of 11 Nov. The build now uses its
+  own DNS servers. The app is the same as v0.1.30, including the built-in Google and Microsoft
+  apps for Gmail, Drive and Microsoft 365.
+
 ## 0.1.30
 
 ### Plugins
