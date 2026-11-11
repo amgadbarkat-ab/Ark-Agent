@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.28
+
 ### Conversations
 
 - **An image sent to a model that cannot see images no longer breaks the chat** (DT Lab, Mercury
