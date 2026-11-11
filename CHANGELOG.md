@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.31
+
 ### Desktop
 
 - **v0.1.30 again, with installers.** v0.1.30's desktop installers could not be built: GitHub's build
