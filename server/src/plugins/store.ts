@@ -59,6 +59,10 @@ import {
   schemeKind,
 } from "./broker";
 import {
+  type BuiltinOAuthClients,
+  builtinOAuthClientFor,
+} from "./builtin-oauth-clients";
+import {
   type CatalogueEntry,
   catalogueEntry,
   classifyTool,
@@ -1185,6 +1189,11 @@ export type PluginStoreOptions = {
    * existed. See `toolCallOutcome`.
    */
   approvals?: ToolCallApprovals;
+  /**
+   * ArkAgent's own OAuth apps, used for a catalogue vendor no administrator has registered a client
+   * for. See `builtin-oauth-clients.ts`. Absent, as on a hosted deployment, means none.
+   */
+  builtinClients?: BuiltinOAuthClients;
 };
 
 /**
@@ -1213,6 +1222,9 @@ function schemeFor(connection: BrokerConnection): RecordedScheme | null {
 export function createPluginStore(options: PluginStoreOptions) {
   const { database, auditStore, credentials, encryptionKey } = options;
   const approvals = options.approvals;
+  /** ArkAgent's own client for this server, used only where the server row holds none. */
+  const builtinClient = (serverId: string): OAuthClient | null =>
+    builtinOAuthClientFor(serverId, options.builtinClients ?? {});
 
   /** What an administrator set for each tool on these servers, keyed `<serverId>/<toolName>`. */
   async function toolCallRulesFor(
@@ -1741,9 +1753,10 @@ export function createPluginStore(options: PluginStoreOptions) {
      */
     const clientReplaced = `${title} no longer recognises this deployment's OAuth client, so this cannot be called. The deployment has registered itself again — connect ${title} again in Settings.`;
 
-    if (!row.credentialId) {
+    if (!row.credentialId && !builtinClient(row.id)) {
       // The person did their part; the deployment has not. Refused before anything queues, because
-      // a deployment holding no client has the same answer for everybody asking.
+      // a deployment holding no client has the same answer for everybody asking. ArkAgent's own app
+      // counts as a client here (see `builtin-oauth-clients.ts`).
       throw new PluginRefusedError(noClient, null);
     }
 
@@ -1774,6 +1787,10 @@ export function createPluginStore(options: PluginStoreOptions) {
         .where(eq(mcpServers.id, row.id))
         .limit(1);
       if (!server?.credentialId) {
+        // No client of this deployment's own: ArkAgent's built-in app, if this vendor has one. It
+        // was never "registered" here, so there is no time to measure a backoff from.
+        const builtin = builtinClient(row.id);
+        if (builtin) return { client: builtin, registeredAt: null };
         throw new PluginRefusedError(noClient, null);
       }
       /*
@@ -2354,7 +2371,11 @@ export function createPluginStore(options: PluginStoreOptions) {
       .from(mcpServers)
       .where(eq(mcpServers.id, serverId))
       .limit(1);
-    if (!row?.credentialId) return null;
+    // A server nobody has added has no client of any kind: connecting it would write a grant for a
+    // row that does not exist. One that was added but holds no client of its own falls back to
+    // ArkAgent's built-in app, where this vendor has one.
+    if (!row) return null;
+    if (!row.credentialId) return builtinClient(serverId);
 
     try {
       const parsed: unknown = JSON.parse(
@@ -4151,7 +4172,8 @@ export function createPluginStore(options: PluginStoreOptions) {
           summary: entry?.summary ?? "",
           docsUrl: entry?.docsUrl ?? "",
           provenance: row.provenance,
-          hasCredential: row.credentialId !== null,
+          hasCredential:
+            row.credentialId !== null || builtinClient(row.id) !== null,
           toolsRefreshedAt: iso(row.toolsRefreshedAt),
           lastError: row.lastError,
           addedBy: row.addedBy,

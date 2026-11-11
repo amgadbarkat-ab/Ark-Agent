@@ -91,7 +91,7 @@ let clientBefore: string | null = null;
 let toolWasAlreadyAdvertised = false;
 const credentialIds: string[] = [];
 
-const store = createPluginStore({
+const storeOptions: Parameters<typeof createPluginStore>[0] = {
   database,
   auditStore: createAuditStore(database),
   credentials: {
@@ -154,7 +154,8 @@ const store = createPluginStore({
     exchanged.push(refreshToken);
     return { accessToken: accessTokenFrom(refreshToken) };
   },
-});
+};
+const store = createPluginStore(storeOptions);
 
 /**
  * Retire whatever this key currently holds, the way the product now does.
@@ -418,6 +419,29 @@ describe("a person who has connected", () => {
     await expect(
       store.callTool({ ref, args: {}, botId, actorId: askerId }),
     ).rejects.toThrow(/OAuth client/);
+  });
+
+  test("goes out on ArkAgent's built-in client when the deployment registered none (desk #83)", async () => {
+    await connect(askerId, askerRefreshToken);
+    await database
+      .update(mcpServers)
+      .set({ credentialId: null })
+      .where(eq(mcpServers.id, serverId));
+    const BUILTIN = { clientId: "arkagent-desktop", clientSecret: "" };
+    const presented: unknown[] = [];
+    const desktop = createPluginStore({
+      ...storeOptions,
+      builtinClients: { google: BUILTIN, microsoft: BUILTIN },
+      exchangeRefreshToken: async ({ client, refreshToken }) => {
+        presented.push(client);
+        return { accessToken: accessTokenFrom(refreshToken) };
+      },
+    });
+    decrypted.length = 0;
+
+    await desktop.callTool({ ref, args: {}, botId, actorId: askerId });
+    expect(presented).toEqual([BUILTIN]);
+    expect(decrypted).toEqual([accessTokenFrom(askerRefreshToken)]);
   });
 
   test("goes out with their own token and nobody else's", async () => {

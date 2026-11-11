@@ -533,6 +533,7 @@ jobs:
       contents: read
     secrets:
       OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET: ${{ secrets.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET }}
+      ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET }}
 
   attach-installers:
     name: attach installers
