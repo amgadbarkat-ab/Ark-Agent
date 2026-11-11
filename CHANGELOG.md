@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.30
+
 ### Plugins
 
 - **Gmail, Google Drive and Microsoft 365 connect without registering an app of your own** on
