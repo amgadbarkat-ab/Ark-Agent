@@ -405,7 +405,8 @@ describe("sending a message (desk #83, the Wine24 email scene)", () => {
     expect(seen[0]?.method).toBe("POST");
     expect(seen[0]?.url.pathname).toBe("/gmail/v1/users/me/messages/send");
     expect(seen[0]?.authorization).toBe("Bearer test-token");
-    const message = fromRaw((seen[0]?.body as { raw: string }).raw);
+    const sent = seen[0]?.body as { raw?: string } | undefined;
+    const message = fromRaw(sent?.raw ?? "");
     expect(message).toContain("To: anna@example.com, desk@wine24.example\r\n");
     expect(message).toContain("Cc: boss@wine24.example\r\n");
     expect(message).toContain(
