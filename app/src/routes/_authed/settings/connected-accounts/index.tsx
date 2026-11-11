@@ -1,4 +1,5 @@
 import {
+  IconBrandGmail,
   IconBrandGoogleDrive,
   IconBrandNotion,
   IconBrandWindows,
@@ -62,6 +63,7 @@ export const Route = createFileRoute("/_authed/settings/connected-accounts/")({
 /** The same marks the admin connector list uses: these are the same vendors seen from your side. */
 const MARKS: Record<string, React.ComponentType<{ className?: string }>> = {
   "google-drive": IconBrandGoogleDrive,
+  "google-gmail": IconBrandGmail,
   notion: IconBrandNotion,
   "microsoft-365": IconBrandWindows,
 };

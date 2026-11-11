@@ -226,6 +226,52 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
       "https://developers.google.com/workspace/guides/configure-mcp-servers",
   },
   {
+    key: "google-gmail",
+    title: "Gmail",
+    vendor: "Google",
+    summary: "The mailbox of whoever is asking: search and read, nothing else.",
+    /*
+     * Desk #83: DT Lab needs a Gmail test mailbox, and Gmail was "Not yet". The Gmail REST API, for
+     * the reason Drive uses Drive's: it is generally available, where Google's Gmail MCP server sits
+     * behind the same developer preview.
+     */
+    host: "https://gmail.googleapis.com",
+    path: "/gmail/v1",
+    transport: "gmail-rest",
+    /*
+     * A person's own grant, as Drive's is. The same Google OAuth client works for both: an
+     * administrator turns the Gmail API on for that project and adds the client here too.
+     *
+     * `gmail.readonly` is one of Google's "restricted" scopes. A project in Testing mode works for the
+     * test users it lists, which is what a test mailbox needs; publishing to everyone needs Google's
+     * verification, and that is a decision about the project, not about this code.
+     */
+    auth: {
+      kind: "user-oauth",
+      authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+      tokenUrl: "https://oauth2.googleapis.com/token",
+      revokeUrl: "https://oauth2.googleapis.com/revoke",
+      scopes: Object.freeze(["https://www.googleapis.com/auth/gmail.readonly"]),
+      // For the reason given on Drive's entry: no refresh token without both.
+      authorizationParams: Object.freeze({
+        access_type: "offline",
+        prompt: "consent",
+      }),
+    },
+    // Named although the scope makes Google refuse them, for the reason Drive's list is.
+    writeTools: Object.freeze([
+      "send_message",
+      "create_draft",
+      "send_draft",
+      "reply_to_message",
+      "forward_message",
+      "modify_labels",
+      "trash_message",
+      "delete_message",
+    ]),
+    docsUrl: "https://developers.google.com/workspace/gmail/api/guides",
+  },
+  {
     key: "notion",
     title: "Notion",
     vendor: "Notion",

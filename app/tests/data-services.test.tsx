@@ -112,16 +112,16 @@ test("a connector with an OAuth client, or one that registers itself, is ready",
   ).toEqual({ kind: "ready" });
 });
 
-test("Microsoft 365 is the one that says it was never tried against a real account", () => {
+test("Microsoft 365 and Gmail are the ones that say they were never tried against a real account", () => {
   expect(
     DATA_SERVICES.filter((candidate) => candidate.untested).map(
       (candidate) => candidate.id,
     ),
-  ).toEqual(["microsoft-365"]);
+  ).toEqual(["microsoft-365", "gmail"]);
 });
 
 test("every service names a connector that exists, or none", () => {
-  const builtIn = ["microsoft-365", "google-drive", "notion"];
+  const builtIn = ["microsoft-365", "google-drive", "google-gmail", "notion"];
   for (const candidate of DATA_SERVICES) {
     if (candidate.connector) expect(builtIn).toContain(candidate.connector);
   }

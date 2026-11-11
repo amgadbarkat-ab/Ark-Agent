@@ -1,4 +1,5 @@
 import {
+  IconBrandGmail,
   IconBrandGoogleDrive,
   IconBrandNotion,
   IconBrandWindows,
@@ -56,6 +57,7 @@ export const Route = createFileRoute("/_authed/admin/plugins/")({
  */
 const MARKS: Record<string, React.ComponentType<{ className?: string }>> = {
   "google-drive": IconBrandGoogleDrive,
+  "google-gmail": IconBrandGmail,
   notion: IconBrandNotion,
   "microsoft-365": IconBrandWindows,
 };
