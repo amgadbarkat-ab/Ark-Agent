@@ -4,6 +4,7 @@ import type { BuiltInAgentClassicConfig } from "@copilotkit/runtime/v2";
 import type { ProviderProtocol } from "../../../shared/model-providers";
 import { requestWithSingleTypes } from "../../../shared/tool-schema";
 import { fetchWithImageFallback } from "./image-fallback";
+import { fetchWithModelLimits } from "./rate-limit";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -77,7 +78,10 @@ export function languageModelFor(
   fetchImpl: GuardedFetch,
 ): ConnectionLanguageModel {
   // A model that takes no images is told one was attached, instead of failing the conversation.
-  const fetch = fetchWithImageFallback(guarded(fetchImpl));
+  // And a provider's per-minute limit is met with a capped request and a retry, not a raw 429.
+  const fetch = fetchWithImageFallback(
+    fetchWithModelLimits(guarded(fetchImpl)),
+  );
 
   if (choice.protocol === "anthropic") {
     const anthropic = createAnthropic({
@@ -141,7 +145,9 @@ export function deploymentChatModel(
     apiKey: environment.OPENAI_API_KEY?.trim() || NO_KEY,
     baseURL: baseUrl.replace(/\/+$/, ""),
     fetch: fetchWithImageFallback(
-      local ? forLocalTemplate(globalThis.fetch) : globalThis.fetch,
+      fetchWithModelLimits(
+        local ? forLocalTemplate(globalThis.fetch) : globalThis.fetch,
+      ),
     ),
   }).chat(model) as ConnectionLanguageModel;
   deploymentModels.set(key, built);

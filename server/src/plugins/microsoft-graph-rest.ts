@@ -1,4 +1,10 @@
 import { cutAtCodeUnits } from "../channels/text";
+import {
+  bodyFrom,
+  MAX_RECIPIENTS,
+  recipientsFrom,
+  subjectFrom,
+} from "./mail-send";
 import { MAX_RESULT_CHARS, type McpCallResult, type McpTool } from "./mcp";
 
 /**
@@ -114,6 +120,29 @@ const TOOLS: readonly McpTool[] = Object.freeze([
         query: { type: "string", description: "What to look for." },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "outlook_send_mail",
+    description:
+      "Send an email from your Outlook. The person is shown the message and approves it before it is sent. Plain text; a copy is kept in Sent Items. Use to and cc for addresses, separated by commas.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        to: {
+          type: "string",
+          description:
+            "Who it is to: one or more email addresses, separated by commas.",
+        },
+        cc: {
+          type: "string",
+          description:
+            "Optional. Copied to: email addresses, separated by commas.",
+        },
+        subject: { type: "string", description: "The subject line." },
+        body: { type: "string", description: "The message, as plain text." },
+      },
+      required: ["to", "subject", "body"],
     },
   },
 ]);
@@ -562,6 +591,52 @@ export async function callTool(
             .join(" · ")}${summary ? `\n  ${summary}` : ""}`;
         })
         .join("\n"),
+    );
+  }
+
+  if (toolName === "outlook_send_mail") {
+    const to = recipientsFrom(args.to, "to");
+    if (!to.ok) return failure(to.message);
+    const cc = recipientsFrom(args.cc, "cc");
+    if (!cc.ok) return failure(cc.message);
+    if (to.addresses.length === 0) {
+      return failure("A message needs at least one address to send to.");
+    }
+    if (to.addresses.length + cc.addresses.length > MAX_RECIPIENTS) {
+      return failure(
+        `A message may go to at most ${MAX_RECIPIENTS} addresses in all.`,
+      );
+    }
+    const subject = subjectFrom(args.subject);
+    if (!subject) return failure("A message needs a subject.");
+    const body = bodyFrom(args.body);
+    if (!body) return failure("A message needs some text to send.");
+    const recipient = (address: string) => ({ emailAddress: { address } });
+    const result = await request(connection, "/me/sendMail", {
+      method: "POST",
+      body: {
+        message: {
+          subject,
+          body: { contentType: "Text", content: body },
+          toRecipients: to.addresses.map(recipient),
+          ...(cc.addresses.length > 0
+            ? { ccRecipients: cc.addresses.map(recipient) }
+            : {}),
+        },
+        saveToSentItems: true,
+      },
+    });
+    if (!result.ok) {
+      // A sign-in made before sending was added has no Mail.Send: the fix is to connect again.
+      const reconnect = /access is denied|insufficient|Mail\.Send|403/i.test(
+        result.message,
+      )
+        ? " Connect Microsoft 365 again in Settings, then Connected accounts, so it can ask for permission to send."
+        : "";
+      return failure(`${result.message}${reconnect}`);
+    }
+    return asResult(
+      `Sent to ${[...to.addresses, ...cc.addresses].join(", ")}: "${subject}".`,
     );
   }
 

@@ -62,17 +62,18 @@ function stubFetch(body: unknown, init: { status?: number } = {}) {
 }
 
 describe("the entry and the transport", () => {
-  test("Microsoft 365 is a read-only, per-person connector reached over Graph", () => {
+  test("Microsoft 365 is a per-person connector reached over Graph, reading plus Mail.Send", () => {
     const entry = catalogueEntry("microsoft-365");
     expect(entry?.transport).toBe("microsoft-graph-rest");
     expect(entry?.host).toBe("https://graph.microsoft.com");
     expect(entry?.auth.kind).toBe("user-oauth");
     if (entry?.auth.kind !== "user-oauth") throw new Error("not user-oauth");
-    // Only `.Read` scopes, plus the two that are not about a resource at all.
+    // Only `.Read` scopes, plus the two that are not about a resource at all, plus sending mail.
     for (const scope of entry.auth.scopes) {
       expect(
         scope === "offline_access" ||
           scope === "User.Read" ||
+          scope === "Mail.Send" ||
           scope.endsWith(".Read") ||
           scope.endsWith(".Read.All"),
       ).toBe(true);
@@ -88,7 +89,7 @@ describe("the entry and the transport", () => {
     ).toBe(callTool);
   });
 
-  test("it advertises exactly the tools it handles, and none of them writes", async () => {
+  test("it advertises exactly the tools it handles, and only sending writes", async () => {
     const tools = await listTools(connection);
     expect(tools.map((tool) => tool.name)).toEqual([
       "outlook_search_mail",
@@ -97,10 +98,16 @@ describe("the entry and the transport", () => {
       "teams_list_chats",
       "teams_read_chat",
       "sharepoint_search_files",
+      "outlook_send_mail",
     ]);
     const entry = catalogueEntry("microsoft-365");
     for (const tool of tools) {
-      expect(entry?.writeTools).not.toContain(tool.name);
+      if (tool.name === "outlook_send_mail") {
+        // On the write list, so every send is held for the person's approval.
+        expect(entry?.writeTools).toContain(tool.name);
+      } else {
+        expect(entry?.writeTools).not.toContain(tool.name);
+      }
     }
   });
 
@@ -422,10 +429,64 @@ describe("when Microsoft says no", () => {
   });
 
   test("a tool that is not here is refused by name", async () => {
-    const result = await callTool(connection, "outlook_send_mail", {
-      to: "x@example.com",
+    const result = await callTool(connection, "outlook_delete_mail", {
+      messageId: "x",
     });
     expect(result.isError).toBe(true);
     expect(result.text).toContain("is not a tool this connector implements");
+  });
+});
+
+describe("sending mail (desk #83, the Wine24 email scene)", () => {
+  test("goes to /me/sendMail as plain text, kept in Sent Items", async () => {
+    const seen = stubFetch({}, { status: 202 });
+    const result = await callTool(connection, "outlook_send_mail", {
+      to: "anna@example.com",
+      cc: "boss@example.com; desk@example.com",
+      subject: "Παραγγελία 42",
+      body: "Καλημέρα",
+    });
+    expect(result.isError).toBe(false);
+    expect(seen[0]?.method).toBe("POST");
+    expect(seen[0]?.url.pathname).toBe("/v1.0/me/sendMail");
+    expect(seen[0]?.body).toEqual({
+      message: {
+        subject: "Παραγγελία 42",
+        body: { contentType: "Text", content: "Καλημέρα" },
+        toRecipients: [{ emailAddress: { address: "anna@example.com" } }],
+        ccRecipients: [
+          { emailAddress: { address: "boss@example.com" } },
+          { emailAddress: { address: "desk@example.com" } },
+        ],
+      },
+      saveToSentItems: true,
+    });
+  });
+
+  test("a recipient that is not one plain address is refused before Microsoft is asked", async () => {
+    const result = await callTool(connection, "outlook_send_mail", {
+      to: "a@example.com\r\nBcc: x@evil.test",
+      subject: "s",
+      body: "b",
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  test("a sign-in made before sending existed says to connect again", async () => {
+    stubFetch(
+      {
+        error: {
+          message: "Access is denied. Check credentials and try again.",
+        },
+      },
+      { status: 403 },
+    );
+    const result = await callTool(connection, "outlook_send_mail", {
+      to: "a@example.com",
+      subject: "s",
+      body: "b",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("Connect Microsoft 365 again");
   });
 });
