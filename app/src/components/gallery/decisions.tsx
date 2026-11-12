@@ -322,7 +322,7 @@ export const GALLERY: GalleryComponent[] = [
     title: "Approval",
     kind: "decision",
     description:
-      "Ask the person to approve or decline something, and WAIT for their answer. Use before doing anything you cannot undo, spending money, sending a message, changing a record. You are given their decision and any reason they typed.",
+      "Ask the person to approve or decline something, and WAIT for their answer. Use before doing anything you cannot undo, spending money, sending a message, changing a record. Write everything you want to say BEFORE calling this, and nothing after it: your message ends with the card. You are given their decision and any reason they typed.",
     parameters: ApprovalCardProps,
     Component: ApprovalCard as GalleryComponent["Component"],
     preview: {
@@ -348,7 +348,7 @@ export const GALLERY: GalleryComponent[] = [
     title: "Choice",
     kind: "decision",
     description:
-      "Ask the person to pick one of several options, and WAIT for their answer. Use when you cannot sensibly guess which one they meant. You are given the id of the option they chose.",
+      "Ask the person to pick one of several options, and WAIT for their answer. Use when you cannot sensibly guess which one they meant. Write everything you want to say BEFORE calling this, and nothing after it: your message ends with the card. You are given the id of the option they chose.",
     parameters: ChoiceCardProps,
     Component: ChoiceCard as GalleryComponent["Component"],
     preview: {

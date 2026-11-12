@@ -111,11 +111,42 @@ function rateLimited(): Response {
 
 type Send = (body: string) => Promise<Response>;
 
+/**
+ * Whether `error` is a connection the provider closed before it answered (#73: DT Lab once saw a
+ * turn end with "socket connection closed"). Bun says "The socket connection was closed
+ * unexpectedly" with `ECONNRESET` when a kept-alive connection was dropped at the other end
+ * between two requests, which is the commonest way a request is lost before it is read.
+ */
+export function closedBeforeAnswer(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return (
+    code === "ECONNRESET" ||
+    /socket connection was closed|socket hang up|other side closed/i.test(
+      error.message,
+    )
+  );
+}
+
+/**
+ * `send`, tried once more if the connection was closed before any answer came back. Nothing had
+ * been answered, so for a model request the second try is the same request on a fresh connection.
+ */
+async function sendOnceMore(send: Send, body: string): Promise<Response> {
+  try {
+    return await send(body);
+  } catch (error) {
+    if (!closedBeforeAnswer(error)) throw error;
+    return await send(body);
+  }
+}
+
 const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 /**
  * Send `body` to `url` within the provider's limits: capped, retried on a 429, and refused in a
- * sentence when the provider keeps refusing. Addresses with no cap are passed through untouched.
+ * sentence when the provider keeps refusing. Addresses with no cap are sent as they are. Every
+ * request is sent once more if its connection was closed before an answer (`sendOnceMore`).
  */
 export async function sendWithModelLimits(
   url: string,
@@ -124,10 +155,10 @@ export async function sendWithModelLimits(
   wait: (ms: number) => Promise<void> = sleep,
 ): Promise<Response> {
   const cap = outputCapFor(url);
-  if (cap === undefined) return send(body);
+  if (cap === undefined) return sendOnceMore(send, body);
   const capped = capOutput(body, cap);
   for (let attempt = 0; ; attempt++) {
-    const response = await send(capped);
+    const response = await sendOnceMore(send, capped);
     if (response.status !== 429) return response;
     if (attempt >= RETRIES) {
       await response.body?.cancel().catch(() => {});
@@ -149,7 +180,6 @@ export function fetchWithModelLimits(inner: typeof fetch): typeof fetch {
         : input instanceof URL
           ? input.href
           : input.url;
-    if (outputCapFor(url) === undefined) return inner(input, init);
     return sendWithModelLimits(url, init.body, (body) =>
       inner(input, { ...init, body }),
     );

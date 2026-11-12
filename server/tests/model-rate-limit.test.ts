@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   capOutput,
+  closedBeforeAnswer,
   fetchWithModelLimits,
   outputCapFor,
   RATE_LIMITED_SENTENCE,
@@ -131,5 +132,55 @@ describe("the fetch wrapper", () => {
     });
     expect(JSON.parse(bodies[0] ?? "{}").max_tokens).toBe(8192);
     expect(bodies[1]).toBe('{"messages":[]}');
+  });
+});
+
+describe("a connection closed before the provider answered (#73)", () => {
+  const closed = () =>
+    Object.assign(
+      new Error(
+        "The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()",
+      ),
+      { code: "ECONNRESET" },
+    );
+
+  test("is sent once more, for any provider", async () => {
+    let calls = 0;
+    const response = await sendWithModelLimits(
+      "https://api.openai.com/v1/chat/completions",
+      "{}",
+      async () => {
+        calls += 1;
+        if (calls === 1) throw closed();
+        return new Response("ok");
+      },
+    );
+    expect(calls).toBe(2);
+    expect(await response.text()).toBe("ok");
+  });
+
+  test("twice in a row is the provider's failure, said as it was", async () => {
+    let calls = 0;
+    await expect(
+      sendWithModelLimits("https://api.openai.com/v1/x", "{}", async () => {
+        calls += 1;
+        throw closed();
+      }),
+    ).rejects.toThrow("socket connection was closed");
+    expect(calls).toBe(2);
+  });
+
+  test("anything else, a person's Stop included, is not retried", async () => {
+    let calls = 0;
+    await expect(
+      sendWithModelLimits("https://api.openai.com/v1/x", "{}", async () => {
+        calls += 1;
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }),
+    ).rejects.toThrow("aborted");
+    expect(calls).toBe(1);
+    expect(closedBeforeAnswer(new Error("certificate has expired"))).toBe(
+      false,
+    );
   });
 });

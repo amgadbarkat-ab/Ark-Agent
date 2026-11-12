@@ -18,6 +18,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   calendar events, are drawn as cards: mail with an unread dot, Summarise and Open; files with Use
   this file and Open; events with Join and Open. The digital employee reads the same results as
   before.
+- **A model connection dropped before it answered is tried once more** (#73, the rare "socket
+  connection closed"). Nothing had been answered, so the second try is the same request on a fresh
+  connection; any other failure, and a second drop, are reported as before.
+- **An approval or choice card ends the employee's message.** Its instructions now say to write
+  everything before the card and nothing after it, so the reply no longer keeps going under a card
+  that is waiting for you (#73).
 
 ### Plugins
 
