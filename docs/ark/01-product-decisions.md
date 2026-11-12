@@ -85,17 +85,20 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 
 - **Several people on one account: no change.** Plans stay one user per account (D3). (2026-10-15)
 - **Shared marketplace bots stay view-only, not installable** (D7). (2026-10-15)
-- **Free trial: 30 days.** The terms were settled on 2026-10-16 (below). (2026-10-15)
+- **Free trial: 7 days** (changed from 30 days on 2026-11-12, Amgad's company-wide rule). The terms were settled
+  on 2026-10-16 and amended on 2026-11-12 (below). (2026-10-15, amended 2026-11-12)
 - **A free starter model, no usage cap, no charge.** The model was chosen by engineering (Gemma 4 E4B); see
   22-starter-model.md. **Oracle Cloud's free tier was dropped on 2026-10-16** (it is now 2 OCPU and 12 GB); the
   direction is a managed local model on the customer's own computer, with a hosted starter left for later. (2026-10-15, amended 2026-10-16)
-- **Free trial: 30 days, no card, on the ArkAgent plan, the cloud add-on off, and on day 31 the account pauses
-  read-only (data kept 30 days) until a plan is chosen.** The owner accepted the defaults. (2026-10-16)
+- **Free trial: 7 days, no card, on the ArkAgent plan, the cloud add-on off, and on day 8 the account pauses
+  read-only (data kept 30 days) until a plan is chosen.** The owner accepted the defaults on 2026-10-16, and
+  shortened the trial from 30 days to 7 on 2026-11-12. **Customers offered a 30-day trial before 12 Nov 2026 keep
+  30 days.** (2026-10-16, amended 2026-11-12)
 - **v0.1.5 runs on the owner's Windows PC.** The owner will list the issues found. (2026-10-16)
 - **Azure region: Europe for now** (West Europe). Microsoft lists no Greece region today; revisit when it
   does. (2026-10-15)
 - **SOC 2: dropped.** ISO 27001 is left as a low-priority item, undecided. (2026-10-15)
-- **The desktop app asks for an Ark account at first run.** The account carries the 30-day trial and the free starter
+- **The desktop app asks for an Ark account at first run.** The account carries the 7-day trial and the free starter
   model, and keeps the model server's token off customers' computers. It needs the cloud account service to be
   live, so it follows the first Azure deployment. (2026-10-16)
 - **The app's look follows openbot.run:** layout, spacing, component shapes and a dark default. BlackArk's own
