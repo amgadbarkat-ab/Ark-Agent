@@ -25,6 +25,17 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   everything before the card and nothing after it, so the reply no longer keeps going under a card
   that is waiting for you (#73).
 
+- **Named groups.** New group, on the Digital Team page, starts a conversation you name ("Test
+  Group 1") with the digital employees you pick. The first one picked leads and asks the others
+  when the work is theirs, as in the team channel (DT Lab, #83).
+
+### Desktop
+
+- **A local model that is too slow here says so** (DT Lab, #83: Gemma 4 26B on a 4 GB graphics card
+  wrote nothing in four and a half minutes). After it starts, the model is timed on a short answer.
+  On a graphics card that is slow, the CPU build is tried too and the faster one kept; if it is
+  still slow, setup says so and names the smaller model to choose instead.
+
 ### Plugins
 
 - **The Gmail page says which account is connected** ("Connected as …"). Google and Microsoft are

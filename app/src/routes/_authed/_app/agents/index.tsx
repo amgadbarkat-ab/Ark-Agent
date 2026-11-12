@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AgentCard } from "@/components/agents/agent-card";
 import { AgentDialog } from "@/components/agents/agent-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
+import { NewGroupButton } from "@/components/agents/new-group-button";
 import { OpenTeamChannelButton } from "@/components/agents/open-team-channel-button";
 import { PageSection, PageShell } from "@/components/layout/page-shell";
 import { StaggerItem } from "@/components/layout/stagger";
@@ -71,6 +72,7 @@ function DigitalTeamScreen() {
           <div className="flex items-center gap-1">
             {/* A team needs somebody besides the lead. */}
             {(mine?.length ?? 0) >= 2 ? <OpenTeamChannelButton /> : null}
+            {mine && mine.length >= 2 ? <NewGroupButton agents={mine} /> : null}
             <Button
               render={(props) => (
                 <Link search={{ new: true }} to="/agents" {...props} />
