@@ -1062,7 +1062,7 @@ async fn start_local_model<R: tauri::Runtime>(
     let work_root = root.to_path_buf();
     let mut sink = local_model_progress_sink(app);
     let announce = app.clone();
-    let running = tauri::async_runtime::spawn_blocking(move || {
+    let (running, note) = tauri::async_runtime::spawn_blocking(move || {
         let machine = openbot_desktop_lib::local_model::detect()?;
         let prepared = openbot_desktop_lib::local_setup::prepare(
             &work_root,
@@ -1095,11 +1095,25 @@ async fn start_local_model<R: tauri::Runtime>(
             "Starting the model. Reading it from disk can take up to a minute.",
             None,
         );
-        openbot_desktop_lib::local_setup::start(&work_root, &logs, &prepared, &cancel)
+        let running =
+            openbot_desktop_lib::local_setup::start(&work_root, &logs, &prepared, &cancel)?;
+        // Timed once more as it will be used, so a model that is slow here says so (DT Lab, #83).
+        // Here, inside the blocking task, because the client that asks is a blocking one.
+        let note = openbot_desktop_lib::local_setup::slow_note(
+            prepared.model,
+            openbot_desktop_lib::local_setup::measure(&running),
+        );
+        Ok::<_, Problem>((running, note))
     })
     .await
     .map_err(|error| Problem::with("ArkAgent could not start the model.", error.to_string()))??;
-    report(app, "model", true, "The model is running on this computer.");
+    report(
+        app,
+        "model",
+        true,
+        note.as_deref()
+            .unwrap_or("The model is running on this computer."),
+    );
     let chosen = ChosenModel {
         provider: "local".into(),
         login: "managed".into(),

@@ -451,6 +451,12 @@ export const mcpUserCredentials = pgTable(
      */
     scope: text("scope").notNull(),
     /**
+     * Which account at the vendor consented, as the vendor named it (an email address). Null when
+     * the vendor was not asked or did not say. Shown on the person's own settings page so they can
+     * tell which mailbox a digital employee reads (DT Lab, #83).
+     */
+    account: text("account"),
+    /**
      * When this person connected.
      *
      * Written out rather than using the shared `createdAt()` helper, which fixes the column name to

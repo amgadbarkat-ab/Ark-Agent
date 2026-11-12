@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { gmailMessages } from "../../shared/connector-results";
 import { accessFor } from "../src/plugins/access";
 import { catalogueEntry, hostAdmissible } from "../src/plugins/catalogue";
 import {
@@ -193,6 +194,28 @@ describe("searching and listing", () => {
     expect(result.text).toContain("Two cases of Assyrtiko");
     expect(result.text).toContain("id: m1");
     expect(result.text).toContain('"Re: Order 42"');
+
+    // The chat draws these lines as a mail card (9A); the format and the reader must agree.
+    expect(gmailMessages(result.text)).toEqual([
+      {
+        id: "m1",
+        subject: "Order 42",
+        from: "Anna <anna@example.com>",
+        date: "Tue, 10 Nov 2026 09:00:00 +0200",
+        unread: true,
+        preview: "Two cases of Assyrtiko",
+        link: "https://mail.google.com/mail/u/0/#all/m1",
+      },
+      {
+        id: "m2",
+        subject: "Re: Order 42",
+        from: "Anna <anna@example.com>",
+        date: "Tue, 10 Nov 2026 09:00:00 +0200",
+        unread: false,
+        preview: "Delivery Friday",
+        link: "https://mail.google.com/mail/u/0/#all/m2",
+      },
+    ]);
   });
 
   test("the recent list is the inbox", async () => {

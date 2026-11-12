@@ -1,3 +1,7 @@
+import {
+  calendarEvents,
+  outlookMessages,
+} from "../../shared/connector-results";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { accessFor } from "../src/plugins/access";
 import { catalogueEntry } from "../src/plugins/catalogue";
@@ -156,6 +160,18 @@ describe("Outlook mail", () => {
     expect(result.text).toContain("from Ana <ana@example.com>");
     expect(result.text).toContain("id: AAMk=");
     expect(result.text).toContain("Please find the invoice");
+    // Drawn as a mail card in the chat (9A).
+    expect(outlookMessages(result.text)).toEqual([
+      {
+        id: "AAMk=",
+        subject: "Invoice 42",
+        from: "Ana <ana@example.com>",
+        date: "2026-10-01T08:00:00Z",
+        unread: false,
+        preview: "Please find the invoice",
+        link: "https://outlook.office.com/mail/id/AAMk=",
+      },
+    ]);
   });
 
   test("a quote in the search cannot leave the quotes Graph wants", async () => {
@@ -252,6 +268,16 @@ describe("the calendar", () => {
     expect(result.text).toContain("Standup");
     expect(result.text).toContain("at Room 4");
     expect(result.text).toContain("online: https://teams.example/join");
+    // Drawn as an events card in the chat (9A).
+    const events = calendarEvents(result.text);
+    expect(events).toHaveLength(1);
+    expect(events?.[0]).toMatchObject({
+      title: "Standup",
+      where: "Room 4",
+      organiser: "Ben <ben@example.com>",
+      joinUrl: "https://teams.example/join",
+      cancelled: false,
+    });
   });
 
   test("with no dates it looks seven days ahead", async () => {

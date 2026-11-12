@@ -1,0 +1,1 @@
+ALTER TABLE "mcp_user_credentials" ADD COLUMN "account" text;

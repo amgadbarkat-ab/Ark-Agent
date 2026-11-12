@@ -2077,6 +2077,7 @@ export function createPluginStore(options: PluginStoreOptions) {
     userId: string;
     refreshToken: string;
     scope: string;
+    account?: string | null;
   }): Promise<{ replaced: boolean }> {
     const key = {
       kind: "mcp_user_token" as const,
@@ -2113,12 +2114,15 @@ export function createPluginStore(options: PluginStoreOptions) {
           userId: input.userId,
           credentialId: stored.id,
           scope: input.scope,
+          account: input.account ?? null,
         })
         .onConflictDoUpdate({
           target: [mcpUserCredentials.serverId, mcpUserCredentials.userId],
           set: {
             credentialId: stored.id,
             scope: input.scope,
+            // A reconnect may be a different account; one the vendor did not name is not kept.
+            account: input.account ?? null,
             updatedAt: new Date(),
           },
         });
@@ -4991,6 +4995,7 @@ export function createPluginStore(options: PluginStoreOptions) {
       userId: string;
       refreshToken: string;
       scope: string;
+      account?: string | null;
     }): Promise<void> {
       const { replaced } = await swapUserCredential(input);
 
@@ -5016,13 +5021,19 @@ export function createPluginStore(options: PluginStoreOptions) {
     oauthClientFor: storedOAuthClient,
 
     /** Which `user-oauth` servers this person has connected, for their own settings page. */
-    async connectionsFor(
-      userId: string,
-    ): Promise<{ serverId: string; scope: string; connectedAt: string }[]> {
+    async connectionsFor(userId: string): Promise<
+      {
+        serverId: string;
+        scope: string;
+        account: string | null;
+        connectedAt: string;
+      }[]
+    > {
       const rows = await database
         .select({
           serverId: mcpUserCredentials.serverId,
           scope: mcpUserCredentials.scope,
+          account: mcpUserCredentials.account,
           connectedAt: mcpUserCredentials.connectedAt,
         })
         .from(mcpUserCredentials)
@@ -5032,6 +5043,7 @@ export function createPluginStore(options: PluginStoreOptions) {
       return rows.map((row) => ({
         serverId: row.serverId,
         scope: row.scope,
+        account: row.account,
         connectedAt: iso(row.connectedAt) ?? "",
       }));
     },

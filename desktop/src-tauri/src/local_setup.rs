@@ -339,6 +339,10 @@ fn settings_for(prepared: &Prepared) -> Settings {
 /// A graphics-card engine that starts but never answers (a driver that cannot hold the model, a card too
 /// small for it) is stopped and the CPU engine is started in its place, so the person gets an answer from the
 /// model and not an error about a card they did not know mattered.
+///
+/// A graphics-card engine that answers but slowly is the same problem in a quieter form (DT Lab, #83: Gemma
+/// 4 26B on a 4 GB Quadro M1000M thought for four and a half minutes and wrote nothing). So it is asked for a
+/// few words first, timed, and when that is slow the CPU engine is tried too and the faster one kept.
 pub fn start(
     root: &Path,
     logs: &Path,
@@ -346,6 +350,42 @@ pub fn start(
     cancel: &AtomicBool,
 ) -> Result<Running, Problem> {
     match local_server::start(&settings_for(prepared), root, logs, READY_WITHIN, cancel) {
+        Ok(mut running) if prepared.backend == "vulkan" => {
+            let gpu_speed = measure(&running);
+            if !too_slow(gpu_speed) || cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                return Ok(running);
+            }
+            let Ok(cpu) = llama_runtime::install(root, false, cancel, &mut |_| {}) else {
+                return Ok(running);
+            };
+            running.stop(root);
+            let on_cpu = Prepared {
+                backend: backend_of(&cpu),
+                server: cpu,
+                model_file: prepared.model_file.clone(),
+                model: prepared.model,
+            };
+            match local_server::start(&settings_for(&on_cpu), root, logs, READY_WITHIN, cancel) {
+                Ok(mut cpu_running) => {
+                    if faster(measure(&cpu_running), gpu_speed) {
+                        Ok(cpu_running)
+                    } else {
+                        // The card was the better of two slow answers after all.
+                        cpu_running.stop(root);
+                        local_server::start(
+                            &settings_for(prepared),
+                            root,
+                            logs,
+                            READY_WITHIN,
+                            cancel,
+                        )
+                    }
+                }
+                Err(_) => {
+                    local_server::start(&settings_for(prepared), root, logs, READY_WITHIN, cancel)
+                }
+            }
+        }
         Ok(running) => Ok(running),
         Err(problem)
             if prepared.backend == "vulkan"
@@ -363,6 +403,90 @@ pub fn start(
         }
         Err(problem) => Err(problem),
     }
+}
+
+/// Words a second below which a person waits too long for an answer: a 300-word reply takes over a
+/// minute and a half, and a digital employee's turn is several of those.
+pub const SLOW_TOKENS_PER_SECOND: f64 = 3.0;
+
+/// How long the timed answer may take. Longer than this is "too slow" without a figure.
+const MEASURE_WITHIN: Duration = Duration::from_secs(60);
+
+/// Words a second the running model wrote a short answer at, or `Some(0.0)` when it wrote none within
+/// a minute. None when it could not be asked at all, which is not taken as slow.
+pub fn measure(running: &Running) -> Option<f64> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(MEASURE_WITHIN)
+        .build()
+        .ok()?;
+    let response = client
+        .post(format!("http://127.0.0.1:{}/completion", running.port))
+        .bearer_auth(&running.api_key)
+        .json(&serde_json::json!({
+            "prompt": "Say hello in one short sentence.",
+            "n_predict": 16,
+            "cache_prompt": false,
+        }))
+        .send();
+    match response {
+        Err(error) if error.is_timeout() => Some(0.0),
+        Err(_) => None,
+        Ok(answer) => speed_from(&answer.text().ok()?),
+    }
+}
+
+/// `timings.predicted_per_second` from llama-server's answer.
+pub fn speed_from(body: &str) -> Option<f64> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    value
+        .get("timings")?
+        .get("predicted_per_second")?
+        .as_f64()
+        .filter(|speed| speed.is_finite() && *speed >= 0.0)
+}
+
+fn too_slow(speed: Option<f64>) -> bool {
+    speed.is_some_and(|speed| speed < SLOW_TOKENS_PER_SECOND)
+}
+
+/// Whether `candidate` is the better of the two. An unknown speed is never better than a known one.
+fn faster(candidate: Option<f64>, than: Option<f64>) -> bool {
+    match (candidate, than) {
+        (Some(a), Some(b)) => a > b,
+        (Some(_), None) => true,
+        (None, _) => false,
+    }
+}
+
+/// What to tell the person when the model they have runs slowly here, with the smaller one to try.
+///
+/// Said, never done: a different model is another download of several gigabytes, which is theirs to
+/// choose.
+pub fn slow_note(model: &LocalModel, speed: Option<f64>) -> Option<String> {
+    if !too_slow(speed) {
+        return None;
+    }
+    let speed = speed.unwrap_or(0.0);
+    let smaller = crate::local_model::MODELS
+        .iter()
+        .copied()
+        .filter(|other| !other.opt_in && other.min_ram_gib < model.min_ram_gib)
+        .max_by(|a, b| a.min_ram_gib.total_cmp(&b.min_ram_gib));
+    let pace = if speed < 0.5 {
+        "it did not finish a short answer within a minute".to_string()
+    } else {
+        format!("it writes about {speed:.0} words a second")
+    };
+    Some(match smaller {
+        Some(smaller) => format!(
+            "{} runs slowly on this computer: {pace}. Answers will take minutes. {} is smaller and answers faster; choose it under Settings, then Models, or use ArkAgent's server or your own key.",
+            model.label, smaller.label
+        ),
+        None => format!(
+            "{} runs slowly on this computer: {pace}. Answers will take minutes. ArkAgent's server or your own key will answer faster.",
+            model.label
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -708,5 +832,49 @@ mod tests {
         );
         // Nothing was fetched on the way to refusing.
         assert!(!llama_runtime::dir(&dir).exists());
+    }
+    #[test]
+    fn the_speed_is_read_from_llama_servers_own_timings() {
+        assert_eq!(
+            speed_from(r#"{"content":"Hello!","timings":{"predicted_per_second":12.5}}"#),
+            Some(12.5)
+        );
+        assert_eq!(speed_from(r#"{"content":"Hello!"}"#), None);
+        assert_eq!(speed_from("<html>"), None);
+    }
+
+    #[test]
+    fn a_slow_model_is_named_with_the_smaller_one_to_try_and_a_quick_one_says_nothing() {
+        // DT Lab, #83: Gemma 4 26B on a 4 GB card wrote nothing in four and a half minutes.
+        let said = slow_note(&G26B, Some(0.0)).expect("no answer in a minute is slow");
+        assert!(
+            said.starts_with("Gemma 4 26B A4B runs slowly on this computer"),
+            "{said}"
+        );
+        assert!(
+            said.contains("did not finish a short answer within a minute"),
+            "{said}"
+        );
+        assert!(said.contains("Gemma 4 12B"), "{said}");
+        assert!(slow_note(&G26B, Some(1.6))
+            .unwrap()
+            .contains("about 2 words a second"));
+        assert_eq!(slow_note(&G26B, Some(9.0)), None);
+        // Not asked is not slow: a model that could not be timed is not accused.
+        assert_eq!(slow_note(&G26B, None), None);
+        // The smallest has nothing smaller to offer, and says what else there is.
+        assert!(slow_note(&E2B, Some(1.0))
+            .unwrap()
+            .contains("ArkAgent's server"));
+    }
+
+    #[test]
+    fn of_two_engines_the_faster_one_is_kept_and_an_unknown_speed_never_wins() {
+        assert!(faster(Some(4.0), Some(1.0)));
+        assert!(!faster(Some(1.0), Some(4.0)));
+        assert!(faster(Some(1.0), None));
+        assert!(!faster(None, Some(1.0)));
+        assert!(too_slow(Some(0.0)));
+        assert!(!too_slow(None));
     }
 }

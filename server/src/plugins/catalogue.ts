@@ -229,7 +229,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     key: "google-gmail",
     title: "Gmail",
     vendor: "Google",
-    summary: "The mailbox of whoever is asking: search and read, nothing else.",
+    summary:
+      "The mailbox of whoever is asking: search and read, and send a message once they approve it.",
     /*
      * Desk #83: DT Lab needs a Gmail test mailbox, and Gmail was "Not yet". The Gmail REST API, for
      * the reason Drive uses Drive's: it is generally available, where Google's Gmail MCP server sits

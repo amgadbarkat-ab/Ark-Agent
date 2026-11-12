@@ -143,6 +143,8 @@ describe("a consent that came back the way it left", () => {
         userId: "user-1",
         refreshToken: "rt-1",
         scope: "read",
+        // Notion is not asked which account consented; only Google and Microsoft are (#83).
+        account: null,
       },
     ]);
     /*

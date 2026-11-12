@@ -8,6 +8,44 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Approve a held send in the chat itself** (DT Lab, v0.1.32). A Gmail send, or any other
+  connector call or browser action held for approval, now shows in the conversation it was asked
+  in, above the message box, with Approve and Decline, as well as in Requests. The "Needs you"
+  count and the list update as soon as a reply ends, not at the next poll.
+- **Mail, calendar and file results as cards.** Gmail, Outlook and Google Drive lists, and Outlook
+  calendar events, are drawn as cards: mail with an unread dot, Summarise and Open; files with Use
+  this file and Open; events with Join and Open. The digital employee reads the same results as
+  before.
+- **A model connection dropped before it answered is tried once more** (#73, the rare "socket
+  connection closed"). Nothing had been answered, so the second try is the same request on a fresh
+  connection; any other failure, and a second drop, are reported as before.
+- **An approval or choice card ends the employee's message.** Its instructions now say to write
+  everything before the card and nothing after it, so the reply no longer keeps going under a card
+  that is waiting for you (#73).
+
+- **Named groups.** New group, on the Digital Team page, starts a conversation you name ("Test
+  Group 1") with the digital employees you pick. The first one picked leads and asks the others
+  when the work is theirs, as in the team channel (DT Lab, #83).
+
+### Desktop
+
+- **A local model that is too slow here says so** (DT Lab, #83: Gemma 4 26B on a 4 GB graphics card
+  wrote nothing in four and a half minutes). After it starts, the model is timed on a short answer.
+  On a graphics card that is slow, the CPU build is tried too and the faster one kept; if it is
+  still slow, setup says so and names the smaller model to choose instead.
+
+### Plugins
+
+- **The Gmail page says which account is connected** ("Connected as …"). Google and Microsoft are
+  asked once, at sign-in, which account consented. Accounts connected before this release show it
+  after they are connected again.
+- **The page notices when sign-in finishes** in the browser, without leaving and coming back.
+- **When the browser cannot reach ArkAgent at the end of sign-in** (another computer or network),
+  paste the address the browser ended on into the page and press Finish.
+- The Gmail listing says it can send once you approve.
+
 ## 0.1.33
 
 ### Desktop

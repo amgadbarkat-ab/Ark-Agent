@@ -293,6 +293,11 @@ export function authorizationUrlFor(input: {
 
 export type RedeemedGrant = {
   refreshToken: string;
+  /**
+   * The short-lived access token that came with it, used once, at once, to ask the vendor which
+   * account consented. Never stored.
+   */
+  accessToken?: string;
   /** What the vendor actually granted, which is not always what was asked for. */
   scope: string;
 };
@@ -411,6 +416,7 @@ export async function redeemAuthorizationCode(input: {
    */
   const body = (await response.json().catch(() => null)) as {
     refresh_token?: unknown;
+    access_token?: unknown;
     scope?: unknown;
   } | null;
   /*
@@ -428,6 +434,9 @@ export async function redeemAuthorizationCode(input: {
 
   return {
     refreshToken: body.refresh_token,
+    ...(typeof body.access_token === "string" && body.access_token
+      ? { accessToken: body.access_token }
+      : {}),
     /*
      * Capped where it is read. It is a short string in the protocol and vendor-controlled in fact,
      * and everything downstream shows it to somebody — the connected-accounts page, the
