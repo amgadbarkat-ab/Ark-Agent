@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ const FIRST = 6;
  */
 export function ConnectorCard({ card }: { card: Card }) {
   const conversation = useConversation();
+  const t = useT();
   const [all, setAll] = useState(false);
   const total = card.items.length;
   const shown = all ? total : Math.min(total, FIRST);
@@ -36,7 +38,7 @@ export function ConnectorCard({ card }: { card: Card }) {
               <ItemTitle className="flex items-center gap-1.5">
                 {mail.unread ? (
                   <span
-                    aria-label="Unread"
+                    aria-label={t("card.unread")}
                     className="size-1.5 shrink-0 rounded-full bg-sky-500"
                     role="img"
                   />
@@ -66,7 +68,7 @@ export function ConnectorCard({ card }: { card: Card }) {
                   type="button"
                   variant="ghost"
                 >
-                  Summarise
+                  {t("card.summarise")}
                 </Button>
               ) : null}
               {mail.link ? <OpenLink href={mail.link} /> : null}
@@ -97,7 +99,7 @@ export function ConnectorCard({ card }: { card: Card }) {
                     type="button"
                     variant="ghost"
                   >
-                    Use this file
+                    {t("card.useFile")}
                   </Button>
                 ) : null}
                 {file.link ? <OpenLink href={file.link} /> : null}
@@ -126,7 +128,7 @@ export function ConnectorCard({ card }: { card: Card }) {
               </ItemContent>
               <ItemActions>
                 {event.joinUrl ? (
-                  <OpenLink href={event.joinUrl} label="Join" />
+                  <OpenLink href={event.joinUrl} label={t("card.join")} />
                 ) : null}
                 {event.link ? <OpenLink href={event.link} /> : null}
               </ItemActions>
@@ -144,7 +146,7 @@ export function ConnectorCard({ card }: { card: Card }) {
             type="button"
             variant="ghost"
           >
-            Show {total - shown} more
+            {t("card.more", { n: total - shown })}
           </Button>
         </div>
       ) : null}
@@ -152,7 +154,8 @@ export function ConnectorCard({ card }: { card: Card }) {
   );
 }
 
-function OpenLink({ href, label = "Open" }: { href: string; label?: string }) {
+function OpenLink({ href, label }: { href: string; label?: string }) {
+  const t = useT();
   // Only the vendor's own https pages: the addresses come from the vendor's answer.
   if (!href.startsWith("https://")) return null;
   return (
@@ -161,7 +164,7 @@ function OpenLink({ href, label = "Open" }: { href: string; label?: string }) {
       size="sm"
       variant="outline"
     >
-      {label}
+      {label ?? t("card.open")}
     </Button>
   );
 }

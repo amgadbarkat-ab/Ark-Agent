@@ -83,7 +83,7 @@ import {
   toolCallOutcome,
 } from "./call-outcome";
 import { inspectToolArguments } from "./content-governance";
-import { type ListedTool, McpServerError } from "./mcp";
+import { type ListedTool, McpServerError, readUiResource } from "./mcp";
 import { registerDynamicClient } from "./oauth";
 import { transportFor } from "./transport";
 
@@ -672,6 +672,7 @@ function storableTools(serverId: string, listed: ListedTool[]) {
       effect: "read" | "write" | null;
       destructive: boolean;
       version: string | null;
+      uiResourceUri: string | null;
     }
   >();
 
@@ -708,6 +709,8 @@ function storableTools(serverId: string, listed: ListedTool[]) {
       effect: tool.effect ?? null,
       destructive: tool.destructive ?? false,
       version: tool.version?.replaceAll(NUL, "") ?? null,
+      // The interface an MCP App draws for this tool's results (9B), when the server offers one.
+      uiResourceUri: tool.uiResourceUri ?? null,
     });
   }
 
@@ -7185,6 +7188,44 @@ export function createPluginStore(options: PluginStoreOptions) {
      * see, and a trail written only on success cannot show it. The grant is checked first because a
      * tool this Bot was never given should not reach the policy engine, the vault or the network.
      */
+    /**
+     * The HTML an MCP App draws a tool's results with (P2 idea 9B), read from the tool's own server
+     * as the person asking, or null when the tool has none.
+     *
+     * Only an MCP server's tool, only the `ui://` address its own listing named, and only as the
+     * person whose conversation shows the call: the same credential their own call would use. The
+     * HTML is drawn in a sandboxed frame with no access to this app (see `mcp-app-frame.tsx`).
+     */
+    async toolInterface(input: {
+      serverId: string;
+      toolName: string;
+      actorId: string;
+    }): Promise<string | null> {
+      const { row, entry, access } = await requireServer(input.serverId);
+      if (access.transport !== "mcp") return null;
+      const [tool] = await database
+        .select({ uiResourceUri: mcpTools.uiResourceUri })
+        .from(mcpTools)
+        .where(
+          and(
+            eq(mcpTools.serverId, input.serverId),
+            eq(mcpTools.name, input.toolName),
+          ),
+        )
+        .limit(1);
+      if (!tool?.uiResourceUri) return null;
+      const { token } = await connectionTokenFor(
+        row,
+        entry,
+        input.actorId,
+        access,
+      );
+      return await readUiResource(
+        { url: effectiveUrl(row, entry), ...(token ? { token } : {}) },
+        tool.uiResourceUri,
+      );
+    },
+
     async callTool(input: {
       ref: string;
       args: Record<string, unknown>;

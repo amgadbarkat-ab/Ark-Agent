@@ -1,3 +1,4 @@
+import { SimulatedPhone } from "@/components/phone/simulated-phone";
 import {
   createFileRoute,
   isRedirect,
@@ -52,6 +53,8 @@ function RouteComponent() {
         {/* Above every screen: a digital employee working in the person's own browser is never out of sight. */}
         <OwnBrowserIndicator />
         <Outlet />
+        {/* An approval call ringing inside the app, when phone approval is on (P2 idea 10). */}
+        <SimulatedPhone />
       </main>
     </SidebarShell>
   );

@@ -1,0 +1,1 @@
+ALTER TABLE "mcp_tools" ADD COLUMN "ui_resource_uri" text;

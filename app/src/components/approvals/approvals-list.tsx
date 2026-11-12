@@ -1,3 +1,4 @@
+import { type MessageKey, useT } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -24,20 +25,20 @@ import {
 import { relativeTime } from "@/lib/relative-time";
 import { queryClient } from "@/query-client";
 
-const STATUS_WORDS: Record<ApprovalRecord["status"], string> = {
-  pending: "Waiting for you",
-  approved: "Approved",
-  rejected: "Declined",
-  expired: "Expired",
-  failed: "Approved, but it could not be carried out",
+const STATUS_WORDS: Record<ApprovalRecord["status"], MessageKey> = {
+  pending: "requests.waiting",
+  approved: "requests.approved",
+  rejected: "requests.declined",
+  expired: "requests.expired",
+  failed: "requests.failed",
 };
 
 /** What kind of thing is waiting, in the words a person scans the list by. */
-function kindWords(kind: string): string {
-  if (kind === "tool.call") return "Wants to use a tool";
-  if (kind === "computer.action") return "Wants to act in its browser";
-  if (kind === "chat.card") return "Asked you in a conversation";
-  return "Wants to change a colleague's work";
+function kindWords(kind: string): MessageKey {
+  if (kind === "tool.call") return "requests.kind.tool";
+  if (kind === "computer.action") return "requests.kind.computer";
+  if (kind === "chat.card") return "requests.kind.card";
+  return "requests.kind.colleague";
 }
 
 /**
@@ -50,6 +51,7 @@ function kindWords(kind: string): string {
  * a request nobody answers lapses on its own, so an unread list never does anything.
  */
 export function ApprovalsList() {
+  const t = useT();
   const [showAll, setShowAll] = useState(false);
   const approvals = useQuery(
     approvalsQueryOptions(showAll ? "all" : "pending"),
@@ -73,7 +75,7 @@ export function ApprovalsList() {
         <Empty className="h-[180px] border border-dashed">
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
-              Nothing is waiting for you
+              {t("requests.nothing")}
             </EmptyTitle>
             <EmptyDescription>
               When a digital employee needs your approval — to send, pay, delete
@@ -102,7 +104,7 @@ export function ApprovalsList() {
           size="sm"
           variant="ghost"
         >
-          {showAll ? "Show only what is waiting" : "Show earlier requests"}
+          {showAll ? t("requests.onlyWaiting") : t("requests.earlier")}
         </Button>
       </div>
     </PageSection>
@@ -124,6 +126,7 @@ export function ApprovalItem({
   onDecide: (decision: "approve" | "reject") => void;
   linkToConversation?: boolean;
 }) {
+  const t = useT();
   return (
     <Item variant="muted">
       <ItemContent>
@@ -132,7 +135,7 @@ export function ApprovalItem({
           {row.target?.name ? ` · for ${row.target.name}` : ""}
         </ItemTitle>
         <ItemDescription className="text-xs">
-          {kindWords(row.kind)}
+          {t(kindWords(row.kind))}
         </ItemDescription>
         <ItemDescription className="line-clamp-none whitespace-pre-wrap">
           {row.summary}
@@ -155,9 +158,9 @@ export function ApprovalItem({
           </dl>
         ) : null}
         <ItemDescription className="text-xs">
-          {STATUS_WORDS[row.status]}
+          {t(STATUS_WORDS[row.status])}
           {row.status === "pending"
-            ? ` · asked ${relativeTime(row.createdAt)}`
+            ? ` · ${t("requests.asked")} ${relativeTime(row.createdAt)}`
             : row.decidedAt
               ? ` · ${relativeTime(row.decidedAt)}`
               : ""}
@@ -170,7 +173,7 @@ export function ApprovalItem({
                 params={{ channelId: row.channelId }}
                 to="/channel/$channelId"
               >
-                Open the conversation
+                {t("requests.open")}
               </Link>
             </>
           ) : null}
@@ -184,14 +187,14 @@ export function ApprovalItem({
             size="sm"
             variant="ghost"
           >
-            Decline
+            {t("requests.decline")}
           </Button>
           <Button
             disabled={deciding}
             onClick={() => onDecide("approve")}
             size="sm"
           >
-            Approve
+            {t("requests.approve")}
           </Button>
         </ItemActions>
       ) : null}

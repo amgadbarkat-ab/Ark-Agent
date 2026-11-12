@@ -51,6 +51,8 @@ import {
   toolCallApprovals,
   toolCallExecutor,
 } from "./approvals/held";
+import { simulatedPhoneProvider } from "./phone/provider";
+import { createPhoneApprovals } from "./phone/service";
 import { createApprovalStore } from "./approvals/store";
 import {
   type AuditInitiator,
@@ -570,7 +572,15 @@ const pluginStore = createPluginStore({
    * gateway's: carrying out an approved call needs this store.
    */
   approvals: {
-    hold: (call) => toolCallApprovals(approvalStore).hold(call),
+    hold: async (call) => {
+      const held = await toolCallApprovals(approvalStore).hold(call);
+      // Rings the owner when they chose phone approval for this employee and the request may be
+      // decided by phone; otherwise it does nothing, and nothing here waits on it.
+      void phoneApprovals
+        ?.callAbout(call.ownerUserId, held.id)
+        .catch(() => undefined);
+      return held;
+    },
     approved: (id) => toolCallApprovals(approvalStore).approved(id),
   },
 });
@@ -628,6 +638,19 @@ const approvalStore = createApprovalStore(database, {
   auditStore: bootAuditStore,
 });
 useRoutineTools(routineStore);
+
+/**
+ * Approving by phone (P2 idea 10), only when an administrator turned it on, and only through the
+ * simulated provider, which rings inside the app: a real provider needs Amgad's separate yes.
+ */
+const phoneApprovals = config.phoneApproval
+  ? createPhoneApprovals({
+      database,
+      approvals: approvalStore,
+      audit: bootAuditStore,
+      provider: simulatedPhoneProvider(),
+    })
+  : undefined;
 
 /**
  * Where a Bot handing work to another gets decided.
@@ -1707,6 +1730,8 @@ const app = createApp(
     : undefined,
   // Asking several colleagues in one message (desk #87); only mounted when TEAM_FANOUT_ENABLED is on.
   handoffDesk,
+  // Approving by phone (P2 idea 10); only built when PHONE_APPROVAL_ENABLED is on.
+  phoneApprovals,
 );
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only

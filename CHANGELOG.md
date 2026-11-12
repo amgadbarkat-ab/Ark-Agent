@@ -36,8 +36,22 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   On a graphics card that is slow, the CPU build is tried too and the faster one kept; if it is
   still slow, setup says so and names the smaller model to choose instead.
 
+- **The app in Greek, where you use it most.** Settings, then General, then Language: English or
+  Ελληνικά, per device. The sidebar, the message box, requests, connector cards and New group are
+  in Greek; the other screens follow (DT Lab, #83).
+- **Approve by phone, off by default** (`PHONE_APPROVAL_ENABLED`). A request held for you can ring
+  you: your PIN, then the request read out, then 1 to approve, 2 to decline, 3 to decide later in
+  the app. Browser and computer actions and anything that moves money are never approved by phone.
+  Each person sets a number, a PIN and which digital employees may ring, under Settings, then Phone
+  approval. For now calls ring inside ArkAgent (a simulated phone); a real phone line comes once a
+  provider is agreed.
+
 ### Plugins
 
+- **MCP Apps, off by default** (`MCP_APPS_ENABLED`). A third-party MCP server's own screen for a
+  tool's results is drawn in the chat, in a locked-down frame that cannot reach the network, this
+  app, or any other conversation. Anything it asks to do is put to the conversation, so the digital
+  employee does it and a change waits for your approval.
 - **The Gmail page says which account is connected** ("Connected as …"). Google and Microsoft are
   asked once, at sign-in, which account consented. Accounts connected before this release show it
   after they are connected again.

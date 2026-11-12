@@ -49,6 +49,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePacedText } from "@/hooks/use-paced-text";
 import { connectorCard } from "../../../../shared/connector-results";
 import { ConnectorCard } from "./connector-card";
+import { McpAppFrame } from "./mcp-app-frame";
 import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
@@ -1351,7 +1352,7 @@ const TranscriptToolCall = memo(function TranscriptToolCall({
          * What was called, shimmering until its result arrives, and then the server's own words
          * drawn the way a Bot's prose is drawn.
          */}
-        {drawn ?? <ServerToolLine name={name} result={result} />}
+        {drawn ?? <ServerToolLine args={args} name={name} result={result} />}
       </ToolRenderBoundary>
     </Arriving>
   );
@@ -1370,7 +1371,15 @@ function cardFor(name: string, answer: string) {
   return connectorCard(server, rest.join("__"), answer);
 }
 
-function ServerToolLine({ name, result }: { name: string; result?: string }) {
+function ServerToolLine({
+  name,
+  args,
+  result,
+}: {
+  name: string;
+  args: string;
+  result?: string;
+}) {
   const { label, detail } = readToolName(name);
   /*
    * A refusal is not a result, and must not read like one.
@@ -1401,7 +1410,7 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
       </div>
     );
   }
-  return (
+  const line = (
     <ToolLine
       {...(detail ? { detail } : {})}
       label={label}
@@ -1414,6 +1423,18 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
         </Streamdown>
       ) : null}
     </ToolLine>
+  );
+  // A third-party MCP server's own interface for this call, when MCP Apps are on (9B).
+  if (refused || !name.startsWith("mcp__")) return line;
+  return (
+    <div>
+      {line}
+      <McpAppFrame
+        args={args}
+        name={name}
+        {...(answer ? { result: answer } : {})}
+      />
+    </div>
   );
 }
 

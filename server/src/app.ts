@@ -96,6 +96,9 @@ import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
 import { createFanoutRoutes } from "./channels/fanout-routes";
+import { createPhoneRoutes } from "./phone/routes";
+import type { PhoneApprovals } from "./phone/service";
+import { createMcpAppRoutes } from "./plugins/apps-routes";
 import type { HandoffDesk } from "./agents/handoff";
 import { jsonBodyLimit } from "./body-limit";
 import { originGuard } from "./origin-guard";
@@ -465,6 +468,11 @@ export function createApp(
    * `/api/team-fanout` unmounted, and a message naming several colleagues goes to the lead as before.
    */
   teamFanoutDesk?: HandoffDesk,
+  /**
+   * Approving by phone (P2 idea 10). Built in `index.ts` only when `PHONE_APPROVAL_ENABLED` is on,
+   * so absent here means `/api/phone-approval` is not mounted.
+   */
+  phoneApprovals?: PhoneApprovals,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1746,6 +1754,20 @@ export function createApp(
     app.route(
       "/api/channels",
       createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
+    );
+  }
+
+  if (phoneApprovals) {
+    app.route(
+      "/api/phone-approval",
+      createPhoneRoutes({ phone: phoneApprovals, requireUser }),
+    );
+  }
+
+  if (config.mcpApps && pluginStore) {
+    app.route(
+      "/api/mcp-apps",
+      createMcpAppRoutes({ store: pluginStore, requireUser }),
     );
   }
 

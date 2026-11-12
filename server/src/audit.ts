@@ -417,6 +417,10 @@ export const auditEventTypes = [
   "approval.approved",
   "approval.rejected",
   "approval.failed",
+  "phone.call_placed",
+  "phone.call_answered",
+  "phone.call_ended",
+  "phone.settings_changed",
 
   /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
   "team.action",

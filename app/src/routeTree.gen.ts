@@ -37,6 +37,7 @@ import { Route as AuthedAdminPlaygroundRouteImport } from './routes/_authed/admi
 import { Route as AuthedAdminSkillsRouteImport } from './routes/_authed/admin/skills'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSettingsModelsRouteImport } from './routes/_authed/settings/models'
+import { Route as AuthedSettingsPhoneApprovalRouteImport } from './routes/_authed/settings/phone-approval'
 import { Route as AuthedSettingsPlanRouteImport } from './routes/_authed/settings/plan'
 import { Route as AuthedSettingsPrivacyRouteImport } from './routes/_authed/settings/privacy'
 import { Route as AuthedAppAgentsIndexRouteImport } from './routes/_authed/_app/agents/index'
@@ -197,6 +198,12 @@ const AuthedSettingsModelsRoute = AuthedSettingsModelsRouteImport.update({
   path: '/models',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsPhoneApprovalRoute =
+  AuthedSettingsPhoneApprovalRouteImport.update({
+    id: '/phone-approval',
+    path: '/phone-approval',
+    getParentRoute: () => AuthedSettingsRouteRoute,
+  } as any)
 const AuthedSettingsPlanRoute = AuthedSettingsPlanRouteImport.update({
   id: '/plan',
   path: '/plan',
@@ -337,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/settings/models': typeof AuthedSettingsModelsRoute
+  '/settings/phone-approval': typeof AuthedSettingsPhoneApprovalRoute
   '/settings/plan': typeof AuthedSettingsPlanRoute
   '/settings/privacy': typeof AuthedSettingsPrivacyRoute
   '/admin/': typeof AuthedAdminIndexRoute
@@ -383,6 +391,7 @@ export interface FileRoutesByTo {
   '/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/admin/skills': typeof AuthedAdminSkillsRoute
   '/settings/models': typeof AuthedSettingsModelsRoute
+  '/settings/phone-approval': typeof AuthedSettingsPhoneApprovalRoute
   '/settings/plan': typeof AuthedSettingsPlanRoute
   '/settings/privacy': typeof AuthedSettingsPrivacyRoute
   '/admin': typeof AuthedAdminIndexRoute
@@ -433,6 +442,7 @@ export interface FileRoutesById {
   '/_authed/admin/playground': typeof AuthedAdminPlaygroundRoute
   '/_authed/admin/skills': typeof AuthedAdminSkillsRoute
   '/_authed/settings/models': typeof AuthedSettingsModelsRoute
+  '/_authed/settings/phone-approval': typeof AuthedSettingsPhoneApprovalRoute
   '/_authed/settings/plan': typeof AuthedSettingsPlanRoute
   '/_authed/settings/privacy': typeof AuthedSettingsPrivacyRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
@@ -484,6 +494,7 @@ export interface FileRouteTypes {
     | '/admin/playground'
     | '/admin/skills'
     | '/settings/models'
+    | '/settings/phone-approval'
     | '/settings/plan'
     | '/settings/privacy'
     | '/admin/'
@@ -530,6 +541,7 @@ export interface FileRouteTypes {
     | '/admin/playground'
     | '/admin/skills'
     | '/settings/models'
+    | '/settings/phone-approval'
     | '/settings/plan'
     | '/settings/privacy'
     | '/admin'
@@ -579,6 +591,7 @@ export interface FileRouteTypes {
     | '/_authed/admin/playground'
     | '/_authed/admin/skills'
     | '/_authed/settings/models'
+    | '/_authed/settings/phone-approval'
     | '/_authed/settings/plan'
     | '/_authed/settings/privacy'
     | '/_authed/_app/'
@@ -809,6 +822,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsModelsRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
+    '/_authed/settings/phone-approval': {
+      id: '/_authed/settings/phone-approval'
+      path: '/phone-approval'
+      fullPath: '/settings/phone-approval'
+      preLoaderRoute: typeof AuthedSettingsPhoneApprovalRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
     '/_authed/settings/plan': {
       id: '/_authed/settings/plan'
       path: '/plan'
@@ -1001,6 +1021,7 @@ const AuthedAdminRouteRouteWithChildren =
 
 interface AuthedSettingsRouteRouteChildren {
   AuthedSettingsModelsRoute: typeof AuthedSettingsModelsRoute
+  AuthedSettingsPhoneApprovalRoute: typeof AuthedSettingsPhoneApprovalRoute
   AuthedSettingsPlanRoute: typeof AuthedSettingsPlanRoute
   AuthedSettingsPrivacyRoute: typeof AuthedSettingsPrivacyRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
@@ -1012,6 +1033,7 @@ interface AuthedSettingsRouteRouteChildren {
 
 const AuthedSettingsRouteRouteChildren: AuthedSettingsRouteRouteChildren = {
   AuthedSettingsModelsRoute: AuthedSettingsModelsRoute,
+  AuthedSettingsPhoneApprovalRoute: AuthedSettingsPhoneApprovalRoute,
   AuthedSettingsPlanRoute: AuthedSettingsPlanRoute,
   AuthedSettingsPrivacyRoute: AuthedSettingsPrivacyRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,

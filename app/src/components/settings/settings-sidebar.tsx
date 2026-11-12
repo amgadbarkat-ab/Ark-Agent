@@ -3,6 +3,7 @@ import {
   IconCpu,
   IconCreditCard,
   IconLayoutGrid,
+  IconPhone,
   IconPlug,
   IconSettings,
   IconShieldLock,
@@ -67,6 +68,12 @@ const ITEMS: {
     title: "Connect your Data",
     icon: IconPlug,
     linkOptions: { to: "/settings/connected-accounts" },
+  },
+  {
+    /* Being rung about a request that waits for you (P2 idea 10); off unless a deployment offers it. */
+    title: "Phone approval",
+    icon: IconPhone,
+    linkOptions: { to: "/settings/phone-approval" },
   },
   {
     /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */

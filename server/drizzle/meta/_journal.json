@@ -463,6 +463,20 @@
       "when": 1794473038465,
       "tag": "0065_connected_account",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1794474357673,
+      "tag": "0066_mcp_app_interface",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794474618271,
+      "tag": "0067_phone_approval",
+      "breakpoints": true
     }
   ]
 }

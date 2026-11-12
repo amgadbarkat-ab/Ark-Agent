@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { IconUsersPlus } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -29,22 +30,20 @@ import { queryClient } from "@/query-client";
  * exactly as the lead of the team channel does.
  */
 export function NewGroupButton({ agents }: { agents: AgentProfile[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button onClick={() => setOpen(true)} size="sm" variant="ghost">
         <IconUsersPlus />
-        New group
+        {t("group.new")}
       </Button>
       {open ? (
         <Dialog onOpenChange={(next) => setOpen(next)} open>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>New group</DialogTitle>
-              <DialogDescription>
-                Name it and choose who is in it. The first one you pick leads
-                and asks the others when the work is theirs.
-              </DialogDescription>
+              <DialogTitle>{t("group.new")}</DialogTitle>
+              <DialogDescription>{t("group.description")}</DialogDescription>
             </DialogHeader>
             <NewGroupForm agents={agents} onClose={() => setOpen(false)} />
           </DialogContent>
@@ -69,6 +68,7 @@ export function NewGroupForm({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
+  const t = useT();
   const create = useMutation(createChannelMutationOptions(queryClient));
   const rename = useMutation(renameChannelMutationOptions(queryClient));
   const [name, setName] = useState("");
@@ -104,7 +104,7 @@ export function NewGroupForm({
       }}
     >
       <Input
-        aria-label="Group name"
+        aria-label={t("group.name")}
         autoFocus
         maxLength={60}
         onChange={(event) => setName(event.target.value)}
@@ -112,7 +112,9 @@ export function NewGroupForm({
         value={name}
       />
       <fieldset className="flex max-h-72 flex-col gap-1 overflow-y-auto">
-        <legend className="mb-1 text-muted-foreground text-sm">Members</legend>
+        <legend className="mb-1 text-muted-foreground text-sm">
+          {t("group.members")}
+        </legend>
         {agents.map((agent) => {
           const position = picked.indexOf(agent.id);
           return (
@@ -140,16 +142,16 @@ export function NewGroupForm({
                 ) : null}
               </label>
               {position === 0 ? (
-                <span className="text-muted-foreground text-xs">Leads</span>
+                <span className="text-muted-foreground text-xs">
+                  {t("group.leads")}
+                </span>
               ) : null}
             </div>
           );
         })}
       </fieldset>
       {picked.length === 1 ? (
-        <p className="text-muted-foreground text-xs">
-          A group needs at least two digital employees.
-        </p>
+        <p className="text-muted-foreground text-xs">{t("group.tooFew")}</p>
       ) : null}
       {problem ? (
         <p className="text-destructive text-sm" role="alert">
@@ -158,10 +160,10 @@ export function NewGroupForm({
       ) : null}
       <DialogFooter>
         <Button onClick={onClose} size="sm" type="button" variant="ghost">
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button disabled={busy || !ready} size="sm" type="submit">
-          {busy ? "Starting…" : "Start group"}
+          {busy ? t("group.starting") : t("group.start")}
         </Button>
       </DialogFooter>
     </form>
