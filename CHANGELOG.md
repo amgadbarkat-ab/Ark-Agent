@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.34
+
 ### Plans
 
 - **The free trial is 7 days, not 30** (Amgad's company-wide rule, 12 Nov 2026). On day 8 an account
