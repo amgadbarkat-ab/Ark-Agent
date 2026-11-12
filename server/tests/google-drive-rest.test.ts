@@ -1,3 +1,4 @@
+import { driveFiles } from "../../shared/connector-results";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { accessFor } from "../src/plugins/access";
 import { catalogueEntry } from "../src/plugins/catalogue";
@@ -269,6 +270,16 @@ describe("what a model is told", () => {
     // Every other tool here takes an id, so a result without one is a dead end.
     expect(result.text).toContain("abc123");
     expect(result.text).toContain("https://docs.google.com/document/d/abc123");
+    // Drawn as a files card in the chat (9A).
+    expect(driveFiles(result.text)).toEqual([
+      {
+        id: "abc123",
+        name: "Roadmap",
+        kind: "application/vnd.google-apps.document",
+        modified: "2026-08-21T10:00:00Z",
+        link: "https://docs.google.com/document/d/abc123",
+      },
+    ]);
   });
 
   /*

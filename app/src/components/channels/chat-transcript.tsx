@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePacedText } from "@/hooks/use-paced-text";
+import { connectorCard } from "../../../../shared/connector-results";
+import { ConnectorCard } from "./connector-card";
 import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
@@ -1361,6 +1363,13 @@ const TranscriptToolCall = memo(function TranscriptToolCall({
  * Named from the reader's side: what was done, against which server, with the server's own words
  * behind a disclosure. The identifier the model was offered never reaches the screen.
  */
+/** The card for an `mcp__<server>__<tool>` call's result, or null. */
+function cardFor(name: string, answer: string) {
+  const [prefix, server, ...rest] = name.split("__");
+  if (prefix !== "mcp" || !server || rest.length === 0) return null;
+  return connectorCard(server, rest.join("__"), answer);
+}
+
 function ServerToolLine({ name, result }: { name: string; result?: string }) {
   const { label, detail } = readToolName(name);
   /*
@@ -1379,6 +1388,19 @@ function ServerToolLine({ name, result }: { name: string; result?: string }) {
    * server's copy is what the model is told and "Refused." in front of a reason is right for it.
    */
   const body = refused ? answer?.slice(REFUSAL_MARKER.length).trim() : answer;
+  /*
+   * Our own connectors' lists (mail, events, files) are drawn as a card a person can act on (9A).
+   * Anything that does not read as such a list, a refusal included, stays the server's own words.
+   */
+  const card = !refused && answer ? cardFor(name, answer) : null;
+  if (card) {
+    return (
+      <div>
+        <ToolLine {...(detail ? { detail } : {})} label={label} />
+        <ConnectorCard card={card} />
+      </div>
+    );
+  }
   return (
     <ToolLine
       {...(detail ? { detail } : {})}
