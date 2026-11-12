@@ -8,6 +8,27 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **Approve a held send in the chat itself** (DT Lab, v0.1.32). A Gmail send, or any other
+  connector call or browser action held for approval, now shows in the conversation it was asked
+  in, above the message box, with Approve and Decline, as well as in Requests. The "Needs you"
+  count and the list update as soon as a reply ends, not at the next poll.
+- **Mail, calendar and file results as cards.** Gmail, Outlook and Google Drive lists, and Outlook
+  calendar events, are drawn as cards: mail with an unread dot, Summarise and Open; files with Use
+  this file and Open; events with Join and Open. The digital employee reads the same results as
+  before.
+
+### Plugins
+
+- **The Gmail page says which account is connected** ("Connected as …"). Google and Microsoft are
+  asked once, at sign-in, which account consented. Accounts connected before this release show it
+  after they are connected again.
+- **The page notices when sign-in finishes** in the browser, without leaving and coming back.
+- **When the browser cannot reach ArkAgent at the end of sign-in** (another computer or network),
+  paste the address the browser ended on into the page and press Finish.
+- The Gmail listing says it can send once you approve.
+
 ## 0.1.33
 
 ### Desktop
