@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.33
+
 ### Desktop
 
 - **Updating on Windows no longer stops at `podman machine ssh … Connection refused`** (Amgad's
