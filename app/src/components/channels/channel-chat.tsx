@@ -8,6 +8,7 @@ import {
 } from "@copilotkit/react-core/v2";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ConversationRequests } from "@/components/approvals/conversation-requests";
 import { attachmentModality } from "@/components/channels/chat-messages";
 import { toAgentOptions } from "@/components/channels/composer";
 import { ConversationView } from "@/components/channels/conversation-view";
@@ -24,6 +25,7 @@ import {
 } from "@/components/channels/transcript-messages";
 import { VoiceCallWidget } from "@/components/channels/voice-call-widget";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { approvalKeys } from "@/lib/approvals/queries";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import {
   recordChannelActivityMutationOptions,
@@ -825,6 +827,9 @@ export function ChannelChat({
       onRunErrorEvent: ({ event }) => fail(stoppedReason(event?.message)),
       onRunFailed: ({ error }) => fail(stoppedReason(error)),
       onRunFinishedEvent: () => {
+        // A run that held a call for approval has just written a request: show it here and in the
+        // "Needs you" count now, not at the next poll (#83, #73).
+        void queryClient.invalidateQueries({ queryKey: approvalKeys.all });
         const wasOurs = awaitingReply.current;
         awaitingReply.current = false;
         if (!wasOurs) return;
@@ -983,6 +988,7 @@ export function ChannelChat({
                * it — and they are independent, so neither is an `else` for the other.
                */
               <>
+                <ConversationRequests channelId={channel.id} />
                 {voiceArchive.error && (
                   <p className="pb-2 text-sm text-destructive" role="alert">
                     Voice chats couldn’t be loaded. Refresh to try again.

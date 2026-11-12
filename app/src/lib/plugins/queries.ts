@@ -215,6 +215,8 @@ export type PluginConnection = {
   serverId: string;
   /** What the vendor actually granted, which is not always what was asked for. Empty for brokered. */
   scope: string;
+  /** Which account at the vendor consented (an email address), when the vendor said. Held rows only. */
+  account?: string | null;
   connectedAt: string;
   /**
    * Whether a real call was last made with this credential, present only on a BROKERED row.

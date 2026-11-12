@@ -86,83 +86,11 @@ export function ApprovalsList() {
         <ul aria-label="Requests" className="flex flex-col gap-2">
           {rows.map((row) => (
             <li key={row.id}>
-              <Item variant="muted">
-                <ItemContent>
-                  <ItemTitle>
-                    {row.requestedBy.name ?? "A digital employee"}
-                    {row.target?.name ? ` · for ${row.target.name}` : ""}
-                  </ItemTitle>
-                  <ItemDescription className="text-xs">
-                    {kindWords(row.kind)}
-                  </ItemDescription>
-                  <ItemDescription className="line-clamp-none whitespace-pre-wrap">
-                    {row.summary}
-                  </ItemDescription>
-                  {row.details?.length ? (
-                    <dl className="mt-1 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-4 gap-y-1 text-sm">
-                      {row.details.map((detail, index) => (
-                        <div
-                          className="contents"
-                          key={`${detail.label}-${index.toString()}`}
-                        >
-                          <dt className="truncate text-muted-foreground">
-                            {detail.label}
-                          </dt>
-                          <dd className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs leading-5">
-                            {detail.value}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  ) : null}
-                  <ItemDescription className="text-xs">
-                    {STATUS_WORDS[row.status]}
-                    {row.status === "pending"
-                      ? ` · asked ${relativeTime(row.createdAt)}`
-                      : row.decidedAt
-                        ? ` · ${relativeTime(row.decidedAt)}`
-                        : ""}
-                    {row.result && row.status !== "pending"
-                      ? ` · ${row.result}`
-                      : ""}
-                    {row.channelId ? (
-                      <>
-                        {" · "}
-                        <Link
-                          className="underline underline-offset-2"
-                          params={{ channelId: row.channelId }}
-                          to="/channel/$channelId"
-                        >
-                          Open the conversation
-                        </Link>
-                      </>
-                    ) : null}
-                  </ItemDescription>
-                </ItemContent>
-                {row.status === "pending" ? (
-                  <ItemActions>
-                    <Button
-                      disabled={decide.isPending}
-                      onClick={() =>
-                        decide.mutate({ id: row.id, decision: "reject" })
-                      }
-                      size="sm"
-                      variant="ghost"
-                    >
-                      Decline
-                    </Button>
-                    <Button
-                      disabled={decide.isPending}
-                      onClick={() =>
-                        decide.mutate({ id: row.id, decision: "approve" })
-                      }
-                      size="sm"
-                    >
-                      Approve
-                    </Button>
-                  </ItemActions>
-                ) : null}
-              </Item>
+              <ApprovalItem
+                deciding={decide.isPending}
+                onDecide={(decision) => decide.mutate({ id: row.id, decision })}
+                row={row}
+              />
             </li>
           ))}
         </ul>
@@ -178,5 +106,95 @@ export function ApprovalsList() {
         </Button>
       </div>
     </PageSection>
+  );
+}
+
+/**
+ * One request and its two answers, as the list shows it and as a conversation shows the ones asked
+ * in it. `linkToConversation` is off where the conversation is the page already.
+ */
+export function ApprovalItem({
+  row,
+  deciding,
+  onDecide,
+  linkToConversation = true,
+}: {
+  row: ApprovalRecord;
+  deciding: boolean;
+  onDecide: (decision: "approve" | "reject") => void;
+  linkToConversation?: boolean;
+}) {
+  return (
+    <Item variant="muted">
+      <ItemContent>
+        <ItemTitle>
+          {row.requestedBy.name ?? "A digital employee"}
+          {row.target?.name ? ` · for ${row.target.name}` : ""}
+        </ItemTitle>
+        <ItemDescription className="text-xs">
+          {kindWords(row.kind)}
+        </ItemDescription>
+        <ItemDescription className="line-clamp-none whitespace-pre-wrap">
+          {row.summary}
+        </ItemDescription>
+        {row.details?.length ? (
+          <dl className="mt-1 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-4 gap-y-1 text-sm">
+            {row.details.map((detail, index) => (
+              <div
+                className="contents"
+                key={`${detail.label}-${index.toString()}`}
+              >
+                <dt className="truncate text-muted-foreground">
+                  {detail.label}
+                </dt>
+                <dd className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs leading-5">
+                  {detail.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        <ItemDescription className="text-xs">
+          {STATUS_WORDS[row.status]}
+          {row.status === "pending"
+            ? ` · asked ${relativeTime(row.createdAt)}`
+            : row.decidedAt
+              ? ` · ${relativeTime(row.decidedAt)}`
+              : ""}
+          {row.result && row.status !== "pending" ? ` · ${row.result}` : ""}
+          {linkToConversation && row.channelId ? (
+            <>
+              {" · "}
+              <Link
+                className="underline underline-offset-2"
+                params={{ channelId: row.channelId }}
+                to="/channel/$channelId"
+              >
+                Open the conversation
+              </Link>
+            </>
+          ) : null}
+        </ItemDescription>
+      </ItemContent>
+      {row.status === "pending" ? (
+        <ItemActions>
+          <Button
+            disabled={deciding}
+            onClick={() => onDecide("reject")}
+            size="sm"
+            variant="ghost"
+          >
+            Decline
+          </Button>
+          <Button
+            disabled={deciding}
+            onClick={() => onDecide("approve")}
+            size="sm"
+          >
+            Approve
+          </Button>
+        </ItemActions>
+      ) : null}
+    </Item>
   );
 }

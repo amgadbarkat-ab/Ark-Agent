@@ -19,6 +19,7 @@ import {
 import { isToolCallOutcome } from "./call-outcome";
 import { CATALOGUE, catalogueEntry } from "./catalogue";
 import { toolkitOf, vendorSentence } from "./composio";
+import { connectedAccount } from "./connected-account";
 import {
   authorizationUrlFor,
   type ConnectOrigin,
@@ -2054,6 +2055,7 @@ export function createPluginRoutes(
           userId: state.userId,
           refreshToken: grant.refreshToken,
           scope: grant.scope,
+          account: await connectedAccount(state.serverId, grant.accessToken),
         });
       } catch (error) {
         console.error(

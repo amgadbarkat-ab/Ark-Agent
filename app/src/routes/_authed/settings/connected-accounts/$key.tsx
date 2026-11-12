@@ -1,7 +1,7 @@
 import { IconArrowUpRight, IconChevronDown } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   PageEmpty,
   PageRows,
@@ -13,6 +13,7 @@ import {
   useBrokeredAccount,
 } from "@/components/plugins/brokered-account-row";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
+import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import {
   connectionsQueryOptions,
@@ -51,7 +53,19 @@ function RouteComponent() {
     from: "/_authed/settings/connected-accounts/$key",
   });
   const plugins = useQuery(pluginsPageQueryOptions());
-  const connections = useQuery(connectionsQueryOptions());
+  /*
+   * Signing in happens in the person's own browser, so nothing tells this page when it is done.
+   * While it waits, it asks every two seconds, and stops once the connection is there (DT Lab, #83:
+   * the page stayed on "Finish signing in…" until it was left and opened again).
+   */
+  const [signingIn, setSigningIn] = useState(false);
+  const [pasted, setPasted] = useState("");
+  const [pasteProblem, setPasteProblem] = useState<string | null>(null);
+  const connections = useQuery({
+    ...connectionsQueryOptions(),
+    refetchInterval: signingIn ? 2_000 : false,
+    refetchOnWindowFocus: true,
+  });
   const [notice, setNotice] = useState<string | null>(null);
 
   const connect = useMutation({
@@ -78,9 +92,7 @@ function RouteComponent() {
       // Inside ArkAgent Desktop the consent screen opens in the person's own browser, where Google
       // allows it; this page picks the new connection up when the window has focus again.
       if (openInBrowser(authorizationUrl)) {
-        setNotice(
-          "Finish signing in in your web browser. When it says you are connected, come back to ArkAgent.",
-        );
+        setSigningIn(true);
         return;
       }
       window.location.href = authorizationUrl;
@@ -93,6 +105,17 @@ function RouteComponent() {
   const connection = (connections.data?.connections ?? []).find(
     (row) => row.serverId === key,
   );
+  // Connect is offered only while nothing is connected, so a connection appearing ends the wait.
+  const connected = connection !== undefined;
+  useEffect(() => {
+    if (signingIn && connected) setSigningIn(false);
+  }, [signingIn, connected]);
+  // Ten minutes is long enough for any consent screen; after that the page stops asking.
+  useEffect(() => {
+    if (!signingIn) return;
+    const timer = setTimeout(() => setSigningIn(false), 10 * 60_000);
+    return () => clearTimeout(timer);
+  }, [signingIn]);
   /*
    * Asked of the row rather than the catalogue, because a brokered app has no catalogue entry at
    * all: the deployment recorded how it is reached when the app was enabled, and that record is the
@@ -258,6 +281,57 @@ function RouteComponent() {
           {notice}
         </p>
       ) : null}
+      {signingIn ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-muted-foreground text-sm" role="status">
+            Finish signing in in your web browser. This page updates by itself
+            when you are connected.
+          </p>
+          {/*
+           * For a browser that cannot reach this app (another computer, another network): the
+           * address it ended on carries the sign-in, and pasting it here finishes it (#83).
+           */}
+          <form
+            className="flex flex-col gap-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const result = pastedCallback(pasted);
+              if (!result.ok) {
+                setPasteProblem(result.message);
+                return;
+              }
+              window.location.assign(result.path);
+            }}
+          >
+            <label
+              className="text-muted-foreground text-xs"
+              htmlFor="pasted-callback"
+            >
+              Browser showed "can't reach this page" at the end? Paste the
+              address it ended on.
+            </label>
+            <div className="flex gap-2">
+              <Input
+                id="pasted-callback"
+                onChange={(event) => {
+                  setPasted(event.target.value);
+                  setPasteProblem(null);
+                }}
+                placeholder="http://localhost:3001/api/plugins/oauth/callback?code=…"
+                value={pasted}
+              />
+              <Button size="sm" type="submit" variant="outline">
+                Finish
+              </Button>
+            </div>
+            {pasteProblem ? (
+              <p className="text-destructive text-xs" role="alert">
+                {pasteProblem}
+              </p>
+            ) : null}
+          </form>
+        </div>
+      ) : null}
 
       {/* One decision, so no heading: it would only repeat the row's own title. */}
       <PageSection>
@@ -271,7 +345,7 @@ function RouteComponent() {
                 {!enabled
                   ? "An administrator has not enabled this connector, so there is nothing to connect to yet."
                   : connection
-                    ? "A digital employee granted its tools reads this as you, and sees only what you can see."
+                    ? `${connection.account ? `Connected as ${connection.account}. ` : ""}A digital employee granted its tools reads this as you, and sees only what you can see.`
                     : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
               </ItemDescription>
             </ItemContent>
@@ -333,6 +407,7 @@ function RouteComponent() {
                   disabled={!enabled || connect.isPending}
                   onClick={() => {
                     setNotice(null);
+                    setSigningIn(false);
                     connect.mutate(key);
                   }}
                   size="sm"

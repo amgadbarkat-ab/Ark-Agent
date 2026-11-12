@@ -456,6 +456,13 @@
       "when": 1793220526999,
       "tag": "0064_held_for_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1794473038465,
+      "tag": "0065_connected_account",
+      "breakpoints": true
     }
   ]
 }
