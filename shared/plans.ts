@@ -92,6 +92,17 @@ export function formatEur(cents: number): string {
 }
 
 /** How a subscription stands, as far as running bots is concerned. */
+/**
+ * How long the free trial is, in days (Amgad's company-wide rule, 12 Nov 2026; it was 30). On day
+ * `FREE_TRIAL_DAYS + 1` an account still without a plan pauses read-only (docs/ark/01-product-decisions.md).
+ * Customers offered a 30-day trial before 12 Nov 2026 keep 30 days.
+ *
+ * Not read by any billing call: the trial length lives on the Stripe price or Paddle price, set at
+ * go-live (see the `trialing` notes in server/src/billing/stripe.ts and paddle.ts). This is the
+ * number those settings must match.
+ */
+export const FREE_TRIAL_DAYS = 7;
+
 export type SubscriptionStatus =
   | "incomplete"
   | "trialing"

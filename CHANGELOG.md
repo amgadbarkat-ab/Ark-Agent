@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Plans
+
+- **The free trial is 7 days, not 30** (Amgad's company-wide rule, 12 Nov 2026). On day 8 an account
+  still without a plan pauses read-only, its data kept. Customers offered a 30-day trial before 12 Nov
+  2026 keep 30 days. Nothing in this release changes a live billing setting: when Stripe or Paddle go
+  live, their trial period is set to 7 days (`FREE_TRIAL_DAYS`, with a note beside the `trialing`
+  handling in both).
+- **Published outside the Wine24 demo:** nothing was released between 13:45 and 15:30 Athens on
+  12 Nov.
+
 ### Conversations
 
 - **Approve a held send in the chat itself** (DT Lab, v0.1.32). A Gmail send, or any other

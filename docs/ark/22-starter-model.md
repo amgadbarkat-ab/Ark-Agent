@@ -13,7 +13,7 @@ has not been done. Decided by the owner on 2026-10-15; the model was chosen by e
 A new person who has not added an API key gets "open Settings, then Models" on their first message. For
 most people that is where the first five minutes end. The starter model is a small model we host
 ourselves on hardware that costs nothing per request, so the first answer needs nothing from them. It
-also makes the 30-day free trial cost us nothing.
+also makes the 7-day free trial cost us nothing.
 
 ## What it is, and is not
 
@@ -138,10 +138,10 @@ key as `ARK_STARTER_MODEL_TOKEN`, `ARK_STARTER_MODEL_NAME` the model's name ther
 1. **It is no longer free to the company.** The earlier decision (no quota, no cap, "no usage cost") assumed a machine
    we owned. With an online service every token is billed. An estimate, not a measurement: a bot reads its long
    instructions again on every call, so a busy day can be one to two million tokens for one person; at the prices
-   above that is roughly EUR 0.30 to 1.00 a day, so an uncapped 30-day trial could cost a few euros per heavy user,
+   above that is roughly EUR 0.30 to 1.00 a day, so an uncapped 7-day trial could cost EUR 2 to 7 per heavy user,
    and a script that loops could cost much more.
 2. **So option 2 needs a cap.** Proposed: a daily allowance per person (for example 200,000 tokens a day, which is
-   at most about EUR 3 over a 30-day trial), counted by the gateway, with a sentence when it is used up and a pointer to
+   at most about EUR 0.70 over a 7-day trial), counted by the gateway, with a sentence when it is used up and a pointer to
    option 1 or their own key. The queue already built stays, to protect the service's rate limit. **Owner to
    confirm the number.** Option 1 (the person's own computer) stays free and uncapped.
 
