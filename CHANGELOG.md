@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.33
+
+### Desktop
+
+- **Updating on Windows no longer stops at `podman machine ssh … Connection refused`** (Amgad's
+  PC, v0.1.32). After an update the engine answered before its machine's SSH service was up, and
+  one refused connection ended the start. ArkAgent now waits about 15 seconds for it, restarts the
+  machine once if it is still down, and only then stops, with a sentence that says to restart
+  Windows and Podman's own words after it.
+
 ## 0.1.32
 
 ### Conversations
