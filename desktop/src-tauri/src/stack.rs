@@ -4911,6 +4911,61 @@ fn main() {
         }
     }
 
+    /// What one go at an IPv6-only port came to.
+    enum Attempt {
+        Passed,
+        /// Something this test never bound answered on `127.0.0.1` at the same port.
+        Spoiled,
+    }
+
+    /**
+    Run `attempt` on fresh IPv6-only loopback ports until one go is not spoiled by a stranger.
+
+    AN IPV6-ONLY LISTENER DOES NOT RESERVE THE IPV4 SIDE. Holding `[::1]:X` leaves `127.0.0.1:X`
+    free, cargo runs these tests in parallel, and plenty of them bind `127.0.0.1:0`, so the OS can
+    hand one of them X while this test holds it. `something_answers` probes both loopbacks, so that
+    stranger reads as this test's listener never letting go. Measured once on the Linux desktop job
+    (11 Nov 2026) as "a released port kept waiting", on a PR that touched no Rust.
+
+    The listener here is bound to `[::1]` only, so anything answering on `127.0.0.1:X` is never this
+    test's. When that is what got in the way, `attempt` says `Spoiled` and gets another port. A
+    listener that really outlives its drop still answers on `[::1]`, and the attempt asserts that
+    itself, so nothing the tests check is given up. Bounded: five spoiled goes in a row is a failure.
+
+    Returns without running `attempt` where there is no IPv6 loopback.
+    */
+    fn on_an_ipv6_only_port(mut attempt: impl FnMut(std::net::TcpListener, u16) -> Attempt) {
+        const ATTEMPTS: usize = 5;
+        for _ in 0..ATTEMPTS {
+            let Some(listener) = ipv6_loopback_listener() else {
+                return;
+            };
+            let port = listener.local_addr().unwrap().port();
+            match attempt(listener, port) {
+                Attempt::Passed => return,
+                Attempt::Spoiled => {
+                    eprintln!("something else held 127.0.0.1:{port}; trying another IPv6-only port")
+                }
+            }
+        }
+        panic!("{ATTEMPTS} IPv6-only ports in a row were spoiled by something on 127.0.0.1");
+    }
+
+    /// Whether anything accepts a connection on this loopback address and port right now.
+    fn answers_on(ip: impl Into<std::net::IpAddr>, port: u16) -> bool {
+        let address = std::net::SocketAddr::new(ip.into(), port);
+        std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(300))
+            .is_ok()
+    }
+
+    fn ipv4_loopback_answers(port: u16) -> bool {
+        answers_on(std::net::Ipv4Addr::LOCALHOST, port)
+    }
+
+    fn ipv6_loopback_answers(port: u16) -> bool {
+        answers_on(std::net::Ipv6Addr::LOCALHOST, port)
+    }
+
     #[test]
     fn a_release_with_its_app_already_built_installs_only_what_the_host_processes_need() {
         let root = temp_root("dependency-install-args");
@@ -7309,45 +7364,66 @@ fn main() {
 
     #[test]
     fn an_ipv6_only_port_is_named_unless_this_deployment_already_publishes_it() {
-        let Some(listener) = ipv6_loopback_listener() else {
-            return;
-        };
-        let port = listener.local_addr().unwrap().port();
-        let ports = [("API server", port)];
+        on_an_ipv6_only_port(|listener, port| {
+            // Already answered on IPv4, the conflict below would prove nothing about IPv6.
+            if ipv4_loopback_answers(port) {
+                return Attempt::Spoiled;
+            }
+            let ports = [("API server", port)];
 
-        let problem = port_already_taken(&ports).expect("an IPv6-only listener is a conflict");
-        assert!(problem.contains(&port.to_string()), "{problem}");
-        assert!(problem.contains("API server"), "{problem}");
-        assert_eq!(
-            port_already_taken_except(&ports, &std::collections::HashSet::from([port])),
-            None
-        );
+            let problem = port_already_taken(&ports).expect("an IPv6-only listener is a conflict");
+            assert!(problem.contains(&port.to_string()), "{problem}");
+            assert!(problem.contains("API server"), "{problem}");
+            assert_eq!(
+                port_already_taken_except(&ports, &std::collections::HashSet::from([port])),
+                None
+            );
 
-        drop(listener);
-        wait_for_ports_to_clear(&[port], std::time::Duration::from_secs(3));
-        assert_eq!(port_already_taken(&ports), None);
+            drop(listener);
+            wait_for_ports_to_clear(&[port], std::time::Duration::from_secs(3));
+            match port_already_taken(&ports) {
+                None => Attempt::Passed,
+                Some(problem) => {
+                    assert!(
+                        !ipv6_loopback_answers(port),
+                        "the dropped IPv6 listener still answers: {problem}"
+                    );
+                    Attempt::Spoiled
+                }
+            }
+        });
     }
 
     #[test]
     fn an_ipv6_only_port_is_not_clear_while_its_listener_is_held() {
-        let Some(listener) = ipv6_loopback_listener() else {
-            return;
-        };
-        let port = listener.local_addr().unwrap().port();
-        let patience = std::time::Duration::from_millis(250);
-        let started = std::time::Instant::now();
+        on_an_ipv6_only_port(|listener, port| {
+            // Already answered on IPv4, the wait below would hold for that and not for IPv6.
+            if ipv4_loopback_answers(port) {
+                return Attempt::Spoiled;
+            }
+            let patience = std::time::Duration::from_millis(250);
+            let started = std::time::Instant::now();
 
-        wait_for_ports_to_clear(&[port], patience);
+            wait_for_ports_to_clear(&[port], patience);
 
-        assert!(
-            started.elapsed() >= patience,
-            "the wait returned while the IPv6 listener still held the port"
-        );
-        drop(listener);
-        let started = std::time::Instant::now();
-        let patience = std::time::Duration::from_secs(3);
-        wait_for_ports_to_clear(&[port], patience);
-        assert!(started.elapsed() < patience, "a released port kept waiting");
+            assert!(
+                started.elapsed() >= patience,
+                "the wait returned while the IPv6 listener still held the port"
+            );
+            drop(listener);
+            let started = std::time::Instant::now();
+            let patience = std::time::Duration::from_secs(3);
+            wait_for_ports_to_clear(&[port], patience);
+            if started.elapsed() < patience {
+                return Attempt::Passed;
+            }
+            assert!(
+                !ipv6_loopback_answers(port),
+                "a released port kept waiting: [::1]:{port} still answers after its listener was dropped"
+            );
+            // Held up by the IPv4 side, which this test never bound.
+            Attempt::Spoiled
+        });
     }
 
     #[test]
