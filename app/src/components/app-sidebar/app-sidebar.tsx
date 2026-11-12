@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import {
   IconBox,
   IconInbox,
@@ -241,6 +242,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const animateOrder =
     !searching && (channels.data?.length ?? 0) <= MAX_ANIMATED_ROWS;
 
+  const t = useT();
+
   const handleSignOut = async () => {
     await signOut.mutateAsync();
     await navigate({ to: "/sign" });
@@ -292,7 +295,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <InputGroupInput
                   aria-label="Search channels"
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search..."
+                  placeholder={t("sidebar.search")}
                   value={search}
                 />
                 <InputGroupAddon>
@@ -314,7 +317,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <EmptyTitle>
                       {channels.hasNextPage
                         ? "No loaded channels match your search"
-                        : "No channels match your search"}
+                        : t("sidebar.noMatch")}
                     </EmptyTitle>
                     <EmptyDescription className="text-pretty">
                       {channels.hasNextPage
@@ -329,7 +332,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="py-4">
                 <Empty className="border border-dashed min-h-[40dvh]">
                   <EmptyHeader>
-                    <EmptyTitle>You don't have channels yet</EmptyTitle>
+                    <EmptyTitle>{t("sidebar.noChannels")}</EmptyTitle>
                     <EmptyDescription className="text-pretty">
                       Start talking to agents and your channels will appear
                       here.
@@ -375,7 +378,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="size-[28px] flex items-center justify-center">
                 <IconBox />
               </div>
-              <span className="text-sm trackint-tight">Skills</span>
+              <span className="text-sm trackint-tight">
+                {t("sidebar.skills")}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -394,7 +399,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="size-[28px] flex items-center justify-center">
                 <IconUsersGroup />
               </div>
-              <span className="text-sm trackint-tight">Digital Team</span>
+              <span className="text-sm trackint-tight">
+                {t("sidebar.team")}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
@@ -413,7 +420,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="size-[28px] flex items-center justify-center">
                 <IconInbox />
               </div>
-              <span className="text-sm trackint-tight">Requests</span>
+              <span className="text-sm trackint-tight">
+                {t("sidebar.requests")}
+              </span>
               {/*
                * "Needs you": everything waiting on this person — held calls and browser actions,
                * approval cards in conversations, and a lead's requests — counted by the server in
@@ -425,7 +434,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   title={`${waiting} need${waiting === 1 ? "s" : ""} you`}
                 >
                   <span className="text-[11px] text-muted-foreground">
-                    Needs you
+                    {t("sidebar.needsYou")}
                   </span>
                   <span className="rounded-full bg-brand px-1.5 py-px text-[10px] font-medium text-brand-foreground tabular-nums">
                     {waiting}

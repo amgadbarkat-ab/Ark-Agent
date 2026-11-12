@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import {
   type Attachment,
   type AttachmentsConfig,
@@ -341,6 +342,7 @@ export function Composer({
   // Nothing parked is the right answer for every caller without a queue, which is most of them.
   queuedAttachmentCount = 0,
 }: ComposerProps) {
+  const t = useT();
   const [value, setValue] = useState<Segment[]>(
     initialValue ? [{ type: "text", text: initialValue }] : [],
   );
@@ -1589,7 +1591,7 @@ export function Composer({
                 onChange={handleChange}
                 onImagePaste={canAttach ? stagePastedImage : undefined}
                 onSubmit={submitDraft}
-                placeholder="Ask anything"
+                placeholder={t("composer.placeholder")}
                 ref={promptAreaRef}
                 triggers={triggers}
                 value={value}
@@ -1646,7 +1648,7 @@ export function Composer({
               onChange={handleChange}
               onImagePaste={canAttach ? stagePastedImage : undefined}
               onSubmit={submitDraft}
-              placeholder="Ask anything"
+              placeholder={t("composer.placeholder")}
               ref={promptAreaRef}
               triggers={triggers}
               value={value}

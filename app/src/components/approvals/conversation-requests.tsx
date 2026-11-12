@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { decideApprovalMutationOptions } from "@/lib/approvals/mutations";
 import {
@@ -32,11 +33,12 @@ export function waitingHere(
 export function ConversationRequests({ channelId }: { channelId: string }) {
   const approvals = useQuery(approvalsQueryOptions("pending"));
   const decide = useMutation(decideApprovalMutationOptions(queryClient));
+  const t = useT();
   const rows = waitingHere(approvals.data?.approvals ?? [], channelId);
   if (rows.length === 0) return null;
 
   return (
-    <section aria-label="Waiting for your approval" className="pb-2">
+    <section aria-label={t("requests.here")} className="pb-2">
       {decide.error ? (
         <p className="mb-2 text-destructive text-sm" role="alert">
           {decide.error.message}

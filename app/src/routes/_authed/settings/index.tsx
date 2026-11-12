@@ -9,6 +9,7 @@ import { MessageListPreference } from "@/components/settings/message-list-prefer
 import { NotificationSettings } from "@/components/settings/notifications";
 import { StandingInstructions } from "@/components/settings/standing-instructions";
 import { useTheme } from "@/components/theme-provider";
+import { Button } from "@/components/ui/button";
 import {
   Item,
   ItemActions,
@@ -19,6 +20,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { formatHotkey, HOTKEYS } from "@/lib/hotkeys/hotkeys";
+import { setLanguage, useLanguage, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/settings/")({
   component: RouteComponent,
@@ -26,6 +28,8 @@ export const Route = createFileRoute("/_authed/settings/")({
 
 function RouteComponent() {
   const { dark, setDark } = useTheme();
+  const language = useLanguage();
+  const t = useT();
 
   /*
    * The measurements that used to be written out here now live in `PageShell`, which Skills, Admin
@@ -55,6 +59,33 @@ function RouteComponent() {
                 checked={dark}
                 onCheckedChange={setDark}
               />
+            </ItemActions>
+          </Item>
+          <Separator />
+          {/* Per device, like the theme (DT Lab, #83: the app was English only). */}
+          <Item size="sm">
+            <ItemContent>
+              <ItemTitle>{t("settings.language")}</ItemTitle>
+              <ItemDescription>{t("settings.languageHint")}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                aria-pressed={language === "en"}
+                onClick={() => setLanguage("en")}
+                size="sm"
+                variant={language === "en" ? "secondary" : "ghost"}
+              >
+                English
+              </Button>
+              <Button
+                aria-pressed={language === "el"}
+                lang="el"
+                onClick={() => setLanguage("el")}
+                size="sm"
+                variant={language === "el" ? "secondary" : "ghost"}
+              >
+                Ελληνικά
+              </Button>
             </ItemActions>
           </Item>
         </PageRows>
