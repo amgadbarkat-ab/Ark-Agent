@@ -13,6 +13,7 @@
 use crate::quiet::said as command_said;
 use std::net::Ipv4Addr;
 use std::path::Path;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -246,30 +247,119 @@ fn owned_machine_networking(listing: &str) -> Result<MachineNetworking, String> 
     Ok(MachineNetworking { state, user_mode })
 }
 
+/// How long to wait before each further try when the machine's SSH service refuses the connection.
+///
+/// About fifteen seconds in all: long enough for a machine that is still booting after an update or a
+/// Windows restart, short enough that a person watching is not left wondering.
+const SSH_WAITS: [Duration; 5] = [
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(3),
+    Duration::from_secs(4),
+    Duration::from_secs(5),
+];
+
+/// Whether `podman machine ssh` failed because nothing answered on the machine's SSH port, rather than
+/// because the command inside the machine failed.
+///
+/// Measured on a Windows PC updating to v0.1.32: the engine's API answered, and
+/// `podman machine ssh openbot getent ...` exited 255 with
+/// `ssh: connect to host localhost port 51317: Connection refused`. The WSL machine was up for the API
+/// and its SSH service was not, which `podman machine stop` and `start` put right.
+fn ssh_unreachable(error: &str) -> bool {
+    let lower = error.to_lowercase();
+    lower.contains("exited with status 255")
+        && [
+            "connection refused",
+            "connection reset",
+            "connection timed out",
+            "connection closed",
+            "kex_exchange_identification",
+        ]
+        .iter()
+        .any(|said| lower.contains(said))
+}
+
+fn ssh_unreachable_sentence(error: &str) -> String {
+    format!(
+        "ArkAgent's engine machine ({MACHINE}) did not answer, even after it was restarted. Restart Windows, then open ArkAgent again. Podman said: {error}"
+    )
+}
+
+/// Run `command` in the machine this app owns, waiting for its SSH service when it is not up yet.
+///
+/// A refused connection is tried again for a few seconds, then the machine is restarted once and tried
+/// again. Any other failure is the command's own, and is returned as it is.
+fn machine_ssh(
+    run: &mut impl FnMut(&[&str]) -> Result<String, String>,
+    wait: &mut impl FnMut(Duration),
+    command: &[&str],
+) -> Result<String, String> {
+    let args: Vec<&str> = ["machine", "ssh", MACHINE]
+        .into_iter()
+        .chain(command.iter().copied())
+        .collect();
+    let last = match ssh_while_refused(run, wait, &args) {
+        Err(error) if ssh_unreachable(&error) => error,
+        done => return done,
+    };
+
+    // Stopping a machine that has already stopped is not a reason to give up: the start that follows
+    // is what matters.
+    let _ = run(&["machine", "stop", MACHINE]);
+    match run(&["machine", "start", MACHINE]) {
+        Ok(_) => {}
+        Err(error) if error.contains("already running") => {}
+        Err(error) => return Err(ssh_unreachable_sentence(&format!("{last}; {error}"))),
+    }
+
+    match ssh_while_refused(run, wait, &args) {
+        Err(error) if ssh_unreachable(&error) => Err(ssh_unreachable_sentence(&error)),
+        done => done,
+    }
+}
+
+/// `args`, tried once and then once after each of `SSH_WAITS` for as long as SSH refuses it.
+fn ssh_while_refused(
+    run: &mut impl FnMut(&[&str]) -> Result<String, String>,
+    wait: &mut impl FnMut(Duration),
+    args: &[&str],
+) -> Result<String, String> {
+    let mut result = run(args);
+    for delay in SSH_WAITS {
+        match &result {
+            Err(error) if ssh_unreachable(error) => {}
+            _ => break,
+        }
+        wait(delay);
+        result = run(args);
+    }
+    result
+}
+
 fn configure_host_gateway_after_start(
     run: &mut impl FnMut(&[&str]) -> Result<String, String>,
+    wait: &mut impl FnMut(Duration),
     target_is_windows: bool,
 ) -> Result<(), String> {
     if !target_is_windows {
         return Ok(());
     }
 
-    let resolved = run(&[
-        "machine",
-        "ssh",
-        MACHINE,
-        "getent",
-        "ahostsv4",
-        "host.containers.internal",
-    ])?;
+    let resolved = machine_ssh(
+        run,
+        wait,
+        &["getent", "ahostsv4", "host.containers.internal"],
+    )?;
     let ip = first_valid_host_gateway_ip(&resolved)?;
     let script = host_gateway_config_script(ip);
-    run(&["machine", "ssh", MACHINE, &script]).map(|_| ())
+    machine_ssh(run, wait, &[&script]).map(|_| ())
 }
 
 fn configure_owned_windows_podman_for_compose(
     address: &Address,
     mut run: impl FnMut(&[&str]) -> Result<String, String>,
+    mut wait: impl FnMut(Duration),
     target_is_windows: bool,
 ) -> Result<(), String> {
     if !owned_windows_podman_address(address, target_is_windows) {
@@ -282,12 +372,17 @@ fn configure_owned_windows_podman_for_compose(
             "{MACHINE} is running without Podman user-mode networking. Stop the ArkAgent engine machine and start ArkAgent again so host callbacks can be configured."
         ));
     }
-    configure_host_gateway_after_start(&mut run, true)
+    configure_host_gateway_after_start(&mut run, &mut wait, true)
 }
 
 /// Run before Compose even when an existing engine skipped the install/start steps.
 pub fn prepare_for_compose(address: &Address) -> Result<(), String> {
-    configure_owned_windows_podman_for_compose(address, podman, cfg!(target_os = "windows"))
+    configure_owned_windows_podman_for_compose(
+        address,
+        podman,
+        std::thread::sleep,
+        cfg!(target_os = "windows"),
+    )
 }
 
 fn owned_windows_podman_address(address: &Address, target_is_windows: bool) -> bool {
@@ -315,18 +410,19 @@ pub fn missing_pids_controller(output: &str) -> bool {
 /// controller. Only the machine this app created is touched: a person's own engine is theirs, and
 /// the repair is never a reason to rewrite its configuration.
 pub fn allow_containers_without_pids_limit(address: &Address) -> Result<(), String> {
-    allow_containers_without_pids_limit_with(address, podman)
+    allow_containers_without_pids_limit_with(address, podman, std::thread::sleep)
 }
 
 fn allow_containers_without_pids_limit_with(
     address: &Address,
     mut run: impl FnMut(&[&str]) -> Result<String, String>,
+    mut wait: impl FnMut(Duration),
 ) -> Result<(), String> {
     if !owned_podman_address(address) {
         return Err("the container engine is not the one ArkAgent created".into());
     }
     let script = no_pids_limit_config_script();
-    run(&["machine", "ssh", MACHINE, &script]).map(|_| ())
+    machine_ssh(&mut run, &mut wait, &[&script]).map(|_| ())
 }
 
 fn no_pids_limit_config_script() -> String {
@@ -383,6 +479,7 @@ fn host_gateway_config_script(ip: Ipv4Addr) -> String {
 
 fn start_machine_with(
     mut run: impl FnMut(&[&str]) -> Result<String, String>,
+    mut wait: impl FnMut(Duration),
     target_is_windows: bool,
 ) -> StepOutcome {
     if let Err(error) = prepare_user_mode_networking_before_start(&mut run, target_is_windows) {
@@ -395,14 +492,14 @@ fn start_machine_with(
         }
         Err(error) => return StepOutcome::stopped(Step::StartMachine, &error),
     };
-    if let Err(error) = configure_host_gateway_after_start(&mut run, target_is_windows) {
+    if let Err(error) = configure_host_gateway_after_start(&mut run, &mut wait, target_is_windows) {
         return StepOutcome::stopped(Step::StartMachine, &error);
     }
     StepOutcome::went(Step::StartMachine, started)
 }
 
 pub fn start_machine() -> StepOutcome {
-    start_machine_with(podman, cfg!(target_os = "windows"))
+    start_machine_with(podman, std::thread::sleep, cfg!(target_os = "windows"))
 }
 
 /// Turn Podman's own words into an instruction, where we know one.
@@ -450,6 +547,7 @@ pub fn health_gate(address: &Address) -> StepOutcome {
             if let Err(error) = configure_owned_windows_podman_for_compose(
                 address,
                 podman,
+                std::thread::sleep,
                 cfg!(target_os = "windows"),
             ) {
                 return StepOutcome::stopped(Step::HealthGate, &error);
@@ -833,6 +931,7 @@ mod tests {
                     _ => Err(format!("unexpected args: {args:?}")),
                 }
             },
+            no_wait,
             true,
         );
 
@@ -896,6 +995,7 @@ mod tests {
                     _ => Err(format!("unexpected args: {args:?}")),
                 }
             },
+            no_wait,
             true,
         )
         .expect("owned Windows Podman health gate should prepare host-gateway config");
@@ -913,11 +1013,187 @@ mod tests {
                 called = true;
                 Ok(String::new())
             },
+            no_wait,
             true,
         )
         .expect("borrowed Podman machines are outside ArkAgent's provisioning scope");
 
         assert!(!called);
+    }
+
+    fn no_wait(_: Duration) {}
+
+    const REFUSED: &str = "podman machine ssh openbot getent ahostsv4 host.containers.internal exited with status 255; stderr: ssh: connect to host localhost port 51317: Connection refused";
+
+    /// A machine whose SSH service refuses `refusals` connections before it answers, and records what
+    /// it was asked.
+    fn machine_refusing(
+        refusals: usize,
+        calls: &mut Vec<String>,
+    ) -> impl FnMut(&[&str]) -> Result<String, String> + '_ {
+        let mut refused = 0;
+        move |args| {
+            calls.push(args.join(" "));
+            match args {
+                ["machine", "inspect", "openbot"] => Ok(machine_inspect("running", true)),
+                ["machine", "stop", "openbot"] | ["machine", "start", "openbot"] => {
+                    Ok(String::new())
+                }
+                ["machine", "ssh", "openbot", ..] if refused < refusals => {
+                    refused += 1;
+                    Err(REFUSED.into())
+                }
+                ["machine", "ssh", "openbot", "getent", "ahostsv4", "host.containers.internal"] => {
+                    Ok("192.168.127.254 STREAM host.containers.internal\n".into())
+                }
+                ["machine", "ssh", "openbot", script]
+                    if script.contains("host_containers_internal_ip=\"192.168.127.254\"") =>
+                {
+                    Ok(String::new())
+                }
+                _ => Err(format!("unexpected args: {args:?}")),
+            }
+        }
+    }
+
+    fn ours() -> Address {
+        Address::new(Engine::Podman, Some(MACHINE.into()))
+    }
+
+    #[test]
+    fn a_refused_ssh_connection_is_recognised_and_a_failed_command_is_not() {
+        assert!(ssh_unreachable(REFUSED));
+        assert!(ssh_unreachable(
+            "podman machine ssh openbot true exited with status 255; stderr: kex_exchange_identification: read: Connection reset by peer"
+        ));
+        assert!(!ssh_unreachable(
+            "podman machine ssh openbot getent ahostsv4 host.containers.internal exited with status 2"
+        ));
+        assert!(!ssh_unreachable(
+            "podman machine ssh openbot true exited with status 1; stderr: Connection refused"
+        ));
+    }
+
+    #[test]
+    fn an_ssh_service_still_starting_is_waited_for_without_restarting_the_machine() {
+        let mut calls = Vec::new();
+        let mut waits = Vec::new();
+        configure_owned_windows_podman_for_compose(
+            &ours(),
+            machine_refusing(2, &mut calls),
+            |delay| waits.push(delay),
+            true,
+        )
+        .expect("a machine whose SSH comes up within the waits is configured");
+
+        assert_eq!(waits, SSH_WAITS[..2]);
+        assert!(
+            !calls.iter().any(|call| call.contains("machine stop")),
+            "{calls:?}"
+        );
+        assert!(
+            !calls.iter().any(|call| call.contains("machine start")),
+            "{calls:?}"
+        );
+        assert_eq!(calls.len(), 1 + 3 + 1, "{calls:?}");
+    }
+
+    #[test]
+    fn an_ssh_service_that_stays_down_is_brought_back_by_restarting_the_machine_once() {
+        let mut calls = Vec::new();
+        let mut waits = 0;
+        let refusals = 1 + SSH_WAITS.len();
+        configure_owned_windows_podman_for_compose(
+            &ours(),
+            machine_refusing(refusals, &mut calls),
+            |_| waits += 1,
+            true,
+        )
+        .expect("the update case on the PC: the restart puts the machine's SSH right");
+
+        assert_eq!(waits, SSH_WAITS.len());
+        let restart = calls
+            .iter()
+            .position(|call| call == "machine stop openbot")
+            .expect("the machine is stopped once");
+        assert_eq!(calls[restart + 1], "machine start openbot");
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| call.contains("machine st"))
+                .count(),
+            2,
+            "{calls:?}"
+        );
+        assert!(calls
+            .last()
+            .unwrap()
+            .contains("host_containers_internal_ip=\"192.168.127.254\""));
+    }
+
+    #[test]
+    fn an_ssh_service_that_never_answers_ends_in_a_sentence_with_podmans_words_kept() {
+        let mut calls = Vec::new();
+        let error = configure_owned_windows_podman_for_compose(
+            &ours(),
+            machine_refusing(usize::MAX, &mut calls),
+            no_wait,
+            true,
+        )
+        .expect_err("a machine that never answers is not configured");
+
+        assert!(
+            error.starts_with("ArkAgent's engine machine (openbot) did not answer"),
+            "{error}"
+        );
+        assert!(error.contains("Restart Windows"), "{error}");
+        assert!(error.contains("Connection refused"), "{error}");
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| *call == "machine stop openbot")
+                .count(),
+            1,
+            "the machine is restarted once, not in a loop: {calls:?}"
+        );
+        assert_eq!(calls.len(), 1 + 2 * (1 + SSH_WAITS.len()) + 2, "{calls:?}");
+    }
+
+    #[test]
+    fn a_command_that_fails_inside_the_machine_is_not_retried() {
+        let mut calls = Vec::new();
+        let error = machine_ssh(
+            &mut |args: &[&str]| {
+                calls.push(args.join(" "));
+                Err(format!("podman {} exited with status 2", args.join(" ")))
+            },
+            &mut |_| panic!("a command's own failure is not waited on"),
+            &["getent", "ahostsv4", "host.containers.internal"],
+        )
+        .expect_err("the command failed");
+
+        assert!(error.contains("exited with status 2"), "{error}");
+        assert_eq!(calls.len(), 1);
+    }
+
+    #[test]
+    fn the_process_limit_repair_waits_for_ssh_too() {
+        let mut calls = Vec::new();
+        let mut refused = false;
+        allow_containers_without_pids_limit_with(
+            &ours(),
+            |args| {
+                calls.push(args.join(" "));
+                if !refused {
+                    refused = true;
+                    return Err(REFUSED.into());
+                }
+                Ok(String::new())
+            },
+            no_wait,
+        )
+        .expect("the repair goes through once SSH answers");
+        assert_eq!(calls.len(), 2);
     }
 
     #[test]
@@ -1000,10 +1276,14 @@ mod tests {
     fn only_the_machine_this_app_created_is_told_to_drop_the_process_limit() {
         let mut calls = Vec::new();
         let ours = Address::new(Engine::Podman, Some(MACHINE.to_string()));
-        allow_containers_without_pids_limit_with(&ours, |args| {
-            calls.push(args.iter().map(|arg| arg.to_string()).collect::<Vec<_>>());
-            Ok(String::new())
-        })
+        allow_containers_without_pids_limit_with(
+            &ours,
+            |args| {
+                calls.push(args.iter().map(|arg| arg.to_string()).collect::<Vec<_>>());
+                Ok(String::new())
+            },
+            no_wait,
+        )
         .unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(&calls[0][..3], ["machine", "ssh", MACHINE]);
@@ -1014,9 +1294,11 @@ mod tests {
             Address::new(Engine::Podman, None),
             Address::new(Engine::Docker, None),
         ] {
-            let result = allow_containers_without_pids_limit_with(&theirs, |_| {
-                panic!("somebody else's engine must not be reconfigured")
-            });
+            let result = allow_containers_without_pids_limit_with(
+                &theirs,
+                |_| panic!("somebody else's engine must not be reconfigured"),
+                no_wait,
+            );
             assert!(result.is_err());
         }
     }
