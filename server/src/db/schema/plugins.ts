@@ -191,6 +191,12 @@ export const mcpTools = pgTable(
      * than a reason to guess — a guessed version is a call against an action's other behaviour.
      */
     version: text("version"),
+    /**
+     * The `ui://` resource an MCP App server names for drawing this tool's results (P2 idea 9B), from
+     * the tool's `_meta.ui.resourceUri`. Null for every tool that has none, and for every transport
+     * but MCP. Only read when `MCP_APPS_ENABLED` is on.
+     */
+    uiResourceUri: text("ui_resource_uri"),
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ columns: [table.serverId, table.name] })],

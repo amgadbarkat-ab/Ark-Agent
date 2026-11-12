@@ -96,6 +96,7 @@ import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
 import { createFanoutRoutes } from "./channels/fanout-routes";
+import { createMcpAppRoutes } from "./plugins/apps-routes";
 import type { HandoffDesk } from "./agents/handoff";
 import { jsonBodyLimit } from "./body-limit";
 import { originGuard } from "./origin-guard";
@@ -1746,6 +1747,13 @@ export function createApp(
     app.route(
       "/api/channels",
       createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
+    );
+  }
+
+  if (config.mcpApps && pluginStore) {
+    app.route(
+      "/api/mcp-apps",
+      createMcpAppRoutes({ store: pluginStore, requireUser }),
     );
   }
 

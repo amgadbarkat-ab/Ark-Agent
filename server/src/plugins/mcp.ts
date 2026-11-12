@@ -140,6 +140,8 @@ export type ListedTool = McpTool & {
   destructive?: boolean;
   /** The vendor's version string, when calling the action requires one. */
   version?: string;
+  /** The `ui://` resource that draws this tool's results, when it is an MCP App (9B). */
+  uiResourceUri?: string;
 };
 
 export class McpServerError extends Error {
@@ -358,7 +360,63 @@ export async function listTools(connection: Connection): Promise<ListedTool[]> {
       description: tool.description ?? "",
       inputSchema: (tool.inputSchema ?? {}) as Record<string, unknown>,
       ...declaredEffect(tool.annotations),
+      ...uiResourceOf(tool._meta),
     }));
+  });
+}
+
+/**
+ * The MCP Apps extension's pointer from a tool to the interface that draws its results: the
+ * current `_meta.ui.resourceUri`, or the earlier draft's flat `_meta["ui/resourceUri"]`. Only a
+ * `ui://` address is kept: the host reads it from the same server, never from elsewhere.
+ */
+export function uiResourceOf(meta: unknown): { uiResourceUri?: string } {
+  if (typeof meta !== "object" || meta === null) return {};
+  const record = meta as Record<string, unknown>;
+  const nested = record.ui;
+  const uri =
+    typeof nested === "object" && nested !== null
+      ? (nested as Record<string, unknown>).resourceUri
+      : record["ui/resourceUri"];
+  if (typeof uri !== "string" || !uri.startsWith("ui://") || uri.length > 512) {
+    return {};
+  }
+  return { uiResourceUri: uri };
+}
+
+/** The most an MCP App's HTML may be. An interface, not a download. */
+export const MAX_UI_RESOURCE_BYTES = 1_000_000;
+
+/** The MIME type the MCP Apps extension gives an app's HTML. */
+const APP_MIME = /^text\/html(;|$)/i;
+
+/**
+ * Read an MCP App's HTML from its server (9B). Null when the server answers with something that is
+ * not HTML, or HTML larger than {@link MAX_UI_RESOURCE_BYTES}.
+ */
+export async function readUiResource(
+  connection: Connection,
+  uri: string,
+): Promise<string | null> {
+  return withClient(connection, async (client) => {
+    const result = await client.readResource(
+      { uri },
+      { timeout: LIST_TIMEOUT_MS },
+    );
+    for (const content of result.contents) {
+      if (content.uri !== uri && result.contents.length > 1) continue;
+      if (content.mimeType && !APP_MIME.test(content.mimeType)) continue;
+      const html =
+        "text" in content && typeof content.text === "string"
+          ? content.text
+          : "blob" in content && typeof content.blob === "string"
+            ? Buffer.from(content.blob, "base64").toString("utf8")
+            : null;
+      if (html === null) continue;
+      if (Buffer.byteLength(html, "utf8") > MAX_UI_RESOURCE_BYTES) return null;
+      return html;
+    }
+    return null;
   });
 }
 
