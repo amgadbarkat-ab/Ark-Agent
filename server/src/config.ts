@@ -468,6 +468,12 @@ export type DeploymentConfig = {
    */
   mcpApps: boolean;
   /**
+   * Whether a request may ring its owner's phone (P2 idea 10). Off unless
+   * `PHONE_APPROVAL_ENABLED=true`, and even then only through the simulated provider until a real
+   * one has Amgad's separate yes.
+   */
+  phoneApproval: boolean;
+  /**
    * The secret a Bot presents when it calls a tool back through this server.
    *
    * A framework Bot runs its own tool loop, in its own process, which is what makes it a real
@@ -1906,6 +1912,7 @@ export function loadConfig(
     handoff: handoffCaps(environment),
     teamFanout: teamFanoutEnabled(environment),
     mcpApps: switchedOn(environment, "MCP_APPS_ENABLED"),
+    phoneApproval: switchedOn(environment, "PHONE_APPROVAL_ENABLED"),
     ...(optional(environment, "AGENT_TOOL_TOKEN")
       ? { agentToolToken: optional(environment, "AGENT_TOOL_TOKEN") as string }
       : {}),

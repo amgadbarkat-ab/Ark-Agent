@@ -9,6 +9,7 @@ export * from "./coworker";
 export * from "./marketplace";
 export * from "./memories";
 export * from "./models";
+export * from "./phone";
 export * from "./plugins";
 export * from "./push";
 export * from "./tenants";
