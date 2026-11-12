@@ -106,6 +106,8 @@ describe("OpenBot database schema", () => {
       { name: "user_id", notNull: true },
       { name: "credential_id", notNull: true },
       { name: "scope", notNull: true },
+      // Which account consented, when the vendor said (#83). Nullable: older rows never asked.
+      { name: "account", notNull: false },
       { name: "connected_at", notNull: true },
       { name: "updated_at", notNull: true },
     ]);
