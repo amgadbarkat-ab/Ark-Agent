@@ -74,7 +74,9 @@ function PhoneApprovalPage() {
           <PageSection
             description={
               settings.data.provider === "simulated"
-                ? "Calls ring inside ArkAgent for now, not on your phone: a real phone line needs a separate yes."
+                ? t(
+                    "Calls ring inside ArkAgent for now, not on your phone: a real phone line needs a separate yes.",
+                  )
                 : undefined
             }
             title={t("How to reach you")}
@@ -94,7 +96,7 @@ function PhoneApprovalPage() {
             <Field>
               <FieldLabel htmlFor="phone-pin">
                 {settings.data.hasPin
-                  ? "New PIN (leave empty to keep it)"
+                  ? t("New PIN (leave empty to keep it)")
                   : "PIN"}
               </FieldLabel>
               <Input

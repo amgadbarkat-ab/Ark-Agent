@@ -49,22 +49,22 @@ export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
       <p className="mt-1 text-sm leading-snug" aria-live="polite">
         {call.summary ??
           (saving
-            ? "Saving your conversation and preparing a summary…"
+            ? t("Saving your conversation and preparing a summary…")
             : unsaved
-              ? "Couldn’t confirm this voice chat was saved."
-              : "Transcript saved. A summary couldn’t be generated.")}
+              ? t("Couldn’t confirm this voice chat was saved.")
+              : t("Transcript saved. A summary couldn’t be generated."))}
       </p>
       {(unsaved || (!saving && call.summaryStatus === "failed")) && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
-            {call.saveError ?? "You can still expand the transcript."}
+            {call.saveError ?? t("You can still expand the transcript.")}
           </span>
           <Button
             size="xs"
             variant="ghost"
             onClick={() => saveVoiceSession(voiceSessionInput(call))}
           >
-            {unsaved ? "Retry save" : "Retry summary"}
+            {unsaved ? t("Retry save") : t("Retry summary")}
           </Button>
         </div>
       )}

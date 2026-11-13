@@ -109,14 +109,10 @@ function SkillsPage() {
       open={showCreate || showEdit}
     >
       <PageShell
-        description={
-          <>
-            {txNow(
-              "A skill is a named instruction you invoke with {slash} and a digital employee follows. Yours are yours alone, and go on the digital employees you own.",
-              { slash: <code>/</code> },
-            )}
-          </>
-        }
+        description={txNow(
+          "A skill is a named instruction you invoke with {slash} and a digital employee follows. Yours are yours alone, and go on the digital employees you own.",
+          { slash: <code>/</code> },
+        )}
         title={t("Agent Skills")}
       >
         {error ? (

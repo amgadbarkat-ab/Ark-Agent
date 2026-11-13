@@ -93,7 +93,9 @@ export function SkillFields({
                 ) : (
                   <p className="text-muted-foreground text-xs">
                     {slugLocked ? (
-                      "A command cannot be changed. To rename a skill, write a new one and delete this."
+                      t(
+                        "A command cannot be changed. To rename a skill, write a new one and delete this.",
+                      )
                     ) : (
                       <>
                         {tNow("What you type after a slash.")}{" "}

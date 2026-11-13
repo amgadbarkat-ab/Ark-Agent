@@ -80,23 +80,19 @@ export function OwnBrowserIndicator() {
             {tNow("{names} will wait until you hand it back.", { names })}
           </>
         ) : driving.length > 0 ? (
-          <>
-            {txNow(
-              driving.length === 1
-                ? "{names} is working in your browser now. Payments, sending, submitting and deleting wait for your approval."
-                : "{names} are working in your browser now. Payments, sending, submitting and deleting wait for your approval.",
-              { names: <span className="font-medium">{names}</span> },
-            )}
-          </>
+          txNow(
+            driving.length === 1
+              ? "{names} is working in your browser now. Payments, sending, submitting and deleting wait for your approval."
+              : "{names} are working in your browser now. Payments, sending, submitting and deleting wait for your approval.",
+            { names: <span className="font-medium">{names}</span> },
+          )
         ) : (
-          <>
-            {txNow(
-              employees.length === 1
-                ? "{names} can use your browser."
-                : "{names} can each use your browser.",
-              { names: <span className="font-medium">{names}</span> },
-            )}
-          </>
+          txNow(
+            employees.length === 1
+              ? "{names} can use your browser."
+              : "{names} can each use your browser.",
+            { names: <span className="font-medium">{names}</span> },
+          )
         )}
         {problem ? (
           <span className="ml-2 text-destructive">{problem}</span>

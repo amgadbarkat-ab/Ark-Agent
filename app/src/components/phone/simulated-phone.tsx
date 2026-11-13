@@ -48,8 +48,8 @@ function CallPanel({ call }: { call: PhoneCall }) {
       <p className="flex items-center gap-2 font-medium text-sm">
         <IconPhone className="size-4" />
         {shown.step === "ringing"
-          ? "ArkAgent is calling (simulated)"
-          : "On a call with ArkAgent (simulated)"}
+          ? t("ArkAgent is calling (simulated)")
+          : t("On a call with ArkAgent (simulated)")}
       </p>
       {shown.said ? (
         <p className="mt-2 text-muted-foreground text-sm" role="status">

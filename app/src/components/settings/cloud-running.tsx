@@ -119,12 +119,14 @@ export function CloudRunningSection() {
                 <ItemTitle>{formatPeriod(cloud.period)}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {cloud.atCap
-                    ? "The limit is reached, so no more cloud runs start this month. Raise it or wait for next month."
+                    ? t(
+                        "The limit is reached, so no more cloud runs start this month. Raise it or wait for next month.",
+                      )
                     : cloud.nearCap
-                      ? "Close to the limit."
+                      ? t("Close to the limit.")
                       : cloud.usageLines.length > 0
                         ? cloud.usageLines.join(" · ")
-                        : "Nothing used yet."}
+                        : t("Nothing used yet.")}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
@@ -305,9 +307,9 @@ function CloudForm({
         <DialogTitle>
           {cloud.enabled
             ? cloud.ratesChanged
-              ? "The prices changed"
-              : "Cloud running"
-            : "Switch on cloud running"}
+              ? t("The prices changed")
+              : t("Cloud running")
+            : t("Switch on cloud running")}
         </DialogTitle>
         <DialogDescription>
           {t(
@@ -398,7 +400,7 @@ function CloudForm({
             type="button"
             variant="outline"
           >
-            {disable.isPending ? "Switching off…" : "Switch off"}
+            {disable.isPending ? t("Switching off…") : t("Switch off")}
           </Button>
         ) : null}
         {cloud.enabled && !cloud.ratesChanged ? (
@@ -410,7 +412,7 @@ function CloudForm({
             size="sm"
             type="button"
           >
-            {setCap.isPending ? "Saving…" : "Save limit"}
+            {setCap.isPending ? "Saving…" : t("Save limit")}
           </Button>
         ) : (
           <Button
@@ -429,8 +431,8 @@ function CloudForm({
             {enable.isPending
               ? "Saving…"
               : cloud.enabled
-                ? "Agree to the new prices"
-                : "Switch on"}
+                ? t("Agree to the new prices")
+                : t("Switch on")}
           </Button>
         )}
       </DialogFooter>

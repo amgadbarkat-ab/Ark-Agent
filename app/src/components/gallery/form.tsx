@@ -140,8 +140,10 @@ function InvalidForm({
     <GalleryFrame title={t("Form unavailable")}>
       <p role="alert" className="text-sm text-muted-foreground">
         {returned
-          ? "The form had invalid questions. The digital employee can send a corrected form."
-          : "The form has invalid questions and could not be displayed."}
+          ? t(
+              "The form had invalid questions. The digital employee can send a corrected form.",
+            )
+          : t("The form has invalid questions and could not be displayed.")}
       </p>
       {failed && (
         <Button className="mt-3" size="sm" onClick={() => void returnToBot()}>
@@ -238,7 +240,7 @@ function FormEntry({
       caption={args.description}
       action={
         <Badge tone={finished ? "positive" : "caution"}>
-          {finished ? "Submitted" : "Waiting on you"}
+          {finished ? "Submitted" : t("Waiting on you")}
         </Badge>
       }
     >
@@ -255,7 +257,7 @@ function FormEntry({
                   <dd className="whitespace-pre-wrap break-words font-medium">
                     {Object.hasOwn(answer.values, field.id)
                       ? answer.values[field.id]
-                      : "Not provided"}
+                      : t("Not provided")}
                   </dd>
                 </div>
               ))}
@@ -377,7 +379,7 @@ function FormEntry({
           )}
           <div className="flex justify-end border-t border-border pt-3">
             <Button type="submit" size="sm" disabled={sending || !respond}>
-              {sending ? "Sending…" : (args.submitLabel ?? "Submit answers")}
+              {sending ? "Sending…" : (args.submitLabel ?? t("Submit answers"))}
             </Button>
           </div>
         </form>

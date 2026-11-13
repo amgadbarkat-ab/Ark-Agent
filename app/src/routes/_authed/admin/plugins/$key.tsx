@@ -461,13 +461,19 @@ function RouteComponent() {
               <ItemTitle>{t("Enable for this deployment")}</ItemTitle>
               <ItemDescription>
                 {server
-                  ? "Digital employees may be granted its tools. Switching this off removes it and every grant on its tools."
-                  : "No digital employee can reach this vendor. Switch it on to configure it and grant its tools."}
+                  ? t(
+                      "Digital employees may be granted its tools. Switching this off removes it and every grant on its tools.",
+                    )
+                  : t(
+                      "No digital employee can reach this vendor. Switch it on to configure it and grant its tools.",
+                    )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label={`Enable ${title} for this deployment`}
+                aria-label={t("Enable {title} for this deployment", {
+                  title: title,
+                })}
                 checked={server !== undefined}
                 onCheckedChange={(next) => {
                   setError(null);
@@ -484,13 +490,21 @@ function RouteComponent() {
         <PageSection
           description={
             auth === "user-oauth"
-              ? "This vendor answers as whoever is asking. The deployment registers an OAuth client, and each person connects their own account, so a digital employee only ever sees what that person can see."
+              ? t(
+                  "This vendor answers as whoever is asking. The deployment registers an OAuth client, and each person connects their own account, so a digital employee only ever sees what that person can see.",
+                )
               : auth === "builtin"
-                ? "Built into this deployment. There is no vendor to reach and no credential to hold — a call runs as whoever asked."
+                ? t(
+                    "Built into this deployment. There is no vendor to reach and no credential to hold — a call runs as whoever asked.",
+                  )
                 : auth === "brokered"
                   ? /* The row below says how, at length. This says whose account it is, which is the part that decides what an administrator has to do here — which is nothing. */
-                    "Reached through Composio, which holds each person's own account."
-                  : "What this deployment presents to the vendor. One credential, used for everybody."
+                    t(
+                      "Reached through Composio, which holds each person's own account.",
+                    )
+                  : t(
+                      "What this deployment presents to the vendor. One credential, used for everybody.",
+                    )
           }
           title={t("Connection")}
         >
@@ -578,7 +592,7 @@ function RouteComponent() {
                 </ItemContent>
                 <ItemActions>
                   <span className="text-muted-foreground text-xs">
-                    {server?.hasCredential ? "Held" : "Not set"}
+                    {server?.hasCredential ? "Held" : t("Not set")}
                   </span>
                   <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                 </ItemActions>
@@ -625,7 +639,7 @@ function RouteComponent() {
                 </ItemContent>
                 <ItemActions>
                   <span className="text-muted-foreground text-xs">
-                    {server?.hasCredential ? "Registered" : "Not registered"}
+                    {server?.hasCredential ? "Registered" : t("Not registered")}
                   </span>
                   <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                 </ItemActions>
@@ -671,8 +685,14 @@ function RouteComponent() {
                     /* Said beside the button rather than after it: disconnecting ends the account
                        at Composio, so what it undoes is not the row here but the grant on this
                        person's mailbox, and connecting again is a fresh consent. */
-                    connectedDescription={`Connected, so a digital employee granted these tools uses your ${title} as you. Disconnecting ends the account at Composio, not just here.`}
-                    disconnectedDescription={`Connect your own account to try this connector. ${reassurance}`}
+                    connectedDescription={t(
+                      "Connected, so a digital employee granted these tools uses your {title} as you. Disconnecting ends the account at Composio, not just here.",
+                      { title: title },
+                    )}
+                    disconnectedDescription={t(
+                      "Connect your own account to try this connector. {reassurance}",
+                      { reassurance: reassurance },
+                    )}
                     /* The half of the line above that is true whichever way this app connects.
                        An app whose key somebody types gets a different first sentence from the
                        row — pressing Connect opens a form rather than leaving for a consent
@@ -697,8 +717,13 @@ function RouteComponent() {
                       <ItemTitle>{t("Your account")}</ItemTitle>
                       <ItemDescription>
                         {youConnected
-                          ? `Connected, so a digital employee granted these tools uses your ${title} as you. Everybody else connects their own.`
-                          : "Connect your own account to try this connector. Setup is complete without it, and it reaches your documents only."}
+                          ? t(
+                              "Connected, so a digital employee granted these tools uses your {title} as you. Everybody else connects their own.",
+                              { title: title },
+                            )
+                          : t(
+                              "Connect your own account to try this connector. Setup is complete without it, and it reaches your documents only.",
+                            )}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -757,7 +782,7 @@ function RouteComponent() {
                   </ItemContent>
                   <ItemActions>
                     <span className="text-muted-foreground text-xs">
-                      {server?.url ?? "Not set"}
+                      {server?.url ?? t("Not set")}
                     </span>
                     <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </ItemActions>
@@ -778,12 +803,16 @@ function RouteComponent() {
                     <ItemTitle>
                       {auth === "builtin"
                         ? "Documentation"
-                        : "Vendor documentation"}
+                        : t("Vendor documentation")}
                     </ItemTitle>
                     <ItemDescription>
                       {auth === "builtin"
-                        ? "What these tools offer, from the people who maintain them."
-                        : "What this server offers, from the people who maintain it."}
+                        ? t(
+                            "What these tools offer, from the people who maintain them.",
+                          )
+                        : t(
+                            "What this server offers, from the people who maintain it.",
+                          )}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -873,7 +902,7 @@ function RouteComponent() {
           {server.tools.length === 0 ? (
             <PageEmpty>
               {server.lastError ??
-                "No tools listed. Refresh to ask the vendor again."}
+                t("No tools listed. Refresh to ask the vendor again.")}
             </PageEmpty>
           ) : (
             <PageRows>
@@ -1040,17 +1069,21 @@ function RouteComponent() {
           <DialogHeader>
             <DialogTitle>
               {dialog === "client"
-                ? `OAuth client for ${title}`
+                ? t("OAuth client for {title}", { title: title })
                 : dialog === "instance"
-                  ? `Instance host for ${title}`
-                  : `Access token for ${title}`}
+                  ? t("Instance host for {title}", { title: title })
+                  : t("Access token for {title}", { title: title })}
             </DialogTitle>
             <DialogDescription>
               {dialog === "client"
-                ? "From the vendor's console. The secret is stored in this deployment's vault and never read back."
+                ? t(
+                    "From the vendor's console. The secret is stored in this deployment's vault and never read back.",
+                  )
                 : dialog === "instance"
-                  ? "Your own hostname with this vendor. It is checked against their pattern before anything is stored."
-                  : "Stored in this deployment's vault and never read back."}
+                  ? t(
+                      "Your own hostname with this vendor. It is checked against their pattern before anything is stored.",
+                    )
+                  : t("Stored in this deployment's vault and never read back.")}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4">
@@ -1303,15 +1336,23 @@ function RouteComponent() {
               {/* What is about to happen, in one sentence, before it does. */}
               {selectedRefs.size > 0 && chosenNames.length > 0 ? (
                 <p className="flex-1 text-muted-foreground text-xs">
-                  {`Grant ${selectedRefs.size} ${
-                    selectedRefs.size === 1 ? "tool" : "tools"
-                  }${
-                    chosenWrites > 0
-                      ? `, ${chosenWrites} of which ${
-                          chosenWrites === 1 ? "changes" : "change"
-                        } things,`
-                      : ""
-                  } to ${chosenNames.join(", ")}.`}
+                  {chosenWrites > 0
+                    ? t(
+                        "Grant {count} tools, {writes} of which change things, to {names}.",
+                        {
+                          count: selectedRefs.size,
+                          writes: chosenWrites,
+                          names: chosenNames.join(", "),
+                        },
+                      )
+                    : selectedRefs.size === 1
+                      ? t("Grant 1 tool to {names}.", {
+                          names: chosenNames.join(", "),
+                        })
+                      : t("Grant {count} tools to {names}.", {
+                          count: selectedRefs.size,
+                          names: chosenNames.join(", "),
+                        })}
                 </p>
               ) : null}
               <Button onClick={() => setDialog(null)} size="sm" variant="ghost">
@@ -1328,7 +1369,10 @@ function RouteComponent() {
               >
                 {/* The one in flight, not the ones finished: a count that starts at zero of twelve reads as nothing happening. */}
                 {granting
-                  ? `Granting ${Math.min(granting.done + 1, granting.total)} of ${granting.total}…`
+                  ? t("Granting {value1} of {total}…", {
+                      value1: Math.min(granting.done + 1, granting.total),
+                      total: granting.total,
+                    })
                   : "Grant"}
               </Button>
             </DialogFooter>

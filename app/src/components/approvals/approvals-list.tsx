@@ -131,7 +131,7 @@ export function ApprovalItem({
     <Item variant="muted">
       <ItemContent>
         <ItemTitle>
-          {row.requestedBy.name ?? "A digital employee"}
+          {row.requestedBy.name ?? t("A digital employee")}
           {row.target?.name ? ` · for ${row.target.name}` : ""}
         </ItemTitle>
         <ItemDescription className="text-xs">

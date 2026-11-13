@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { keyOf } from "@/lib/hotkeys/hotkeys";
+import { useT } from "@/lib/i18n";
 import { socketUrl } from "@/lib/socket-url";
 import { currentPageVisible } from "./preview-visibility";
 import { pageCoordinates } from "./take-the-wheel";
@@ -62,6 +63,7 @@ type FrameMessage = {
 };
 
 export function LiveScreen({ computerId, driving, onProblem }: Props) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   /** Keydowns handled locally whose matching keyup must not leak to the remote browser. */
@@ -385,8 +387,8 @@ export function LiveScreen({ computerId, driving, onProblem }: Props) {
         : {})}
       aria-label={
         driving
-          ? "The assistant's screen. You have control: click and type here."
-          : "The assistant's screen, live"
+          ? t("The assistant's screen. You have control: click and type here.")
+          : t("The assistant's screen, live")
       }
       data-connected={connected}
     />

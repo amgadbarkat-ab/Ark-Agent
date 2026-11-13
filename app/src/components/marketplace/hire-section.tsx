@@ -72,8 +72,12 @@ export function HireSection() {
         }
         description={
           kind === "official"
-            ? "Made by Ark. Hire one and it joins your team as a digital employee of yours, with its skills and no tools until you grant them."
-            : "Set up by other people. These are for reading: they cannot be hired, copied or exported."
+            ? t(
+                "Made by Ark. Hire one and it joins your team as a digital employee of yours, with its skills and no tools until you grant them.",
+              )
+            : t(
+                "Set up by other people. These are for reading: they cannot be hired, copied or exported.",
+              )
         }
         title={t("Hire a digital employee")}
       >
@@ -115,7 +119,7 @@ export function HireSection() {
               <SelectValue>
                 {category
                   ? CATEGORIES.find((c) => c.id === category)?.name
-                  : "All categories"}
+                  : t("All categories")}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -136,10 +140,10 @@ export function HireSection() {
         ) : rows.length === 0 ? (
           <PageEmpty>
             {q || category
-              ? "Nothing matches that."
+              ? t("Nothing matches that.")
               : kind === "shared"
-                ? "Nobody has shared a digital employee yet."
-                : "Nothing is listed yet."}
+                ? t("Nobody has shared a digital employee yet.")
+                : t("Nothing is listed yet.")}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -184,7 +188,7 @@ export function HireSection() {
             size="sm"
             variant="outline"
           >
-            {listings.isFetchingNextPage ? "Loading…" : "Show more"}
+            {listings.isFetchingNextPage ? "Loading…" : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

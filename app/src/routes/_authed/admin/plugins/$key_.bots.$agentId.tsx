@@ -250,7 +250,7 @@ function RouteComponent() {
             <ItemContent>
               <ItemTitle className="font-mono text-xs">{tool.name}</ItemTitle>
               <ItemDescription>
-                {tool.description || "This action came with no description."}
+                {tool.description || t("This action came with no description.")}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -276,7 +276,10 @@ function RouteComponent() {
                * while its own write is in flight, so switching one action does not freeze the list.
                */}
               <Switch
-                aria-label={`Let ${botName} call ${tool.name}`}
+                aria-label={t("Let {botName} call {name}", {
+                  botName: botName,
+                  name: tool.name,
+                })}
                 checked={held(tool)}
                 disabled={
                   granting !== null ||
@@ -303,7 +306,10 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={`Which of ${appTitle}'s actions ${botName} may call. Every call is decided again when it happens, so switching one off takes effect on the next one.`}
+      description={t(
+        "Which of {appTitle}'s actions {botName} may call. Every call is decided again when it happens, so switching one off takes effect on the next one.",
+        { appTitle: appTitle, botName: botName },
+      )}
       title={`${botName} and ${appTitle}`}
     >
       {error ? (
@@ -320,7 +326,7 @@ function RouteComponent() {
       ) : (
         <>
           <Input
-            aria-label={`Search ${appTitle} actions`}
+            aria-label={t("Search {appTitle} actions", { appTitle: appTitle })}
             className="mt-6"
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t("Search by action name")}
@@ -338,9 +344,14 @@ function RouteComponent() {
           {ungranted.length > 0 ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
               <p className="text-muted-foreground text-xs">
-                {`This Bot would then hold ${wouldHold} ${
-                  wouldHold === 1 ? "tool" : "tools"
-                } from this app.`}
+                {t(
+                  wouldHold === 1
+                    ? "This digital employee would then hold 1 tool from this app."
+                    : "This digital employee would then hold {count} tools from this app.",
+                  {
+                    count: wouldHold,
+                  },
+                )}
               </p>
               <Button
                 disabled={granting !== null}
@@ -351,8 +362,11 @@ function RouteComponent() {
               >
                 {/* The one in flight, not the ones finished: a count starting at zero of forty reads as nothing happening. */}
                 {granting
-                  ? `Granting ${Math.min(granting.done + 1, granting.total)} of ${granting.total}…`
-                  : "Turn on every read-only action"}
+                  ? t("Granting {value1} of {total}…", {
+                      value1: Math.min(granting.done + 1, granting.total),
+                      total: granting.total,
+                    })
+                  : t("Turn on every read-only action")}
               </Button>
             </div>
           ) : null}
@@ -366,7 +380,9 @@ function RouteComponent() {
             {reads.length === 0 ? (
               <PageEmpty>
                 {needle
-                  ? `Nothing that only reads matches "${search.trim()}".`
+                  ? t('Nothing that only reads matches "{value1}".', {
+                      value1: search.trim(),
+                    })
                   : `${appTitle} offers nothing that only reads.`}
               </PageEmpty>
             ) : (
@@ -383,7 +399,9 @@ function RouteComponent() {
             {writes.length === 0 ? (
               <PageEmpty>
                 {needle
-                  ? `Nothing that changes things matches "${search.trim()}".`
+                  ? t('Nothing that changes things matches "{value1}".', {
+                      value1: search.trim(),
+                    })
                   : `${appTitle} offers nothing that changes anything.`}
               </PageEmpty>
             ) : (

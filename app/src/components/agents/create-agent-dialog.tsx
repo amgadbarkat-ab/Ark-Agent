@@ -368,7 +368,7 @@ function CreateAgentWizard({
               {last
                 ? createAgent.isPending
                   ? "Creating…"
-                  : "Create digital employee"
+                  : t("Create digital employee")
                 : "Continue"}
             </Button>
           </div>
@@ -554,7 +554,9 @@ function KindStep({
               <span className="font-medium">{option.title}</span>
               <QuestionnaireChoiceDescription>
                 {unavailable
-                  ? "Not available here: this deployment has no digital employee of its own for a digital employee to run on."
+                  ? t(
+                      "Not available here: this deployment has no digital employee of its own for a digital employee to run on.",
+                    )
                   : option.description}
               </QuestionnaireChoiceDescription>
             </QuestionnaireChoice>
@@ -598,7 +600,9 @@ function KindStep({
                 role="status"
               >
                 {connection.ok
-                  ? `It answered: ${connection.events.join(", ")}`
+                  ? t("It answered: {value1}", {
+                      value1: connection.events.join(", "),
+                    })
                   : connection.reason}
               </p>
             ) : (
@@ -624,7 +628,7 @@ function KindStep({
             <p className="text-muted-foreground text-sm">
               {txNow(
                 "Sent as an {header} header on every run, and kept in the credential vault.",
-                { header: <code>Authorization</code> },
+                { header: <code>{t("Authorization")}</code> },
               )}
             </p>
           </Field>

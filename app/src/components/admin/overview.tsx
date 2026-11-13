@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { formatEur } from "@/lib/account/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   type OverviewAttention,
   type OverviewCheck,
@@ -46,8 +46,9 @@ const SCREENS: Record<string, LinkOptions> = {
   "/admin/marketplace": { to: "/admin/marketplace" },
 };
 
+/** "3 accounts", with the noun in the chosen language. */
 const plural = (n: number, one: string, many: string) =>
-  `${n} ${n === 1 ? one : many}`;
+  `${n} ${tNow(n === 1 ? one : many)}`;
 
 const number = new Intl.NumberFormat("en");
 
@@ -109,10 +110,12 @@ export function AdminOverview() {
                 ? customers.byPlan
                     .map((plan) => `${plan.name} ${plan.paying}`)
                     .join(", ")
-                : "No plans are for sale."
+                : t("No plans are for sale.")
             }
             icon={<IconUsers />}
-            title={`Paying customers, of ${plural(customers.accounts, "account", "accounts")}`}
+            title={t("Paying customers, of {accounts}", {
+              accounts: plural(customers.accounts, "account", "accounts"),
+            })}
             value={number.format(customers.paying)}
           />
           <Separator />
@@ -126,14 +129,30 @@ export function AdminOverview() {
           />
           <Separator />
           <Figure
-            description={`${plural(customers.newLast30Days, "account", "accounts")} in the last 30 days, and ${plural(customers.newPeopleLast7Days, "person", "people")} signed up this week.`}
+            description={t(
+              "{accounts} in the last 30 days, and {people} signed up this week.",
+              {
+                accounts: plural(
+                  customers.newLast30Days,
+                  "account",
+                  "accounts",
+                ),
+                people: plural(
+                  customers.newPeopleLast7Days,
+                  "person",
+                  "people",
+                ),
+              },
+            )}
             icon={<IconUserPlus />}
             title={t("New accounts this week")}
             value={number.format(customers.newLast7Days)}
           />
           <Separator />
           <Figure
-            description={`${plural(now.queuedWork, "background job", "background jobs")} waiting for a turn.`}
+            description={t("{jobs} waiting for a turn.", {
+              jobs: plural(now.queuedWork, "background job", "background jobs"),
+            })}
             icon={<IconActivity />}
             title={t("Working right now")}
             value={`${plural(now.runs, "run", "runs")}, ${plural(now.accounts, "account", "accounts")}`}
@@ -144,11 +163,34 @@ export function AdminOverview() {
               <Figure
                 description={
                   cloud.priced
-                    ? `${cloud.hours.toFixed(1)} hours across ${plural(cloud.accountsUsing, "account", "accounts")}. ${formatEur(cloud.chargeCents)} would be charged if the month ended now.`
-                    : `${cloud.hours.toFixed(1)} hours across ${plural(cloud.accountsUsing, "account", "accounts")}. No prices are set yet, so nothing is charged.`
+                    ? t(
+                        "{hours} hours across {accounts}. {charge} would be charged if the month ended now.",
+                        {
+                          hours: cloud.hours.toFixed(1),
+                          accounts: plural(
+                            cloud.accountsUsing,
+                            "account",
+                            "accounts",
+                          ),
+                          charge: formatEur(cloud.chargeCents),
+                        },
+                      )
+                    : t(
+                        "{hours} hours across {accounts}. No prices are set yet, so nothing is charged.",
+                        {
+                          hours: cloud.hours.toFixed(1),
+                          accounts: plural(
+                            cloud.accountsUsing,
+                            "account",
+                            "accounts",
+                          ),
+                        },
+                      )
                 }
                 icon={<IconCloud />}
-                title={`Cloud running in ${cloud.period}, cost to us`}
+                title={t("Cloud running in {period}, cost to us", {
+                  period: cloud.period,
+                })}
                 value={formatEur(cloud.costCents)}
               />
             </>
@@ -159,8 +201,15 @@ export function AdminOverview() {
       <PageSection
         description={
           outstanding > 0
-            ? `${plural(outstanding, "thing is", "things are")} still to settle before customers can rely on this. Read from how it is set up now.`
-            : "Nothing is outstanding. Read from how it is set up now."
+            ? outstanding === 1
+              ? t(
+                  "1 thing is still to settle before customers can rely on this. Read from how it is set up now.",
+                )
+              : t(
+                  "{count} things are still to settle before customers can rely on this. Read from how it is set up now.",
+                  { count: outstanding },
+                )
+            : t("Nothing is outstanding. Read from how it is set up now.")
         }
         title={t("Before customers rely on it")}
       >
@@ -238,6 +287,7 @@ function AttentionRow({ item }: { item: OverviewAttention }) {
 }
 
 function CheckRow({ check }: { check: OverviewCheck }) {
+  const t = useT();
   return (
     <Item size="sm">
       <ItemMedia variant="icon">
@@ -266,8 +316,8 @@ function CheckRow({ check }: { check: OverviewCheck }) {
           {check.state === "ok"
             ? "Done"
             : check.state === "todo"
-              ? "To do"
-              : "Your choice"}
+              ? t("To do")
+              : t("Your choice")}
         </span>
       </ItemActions>
     </Item>

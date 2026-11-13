@@ -42,7 +42,7 @@ function PublisherPage() {
       description={
         publisher.bio ||
         (publisher.official
-          ? "Digital employees made by the Ark team."
+          ? t("Digital employees made by the Ark team.")
           : undefined)
       }
       title={publisher.displayName}

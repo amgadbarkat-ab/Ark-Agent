@@ -2,7 +2,7 @@ import { useRenderTool } from "@copilotkit/react-core/v2";
 import { z } from "zod";
 import { ToolLine } from "@/components/channels/tool-line";
 import { HANDED_OVER } from "@/lib/copilot/markers";
-import { tNow } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { saidItWentAhead } from "@/lib/plugins/tool-result";
 
 /**
@@ -57,10 +57,15 @@ function AskedLine({
   result: unknown;
   status: string;
 }) {
+  const t = useT();
   const running = status !== "complete" && result === undefined;
   return (
     <ToolLine
-      label={asked ? `Asked ${asked}` : "Asked another digital employee"}
+      label={
+        asked
+          ? t("Asked {asked}", { asked: asked })
+          : t("Asked another digital employee")
+      }
       detail={given?.task}
       running={running}
       refused={!running && refused(result)}

@@ -139,7 +139,7 @@ function NothingToSee({
           */}
           {page?.url ? (
             <>
-              <span className="font-medium">{page.title || "A page"}</span>
+              <span className="font-medium">{page.title || t("A page")}</span>
               <span className="break-all">{hostOf(page.url)}</span>
               <span>
                 {t("Opened during this turn. The screen has moved on since.")}
@@ -580,7 +580,7 @@ export function ComputerView({
                 disabled={!secret || sendingSecret}
                 className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
               >
-                {sendingSecret ? "Sending…" : "Send to the page"}
+                {sendingSecret ? "Sending…" : t("Send to the page")}
               </button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">

@@ -115,8 +115,11 @@ export function ProposedSkillCard({
       action={<Badge tone="caution">{t("Waiting on you")}</Badge>}
       caption={
         replaces
-          ? `This replaces ${replaces.title}, which is ${replaces.ownership}.`
-          : "Nothing is saved until you press the button."
+          ? t("This replaces {title}, which is {ownership}.", {
+              title: replaces.title,
+              ownership: replaces.ownership,
+            })
+          : t("Nothing is saved until you press the button.")
       }
       title={titleFor(values.slug, replaces)}
     >
@@ -170,8 +173,8 @@ export function ProposedSkillCard({
           {sending === "save"
             ? "Saving…"
             : replaces
-              ? "Replace it"
-              : "Create it"}
+              ? t("Replace it")
+              : t("Create it")}
         </Button>
         <Button
           disabled={Boolean(sending)}
@@ -179,7 +182,7 @@ export function ProposedSkillCard({
           size="sm"
           variant="outline"
         >
-          {sending === "decline" ? "…" : "Don't save"}
+          {sending === "decline" ? "…" : t("Don't save")}
         </Button>
       </div>
     </GalleryFrame>

@@ -94,12 +94,12 @@ function MinePage() {
               </ItemMedia>
               <ItemContent>
                 <ItemTitle>
-                  {publisher?.displayName ?? "Not chosen yet"}
+                  {publisher?.displayName ?? t("Not chosen yet")}
                 </ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {publisher
-                    ? publisher.bio || "Shown on everything you share."
-                    : "Chosen when you share your first digital employee."}
+                    ? publisher.bio || t("Shown on everything you share.")
+                    : t("Chosen when you share your first digital employee.")}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>

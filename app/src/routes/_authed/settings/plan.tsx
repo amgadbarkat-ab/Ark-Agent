@@ -165,8 +165,12 @@ function PlanPage() {
     <PageShell
       description={
         purchasesAllowed
-          ? "What you have, how much of it is in use, and how to change it. A digital employee counts only while it is working."
-          : "What you have and how much of it is in use. A digital employee counts only while it is working."
+          ? t(
+              "What you have, how much of it is in use, and how to change it. A digital employee counts only while it is working.",
+            )
+          : t(
+              "What you have and how much of it is in use. A digital employee counts only while it is working.",
+            )
       }
       title={t("Plan")}
     >
@@ -179,10 +183,14 @@ function PlanPage() {
           {waiting ? (
             <p className="mt-4 text-sm" role="status">
               {gaveUp
-                ? "This is taking longer than usual. If your plan does not appear soon, contact us and we will sort it out."
+                ? t(
+                    "This is taking longer than usual. If your plan does not appear soon, contact us and we will sort it out.",
+                  )
                 : requested !== null
-                  ? "Changing your plan. This page updates by itself."
-                  : "Thank you. We are confirming your payment. This page updates by itself."}
+                  ? t("Changing your plan. This page updates by itself.")
+                  : t(
+                      "Thank you. We are confirming your payment. This page updates by itself.",
+                    )}
             </p>
           ) : null}
           {!waiting && !data.account.canRun && data.account.blockedReason ? (
@@ -191,9 +199,9 @@ function PlanPage() {
               (data.account.blockedCode === "no_plan" ||
                 data.account.blockedCode === "canceled" ||
                 data.account.blockedCode === "trial_ended")
-                ? "This account does not have an active plan."
+                ? t("This account does not have an active plan.")
                 : data.account.blockedCode === "no_plan"
-                  ? "Choose a plan to start your digital employees."
+                  ? t("Choose a plan to start your digital employees.")
                   : data.account.blockedReason}
             </p>
           ) : null}
@@ -206,7 +214,9 @@ function PlanPage() {
           <PageSection
             description={
               data.billing.mode === "internal"
-                ? "This deployment is run by your company: nobody pays and there is no limit."
+                ? t(
+                    "This deployment is run by your company: nobody pays and there is no limit.",
+                  )
                 : undefined
             }
             title={t("Your plan")}
@@ -327,8 +337,10 @@ function PlanPage() {
                         <ItemTitle>{t("Cancel")}</ItemTitle>
                         <ItemDescription>
                           {confirmCancel
-                            ? "Your digital employees keep working until the end of the period you have paid for. Cancel now?"
-                            : "Stop renewing at the end of this period."}
+                            ? t(
+                                "Your digital employees keep working until the end of the period you have paid for. Cancel now?",
+                              )
+                            : t("Stop renewing at the end of this period.")}
                         </ItemDescription>
                       </ItemContent>
                       <ItemActions>
@@ -351,7 +363,9 @@ function PlanPage() {
                               size="sm"
                               variant="destructive"
                             >
-                              {cancel.isPending ? "Cancelling…" : "Cancel plan"}
+                              {cancel.isPending
+                                ? "Cancelling…"
+                                : t("Cancel plan")}
                             </Button>
                           </>
                         ) : (
@@ -427,7 +441,7 @@ function PlanRow({
           </span>
         ) : (
           <Button
-            aria-label={`Choose ${plan.name}`}
+            aria-label={t("Choose {name}", { name: plan.name })}
             disabled={busy || !selfService}
             onClick={onChoose}
             size="sm"

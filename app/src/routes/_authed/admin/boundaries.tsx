@@ -131,20 +131,16 @@ function BoundariesPage() {
 
   return (
     <PageShell
-      description={
-        <>
-          {txNow(
-            "What every digital employee may and may not do with its computer. Rules are checked on every action before it happens, and a refusal is recorded in {audit} with the rule that refused it.",
-            {
-              audit: (
-                <Link className="underline" to="/admin/audit">
-                  {t("Audit")}
-                </Link>
-              ),
-            },
-          )}
-        </>
-      }
+      description={txNow(
+        "What every digital employee may and may not do with its computer. Rules are checked on every action before it happens, and a refusal is recorded in {audit} with the rule that refused it.",
+        {
+          audit: (
+            <Link className="underline" to="/admin/audit">
+              {t("Audit")}
+            </Link>
+          ),
+        },
+      )}
       title={t("Boundaries")}
     >
       <PageSection
@@ -182,30 +178,26 @@ function BoundariesPage() {
       </PageSection>
 
       <PageSection
-        description={
-          <>
-            {txNow(
-              "Checked first, and a match ends it: nothing below is consulted and the digital employee is told which rule refused it. Rules are CEL, and can ask about {toolName}, {intent}, {botId}, {actorId}, {pageUrl} and {pageHost}, the element being acted on, the {key} being pressed, the file being touched, the {command} being run, and {mcpServer}, {mcpTool} and {mcpEffect} for a call to somebody else’s tools. {initiatorKind} says what started the run — {person}, {routine} or {handoff} — which {actorId} cannot, because a scheduled run carries its owner’s authority while nobody is watching. A rule that cannot be evaluated counts as a match, so a mistyped deny refuses rather than quietly permitting what it was meant to forbid.",
-              {
-                toolName: <code>tool.name</code>,
-                intent: <code>intent</code>,
-                botId: <code>bot.id</code>,
-                actorId: <code>actor.id</code>,
-                pageUrl: <code>page.url</code>,
-                pageHost: <code>page.host</code>,
-                key: <code>key</code>,
-                command: <code>command</code>,
-                mcpServer: <code>mcp.server</code>,
-                mcpTool: <code>mcp.tool</code>,
-                mcpEffect: <code>mcp.effect</code>,
-                initiatorKind: <code>initiator.kind</code>,
-                person: <code>person</code>,
-                routine: <code>routine</code>,
-                handoff: <code>handoff</code>,
-              },
-            )}
-          </>
-        }
+        description={txNow(
+          "Checked first, and a match ends it: nothing below is consulted and the digital employee is told which rule refused it. Rules are CEL, and can ask about {toolName}, {intent}, {botId}, {actorId}, {pageUrl} and {pageHost}, the element being acted on, the {key} being pressed, the file being touched, the {command} being run, and {mcpServer}, {mcpTool} and {mcpEffect} for a call to somebody else’s tools. {initiatorKind} says what started the run — {person}, {routine} or {handoff} — which {actorId} cannot, because a scheduled run carries its owner’s authority while nobody is watching. A rule that cannot be evaluated counts as a match, so a mistyped deny refuses rather than quietly permitting what it was meant to forbid.",
+          {
+            toolName: <code>{t("tool.name")}</code>,
+            intent: <code>{t("intent")}</code>,
+            botId: <code>{t("bot.id")}</code>,
+            actorId: <code>{t("actor.id")}</code>,
+            pageUrl: <code>{t("page.url")}</code>,
+            pageHost: <code>{t("page.host")}</code>,
+            key: <code>{t("key")}</code>,
+            command: <code>{t("command")}</code>,
+            mcpServer: <code>{t("mcp.server")}</code>,
+            mcpTool: <code>{t("mcp.tool")}</code>,
+            mcpEffect: <code>{t("mcp.effect")}</code>,
+            initiatorKind: <code>{t("initiator.kind")}</code>,
+            person: <code>{t("person")}</code>,
+            routine: <code>{t("routine")}</code>,
+            handoff: <code>{t("handoff")}</code>,
+          },
+        )}
         title={t("It may never")}
       >
         {policy.deny.length === 0 ? (
@@ -268,7 +260,7 @@ function BoundariesPage() {
             size="sm"
             variant="outline"
           >
-            {testing ? "Testing…" : "Test first"}
+            {testing ? "Testing…" : t("Test first")}
           </Button>
           <Button
             disabled={saving || draft.trim().length === 0}
@@ -402,9 +394,11 @@ function BoundariesPage() {
             {problem}
           </span>
         ) : saved ? (
-          "Saved. It applies to the next action any digital employee takes."
+          t("Saved. It applies to the next action any digital employee takes.")
         ) : (
-          "Changes apply to the next action any digital employee takes, and are kept: a restart comes back up enforcing what is here."
+          t(
+            "Changes apply to the next action any digital employee takes, and are kept: a restart comes back up enforcing what is here.",
+          )
         )}
       </p>
     </PageShell>

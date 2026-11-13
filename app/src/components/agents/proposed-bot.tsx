@@ -143,8 +143,11 @@ export function ProposedBotCard({
       action={<Badge tone="caution">{t("Waiting on you")}</Badge>}
       caption={
         clashes
-          ? `There is already a ${clashes.title} here, which is ${clashes.ownership}. Names do not have to be unique, but two with the same name are hard to tell apart in a channel list.`
-          : "Nothing is created until you press the button."
+          ? t(
+              "There is already a {title} here, which is {ownership}. Names do not have to be unique, but two with the same name are hard to tell apart in a channel list.",
+              { title: clashes.title, ownership: clashes.ownership },
+            )
+          : t("Nothing is created until you press the button.")
       }
       title={titleFor(values.name, clashes)}
     >
@@ -197,7 +200,7 @@ export function ProposedBotCard({
           onClick={() => void make()}
           size="sm"
         >
-          {sending === "create" ? "Creating…" : "Create it"}
+          {sending === "create" ? "Creating…" : t("Create it")}
         </Button>
         <Button
           disabled={Boolean(sending)}
@@ -205,7 +208,7 @@ export function ProposedBotCard({
           size="sm"
           variant="outline"
         >
-          {sending === "decline" ? "…" : "Don't create"}
+          {sending === "decline" ? "…" : t("Don't create")}
         </Button>
       </div>
     </GalleryFrame>

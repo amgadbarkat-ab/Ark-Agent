@@ -44,7 +44,7 @@ export function ConnectorCard({ card }: { card: Card }) {
                   />
                 ) : null}
                 <span className="truncate">
-                  {mail.subject || "(no subject)"}
+                  {mail.subject || t("(no subject)")}
                 </span>
               </ItemTitle>
               <ItemDescription className="truncate text-xs">
@@ -114,7 +114,7 @@ export function ConnectorCard({ card }: { card: Card }) {
             >
               <ItemContent>
                 <ItemTitle className={event.cancelled ? "line-through" : ""}>
-                  {event.title || "(no title)"}
+                  {event.title || t("(no title)")}
                 </ItemTitle>
                 <ItemDescription className="text-xs">
                   {[

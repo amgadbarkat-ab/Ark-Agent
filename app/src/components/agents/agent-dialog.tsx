@@ -405,8 +405,10 @@ function PrimaryItem({
         <ItemTitle>{t("Primary digital employee")}</ItemTitle>
         <ItemDescription>
           {profile.primary
-            ? "Leads your team. The others know it is the lead, and when a request spans several roles it is the one to ask."
-            : "Your team has another lead. Make this one the lead instead."}
+            ? t(
+                "Leads your team. The others know it is the lead, and when a request spans several roles it is the one to ask.",
+              )
+            : t("Your team has another lead. Make this one the lead instead.")}
         </ItemDescription>
         {makePrimary.error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -501,7 +503,7 @@ function EditableTextItem({
           </span>
           {canManage ? (
             <Button
-              aria-label={`Edit ${label.toLowerCase()}`}
+              aria-label={t("Edit {value1}", { value1: label.toLowerCase() })}
               onClick={() => {
                 setDraft(value);
                 setEditing(true);
@@ -584,8 +586,8 @@ function VisibilityItem({
         <ItemTitle>{t("Visibility")}</ItemTitle>
         <ItemDescription>
           {value === "private"
-            ? "Only you can see it and start channels with it."
-            : "Everyone in the deployment can find and use it."}
+            ? t("Only you can see it and start channels with it.")
+            : t("Everyone in the deployment can find and use it.")}
         </ItemDescription>
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -666,10 +668,14 @@ function RunLocationItem({
         <ItemTitle>{t("Where it runs")}</ItemTitle>
         <ItemDescription>
           {value === "device"
-            ? "On your own computer, in the Ark desktop app. Included, and never run in the cloud instead."
+            ? t(
+                "On your own computer, in the Ark desktop app. Included, and never run in the cloud instead.",
+              )
             : status.addOn
-              ? "On Ark's computers. Paid at cost, only while it is working, once you switch cloud running on in Settings, Plan."
-              : "On Ark's computers."}
+              ? t(
+                  "On Ark's computers. Paid at cost, only while it is working, once you switch cloud running on in Settings, Plan.",
+                )
+              : t("On Ark's computers.")}
         </ItemDescription>
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -710,7 +716,7 @@ function RunLocationItem({
           </Select>
         ) : (
           <span className="text-sm text-muted-foreground">
-            {value === "device" ? "My computer" : "Ark's cloud"}
+            {value === "device" ? t("My computer") : t("Ark's cloud")}
           </span>
         )}
       </ItemActions>
@@ -804,7 +810,9 @@ function AccessSection({ agentId }: { agentId: string }) {
             </ItemContent>
             <ItemActions>
               <span className="text-sm text-muted-foreground tabular-nums">
-                {labels.length} {labels.length === 1 ? "tool" : "tools"}
+                {labels.length === 1
+                  ? tNow("1 tool")
+                  : tNow("{count} tools", { count: labels.length })}
               </span>
             </ItemActions>
           </Item>
@@ -896,8 +904,12 @@ function ManageSection({
             <ItemTitle>{profile.hidden ? "Hidden" : "Hide"}</ItemTitle>
             <ItemDescription>
               {profile.hidden
-                ? "Hidden from your agents list. This changes nothing for anyone else."
-                : "Take it off your agents list. This changes nothing for anyone else."}
+                ? t(
+                    "Hidden from your agents list. This changes nothing for anyone else.",
+                  )
+                : t(
+                    "Take it off your agents list. This changes nothing for anyone else.",
+                  )}
             </ItemDescription>
           </ItemContent>
           <ItemActions>

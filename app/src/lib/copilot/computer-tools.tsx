@@ -461,8 +461,8 @@ export function ComputerTools() {
         running={status !== "complete"}
         label={
           outcomeOf(result).held === true
-            ? "Waiting for your approval to fill in"
-            : "Filled in"
+            ? t("Waiting for your approval to fill in")
+            : t("Filled in")
         }
         detail={
           // Never show typed values; identify only the target field.
@@ -509,7 +509,7 @@ export function ComputerTools() {
           running={status !== "complete"}
           label={
             outcome.held === true
-              ? "Waiting for your approval to click"
+              ? t("Waiting for your approval to click")
               : "Clicked"
           }
           detail={
@@ -562,7 +562,7 @@ export function ComputerTools() {
         running={status !== "complete"}
         label={
           outcomeOf(result).held === true
-            ? "Waiting for your approval to press"
+            ? t("Waiting for your approval to press")
             : "Pressed"
         }
         detail={typeof args?.key === "string" ? args.key : undefined}
@@ -956,7 +956,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label={args?.append === true ? "Added to file" : "Saved file"}
+          label={args?.append === true ? t("Added to file") : t("Saved file")}
           // Show the path, never file contents.
           detail={
             outcome.refused === true

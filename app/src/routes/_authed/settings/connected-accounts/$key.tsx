@@ -264,7 +264,10 @@ function RouteComponent() {
               /* Said beside the button rather than after it: disconnecting ends the account at
                  Composio, so what it undoes is not the row here but the grant on your own mailbox,
                  and connecting again is a fresh consent. */
-              connectedDescription={`A digital employee granted its tools reads your ${server.title} as you. Disconnecting ends the account at Composio, not just here.`}
+              connectedDescription={t(
+                "A digital employee granted its tools reads your {title} as you. Disconnecting ends the account at Composio, not just here.",
+                { title: server.title },
+              )}
               disconnectedDescription={`${reassurance} Connecting takes you to Composio and then to the vendor to consent.`}
               /* What is true either way. The trip to Composio is not — an app whose key somebody
                  types never leaves this page — but which digital employees can read this person's mail is the
@@ -292,8 +295,10 @@ function RouteComponent() {
       >
         <PageEmpty>
           {entry
-            ? "A digital employee reaches this one with a credential the deployment holds, the same for everybody."
-            : "This deployment has no connector by that name."}
+            ? t(
+                "A digital employee reaches this one with a credential the deployment holds, the same for everybody.",
+              )
+            : t("This deployment has no connector by that name.")}
         </PageEmpty>
       </PageShell>
     );
@@ -374,12 +379,31 @@ function RouteComponent() {
               <ItemTitle>{t("Your account")}</ItemTitle>
               <ItemDescription>
                 {!enabled
-                  ? "An administrator has not enabled this connector, so there is nothing to connect to yet."
+                  ? t(
+                      "An administrator has not enabled this connector, so there is nothing to connect to yet.",
+                    )
                   : connection && expired
-                    ? `Your sign-in${connection.account ? ` as ${connection.account}` : ""} has expired or was withdrawn at ${entry.vendor}, so no digital employee can read this as you. Connect again to renew it.`
+                    ? connection.account
+                      ? t(
+                          "Your sign-in as {account} has expired or was withdrawn at {vendor}, so no digital employee can read this as you. Connect again to renew it.",
+                          { account: connection.account, vendor: entry.vendor },
+                        )
+                      : t(
+                          "Your sign-in has expired or was withdrawn at {vendor}, so no digital employee can read this as you. Connect again to renew it.",
+                          { vendor: entry.vendor },
+                        )
                     : connection
-                      ? `${connection.account ? `Connected as ${connection.account}. ` : ""}A digital employee granted its tools reads this as you, and sees only what you can see.`
-                      : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
+                      ? connection.account
+                        ? t(
+                            "Connected as {account}. A digital employee granted its tools reads this as you, and sees only what you can see.",
+                            { account: connection.account },
+                          )
+                        : t(
+                            "A digital employee granted its tools reads this as you, and sees only what you can see.",
+                          )
+                      : t(
+                          "No digital employee can read this as you. Connecting takes you to the vendor to consent.",
+                        )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -449,7 +473,7 @@ function RouteComponent() {
                   type="button"
                   variant="outline"
                 >
-                  {expired ? "Connect again" : "Connect"}
+                  {expired ? t("Connect again") : "Connect"}
                   <IconArrowUpRight />
                 </Button>
               )}
@@ -470,7 +494,7 @@ function RouteComponent() {
               <ItemContent>
                 <ItemTitle>{t("Granted")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  {connection.scope || "The vendor named no scope."}
+                  {connection.scope || t("The vendor named no scope.")}
                 </ItemDescription>
               </ItemContent>
             </Item>

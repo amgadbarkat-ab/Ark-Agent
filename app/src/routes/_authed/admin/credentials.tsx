@@ -301,7 +301,7 @@ function CredentialsPage() {
                   >
                     {isSubmitting || createCredential.isPending
                       ? "Saving…"
-                      : "Save credential"}
+                      : t("Save credential")}
                   </Button>
                 )}
               </form.Subscribe>

@@ -55,7 +55,7 @@ import {
 } from "@/lib/channels/queries";
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
 import { appConfig } from "@/lib/generated/application-config";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import {
@@ -316,13 +316,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <EmptyHeader>
                     <EmptyTitle>
                       {channels.hasNextPage
-                        ? "No loaded channels match your search"
+                        ? t("No loaded channels match your search")
                         : t("sidebar.noMatch")}
                     </EmptyTitle>
                     <EmptyDescription className="text-pretty">
                       {channels.hasNextPage
-                        ? "Load older conversations to search more of your history."
-                        : `Nothing here is named “${search.trim()}”, and nobody has said it recently either.`}
+                        ? t(
+                            "Load older conversations to search more of your history.",
+                          )
+                        : t(
+                            "Nothing here is named “{value1}”, and nobody has said it recently either.",
+                            { value1: search.trim() },
+                          )}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -432,7 +437,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {waiting ? (
                 <span
                   className="ml-auto flex items-center gap-1.5"
-                  title={`${waiting} need${waiting === 1 ? "s" : ""} you`}
+                  title={
+                    waiting === 1
+                      ? tNow("1 needs you")
+                      : tNow("{count} need you", { count: waiting })
+                  }
                 >
                   <span className="text-[11px] text-muted-foreground">
                     {t("sidebar.needsYou")}

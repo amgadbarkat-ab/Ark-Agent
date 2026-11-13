@@ -78,10 +78,10 @@ export function ChannelPagination({ query, scrollRoot, searching }: Props) {
         onClick={() => void fetchNextPage({ cancelRefetch: false })}
       >
         {isFetchingNextPage
-          ? "Loading older conversations…"
+          ? t("Loading older conversations…")
           : isFetchNextPageError
-            ? "Retry loading older conversations"
-            : "Load older conversations"}
+            ? t("Retry loading older conversations")
+            : t("Load older conversations")}
       </Button>
     </div>
   );

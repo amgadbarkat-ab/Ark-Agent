@@ -103,6 +103,7 @@ export function ApprovalCard(
     agentId?: string;
   },
 ) {
+  const t = useT();
   const { args, status, respond } = props;
   const [note, setNote] = useState("");
   const [sending, setSending] = useState<"approved" | "declined" | null>(null);
@@ -140,7 +141,7 @@ export function ApprovalCard(
     // (DT Lab, #83: a v0.1.33 card stayed on "Preparing the request…" with no buttons).
     const unfinished = conversation?.busy === false;
     return (
-      <GalleryFrame title={args.title ?? "Waiting for the assistant…"}>
+      <GalleryFrame title={args.title ?? t("Waiting for the assistant…")}>
         <p className="text-sm text-muted-foreground">
           {unfinished ? words.unfinished : words.preparing}
         </p>
@@ -245,7 +246,7 @@ export function ChoiceCard(props: Waiting<ChoiceArgs>) {
 
   if (status === "inProgress") {
     return (
-      <GalleryFrame title={args.title ?? "Waiting for the assistant…"}>
+      <GalleryFrame title={args.title ?? t("Waiting for the assistant…")}>
         <p className="text-sm text-muted-foreground">
           {t("Preparing the question…")}
         </p>

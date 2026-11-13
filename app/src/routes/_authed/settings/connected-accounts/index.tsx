@@ -313,7 +313,9 @@ function RouteComponent() {
                         mark={<PluginLogo logo={server.logo} />}
                         summary={
                           server.summary ||
-                          `Connect your ${server.title} account.`
+                          t("Connect your {title} account.", {
+                            title: server.title,
+                          })
                         }
                         title={server.title}
                       />
@@ -374,7 +376,7 @@ function ServiceRow({
       <ItemActions className="shrink-0">
         {state.kind === "needs-setup" ? (
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-            {isAdmin ? "Set up" : "Needs setup"}
+            {isAdmin ? t("Set up") : t("Needs setup")}
           </span>
         ) : (
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">

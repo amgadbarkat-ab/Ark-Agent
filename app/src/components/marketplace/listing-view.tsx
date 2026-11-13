@@ -81,7 +81,7 @@ export function ListingView({
             {install.isPending
               ? "Installing…"
               : listing.installedByMe
-                ? "Install another"
+                ? t("Install another")
                 : "Install"}
           </Button>
         ) : listing.mine ? null : (
@@ -217,10 +217,12 @@ export function ListingView({
       ) : null}
 
       <PageSection
-        title={official ? "What you get" : "How it is set up"}
+        title={official ? t("What you get") : t("How it is set up")}
         description={
           official
-            ? "A digital employee of your own, private to you. It starts with this role and the skills below, and no tools; you decide what it may use."
+            ? t(
+                "A digital employee of your own, private to you. It starts with this role and the skills below, and no tools; you decide what it may use.",
+              )
             : undefined
         }
       >

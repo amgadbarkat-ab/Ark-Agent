@@ -80,7 +80,7 @@ export function VoiceCallWidget({
   };
   return (
     <motion.section
-      aria-label={`Voice call with ${name}`}
+      aria-label={t("Voice call with {name}", { name: name })}
       initial={{ opacity: reduceMotion ? 1 : 0, y: reduceMotion ? 0 : -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={transition}
@@ -152,7 +152,7 @@ export function VoiceCallWidget({
               )}
             </div>
             <div
-              title={state.muted ? "You · microphone muted" : "You"}
+              title={state.muted ? t("You · microphone muted") : "You"}
               className={cn(
                 "relative flex size-[40px] shrink-0 items-center justify-center rounded-full bg-background ring-2 ring-transparent ring-offset-2 ring-offset-muted transition-shadow motion-reduce:transition-none",
                 state.listening && !state.muted && "ring-primary/40",
@@ -220,14 +220,16 @@ export function VoiceCallWidget({
             </Button>
             <Button
               aria-label={
-                state.muted ? "Unmute your microphone" : "Mute your microphone"
+                state.muted
+                  ? t("Unmute your microphone")
+                  : t("Mute your microphone")
               }
               aria-pressed={state.muted}
               disabled={connecting || failed}
               title={
                 state.muted
-                  ? "Unmute your microphone"
-                  : "Mute your microphone · you’ll still hear the agent"
+                  ? t("Unmute your microphone")
+                  : t("Mute your microphone · you’ll still hear the agent")
               }
               variant="secondary"
               size="icon"
@@ -268,7 +270,9 @@ export function VoiceCallWidget({
                 <div className="mt-3 h-16 overflow-y-auto rounded-xl bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
                   {state.reply ||
                     state.transcript ||
-                    "Speak when you’re ready. This call uses the current chat."}
+                    t(
+                      "Speak when you’re ready. This call uses the current chat.",
+                    )}
                 </div>
               </motion.div>
             )}

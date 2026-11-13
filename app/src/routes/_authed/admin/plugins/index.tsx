@@ -24,7 +24,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -89,12 +89,19 @@ function summaryFor(
   youConnected: boolean,
 ): string {
   if (auth === "user-oauth" && !youConnected) return "Not connected";
-  if (server.tools.length === 0) return "No tools yet";
+  if (server.tools.length === 0) return tNow("No tools yet");
 
   const bots = new Set(server.tools.flatMap((tool) => tool.grantedTo)).size;
-  const tools = `${server.tools.length} ${server.tools.length === 1 ? "tool" : "tools"}`;
-  if (bots === 0) return `${tools} · no digital employees`;
-  return `${tools} · ${bots} ${bots === 1 ? "Bot" : "Bots"}`;
+  const tools =
+    server.tools.length === 1
+      ? tNow("1 tool")
+      : tNow("{count} tools", { count: server.tools.length });
+  if (bots === 0) return `${tools} · ${tNow("no digital employees")}`;
+  return `${tools} · ${
+    bots === 1
+      ? tNow("1 digital employee")
+      : tNow("{count} digital employees", { count: bots })
+  }`;
 }
 
 function RouteComponent() {

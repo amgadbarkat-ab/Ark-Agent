@@ -166,7 +166,9 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
               </ItemContent>
               <ItemActions>
                 <Switch
-                  aria-label={`Let this digital employee ask ${candidate.name}`}
+                  aria-label={t("Let this digital employee ask {name}", {
+                    name: candidate.name,
+                  })}
                   checked={reachable.includes(candidate.id)}
                   disabled={!canGrant || setGrant.isPending}
                   onCheckedChange={(next: boolean) =>

@@ -55,8 +55,8 @@ export function AgentIconItem({
         <ItemTitle>{t("Icon")}</ItemTitle>
         <ItemDescription>
           {image
-            ? "A picture you chose."
-            : "ArkAgent's icon, until you choose a picture."}
+            ? t("A picture you chose.")
+            : t("ArkAgent's icon, until you choose a picture.")}
         </ItemDescription>
         {problem || setIcon.error ? (
           <ItemDescription className="text-destructive" role="alert">
@@ -84,7 +84,7 @@ export function AgentIconItem({
             size="sm"
             variant="ghost"
           >
-            {image ? "Change" : "Choose picture"}
+            {image ? "Change" : t("Choose picture")}
           </Button>
           {image ? (
             <Button

@@ -114,8 +114,8 @@ function AccountsPage() {
         ) : rows.length === 0 ? (
           <PageEmpty>
             {query
-              ? `No account matches "${query}".`
-              : "No accounts yet. They appear when people sign up."}
+              ? t('No account matches "{query}".', { query: query })
+              : t("No accounts yet. They appear when people sign up.")}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -138,7 +138,9 @@ function AccountsPage() {
                     </ItemDescription>
                     {suspending?.tenantId === account.tenantId ? (
                       <Input
-                        aria-label={`Reason for suspending ${account.ownerEmail ?? account.name}`}
+                        aria-label={t("Reason for suspending {value1}", {
+                          value1: account.ownerEmail ?? account.name,
+                        })}
                         autoFocus
                         className="mt-2"
                         onChange={(event) =>
@@ -164,7 +166,9 @@ function AccountsPage() {
                       value={account.planId}
                     >
                       <SelectTrigger
-                        aria-label={`Plan for ${account.ownerEmail ?? account.name}`}
+                        aria-label={t("Plan for {value1}", {
+                          value1: account.ownerEmail ?? account.name,
+                        })}
                         size="sm"
                       >
                         <SelectValue>
@@ -246,7 +250,7 @@ function AccountsPage() {
             size="sm"
             variant="outline"
           >
-            {accounts.isFetchingNextPage ? "Loading…" : "Show more"}
+            {accounts.isFetchingNextPage ? "Loading…" : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

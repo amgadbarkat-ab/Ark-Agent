@@ -151,7 +151,7 @@ function ActivityChart({
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Digital employee activity"}>
+      <GalleryFrame title={title ?? t("Digital employee activity")}>
         <p className="text-sm text-muted-foreground">
           {tNow(
             "No digital employee has done anything in the last {days} days.",
@@ -182,8 +182,11 @@ function ActivityChart({
           </Button>
         ) : undefined
       }
-      caption={`Counted from this deployment's audit trail, last ${data.days} days`}
-      title={title ?? "Digital employee activity"}
+      caption={t(
+        "Counted from this deployment's audit trail, last {days} days",
+        { days: data.days },
+      )}
+      title={title ?? t("Digital employee activity")}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row, index) => (
@@ -224,7 +227,7 @@ function RefusalList({
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Recent refusals"}>
+      <GalleryFrame title={title ?? t("Recent refusals")}>
         <p className="text-sm text-muted-foreground">
           {t("This deployment has refused nothing.")}
         </p>
@@ -250,7 +253,7 @@ function RefusalList({
         ) : undefined
       }
       caption={t("Read from this deployment's audit trail")}
-      title={title ?? "Recent refusals"}
+      title={title ?? t("Recent refusals")}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (

@@ -102,10 +102,10 @@ export function ComponentPreview({
   return (
     <PreviewNotice>
       {entry
-        ? "This one is only drawn in a conversation."
+        ? t("This one is only drawn in a conversation.")
         : kind === "sandboxed"
-          ? "Published in the playground."
-          : "This build cannot draw this."}
+          ? t("Published in the playground.")
+          : t("This build cannot draw this.")}
     </PreviewNotice>
   );
 }

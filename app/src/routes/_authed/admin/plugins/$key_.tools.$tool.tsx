@@ -134,8 +134,10 @@ function RouteComponent() {
          */}
         <PageEmpty>
           {server
-            ? "It may have been withdrawn since the tool list was last refreshed."
-            : "This deployment has not enabled that connector."}
+            ? t(
+                "It may have been withdrawn since the tool list was last refreshed.",
+              )
+            : t("This deployment has not enabled that connector.")}
         </PageEmpty>
       </PageShell>
     );
@@ -149,7 +151,7 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={tool.description || "This tool came with no description."}
+      description={tool.description || t("This tool came with no description.")}
       title={toolName}
     >
       {error ? (
@@ -161,8 +163,12 @@ function RouteComponent() {
       <PageSection
         description={
           tool.effect === "write"
-            ? "This tool changes something at the vendor. A boundary written about writes applies to it, and unless an administrator says otherwise below, a person approves each call first."
-            : "This tool only reads. A boundary written about writes does not apply to it."
+            ? t(
+                "This tool changes something at the vendor. A boundary written about writes applies to it, and unless an administrator says otherwise below, a person approves each call first.",
+              )
+            : t(
+                "This tool only reads. A boundary written about writes does not apply to it.",
+              )
         }
         title={t("What it does")}
       >
@@ -204,10 +210,16 @@ function RouteComponent() {
       <PageSection
         description={
           tool.onCallSet
-            ? "Set by an administrator for every digital employee that holds this tool."
+            ? t(
+                "Set by an administrator for every digital employee that holds this tool.",
+              )
             : tool.effect === "write"
-              ? "Not set, so the default applies: a tool that changes things asks a person first."
-              : "Not set, so the default applies: a tool that only reads runs."
+              ? t(
+                  "Not set, so the default applies: a tool that changes things asks a person first.",
+                )
+              : t(
+                  "Not set, so the default applies: a tool that only reads runs.",
+                )
         }
         title={t("When a digital employee calls it")}
       >
@@ -303,9 +315,15 @@ function RouteComponent() {
                       <ItemDescription>
                         {held
                           ? canCallBack(bot)
-                            ? "May call this tool. Every call is still checked against the boundaries and written to the audit trail."
-                            : "Granted, but this digital employee has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment."
-                          : "Cannot call this tool. It is not offered to the model at all, so it has nothing to refuse."}
+                            ? t(
+                                "May call this tool. Every call is still checked against the boundaries and written to the audit trail.",
+                              )
+                            : t(
+                                "Granted, but this digital employee has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment.",
+                              )
+                          : t(
+                              "Cannot call this tool. It is not offered to the model at all, so it has nothing to refuse.",
+                            )}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -315,7 +333,10 @@ function RouteComponent() {
                        * flight, so switching one Bot does not freeze the rest of the list.
                        */}
                       <Switch
-                        aria-label={`Let ${bot.name} call ${toolName}`}
+                        aria-label={t("Let {name} call {toolName}", {
+                          name: bot.name,
+                          toolName: toolName,
+                        })}
                         checked={held}
                         disabled={
                           setGrant.isPending &&

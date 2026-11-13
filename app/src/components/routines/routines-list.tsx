@@ -173,8 +173,13 @@ export function RoutinesList({
             </ItemTitle>
             <ItemDescription>
               {sweep?.lastSweptAt
-                ? `The routines worker last checked ${relativeTime(sweep.lastSweptAt)}. Until it is running again, none of these will fire.`
-                : "No routines worker has ever checked in, so none of these will fire. A deployment needs one running to carry them out."}
+                ? t(
+                    "The routines worker last checked {value1}. Until it is running again, none of these will fire.",
+                    { value1: relativeTime(sweep.lastSweptAt) },
+                  )
+                : t(
+                    "No routines worker has ever checked in, so none of these will fire. A deployment needs one running to carry them out.",
+                  )}
             </ItemDescription>
           </ItemContent>
         </Item>
@@ -190,13 +195,17 @@ export function RoutinesList({
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
               {agentId
-                ? "Nothing scheduled for this digital employee"
-                : "Nothing scheduled"}
+                ? t("Nothing scheduled for this digital employee")
+                : t("Nothing scheduled")}
             </EmptyTitle>
             <EmptyDescription>
               {agentId
-                ? 'Ask it in a channel — "every weekday at 9, …" — and it will appear here.'
-                : 'Ask a digital employee — "every weekday at 9, …" — and it will appear here.'}
+                ? t(
+                    'Ask it in a channel — "every weekday at 9, …" — and it will appear here.',
+                  )
+                : t(
+                    'Ask a digital employee — "every weekday at 9, …" — and it will appear here.',
+                  )}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -231,7 +240,7 @@ export function RoutinesList({
                           to="/channel/$channelId"
                         >
                           <Chip className="text-muted-foreground transition-colors hover:text-foreground">
-                            {routine.channel.name ?? "Unnamed channel"}
+                            {routine.channel.name ?? t("Unnamed channel")}
                           </Chip>
                         </Link>
                       )}
@@ -279,7 +288,9 @@ export function RoutinesList({
                    * page uses for its per-Bot grant switches.
                    */}
                   <Switch
-                    aria-label={`Enable the routine scheduled ${routine.schedule}`}
+                    aria-label={t("Enable the routine scheduled {schedule}", {
+                      schedule: routine.schedule,
+                    })}
                     checked={routine.enabled}
                     disabled={
                       setEnabled.isPending &&
@@ -290,7 +301,9 @@ export function RoutinesList({
                     }
                   />
                   <Button
-                    aria-label={`Delete the routine scheduled ${routine.schedule}`}
+                    aria-label={t("Delete the routine scheduled {schedule}", {
+                      schedule: routine.schedule,
+                    })}
                     onClick={() => {
                       deleteRoutine.reset();
                       setConfirmingId(routine.id);

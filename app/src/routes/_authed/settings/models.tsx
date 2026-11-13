@@ -212,21 +212,45 @@ function ModelsPage() {
                           >
                             {isLocal
                               ? running
-                                ? "Running on this computer"
+                                ? t("Running on this computer")
                                 : status
-                                  ? "Not running"
-                                  : "On this computer"
+                                  ? t("Not running")
+                                  : t("On this computer")
                               : TIER_LABEL[provider.tier]}
                           </span>
                         </ItemTitle>
                         <ItemDescription className="line-clamp-none">
                           {provider.summary}
                           {running && status?.models?.length
-                            ? ` Found ${status.models.slice(0, 3).join(", ")}${status.models.length > 3 ? ` and ${status.models.length - 3} more` : ""}.`
+                            ? ` ${
+                                status.models.length > 3
+                                  ? t("Found {models} and {more} more.", {
+                                      models: status.models
+                                        .slice(0, 3)
+                                        .join(", "),
+                                      more: status.models.length - 3,
+                                    })
+                                  : t("Found {models}.", {
+                                      models: status.models
+                                        .slice(0, 3)
+                                        .join(", "),
+                                    })
+                              }`
                             : isLocal && status
-                              ? ` Nothing answered at ${provider.baseUrl}. Install and start ${provider.name}, or add it with a different address.`
+                              ? " " +
+                                t(
+                                  "Nothing answered at {baseUrl}. Install and start {name}, or add it with a different address.",
+                                  {
+                                    baseUrl: provider.baseUrl,
+                                    name: provider.name,
+                                  },
+                                )
                               : provider.suggestedModels.length > 0
-                                ? ` Such as ${provider.suggestedModels.slice(0, 3).join(", ")}.`
+                                ? ` ${t("Such as {models}.", {
+                                    models: provider.suggestedModels
+                                      .slice(0, 3)
+                                      .join(", "),
+                                  })}`
                                 : ""}
                         </ItemDescription>
                       </ItemContent>
@@ -240,7 +264,7 @@ function ModelsPage() {
                         >
                           <IconPlus />
                           {isLocal && status && !running
-                            ? "Set address"
+                            ? t("Set address")
                             : "Add"}
                         </Button>
                       </ItemActions>
@@ -323,15 +347,22 @@ function OfflineModelRow({
                 : "bg-muted text-muted-foreground"
             }`}
           >
-            {running ? "Running on this computer" : "Not running"}
+            {running ? t("Running on this computer") : t("Not running")}
           </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
           {running
             ? otherDefault
-              ? `Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your default is ${otherDefault.label} now; make this the default to use it again.`
-              : "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model."
-            : "It is installed, but it is not answering right now. Open ArkAgent from its window to start it again."}
+              ? t(
+                  "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your default is {label} now; make this the default to use it again.",
+                  { label: otherDefault.label },
+                )
+              : t(
+                  "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model.",
+                )
+            : t(
+                "It is installed, but it is not answering right now. Open ArkAgent from its window to start it again.",
+              )}
         </ItemDescription>
         {makeDefault.error ? (
           <ItemDescription className="text-destructive" role="alert">
@@ -408,6 +439,7 @@ function CoworkerRow({
   connections: ModelConnection[];
   coworker: AgentProfile;
 }) {
+  const t = useT();
   const setModel = useMutation(setBotModelMutationOptions(queryClient));
   const chosen = connections.find((c) => c.id === choice);
   const fallback = connections.find((c) => c.isDefault);
@@ -435,11 +467,16 @@ function CoworkerRow({
           }
           value={chosen?.id ?? DEFAULT_MODEL}
         >
-          <SelectTrigger aria-label={`Model for ${coworker.name}`} size="sm">
+          <SelectTrigger
+            aria-label={t("Model for {name}", { name: coworker.name })}
+            size="sm"
+          >
             <SelectValue>
               {chosen
                 ? chosen.label
-                : `Default${fallback ? ` (${fallback.label})` : ""}`}
+                : fallback
+                  ? tNow("Default ({name})", { name: fallback.label })
+                  : tNow("Default")}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>

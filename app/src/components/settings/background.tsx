@@ -1,11 +1,9 @@
 import type { SVGProps } from "react";
-import { useT } from "@/lib/i18n";
 
 /**
  * Decorative waiting artwork for the fixed-size computer frame.
  */
 export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
-  const t = useT();
   return (
     <svg
       viewBox="0 0 1200 800"

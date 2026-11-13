@@ -97,8 +97,12 @@ function DigitalTeamScreen() {
             agents={mine}
             emptyText={
               (shared?.length ?? 0) > 0
-                ? "You don't have digital employees of your own yet. The ones on the home page are shared with everybody here, and are listed under Shared with you below. Hire one, or create your own, to build a team that works for you."
-                : "You don't have any digital employees yet. Hire one below, or create your own."
+                ? t(
+                    "You don't have digital employees of your own yet. The ones on the home page are shared with everybody here, and are listed under Shared with you below. Hire one, or create your own, to build a team that works for you.",
+                  )
+                : t(
+                    "You don't have any digital employees yet. Hire one below, or create your own.",
+                  )
             }
             failed={failed}
             failedText={t("Your digital team couldn't be loaded.")}

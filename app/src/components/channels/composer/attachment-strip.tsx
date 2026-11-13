@@ -161,7 +161,9 @@ export function AttachmentStrip({
                   className="truncate text-muted-foreground text-xs"
                   title={
                     file.mayTruncate === true
-                      ? "The model reads the first 120,000 characters of this file."
+                      ? t(
+                          "The model reads the first 120,000 characters of this file.",
+                        )
                       : undefined
                   }
                 >
@@ -227,9 +229,10 @@ function RemoveButton({
   name: string;
   onRemove: () => void;
 }) {
+  const t = useT();
   return (
     <button
-      aria-label={`Remove ${name}`}
+      aria-label={t("Remove {name}", { name: name })}
       className="absolute top-1 right-1 grid size-5 place-items-center rounded-full border border-border bg-background/90 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
       onClick={onRemove}
       type="button"

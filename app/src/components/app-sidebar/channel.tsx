@@ -131,7 +131,7 @@ export const Channel = memo(function Channel({
             <ChannelItemContent
               participantIds={participantIds}
               name={name}
-              title={summary || lastMessage || "New conversation"}
+              title={summary || lastMessage || t("New conversation")}
               displayedTitle={threadTitle}
               lastMessageAt={lastMessageAt}
               emphasis={emphasis}
@@ -153,7 +153,7 @@ export const Channel = memo(function Channel({
             }}
           >
             {pinned ? <IconPinnedOff /> : <IconPin />}
-            {pinned ? "Unpin channel" : "Pin channel"}
+            {pinned ? t("Unpin channel") : t("Pin channel")}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => setRenaming(summary || lastMessage || "")}

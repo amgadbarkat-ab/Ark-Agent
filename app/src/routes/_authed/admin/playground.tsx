@@ -307,9 +307,9 @@ function PlaygroundPage() {
             {sample === null ? (
               <p className="text-sm text-destructive">
                 {validation.ok
-                  ? "The sample arguments are not available."
+                  ? t("The sample arguments are not available.")
                   : (validation.fields.sampleArguments ??
-                    "Fix the JSON fields before previewing.")}
+                    t("Fix the JSON fields before previewing."))}
               </p>
             ) : (
               <OpenGenerativeUIActivityRenderer

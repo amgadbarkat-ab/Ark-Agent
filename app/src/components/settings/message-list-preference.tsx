@@ -56,8 +56,8 @@ export function MessageListPreference() {
               <SelectValue>
                 {emphasis
                   ? emphasis === "agent"
-                    ? "Agent name"
-                    : "Thread title"
+                    ? t("Agent name")
+                    : t("Thread title")
                   : "Loading…"}
               </SelectValue>
             </SelectTrigger>

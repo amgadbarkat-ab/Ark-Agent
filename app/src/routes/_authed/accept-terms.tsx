@@ -106,7 +106,7 @@ function AcceptTerms() {
           }}
           size="lg"
         >
-          {accept.isPending ? "Saving…" : "Agree and continue"}
+          {accept.isPending ? "Saving…" : t("Agree and continue")}
         </Button>
         {accept.error ? (
           <p className="text-sm text-destructive" role="alert">

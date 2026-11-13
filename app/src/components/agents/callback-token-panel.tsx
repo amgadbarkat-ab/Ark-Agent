@@ -44,8 +44,12 @@ export function CallbackTokenPanel({
 
       <p className="text-muted-foreground text-sm">
         {hasToken
-          ? "This digital employee holds a credential, so it can use the tools it has been granted. Rotating replaces it, and the old one stops working straight away."
-          : "This digital employee has no credential, so it can hold a conversation but cannot use any tool it has been granted. Generate one and put it in that agent's configuration."}
+          ? t(
+              "This digital employee holds a credential, so it can use the tools it has been granted. Rotating replaces it, and the old one stops working straight away.",
+            )
+          : t(
+              "This digital employee has no credential, so it can hold a conversation but cannot use any tool it has been granted. Generate one and put it in that agent's configuration.",
+            )}
       </p>
 
       {token ? (
@@ -80,8 +84,8 @@ export function CallbackTokenPanel({
             {issue.isPending
               ? "Generating…"
               : hasToken
-                ? "Rotate token"
-                : "Generate token"}
+                ? t("Rotate token")
+                : t("Generate token")}
           </Button>
           {hasToken ? (
             <Button

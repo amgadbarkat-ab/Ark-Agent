@@ -67,6 +67,54 @@ function insideCallback(node: ts.Node, component: ts.Node): boolean {
 void insideCallback;
 
 const quote = (text: string) => JSON.stringify(text);
+
+function insideTranslation(node: ts.Node): boolean {
+  let current: ts.Node | undefined = node.parent;
+  while (current) {
+    if (
+      ts.isCallExpression(current) &&
+      ts.isIdentifier(current.expression) &&
+      /^(t|tNow|tx|txNow)$/.test(current.expression.text)
+    )
+      return true;
+    if (ts.isJsxElement(current) || ts.isSourceFile(current)) return false;
+    current = current.parent;
+  }
+  return false;
+}
+
+const TECH_PROPS = new Set(["className","href","to","from","type","id","key","variant","size","role","name","value","defaultValue","htmlFor","target","rel","src","method","autoComplete","inputMode","pattern","align","side","orientation","mode","tone","icon","lang","dir","form","accept","messageId","enterKeyHint","tabIndex","color","fill","stroke","d","viewBox","xmlns","path","hash","search","params","fallback","sandbox","allow","referrerPolicy","style","width","height","loading","decoding","kind","slot","behavior","direction","testId","preserveAspectRatio","transform","result","in","in2","mask","filter","clipPath"]);
+
+function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
+  let current: ts.Node = node;
+  while (current.parent) {
+    const parent: ts.Node = current.parent;
+    if (ts.isJsxExpression(parent)) {
+      const holder = parent.parent;
+      if (holder && ts.isJsxAttribute(holder)) {
+        const prop = holder.name.getText(source);
+        return !TECH_PROPS.has(prop) && !prop.endsWith("ClassName") && !prop.startsWith("on") && !prop.startsWith("data-");
+      }
+      return true;
+    }
+    if (
+      ts.isConditionalExpression(parent) ||
+      ts.isParenthesizedExpression(parent) ||
+      (ts.isBinaryExpression(parent) &&
+        (parent.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+          parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+          parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)) ||
+      ts.isTemplateSpan(parent) ||
+      ts.isTemplateExpression(parent)
+    ) {
+      if (ts.isConditionalExpression(parent) && parent.condition === current) return false;
+      current = parent;
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
 const ENTITIES: Record<string, string> = { rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0", hellip: "…", mdash: "—", ndash: "–", middot: "·" };
 const decodeEntities = (text: string) => text.replace(/&([a-z]+);/g, (whole, name: string) => ENTITIES[name] ?? whole);
 
@@ -252,6 +300,49 @@ function convert(path: string) {
           text: `{${fn}(${quote(value)})}`,
         });
         wrapped.push(value);
+      }
+    }
+    if (
+      (ts.isStringLiteral(node) ||
+        ts.isNoSubstitutionTemplateLiteral(node) ||
+        ts.isTemplateExpression(node)) &&
+      shownInJsx(node, source) &&
+      !insideTranslation(node)
+    ) {
+      const text = ts.isTemplateExpression(node) ? null : node.text;
+      if (text !== null) {
+        if (words(text) && /\s/.test(text.trim()) && /^[A-Z“"(]/.test(text.trim())) {
+          const fn = callFor(node);
+          edits.push({ start: node.getStart(source), end: node.end, text: `${fn}(${quote(text)})` });
+          wrapped.push(text);
+        }
+      } else if (ts.isTemplateExpression(node)) {
+        // `Sent to ${x}, who…` becomes t("Sent to {x}, who…", { x })
+        const names: string[] = [];
+        const values: string[] = [];
+        let key = node.head.text;
+        for (const span of node.templateSpans) {
+          const expr = span.expression;
+          let name = ts.isIdentifier(expr)
+            ? expr.text
+            : ts.isPropertyAccessExpression(expr)
+              ? expr.name.text
+              : `value${names.length + 1}`;
+          while (names.includes(name)) name = `${name}${names.length + 1}`;
+          names.push(name);
+          values.push(`${name}: ${expr.getText(source)}`);
+          key += `{${name}}${span.literal.text}`;
+        }
+        if (words(key) && /\s/.test(key.trim()) && /^[A-Z“"(]/.test(key.trim())) {
+          const fn = callFor(node);
+          edits.push({
+            start: node.getStart(source),
+            end: node.end,
+            text: `${fn}(${quote(key)}, { ${values.join(", ")} })`,
+          });
+          wrapped.push(key);
+        }
+        return; // do not visit inside: its spans are replaced whole
       }
     }
     ts.forEachChild(node, visit);

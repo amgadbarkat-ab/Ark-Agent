@@ -297,7 +297,7 @@ function ComponentDetail({
       backButton={BACK}
       description={
         component.publishedDescription ??
-        "Nothing is published, so no digital employee is told about this."
+        t("Nothing is published, so no digital employee is told about this.")
       }
       title={component.title}
     >
@@ -350,10 +350,10 @@ function ComponentDetail({
               <ItemTitle>{t("Published")}</ItemTitle>
               <ItemDescription>
                 {component.published
-                  ? "Digital employees may answer with it."
-                  : "No digital employee may use it."}
+                  ? t("Digital employees may answer with it.")
+                  : t("No digital employee may use it.")}
                 {component.hasUnpublishedChanges
-                  ? " The description has changes that are not published."
+                  ? t(" The description has changes that are not published.")
                   : null}
               </ItemDescription>
             </ItemContent>
@@ -373,7 +373,7 @@ function ComponentDetail({
             icon={<IconFileText />}
             label={t("Description")}
             onOpen={() => setSheet("description")}
-            summary={component.draftDescription || "Nothing yet"}
+            summary={component.draftDescription || t("Nothing yet")}
             testId={`description-${component.name}`}
           />
 

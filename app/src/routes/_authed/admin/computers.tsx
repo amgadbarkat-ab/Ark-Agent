@@ -126,7 +126,7 @@ function ComputersPage() {
           </span>{" "}
           {txNow(
             "They share its logins, its files and its session, so a digital employee can reach what another signed into. Set {variable} to give each digital employee its own.",
-            { variable: <code>COMPUTER_SUPERVISOR_URL</code> },
+            { variable: <code>{t("COMPUTER_SUPERVISOR_URL")}</code> },
           )}
         </p>
       ) : isolation === "per-bot" ? (
@@ -196,14 +196,22 @@ function ComputersPage() {
                     </ItemTitle>
                     <ItemDescription>
                       {computer.running
-                        ? `Browser running since ${new Date(computer.startedAt ?? "").toLocaleTimeString()}`
-                        : "No browser running. It starts when the digital employee next needs it."}
+                        ? t("Browser running since {value1}", {
+                            value1: new Date(
+                              computer.startedAt ?? "",
+                            ).toLocaleTimeString(),
+                          })
+                        : t(
+                            "No browser running. It starts when the digital employee next needs it.",
+                          )}
                       {" · "}
                       {computer.egress === undefined
-                        ? "Egress not reported"
+                        ? t("Egress not reported")
                         : computer.egress === null
-                          ? "Leaves directly"
-                          : `Leaves through ${computer.egress}`}
+                          ? t("Leaves directly")
+                          : t("Leaves through {egress}", {
+                              egress: computer.egress,
+                            })}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -213,7 +221,7 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      {busy === computer.botId ? "Working…" : "Stop browser"}
+                      {busy === computer.botId ? "Working…" : t("Stop browser")}
                     </Button>
                     <Button
                       disabled={busy === computer.botId}
@@ -273,7 +281,7 @@ function ComputersPage() {
               size="sm"
               variant="destructive"
             >
-              {busy === confirming ? "Resetting…" : "Reset it"}
+              {busy === confirming ? "Resetting…" : t("Reset it")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -368,9 +376,9 @@ function OwnBrowserSection({
                     <ItemDescription>
                       {choice
                         ? isDriving(choice)
-                          ? "Working in your browser now."
-                          : "Uses your browser."
-                        : "Uses its own browser in a sandbox."}
+                          ? t("Working in your browser now.")
+                          : t("Uses your browser.")
+                        : t("Uses its own browser in a sandbox.")}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -385,8 +393,8 @@ function OwnBrowserSection({
                       {busyBotId === botId
                         ? "Working…"
                         : choice
-                          ? "Back to its own browser"
-                          : "Use my browser"}
+                          ? t("Back to its own browser")
+                          : t("Use my browser")}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -495,7 +503,9 @@ function HostFoldersSection({
                     size="sm"
                     variant="outline"
                   >
-                    {requestingBotId === botId ? "Waiting…" : "Choose folder"}
+                    {requestingBotId === botId
+                      ? "Waiting…"
+                      : t("Choose folder")}
                   </Button>
                 </ItemActions>
               </Item>
@@ -518,7 +528,7 @@ function HostFoldersSection({
             size="sm"
             variant="outline"
           >
-            {stopping ? "Stopping…" : "Stop folder access"}
+            {stopping ? "Stopping…" : t("Stop folder access")}
           </Button>
           <Link className="underline" to="/admin/audit">
             {t("View audit")}
@@ -604,14 +614,22 @@ function summaryFor(
   const waiting = pending.filter((request) => request.botId === botId).length;
   const parts = [];
   if (active > 0)
-    parts.push(`${active} read-only ${active === 1 ? "folder" : "folders"}`);
+    parts.push(
+      active === 1
+        ? tNow("1 read-only folder")
+        : tNow("{count} read-only folders", { count: active }),
+    );
   if (waiting > 0)
-    parts.push(`${waiting} pending ${waiting === 1 ? "request" : "requests"}`);
-  return parts.length > 0 ? parts.join(" · ") : "No folders approved.";
+    parts.push(
+      waiting === 1
+        ? tNow("1 pending request")
+        : tNow("{count} pending requests", { count: waiting }),
+    );
+  return parts.length > 0 ? parts.join(" · ") : tNow("No folders approved.");
 }
 
 function ownerLabel(grant: { ownerName?: string; ownerEmail?: string }) {
-  return grant.ownerName ?? grant.ownerEmail ?? "the desktop owner";
+  return grant.ownerName ?? grant.ownerEmail ?? tNow("the desktop owner");
 }
 
 function pendingLabel(request: HostAccessPendingOperation) {

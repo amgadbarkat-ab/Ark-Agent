@@ -197,8 +197,12 @@ function SignScreen() {
                   {/* Centred against the button, not against the space left of the mark. */}
                   <span className="flex-1 text-center">
                     {opening === provider
-                      ? `Opening ${providerName(provider)}…`
-                      : `Continue with ${providerName(provider)}`}
+                      ? t("Opening {value1}…", {
+                          value1: providerName(provider),
+                        })
+                      : t("Continue with {value1}", {
+                          value1: providerName(provider),
+                        })}
                   </span>
                   {/* Balances the mark so the label sits in the middle of the button. */}
                   <span aria-hidden="true" className="size-[18px]" />
@@ -208,8 +212,10 @@ function SignScreen() {
           ) : showCompanySignIn ? null : (
             <p className="text-center text-sm text-muted-foreground">
               {inIosApp
-                ? "Signing in with this account type is not available in the app."
-                : "No sign-in provider is configured for this deployment."}
+                ? t(
+                    "Signing in with this account type is not available in the app.",
+                  )
+                : t("No sign-in provider is configured for this deployment.")}
             </p>
           )}
           {/*
@@ -246,7 +252,7 @@ function SignScreen() {
               >
                 {opening === "sso"
                   ? "Opening…"
-                  : "Continue with your company account"}
+                  : t("Continue with your company account")}
               </Button>
             </form>
           ) : null}

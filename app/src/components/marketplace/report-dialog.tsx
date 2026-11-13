@@ -139,7 +139,7 @@ export function ReportDialog({
                 size="sm"
                 type="submit"
               >
-                {report.isPending ? "Sending…" : "Send report"}
+                {report.isPending ? "Sending…" : t("Send report")}
               </Button>
             </DialogFooter>
           </form>

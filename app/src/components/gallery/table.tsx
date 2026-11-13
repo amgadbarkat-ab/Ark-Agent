@@ -72,7 +72,9 @@ export function DataTable(props: Record<string, unknown>) {
       caption={caption}
       action={
         <Badge>
-          {rows.length} {rows.length === 1 ? "row" : "rows"}
+          {rows.length === 1
+            ? tNow("1 row")
+            : tNow("{count} rows", { count: rows.length })}
         </Badge>
       }
     >
@@ -172,8 +174,14 @@ export function DataTable(props: Record<string, unknown>) {
       {rows.length > 1 && (
         <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
           {sort
-            ? `Sorted by ${columns[sort.column]}, ${sort.ascending ? "ascending" : "descending"}.`
-            : "Select a column heading to sort."}
+            ? sort.ascending
+              ? t("Sorted by {column}, ascending.", {
+                  column: columns[sort.column],
+                })
+              : t("Sorted by {column}, descending.", {
+                  column: columns[sort.column],
+                })
+            : t("Select a column heading to sort.")}
         </p>
       )}
     </GalleryFrame>

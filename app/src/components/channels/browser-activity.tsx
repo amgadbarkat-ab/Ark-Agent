@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import type { VisibleChatItem } from "./chat-messages";
 import { ToolLine } from "./tool-line";
 
@@ -90,6 +91,7 @@ export function BrowserActivity({
   group: BrowserGroup;
   active: boolean;
 }) {
+  const t = useT();
   const steps = group.steps.map((step) => ({
     id: step.id,
     ...browserStepDetails(step),
@@ -101,13 +103,19 @@ export function BrowserActivity({
     <ToolLine
       label={
         running
-          ? "Browsing…"
+          ? t("Browsing…")
           : pages
-            ? `Browsed ${pages} ${pages === 1 ? "page" : "pages"}`
-            : "Browser activity"
+            ? pages === 1
+              ? t("Browsed 1 page")
+              : t("Browsed {pages} pages", { pages })
+            : t("Browser activity")
       }
       detail={
-        issues ? `${issues} ${issues === 1 ? "issue" : "issues"}` : undefined
+        issues
+          ? issues === 1
+            ? t("1 issue")
+            : t("{count} issues", { count: issues })
+          : undefined
       }
       running={running}
     >
@@ -130,13 +138,13 @@ export function BrowserActivity({
               ) : null}
               {step.pending && (
                 <span className="text-muted-foreground">
-                  {active ? "In progress" : "Not completed"}
+                  {active ? t("In progress") : t("Not completed")}
                 </span>
               )}
             </div>
             {step.failed && (
               <p className="mt-0.5 text-destructive">
-                {step.reason ?? "This step could not be completed."}
+                {step.reason ?? t("This step could not be completed.")}
               </p>
             )}
           </li>

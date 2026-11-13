@@ -160,8 +160,8 @@ function StartedBy({
         title={event.initiatorId ?? undefined}
       >
         {event.initiatorId
-          ? `Handed on by ${nameFor(event.initiatorId)}`
-          : "Handed on"}
+          ? t("Handed on by {value1}", { value1: nameFor(event.initiatorId) })
+          : t("Handed on")}
       </span>
     );
   }
@@ -311,7 +311,7 @@ function Row({
         >
           {routed ??
             DECISIONS[event.eventType] ??
-            (refused ? "Blocked" : failed ? "Did not happen" : "Allowed")}
+            (refused ? "Blocked" : failed ? t("Did not happen") : "Allowed")}
         </span>
         {/* Refusal reasons mirror the conversation-facing reason. */}
         {(event.eventType === "component.refused" ||

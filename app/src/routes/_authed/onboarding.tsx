@@ -256,7 +256,7 @@ function RouteComponent() {
                   {complete.isPending
                     ? "Saving…"
                     : last
-                      ? "Get started"
+                      ? t("Get started")
                       : "Continue"}
                 </Button>
                 {step !== 0 && (

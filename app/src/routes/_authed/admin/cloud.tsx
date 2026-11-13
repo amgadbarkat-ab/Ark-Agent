@@ -183,7 +183,9 @@ function CloudCosts() {
                 <ItemDescription className="line-clamp-none">
                   {rates.data.rates
                     ? `${formatRate(rates.data.rates.computeCentsPerHour)} an hour, ${rates.data.rates.paymentFeePercent}% payment fee, ${rates.data.rates.marginPercent}% margin.`
-                    : "Not set. Until they are, nothing can be switched on or charged."}
+                    : t(
+                        "Not set. Until they are, nothing can be switched on or charged.",
+                      )}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
@@ -198,7 +200,7 @@ function CloudCosts() {
         description={
           usage.data
             ? `${usage.data.totals.hours.toFixed(1)} hours of running cost us ${formatEur(Math.ceil(usage.data.totals.costCents))}. At these prices it is ${formatEur(usage.data.totals.chargeCents)} charged.`
-            : "What each account used, and what it cost us."
+            : t("What each account used, and what it cost us.")
         }
         title={t("Usage")}
       >
@@ -358,8 +360,8 @@ function ChargeRow({
             onChange={(event) => setNote(event.target.value)}
             placeholder={
               outcome === "charged"
-                ? "Where you saw it taken, for the record"
-                : "Why it is not being charged"
+                ? t("Where you saw it taken, for the record")
+                : t("Why it is not being charged")
             }
             value={note}
           />
@@ -396,7 +398,7 @@ function ChargeRow({
                 size="sm"
                 variant={outcome === "waived" ? "destructive" : "default"}
               >
-                {outcome === "charged" ? "Record as charged" : "Waive"}
+                {outcome === "charged" ? t("Record as charged") : "Waive"}
               </Button>
             </>
           ) : (
@@ -537,7 +539,7 @@ function RatesForm({
           size="sm"
           type="button"
         >
-          {save.isPending ? "Saving…" : "Save prices"}
+          {save.isPending ? "Saving…" : t("Save prices")}
         </Button>
       </DialogFooter>
     </>

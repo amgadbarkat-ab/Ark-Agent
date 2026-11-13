@@ -30,8 +30,8 @@ export function DictationButton({
       aria-label={t("Dictate a message")}
       title={
         dictation.supported
-          ? "Dictate a message"
-          : "Dictation requires a supported browser and HTTPS (or localhost)"
+          ? t("Dictate a message")
+          : t("Dictation requires a supported browser and HTTPS (or localhost)")
       }
       className="size-8 shrink-0 self-end rounded-full"
       disabled={disabled || !dictation.supported || dictation.busy}
@@ -177,7 +177,7 @@ function RecordingControls({
               void (state.canRetry ? session.retry() : session.start())
             }
           >
-            {state.canRetry ? "Retry" : "Record again"}
+            {state.canRetry ? "Retry" : t("Record again")}
           </Button>
         ) : (
           <div className="flex shrink-0 items-center gap-2">

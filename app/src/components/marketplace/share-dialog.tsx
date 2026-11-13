@@ -198,10 +198,10 @@ function ShareForm({
       <DialogHeader>
         <DialogTitle>
           {editing
-            ? "Change what you shared"
+            ? t("Change what you shared")
             : agent
-              ? `Share ${agent.name}`
-              : "Share a digital employee"}
+              ? t("Share {name}", { name: agent.name })
+              : t("Share a digital employee")}
         </DialogTitle>
         <DialogDescription>
           {t(
@@ -374,7 +374,7 @@ function ShareForm({
           {t("Cancel")}
         </Button>
         <Button disabled={busy || !complete} size="sm" type="submit">
-          {busy ? "Sending…" : editing ? "Send for review" : "Share"}
+          {busy ? "Sending…" : editing ? t("Send for review") : "Share"}
         </Button>
       </DialogFooter>
     </form>

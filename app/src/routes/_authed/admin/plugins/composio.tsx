@@ -166,13 +166,15 @@ function RouteComponent() {
              * the fallback for a failure that arrived carrying no message of its own.
              */}
             {apps.error.message ||
-              "Composio's app directory could not be read."}
+              t("Composio's app directory could not be read.")}
           </p>
         ) : listed.length === 0 ? (
           <PageEmpty>
             {query
-              ? `Nothing in Composio's directory matches "${query}".`
-              : "Composio returned no apps."}
+              ? t('Nothing in Composio\'s directory matches "{query}".', {
+                  query: query,
+                })
+              : t("Composio returned no apps.")}
           </PageEmpty>
         ) : (
           <PageRows>

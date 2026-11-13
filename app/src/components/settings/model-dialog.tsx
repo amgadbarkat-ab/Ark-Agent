@@ -199,7 +199,9 @@ function ModelForm({
       }}
     >
       <DialogHeader>
-        <DialogTitle>{editing ? "Change model" : "Add a model"}</DialogTitle>
+        <DialogTitle>
+          {editing ? t("Change model") : t("Add a model")}
+        </DialogTitle>
         <DialogDescription>
           {t(
             "Your digital employees think with the model you choose. Keys are held encrypted and are never shown again.",
@@ -289,7 +291,7 @@ function ModelForm({
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder={provider?.name ?? "My model"}
+                  placeholder={provider?.name ?? t("My model")}
                   value={field.state.value}
                 />
               </Field>
@@ -337,7 +339,7 @@ function ModelForm({
                       setProbe(undefined);
                     }}
                     placeholder={
-                      connection?.hasKey ? "Saved. Type to replace it." : ""
+                      connection?.hasKey ? t("Saved. Type to replace it.") : ""
                     }
                     type="password"
                     value={field.state.value}
@@ -366,13 +368,17 @@ function ModelForm({
                       }
                     >
                       <SelectTrigger
-                        aria-label={`Choose one of ${suggestions.length} models`}
+                        aria-label={t("Choose one of {length} models", {
+                          length: suggestions.length,
+                        })}
                         className="w-full"
                       >
                         <SelectValue>
                           {suggestions.includes(field.state.value)
                             ? field.state.value
-                            : `Choose from ${suggestions.length} models`}
+                            : t("Choose from {length} models", {
+                                length: suggestions.length,
+                              })}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -394,14 +400,16 @@ function ModelForm({
                     placeholder={
                       provider?.tier === "local"
                         ? "qwen3:8b"
-                        : "Or type a model name"
+                        : t("Or type a model name")
                     }
                     value={field.state.value}
                   />
                   <FieldDescription>
                     {probe?.ok
-                      ? "Every model this provider offers is in the list above."
-                      : "Press Test to see what this provider offers."}
+                      ? t(
+                          "Every model this provider offers is in the list above.",
+                        )
+                      : t("Press Test to see what this provider offers.")}
                   </FieldDescription>
                   {isFreeModel(field.state.value) ? (
                     <FieldDescription role="note">
@@ -424,7 +432,7 @@ function ModelForm({
               type="button"
               variant="outline"
             >
-              {testing ? "Testing…" : "Test connection"}
+              {testing ? "Testing…" : t("Test connection")}
             </Button>
             {probe?.ok ? (
               <p
@@ -478,7 +486,7 @@ function ModelForm({
                 type="button"
                 variant="destructive"
               >
-                {remove.isPending ? "Removing…" : "Remove for good"}
+                {remove.isPending ? "Removing…" : t("Remove for good")}
               </Button>
             ) : (
               <Button

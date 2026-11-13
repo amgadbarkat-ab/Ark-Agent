@@ -93,12 +93,14 @@ export function NotificationSettings() {
               <ItemTitle>{t("Notify this device")}</ItemTitle>
               <ItemDescription className="line-clamp-none">
                 {!status.data.enabled || publicKey === null
-                  ? "Not set up on this server. An administrator has to switch notifications on first."
+                  ? t(
+                      "Not set up on this server. An administrator has to switch notifications on first.",
+                    )
                   : device.data.support !== "ready"
                     ? CANNOT[device.data.support]
                     : device.data.subscribed
-                      ? "This device is told when a routine finishes."
-                      : "Off. Nothing is sent to this device."}
+                      ? t("This device is told when a routine finishes.")
+                      : t("Off. Nothing is sent to this device.")}
               </ItemDescription>
             </ItemContent>
             {/* A read-only row where nothing can be switched, and a switch where something can. */}
@@ -134,7 +136,9 @@ export function NotificationSettings() {
                   <ItemDescription className="line-clamp-none">
                     {test.data
                       ? testOutcome(test.data)
-                      : "Sends a notification to your devices now, to see that it arrives."}
+                      : t(
+                          "Sends a notification to your devices now, to see that it arrives.",
+                        )}
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>

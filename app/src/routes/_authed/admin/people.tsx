@@ -133,8 +133,8 @@ function PeoplePage() {
         ) : rows.length === 0 ? (
           <PageEmpty>
             {query
-              ? `Nobody here matches "${query}".`
-              : "Nobody has signed in yet. People appear here once they do."}
+              ? t('Nobody here matches "{query}".', { query: query })
+              : t("Nobody has signed in yet. People appear here once they do.")}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -163,7 +163,10 @@ function PeoplePage() {
                       </ItemDescription>
                       {erasing?.userId === person.id ? (
                         <Input
-                          aria-label={`Type ${person.email} to confirm removing their data`}
+                          aria-label={t(
+                            "Type {email} to confirm removing their data",
+                            { email: person.email },
+                          )}
                           autoFocus
                           className="mt-2"
                           onChange={(event) =>
@@ -172,7 +175,10 @@ function PeoplePage() {
                               typed: event.target.value,
                             })
                           }
-                          placeholder={`Type ${person.email} to confirm. This cannot be undone.`}
+                          placeholder={t(
+                            "Type {email} to confirm. This cannot be undone.",
+                            { email: person.email },
+                          )}
                           value={erasing.typed}
                         />
                       ) : null}
@@ -256,7 +262,9 @@ function PeoplePage() {
                         {person.revoked ? "Restore" : "Remove"}
                       </Button>
                       <Switch
-                        aria-label={`Administrator: ${person.email}`}
+                        aria-label={t("Administrator: {email}", {
+                          email: person.email,
+                        })}
                         checked={person.role === "admin"}
                         disabled={busy || person.configuredAdmin || isSelf}
                         onCheckedChange={(checked) =>
@@ -287,7 +295,7 @@ function PeoplePage() {
             size="sm"
             variant="outline"
           >
-            {people.isFetchingNextPage ? "Loading…" : "Show more"}
+            {people.isFetchingNextPage ? "Loading…" : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

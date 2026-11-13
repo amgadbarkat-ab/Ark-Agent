@@ -83,7 +83,7 @@ function MarketplaceReview() {
             size="sm"
             variant="outline"
           >
-            {pending.isFetchingNextPage ? "Loading…" : "Show more"}
+            {pending.isFetchingNextPage ? "Loading…" : t("Show more")}
           </Button>
         ) : null}
       </PageSection>
@@ -118,7 +118,7 @@ function MarketplaceReview() {
             size="sm"
             variant="outline"
           >
-            {reports.isFetchingNextPage ? "Loading…" : "Show more"}
+            {reports.isFetchingNextPage ? "Loading…" : t("Show more")}
           </Button>
         ) : null}
       </PageSection>
@@ -155,15 +155,22 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
             {shared.instructions
               ? `\n\n${tNow("Instruction: {text}", { text: shared.instructions })}`
               : ""}
-            {`\n\nTools: ${shared.tools.length > 0 ? shared.tools.join(", ") : "none"}`}
+            {`\n\n${t("Tools: {tools}", {
+              tools:
+                shared.tools.length > 0 ? shared.tools.join(", ") : t("none"),
+            })}`}
             {listing.description
-              ? `\n\nDescription: ${listing.description}`
+              ? `\n\n${t("Description: {description}", {
+                  description: listing.description,
+                })}`
               : ""}
           </ItemDescription>
         ) : null}
         {rejecting ? (
           <Input
-            aria-label={`Reason for rejecting ${listing.title}`}
+            aria-label={t("Reason for rejecting {title}", {
+              title: listing.title,
+            })}
             autoFocus
             className="mt-2"
             onChange={(event) => setNote(event.target.value)}
@@ -263,7 +270,9 @@ function ReportItem({ report }: { report: ReportRow }) {
         </ItemDescription>
         {removing ? (
           <Input
-            aria-label={`Reason for taking down ${report.listing.title}`}
+            aria-label={t("Reason for taking down {title}", {
+              title: report.listing.title,
+            })}
             autoFocus
             className="mt-2"
             onChange={(event) => setNote(event.target.value)}
