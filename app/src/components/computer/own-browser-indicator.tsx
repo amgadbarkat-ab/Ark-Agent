@@ -9,7 +9,7 @@ import {
   ownBrowserQueryOptions,
   stopOwnBrowserMutationOptions,
 } from "@/lib/computers/own-browser";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 
 /**
  * The band that says a digital employee may be working in the person's own browser (desk #27).
@@ -77,18 +77,25 @@ export function OwnBrowserIndicator() {
             <span className="font-medium">
               {t("You have taken over your browser.")}
             </span>{" "}
-            {names} will wait until you hand it back.
+            {tNow("{names} will wait until you hand it back.", { names })}
           </>
         ) : driving.length > 0 ? (
           <>
-            <span className="font-medium">{names}</span>{" "}
-            {driving.length === 1 ? "is" : "are"} working in your browser now.
-            Payments, sending, submitting and deleting wait for your approval.
+            {txNow(
+              driving.length === 1
+                ? "{names} is working in your browser now. Payments, sending, submitting and deleting wait for your approval."
+                : "{names} are working in your browser now. Payments, sending, submitting and deleting wait for your approval.",
+              { names: <span className="font-medium">{names}</span> },
+            )}
           </>
         ) : (
           <>
-            <span className="font-medium">{names}</span>{" "}
-            {employees.length === 1 ? "can" : "can each"} use your browser.
+            {txNow(
+              employees.length === 1
+                ? "{names} can use your browser."
+                : "{names} can each use your browser.",
+              { names: <span className="font-medium">{names}</span> },
+            )}
           </>
         )}
         {problem ? (

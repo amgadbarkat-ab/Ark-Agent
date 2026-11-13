@@ -14,7 +14,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 /**
  * Who a conversation that does not exist yet is with.
@@ -56,7 +56,9 @@ export function RecipientField({
             <ChannelAvatar participantIds={[recipient.id]} size={16} />
             {recipient.name}
             <span aria-hidden>×</span>
-            <span className="sr-only">Remove {recipient.name}</span>
+            <span className="sr-only">
+              {tNow("Remove {name}", { name: recipient.name })}
+            </span>
           </Button>
         ))}
 

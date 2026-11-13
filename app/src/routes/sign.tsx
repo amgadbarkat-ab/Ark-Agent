@@ -14,7 +14,7 @@ import {
 } from "@/lib/auth/client";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { appConfig } from "@/lib/generated/application-config";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 import { openSystemBrowser } from "@/lib/native/listener";
 import { beginNativeSignIn, NATIVE_PROVIDERS } from "@/lib/native/sign-in";
 import { isIosApp } from "@/lib/store-app";
@@ -165,7 +165,9 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          Sign in to {appConfig.brand.productName}
+          {tNow("Sign in to {product}", {
+            product: appConfig.brand.productName,
+          })}
         </motion.h1>
         <motion.div
           className="mt-8 w-full"
@@ -267,15 +269,21 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          By continuing you will be asked to agree to the{" "}
-          <a className="underline underline-offset-4" href="/terms">
-            {t("terms of service")}
-          </a>
-          . How we handle your data is in the{" "}
-          <a className="underline underline-offset-4" href="/privacy">
-            {t("privacy notice")}
-          </a>
-          .
+          {txNow(
+            "By continuing you will be asked to agree to the {terms}. How we handle your data is in the {privacy}.",
+            {
+              terms: (
+                <a className="underline underline-offset-4" href="/terms">
+                  {t("terms of service")}
+                </a>
+              ),
+              privacy: (
+                <a className="underline underline-offset-4" href="/privacy">
+                  {t("privacy notice")}
+                </a>
+              ),
+            },
+          )}
         </motion.p>
       </motion.div>
     </div>

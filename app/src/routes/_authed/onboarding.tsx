@@ -34,7 +34,7 @@ function WelcomeStep() {
   return (
     <div className="w-full flex flex-col items-center justify-center">
       <h1 className="text-3xl font-semibold tracking-tight max-w-md text-center">
-        Welcome to {appConfig.brand.productName}
+        {t("Welcome to {product}", { product: appConfig.brand.productName })}
       </h1>
       <div className="h-32" />
       <ArkAgentPortrait size={72} />

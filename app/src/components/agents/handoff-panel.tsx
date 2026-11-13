@@ -21,7 +21,7 @@ import {
   agentHandoffQueryOptions,
   agentListQueryOptions,
 } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 /**
  * Which Bots this one may hand work to.
@@ -75,7 +75,7 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
         {/* The current answer at a glance, so the list below is detail rather than homework. */}
         {grantable && total > 0 ? (
           <span className="text-muted-foreground text-xs tabular-nums">
-            {granted} of {total}
+            {tNow("{granted} of {total}", { granted, total })}
           </span>
         ) : null}
       </header>

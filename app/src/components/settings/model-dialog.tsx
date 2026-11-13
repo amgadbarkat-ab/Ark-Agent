@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   FREE_MODEL_NOTE,
   isFreeModel,
@@ -323,7 +323,9 @@ function ModelForm({
               {(field) => (
                 <Field>
                   <FieldLabel htmlFor={field.name}>
-                    API key{provider.keyRequired ? "" : " (optional)"}
+                    {provider.keyRequired
+                      ? tNow("API key")
+                      : tNow("API key (optional)")}
                   </FieldLabel>
                   <Input
                     autoComplete="off"
@@ -429,7 +431,7 @@ function ModelForm({
                 className="text-sm text-emerald-600 dark:text-emerald-500"
                 role="status"
               >
-                Connected.{" "}
+                {tNow("Connected.")}{" "}
                 {probe.models.length === 1
                   ? "1 model found."
                   : `${probe.models.length} models found.`}

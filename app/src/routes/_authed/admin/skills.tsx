@@ -34,7 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   removeSkillMutationOptions,
   saveSkillMutationOptions,
@@ -136,7 +136,7 @@ function RouteComponent() {
                       {skill.ownerUserId ? (
                         <span className="font-normal text-muted-foreground text-xs">
                           {" "}
-                          · personal
+                          · {tNow("personal")}
                         </span>
                       ) : null}
                     </ItemTitle>

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { tNow } from "@/lib/i18n";
 import { Badge, GalleryFrame, type Tone } from "./frame";
 
 const tone = z
@@ -141,7 +142,7 @@ export function ChecklistCard({
             done === items.length && items.length > 0 ? "positive" : "neutral"
           }
         >
-          {done} of {items.length}
+          {tNow("{done} of {total}", { done, total: items.length })}
         </Badge>
       }
       caption={caption}

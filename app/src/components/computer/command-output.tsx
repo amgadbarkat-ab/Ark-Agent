@@ -1,4 +1,4 @@
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 /**
  * What a command printed.
  *
@@ -51,7 +51,7 @@ export function CommandOutput({
       ) : null}
       {failed ? (
         <p className="text-amber-600 text-xs dark:text-amber-500">
-          Exit code {exitCode}.
+          {tNow("Exit code {code}.", { code: String(exitCode) })}
         </p>
       ) : null}
     </div>

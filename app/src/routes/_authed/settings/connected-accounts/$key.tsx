@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import {
@@ -427,7 +427,9 @@ function RouteComponent() {
                       className="whitespace-nowrap"
                       variant="destructive"
                     >
-                      Disconnect your {entry.title} account
+                      {tNow("Disconnect your {name} account", {
+                        name: entry.title,
+                      })}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

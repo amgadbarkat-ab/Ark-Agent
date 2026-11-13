@@ -19,7 +19,7 @@ import { agentListQueryOptions, isSharedWithYou } from "@/lib/agents/queries";
 import { routeMessage } from "@/lib/channels/route";
 import { useStartChannel } from "@/lib/channels/start";
 import { appConfig } from "@/lib/generated/application-config";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/_app/")({
   component: RouteComponent,
@@ -107,9 +107,14 @@ function RouteComponent() {
             // kind of surprise that costs trust the first time it happens.
             <p className="mt-2 w-full max-w-2xl text-xs text-muted-foreground text-center">
               {fallback.primary && fallback.mine
-                ? `Sent to ${fallback.name}, who leads your team and passes work to the right colleague.`
-                : "Sent to the digital employee it is for."}{" "}
-              Type <code>@</code> to choose one yourself.
+                ? tNow(
+                    "Sent to {name}, who leads your team and passes work to the right colleague.",
+                    { name: fallback.name },
+                  )
+                : tNow("Sent to the digital employee it is for.")}{" "}
+              {txNow("Type {at} to choose one yourself.", {
+                at: <code>@</code>,
+              })}
             </p>
           ) : null}
           {error ? (

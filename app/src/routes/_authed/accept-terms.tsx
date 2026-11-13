@@ -50,9 +50,10 @@ function AcceptTerms() {
           {t("Before you start")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          To use {appConfig.brand.productName} you need to agree to the terms of
-          service. They are short enough to read, and they explain what the
-          digital employees do on your behalf and what we do with your data.
+          {t(
+            "To use {product} you need to agree to the terms of service. They are short enough to read, and they explain what the digital employees do on your behalf and what we do with your data.",
+            { product: appConfig.brand.productName },
+          )}
         </p>
         <p className="text-sm">
           <a
@@ -81,8 +82,12 @@ function AcceptTerms() {
             type="checkbox"
           />
           <span>
-            I have read the terms of service and I agree to them
-            {version ? ` (version ${version})` : ""}.
+            {version
+              ? t(
+                  "I have read the terms of service and I agree to them (version {version}).",
+                  { version },
+                )
+              : t("I have read the terms of service and I agree to them.")}
           </span>
         </label>
         <Button

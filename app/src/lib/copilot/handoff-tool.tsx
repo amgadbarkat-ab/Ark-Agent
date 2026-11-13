@@ -2,6 +2,7 @@ import { useRenderTool } from "@copilotkit/react-core/v2";
 import { z } from "zod";
 import { ToolLine } from "@/components/channels/tool-line";
 import { HANDED_OVER } from "@/lib/copilot/markers";
+import { tNow } from "@/lib/i18n";
 import { saidItWentAhead } from "@/lib/plugins/tool-result";
 
 /**
@@ -73,12 +74,12 @@ function AskedLine({
         {given?.task ? <p>{given.task}</p> : null}
         {given?.constraints ? (
           <p className="text-muted-foreground">
-            Constraints: {given.constraints}
+            {tNow("Constraints: {text}", { text: given.constraints })}
           </p>
         ) : null}
         {given?.expecting ? (
           <p className="text-muted-foreground">
-            Wanted back: {given.expecting}
+            {tNow("Wanted back: {text}", { text: given.expecting })}
           </p>
         ) : null}
         {typeof result === "string" ? (

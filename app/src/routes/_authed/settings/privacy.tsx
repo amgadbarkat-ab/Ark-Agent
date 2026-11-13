@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   deleteMyAccountMutationOptions,
   MY_EXPORT_PATH,
@@ -166,7 +166,9 @@ function DeleteDialog({
           <DialogBody className="mt-4 overflow-y-auto">
             <Field>
               <FieldLabel htmlFor="confirm-email">
-                Type your email address, {email}, to confirm
+                {tNow("Type your email address, {email}, to confirm", {
+                  email,
+                })}
               </FieldLabel>
               <Input
                 autoComplete="off"

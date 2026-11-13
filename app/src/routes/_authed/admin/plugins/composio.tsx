@@ -19,7 +19,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   enableComposioAppMutationOptions,
   invalidatePlugins,
@@ -201,7 +201,7 @@ function RouteComponent() {
                       {/* The size of the decision, stated before it is made: an app is not one
                           tool, and "167 actions" is what says so. */}
                       <span className="text-muted-foreground text-xs">
-                        {entry.actionCount} actions
+                        {tNow("{count} actions", { count: entry.actionCount })}
                       </span>
                       {/*
                        * An app this deployment already has says so rather than offering Add again.

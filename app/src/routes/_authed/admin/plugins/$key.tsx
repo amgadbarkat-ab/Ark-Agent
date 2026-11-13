@@ -42,7 +42,7 @@ import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { storeMcpToken } from "@/lib/credentials/mutations";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   addCuratedServerMutationOptions,
   connectAccountMutationOptions,
@@ -1009,9 +1009,14 @@ function RouteComponent() {
                       {held.name}
                     </ItemTitle>
                     <ItemDescription>
-                      Not listed by {title}
-                      {server.toolsRefreshedAt ? ` as of the last refresh` : ""}
-                      .
+                      {server.toolsRefreshedAt
+                        ? tNow(
+                            "Not listed by {vendor} as of the last refresh.",
+                            {
+                              vendor: title,
+                            },
+                          )
+                        : tNow("Not listed by {vendor}.", { vendor: title })}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>

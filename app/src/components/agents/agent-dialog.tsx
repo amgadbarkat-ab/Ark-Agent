@@ -78,7 +78,7 @@ import {
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
 import { cloudQueryOptions } from "@/lib/cloud/queries";
 import { isComposing } from "@/lib/composing";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 
@@ -1011,7 +1011,9 @@ function ManageSection({
           overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm"
         >
           <DialogHeader>
-            <DialogTitle>Delete {profile.name}?</DialogTitle>
+            <DialogTitle>
+              {tNow("Delete {name}?", { name: profile.name })}
+            </DialogTitle>
             <DialogDescription>{t("This cannot be undone.")}</DialogDescription>
           </DialogHeader>
           {deleteAgent.error ? (

@@ -30,7 +30,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
 import { trialDaysLeft } from "../../../../../shared/plans";
@@ -413,7 +413,7 @@ function PlanRow({
         <ItemTitle>
           {plan.name}
           <span className="font-normal text-muted-foreground text-xs">
-            {formatEur(plan.priceEurCents)} a month
+            {tNow("{price} a month", { price: formatEur(plan.priceEurCents) })}
           </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">

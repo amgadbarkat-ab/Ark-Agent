@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SkillFields } from "@/components/skills/skill-fields";
-import { useT } from "@/lib/i18n";
+import { txNow, useT } from "@/lib/i18n";
 import { saveSkillMutationOptions } from "@/lib/plugins/mutations";
 import { emptySkillForm } from "@/lib/skills/form";
 
@@ -23,8 +23,10 @@ export function NewSkill() {
       <header>
         <h1 className="text-2xl font-semibold">{t("New skill")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          A named instruction you invoke with <code>/</code>. It goes on the
-          Digital employees you own, and nobody else sees it.
+          {txNow(
+            "A named instruction you invoke with {slash}. It goes on the digital employees you own, and nobody else sees it.",
+            { slash: <code>/</code> },
+          )}
         </p>
       </header>
 

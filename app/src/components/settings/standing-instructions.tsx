@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { PageSection } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { saveInstructionsMutationOptions } from "@/lib/settings/mutations";
 import {
   INSTRUCTIONS_LIMIT,
@@ -91,7 +91,10 @@ export function StandingInstructions() {
                   : "text-muted-foreground text-xs"
               }
             >
-              {text.trim().length} of {INSTRUCTIONS_LIMIT} characters
+              {tNow("{count} of {limit} characters", {
+                count: text.trim().length,
+                limit: INSTRUCTIONS_LIMIT,
+              })}
             </p>
             <div className="flex flex-row items-center gap-3">
               {/*

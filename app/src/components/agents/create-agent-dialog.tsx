@@ -39,7 +39,7 @@ import {
   testAgentConnection,
 } from "@/lib/agents/queries";
 import { isComposing } from "@/lib/composing";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -277,7 +277,10 @@ function CreateAgentWizard({
           {/* A plain element rather than QuestionnaireProgress: only the active step is mounted,
               so the primitive would count one question and announce the wrong total. */}
           <p className="text-xs font-medium text-muted-foreground tabular-nums">
-            Step {step + 1} of {STEPS.length}
+            {tNow("Step {step} of {steps}", {
+              step: step + 1,
+              steps: STEPS.length,
+            })}
           </p>
           <MotionConfig
             transition={{ duration: 0.5, type: "spring", bounce: 0 }}
@@ -619,8 +622,10 @@ function KindStep({
               value={values.authValue}
             />
             <p className="text-muted-foreground text-sm">
-              Sent as an <code>{t("Authorization")}</code> header on every run,
-              and kept in the credential vault.
+              {txNow(
+                "Sent as an {header} header on every run, and kept in the credential vault.",
+                { header: <code>Authorization</code> },
+              )}
             </p>
           </Field>
         </FieldGroup>

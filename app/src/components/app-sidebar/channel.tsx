@@ -194,7 +194,7 @@ export const Channel = memo(function Channel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {name}?</DialogTitle>
+            <DialogTitle>{t("Delete {name}?", { name })}</DialogTitle>
             <DialogDescription>
               {t("The conversation will no longer appear for anyone in it.")}
             </DialogDescription>

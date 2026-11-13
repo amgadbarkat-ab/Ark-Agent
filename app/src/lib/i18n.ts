@@ -1,4 +1,10 @@
-import { useCallback, useSyncExternalStore } from "react";
+import {
+  createElement,
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import {
   translateSentence,
   translateText,
@@ -209,4 +215,50 @@ export function sentenceNow(sentence: string): string {
 export function useSentence() {
   const language = useLanguage();
   return (sentence: string) => translateSentence(language, sentence);
+}
+
+/**
+ * A sentence with things in it that are not text (a link, a code chip, a name in bold), translated
+ * as ONE sentence and then filled in: `tx("Changes apply the next time {command} is used.",
+ * { command: <code>/standup</code> })`. Greek word order differs from English, so a sentence must
+ * never be glued together from English pieces.
+ */
+export function useTx() {
+  const t = useT();
+  return useCallback(
+    (text: string, nodes: Record<string, ReactNode>): ReactNode => {
+      const parts = t(text).split(/\{(\w+)\}/);
+      return createElement(
+        Fragment,
+        null,
+        ...parts.map((part, index) =>
+          index % 2 === 1
+            ? createElement(
+                Fragment,
+                { key: index },
+                nodes[part] ?? `{${part}}`,
+              )
+            : part,
+        ),
+      );
+    },
+    [t],
+  );
+}
+
+/** `useTx` without the hook, for a component that already redraws on a language change. */
+export function txNow(
+  text: string,
+  nodes: Record<string, ReactNode>,
+): ReactNode {
+  const parts = tNow(text).split(/\{(\w+)\}/);
+  return createElement(
+    Fragment,
+    null,
+    ...parts.map((part, index) =>
+      index % 2 === 1
+        ? createElement(Fragment, { key: index }, nodes[part] ?? `{${part}}`)
+        : part,
+    ),
+  );
 }

@@ -12,7 +12,7 @@ import {
   readScreenshot,
   type Screenshot,
 } from "@/lib/computers/screen";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { ChannelAvatar } from "../channels/avatar";
 import { LiveScreen } from "./live-screen";
 import { useElementVisible, usePageVisible } from "./preview-visibility";
@@ -701,7 +701,9 @@ export function ComputerView({
                       ) : null}
                       {driving ? (
                         <span className="truncate text-muted-foreground">
-                          You have control — click and type on the page.
+                          {tNow(
+                            "You have control — click and type on the page.",
+                          )}
                           {control?.reason ? ` ${control.reason}` : null}
                         </span>
                       ) : control?.requested ? (

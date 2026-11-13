@@ -61,7 +61,7 @@ import {
   formatPeriod,
   formatRate,
 } from "@/lib/cloud/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/cloud")({
@@ -247,7 +247,9 @@ function CloudCosts() {
                   </ItemContent>
                   <ItemActions>
                     <span className="text-muted-foreground text-sm">
-                      cost {formatEur(Math.ceil(account.costCents))}
+                      {tNow("cost {amount}", {
+                        amount: formatEur(Math.ceil(account.costCents)),
+                      })}
                     </span>
                   </ItemActions>
                 </Item>
@@ -513,7 +515,10 @@ function RatesForm({
         </FieldGroup>
         {problem ? (
           <p className="mt-3 text-destructive text-sm" role="alert">
-            {problem.label} must be a number from 0 to {limits[problem.key]}.
+            {tNow("{field} must be a number from 0 to {max}.", {
+              field: problem.label,
+              max: limits[problem.key],
+            })}
           </p>
         ) : null}
         {save.error ? (

@@ -43,7 +43,7 @@ import {
   setOwnBrowserEmployeeMutationOptions,
 } from "@/lib/computers/own-browser";
 import { computerFleetQueryOptions } from "@/lib/computers/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
   component: ComputersPage,
@@ -124,10 +124,10 @@ function ComputersPage() {
           <span className="font-medium">
             {t("Every digital employee is sharing one computer.")}
           </span>{" "}
-          They share its logins, its files and its session, so a digital
-          employee can reach what another signed into. Set{" "}
-          <code>{t("COMPUTER_SUPERVISOR_URL")}</code> to give each digital
-          employee its own.
+          {txNow(
+            "They share its logins, its files and its session, so a digital employee can reach what another signed into. Set {variable} to give each digital employee its own.",
+            { variable: <code>COMPUTER_SUPERVISOR_URL</code> },
+          )}
         </p>
       ) : isolation === "per-bot" ? (
         <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
@@ -247,7 +247,9 @@ function ComputersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Reset {confirming ? nameFor(confirming) : ""}'s computer?
+              {tNow("Reset {name}'s computer?", {
+                name: confirming ? nameFor(confirming) : "",
+              })}
             </DialogTitle>
             <DialogDescription>
               {t(
@@ -278,14 +280,18 @@ function ComputersPage() {
       </Dialog>
 
       <p className="mt-4 text-muted-foreground text-sm">
-        <strong>{t("Stop")}</strong> closes the browser and keeps its logins:
-        the next thing the Bot does starts it again where it left off.{" "}
-        <strong>{t("Reset")}</strong> deletes the profile, so the Bot is signed
-        out of everything and starts clean. Both are recorded in{" "}
-        <Link className="underline" to="/admin/audit">
-          {t("Audit")}
-        </Link>
-        .
+        {txNow(
+          "{stop} closes the browser and keeps its logins: the next thing the digital employee does starts it again where it left off. {reset} deletes the profile, so the digital employee is signed out of everything and starts clean. Both are recorded in {audit}.",
+          {
+            stop: <strong>{t("Stop")}</strong>,
+            reset: <strong>{t("Reset")}</strong>,
+            audit: (
+              <Link className="underline" to="/admin/audit">
+                {t("Audit")}
+              </Link>
+            ),
+          },
+        )}
       </p>
     </PageShell>
   );
@@ -336,12 +342,16 @@ function OwnBrowserSection({
       ) : null}
       {!status.available ? (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          Switched off. To use it, choose{" "}
-          <span className="font-medium">
-            {t("Let digital employees use my browser")}
-          </span>{" "}
-          in the ArkAgent menu of the desktop app. Switching it off there, or
-          closing that browser window, ends it at once.
+          {txNow(
+            "Switched off. To use it, choose {option} in the ArkAgent menu of the desktop app. Switching it off there, or closing that browser window, ends it at once.",
+            {
+              option: (
+                <span className="font-medium">
+                  {t("Let digital employees use my browser")}
+                </span>
+              ),
+            },
+          )}
         </p>
       ) : null}
       {sorted.length === 0 ? (
@@ -549,7 +559,7 @@ function FolderGrantList({
           <div className="min-w-0">
             <p className="truncate font-medium text-sm">{grant.displayName}</p>
             <p className="text-muted-foreground text-xs">
-              {ownerLabel(grant)} · Read-only
+              {ownerLabel(grant)} · {tNow("Read-only")}
             </p>
           </div>
           <Button
@@ -558,7 +568,7 @@ function FolderGrantList({
             size="sm"
             variant="ghost"
           >
-            {revokingGrantId === grant.id ? "Revoking…" : "Revoke"}
+            {revokingGrantId === grant.id ? tNow("Revoking…") : tNow("Revoke")}
           </Button>
         </div>
       ))}
@@ -567,8 +577,16 @@ function FolderGrantList({
           className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
           key={request.operationId}
         >
-          {pendingLabel(request)} from {ownerLabel(request)}
-          {request.displayName ? ` for ${request.displayName}` : ""}.
+          {request.displayName
+            ? tNow("{what} from {who} for {folder}.", {
+                what: pendingLabel(request),
+                who: ownerLabel(request),
+                folder: request.displayName,
+              })
+            : tNow("{what} from {who}.", {
+                what: pendingLabel(request),
+                who: ownerLabel(request),
+              })}
         </div>
       ))}
     </div>

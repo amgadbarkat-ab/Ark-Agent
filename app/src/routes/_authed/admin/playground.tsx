@@ -15,7 +15,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   deleteSandboxedMutationOptions,
   publishSandboxedMutationOptions,
@@ -400,7 +400,9 @@ function PlaygroundPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {deleting}?</DialogTitle>
+            <DialogTitle>
+              {tNow("Delete {name}?", { name: deleting ?? "" })}
+            </DialogTitle>
             <DialogDescription>
               {t(
                 "It is removed from this deployment. Any digital employee that could draw it no longer can, and this cannot be undone.",

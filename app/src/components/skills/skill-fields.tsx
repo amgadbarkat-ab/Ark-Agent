@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 import { type SkillFormValues, skillFormSchema } from "@/lib/skills/form";
 
 /**
@@ -96,7 +96,7 @@ export function SkillFields({
                       "A command cannot be changed. To rename a skill, write a new one and delete this."
                     ) : (
                       <>
-                        What you type after a slash.{" "}
+                        {tNow("What you type after a slash.")}{" "}
                         <code>
                           /{"{"}command{"}"}
                         </code>
@@ -155,8 +155,10 @@ export function SkillFields({
                   <FieldError errors={field.state.meta.errors} />
                 ) : (
                   <p className="text-muted-foreground text-xs">
-                    Shown beside the command in this list and in the{" "}
-                    <code>/</code> menu. Optional.
+                    {txNow(
+                      "Shown beside the command in this list and in the {slash} menu. Optional.",
+                      { slash: <code>/</code> },
+                    )}
                   </p>
                 )}
               </Field>

@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   clearDefaultModelMutationOptions,
   setBotModelMutationOptions,
@@ -310,7 +310,7 @@ function OfflineModelRow({
       </ItemMedia>
       <ItemContent>
         <ItemTitle>
-          ArkAgent offline model · {offline.label}
+          {tNow("ArkAgent offline model · {name}", { name: offline.label })}
           {otherDefault ? null : (
             <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
               {t("Default")}
@@ -444,7 +444,9 @@ function CoworkerRow({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={DEFAULT_MODEL}>
-              Default{fallback ? ` (${fallback.label})` : ""}
+              {fallback
+                ? tNow("Default ({name})", { name: fallback.label })
+                : tNow("Default")}
             </SelectItem>
             {connections.map((c) => (
               <SelectItem key={c.id} value={c.id}>

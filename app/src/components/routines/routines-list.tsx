@@ -27,7 +27,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { relativeTime } from "@/lib/relative-time";
 import {
   deleteRoutineMutationOptions,
@@ -263,7 +263,9 @@ export function RoutinesList({
                         </Chip>
                       ) : (
                         <Chip className="text-muted-foreground">
-                          Next {relativeTime(routine.nextRunAt)}
+                          {tNow("Next {when}", {
+                            when: relativeTime(routine.nextRunAt),
+                          })}
                         </Chip>
                       )}
                     </div>
@@ -322,7 +324,11 @@ export function RoutinesList({
             UI would otherwise render a nested dialog with no backdrop at all. */}
         <DialogContent overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm">
           <DialogHeader>
-            <DialogTitle>Delete "{confirming?.schedule}"?</DialogTitle>
+            <DialogTitle>
+              {tNow("Delete {name}?", {
+                name: `«${confirming?.schedule ?? ""}»`,
+              })}
+            </DialogTitle>
             <DialogDescription>
               {t(
                 "This standing instruction stops for good. Nothing further runs on this schedule, and there is no undo.",

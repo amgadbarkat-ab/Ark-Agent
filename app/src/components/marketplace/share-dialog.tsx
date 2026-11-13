@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   type Finding,
   savePublisherMutationOptions,
@@ -308,7 +308,9 @@ function ShareForm({
               value={tags}
             />
             <FieldDescription>
-              Up to {LIMITS.tags}, separated by commas.
+              {tNow("Up to {count}, separated by commas.", {
+                count: LIMITS.tags,
+              })}
             </FieldDescription>
           </Field>
           <Field>

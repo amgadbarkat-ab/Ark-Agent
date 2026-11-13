@@ -48,7 +48,7 @@ import {
   formatPeriod,
   formatRate,
 } from "@/lib/cloud/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 const CHARGE_WORDS: Record<CloudChargeView["status"], string> = {
@@ -129,8 +129,10 @@ export function CloudRunningSection() {
               </ItemContent>
               <ItemActions>
                 <span className="text-muted-foreground text-sm">
-                  {formatEur(cloud.chargeSoFarCents)} of{" "}
-                  {formatEur(cloud.monthlyCapCents)}
+                  {tNow("{spent} of {limit}", {
+                    spent: formatEur(cloud.chargeSoFarCents),
+                    limit: formatEur(cloud.monthlyCapCents),
+                  })}
                 </span>
               </ItemActions>
             </Item>
@@ -344,9 +346,13 @@ function CloudForm({
               value={typed}
             />
             <FieldDescription>
-              When this month's charge reaches it, new runs in the cloud stop
-              starting until next month or until you raise it. Between{" "}
-              {formatEur(limits.minCents)} and {formatEur(limits.maxCents)}.
+              {tNow(
+                "When this month's charge reaches it, new runs in the cloud stop starting until next month or until you raise it. Between {min} and {max}.",
+                {
+                  min: formatEur(limits.minCents),
+                  max: formatEur(limits.maxCents),
+                },
+              )}
             </FieldDescription>
           </Field>
           {needsAgreement ? (
@@ -368,8 +374,10 @@ function CloudForm({
         </FieldGroup>
         {typed.trim() !== "" && cents === null ? (
           <p className="mt-3 text-destructive text-sm" role="alert">
-            The limit is a number of euros between {formatEur(limits.minCents)}{" "}
-            and {formatEur(limits.maxCents)}.
+            {tNow("The limit is a number of euros between {min} and {max}.", {
+              min: formatEur(limits.minCents),
+              max: formatEur(limits.maxCents),
+            })}
           </p>
         ) : null}
         {failure ? (

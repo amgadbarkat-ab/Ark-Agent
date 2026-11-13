@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/item";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { DATA_SERVICES, type DataService } from "@/lib/data-services";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -247,7 +247,10 @@ function RouteComponent() {
       ) : (
         <>
           <p className="mt-5 text-xs text-muted-foreground">
-            {connectedCount} connected · {DATA_SERVICES.length} on the list
+            {tNow("{connected} connected · {total} on the list", {
+              connected: connectedCount,
+              total: DATA_SERVICES.length,
+            })}
           </p>
           <InputGroup className="mt-3 h-9 border-transparent bg-muted/60 shadow-none dark:bg-muted/60">
             <InputGroupAddon>
@@ -262,7 +265,7 @@ function RouteComponent() {
           </InputGroup>
           {services.length === 0 && brokeredMatching.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground" role="status">
-              No services match “{search.trim()}”.
+              {tNow("No services match “{search}”.", { search: search.trim() })}
             </p>
           ) : (
             <>
@@ -483,11 +486,12 @@ function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
             {t("Add your own MCP server")}
           </ItemTitle>
           <ItemDescription className="line-clamp-2 text-xs">
-            Anything that speaks MCP can be connected, so your digital employees
-            can use a tool nobody on this list has built.
+            {tNow(
+              "Anything that speaks MCP can be connected, so your digital employees can use a tool nobody on this list has built.",
+            )}
             {isAdmin
               ? ""
-              : " An administrator adds it, and decides who may use it."}
+              : ` ${tNow("An administrator adds it, and decides who may use it.")}`}
           </ItemDescription>
         </ItemContent>
         {isAdmin ? (

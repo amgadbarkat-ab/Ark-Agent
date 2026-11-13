@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { txNow, useT } from "@/lib/i18n";
 import { setPluginGrantMutationOptions } from "@/lib/plugins/mutations";
 
 /**
@@ -71,7 +71,10 @@ export function SkillAgents({
             })}
           </div>
           <p className="text-muted-foreground text-xs">
-            An Agent carrying this offers <code>/{slug}</code> in its composer.
+            {txNow(
+              "A digital employee carrying this offers {command} in its message box.",
+              { command: <code>/{slug}</code> },
+            )}
           </p>
         </>
       )}

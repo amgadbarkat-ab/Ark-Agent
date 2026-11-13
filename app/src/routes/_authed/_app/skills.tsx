@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 import { removeSkillMutationOptions } from "@/lib/plugins/mutations";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 
@@ -111,9 +111,10 @@ function SkillsPage() {
       <PageShell
         description={
           <>
-            A skill is a named instruction you invoke with <code>/</code> and a
-            Digital employee follows. Yours are yours alone, and go on the
-            digital employees you own.
+            {txNow(
+              "A skill is a named instruction you invoke with {slash} and a digital employee follows. Yours are yours alone, and go on the digital employees you own.",
+              { slash: <code>/</code> },
+            )}
           </>
         }
         title={t("Agent Skills")}
@@ -205,7 +206,9 @@ function SkillsPage() {
                               }}
                               variant="destructive"
                             >
-                              Delete /{skill.slug}
+                              {tNow("Delete {name}", {
+                                name: `/${skill.slug}`,
+                              })}
                             </DropdownMenuItem>
                           </DropdownMenuGroup>
                         </DropdownMenuContent>

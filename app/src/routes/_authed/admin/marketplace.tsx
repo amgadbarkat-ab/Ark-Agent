@@ -20,7 +20,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   dismissReportMutationOptions,
   reviewListingMutationOptions,
@@ -143,14 +143,17 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
       <ItemContent>
         <ItemTitle>{listing.title}</ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {listing.summary} · by {listing.publisher.displayName} · version{" "}
-          {listing.version}
+          {tNow("{summary} · by {publisher} · version {version}", {
+            summary: listing.summary,
+            publisher: listing.publisher.displayName,
+            version: listing.version,
+          })}
         </ItemDescription>
         {shared ? (
           <ItemDescription className="mt-1 line-clamp-none whitespace-pre-wrap">
-            Role: {shared.roleDescription}
+            {tNow("Role: {text}", { text: shared.roleDescription })}
             {shared.instructions
-              ? `\n\nInstruction: ${shared.instructions}`
+              ? `\n\n${tNow("Instruction: {text}", { text: shared.instructions })}`
               : ""}
             {`\n\nTools: ${shared.tools.length > 0 ? shared.tools.join(", ") : "none"}`}
             {listing.description
@@ -243,7 +246,10 @@ function ReportItem({ report }: { report: ReportRow }) {
       <ItemContent>
         <ItemTitle>{report.listing.title}</ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {reason} · by {report.listing.publisherName}
+          {tNow("{reason} · by {publisher}", {
+            reason,
+            publisher: report.listing.publisherName,
+          })}
           {report.details ? ` · "${report.details}"` : ""}
         </ItemDescription>
         <ItemDescription className="line-clamp-none">

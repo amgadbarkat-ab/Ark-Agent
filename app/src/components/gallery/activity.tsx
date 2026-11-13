@@ -5,7 +5,7 @@ import { callComponentFunction } from "@/lib/components/queries";
 import { useActiveBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 import { seriesColour } from "./palette";
 
@@ -153,7 +153,10 @@ function ActivityChart({
     return (
       <GalleryFrame title={title ?? "Digital employee activity"}>
         <p className="text-sm text-muted-foreground">
-          No Bot has done anything in the last {data?.days ?? 7} days.
+          {tNow(
+            "No digital employee has done anything in the last {days} days.",
+            { days: data?.days ?? 7 },
+          )}
         </p>
       </GalleryFrame>
     );

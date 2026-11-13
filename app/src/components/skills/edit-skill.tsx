@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillFields } from "@/components/skills/skill-fields";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { useT } from "@/lib/i18n";
+import { txNow, useT } from "@/lib/i18n";
 import { saveSkillMutationOptions } from "@/lib/plugins/mutations";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 
@@ -70,8 +70,10 @@ export function EditSkill({ reference }: { reference: string }) {
       <header>
         <h1 className="text-2xl font-semibold">{t("Edit skill")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Changes apply the next time <code>/{skill.slug}</code> is used. Agents
-          already carrying it keep it.
+          {txNow(
+            "Changes apply the next time {command} is used. Agents already carrying it keep it.",
+            { command: <code>/{skill.slug}</code> },
+          )}
         </p>
       </header>
 

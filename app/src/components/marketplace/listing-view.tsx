@@ -28,7 +28,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   installListingMutationOptions,
   withdrawListingMutationOptions,
@@ -102,7 +102,9 @@ export function ListingView({
       ) : null}
       {install.data ? (
         <p className="mt-4 text-sm" role="status">
-          {install.data.name} is now one of your agents.{" "}
+          {tNow("{name} is now one of your digital employees.", {
+            name: install.data.name,
+          })}{" "}
           <Link
             className="underline underline-offset-2"
             search={{ agent: install.data.agentId }}

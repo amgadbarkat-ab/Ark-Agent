@@ -10,7 +10,7 @@ import {
   type ProposedBot,
   wasCreated,
 } from "@/lib/agents/proposal";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 /**
  * The coworker a Bot has written, put in front of the person before it exists.
@@ -240,7 +240,9 @@ function TalkToIt({
       search={{ agent: agentId }}
       to="/agents"
     >
-      Open {name?.trim() || "the digital employee"}
+      {name?.trim()
+        ? tNow("Open {name}", { name: name.trim() })
+        : tNow("Open the digital employee")}
     </Link>
   );
 }

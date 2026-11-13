@@ -13,7 +13,7 @@ import {
   dryRunActionPolicy,
   type PolicyMode,
 } from "@/lib/computers/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, txNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -133,13 +133,16 @@ function BoundariesPage() {
     <PageShell
       description={
         <>
-          What every digital employee may and may not do with its computer.
-          Rules are checked on every action before it happens, and a refusal is
-          recorded in{" "}
-          <Link className="underline" to="/admin/audit">
-            {t("Audit")}
-          </Link>{" "}
-          with the rule that refused it.
+          {txNow(
+            "What every digital employee may and may not do with its computer. Rules are checked on every action before it happens, and a refusal is recorded in {audit} with the rule that refused it.",
+            {
+              audit: (
+                <Link className="underline" to="/admin/audit">
+                  {t("Audit")}
+                </Link>
+              ),
+            },
+          )}
         </>
       }
       title={t("Boundaries")}
@@ -162,38 +165,45 @@ function BoundariesPage() {
               variant="outline"
             >
               {mode === "enforce"
-                ? "Stop the action"
-                : "Record it and allow it"}
+                ? t("Stop the action")
+                : t("Record it and allow it")}
             </Button>
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {policy.mode === "enforce"
-            ? "The digital employee is stopped and told which rule refused it."
-            : "Nothing is stopped. Every action a rule matches is recorded as it would have been refused, which is how a rule is tried out before it is switched on."}
+            ? t(
+                "The digital employee is stopped and told which rule refused it.",
+              )
+            : t(
+                "Nothing is stopped. Every action a rule matches is recorded as it would have been refused, which is how a rule is tried out before it is switched on.",
+              )}
         </p>
       </PageSection>
 
       <PageSection
         description={
           <>
-            Checked first, and a match ends it: nothing below is consulted and
-            the digital employee is told which rule refused it. Rules are CEL,
-            and can ask about <code>{t("tool.name")}</code>,{" "}
-            <code>{t("intent")}</code>, <code>{t("bot.id")}</code>,{" "}
-            <code>{t("actor.id")}</code>, <code>{t("page.url")}</code> and{" "}
-            <code>{t("page.host")}</code>, the element being acted on, the{" "}
-            <code>{t("key")}</code> being pressed, the file being touched, the{" "}
-            <code>{t("command")}</code> being run, and{" "}
-            <code>{t("mcp.server")}</code>, <code>{t("mcp.tool")}</code> and{" "}
-            <code>{t("mcp.effect")}</code> for a call to somebody else&rsquo;s
-            tools. <code>{t("initiator.kind")}</code> says what started the run
-            &mdash; <code>{t("person")}</code>, <code>{t("routine")}</code> or{" "}
-            <code>{t("handoff")}</code> &mdash; which{" "}
-            <code>{t("actor.id")}</code> cannot, because a scheduled run carries
-            its owner&rsquo;s authority while nobody is watching. A rule that
-            cannot be evaluated counts as a match, so a mistyped deny refuses
-            rather than quietly permitting what it was meant to forbid.
+            {txNow(
+              "Checked first, and a match ends it: nothing below is consulted and the digital employee is told which rule refused it. Rules are CEL, and can ask about {toolName}, {intent}, {botId}, {actorId}, {pageUrl} and {pageHost}, the element being acted on, the {key} being pressed, the file being touched, the {command} being run, and {mcpServer}, {mcpTool} and {mcpEffect} for a call to somebody else’s tools. {initiatorKind} says what started the run — {person}, {routine} or {handoff} — which {actorId} cannot, because a scheduled run carries its owner’s authority while nobody is watching. A rule that cannot be evaluated counts as a match, so a mistyped deny refuses rather than quietly permitting what it was meant to forbid.",
+              {
+                toolName: <code>tool.name</code>,
+                intent: <code>intent</code>,
+                botId: <code>bot.id</code>,
+                actorId: <code>actor.id</code>,
+                pageUrl: <code>page.url</code>,
+                pageHost: <code>page.host</code>,
+                key: <code>key</code>,
+                command: <code>command</code>,
+                mcpServer: <code>mcp.server</code>,
+                mcpTool: <code>mcp.tool</code>,
+                mcpEffect: <code>mcp.effect</code>,
+                initiatorKind: <code>initiator.kind</code>,
+                person: <code>person</code>,
+                routine: <code>routine</code>,
+                handoff: <code>handoff</code>,
+              },
+            )}
           </>
         }
         title={t("It may never")}
@@ -423,8 +433,14 @@ function DryRunResult({ report }: { report: DryRunReport }) {
     <div className="mt-2" role="status">
       <p className="text-xs text-muted-foreground">
         {report.wouldRefuse === 0
-          ? `Tested against the last ${report.scanned} recorded actions: this rule would have refused none of them. It may still match future actions.`
-          : `Tested against the last ${report.scanned} recorded actions: this rule would have refused ${report.wouldRefuse}.`}
+          ? t(
+              "Tested against the last {scanned} recorded actions: this rule would have refused none of them. It may still match future actions.",
+              { scanned: report.scanned },
+            )
+          : t(
+              "Tested against the last {scanned} recorded actions: this rule would have refused {count}.",
+              { scanned: report.scanned, count: report.wouldRefuse },
+            )}
       </p>
       {report.changes.length > 0 ? (
         <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -433,18 +449,26 @@ function DryRunResult({ report }: { report: DryRunReport }) {
               <p className="text-xs">
                 <span className="font-medium">
                   {change.would === "refused"
-                    ? "Would refuse"
-                    : "Would now allow"}
+                    ? t("Would refuse")
+                    : t("Would now allow")}
                 </span>{" "}
                 <code className="font-mono">{change.action}</code>
-                {change.element?.name ? <> on “{change.element.name}”</> : null}
+                {change.element?.name ? (
+                  <> {t("on “{name}”", { name: change.element.name })}</>
+                ) : null}
                 {change.command ? (
                   <>
                     {" "}
-                    running <code className="font-mono">{change.command}</code>
+                    {txNow("running {command}", {
+                      command: (
+                        <code className="font-mono">{change.command}</code>
+                      ),
+                    })}
                   </>
                 ) : null}
-                {change.file ? <> touching {change.file}</> : null}
+                {change.file ? (
+                  <> {t("touching {file}", { file: change.file })}</>
+                ) : null}
               </p>
               <p className="mt-0.5 text-muted-foreground text-xs">
                 {change.bot}
@@ -457,8 +481,10 @@ function DryRunResult({ report }: { report: DryRunReport }) {
       ) : null}
       {report.wouldRefuse > report.changes.length ? (
         <p className="mt-1 text-muted-foreground text-xs">
-          Showing the first {report.changes.length}; the count above covers
-          everything scanned.
+          {tNow(
+            "Showing the first {count}; the count above covers everything scanned.",
+            { count: report.changes.length },
+          )}
         </p>
       ) : null}
     </div>

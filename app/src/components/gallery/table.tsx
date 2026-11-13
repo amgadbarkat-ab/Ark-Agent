@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 export const DataTableProps = z
@@ -84,7 +84,7 @@ export function DataTable(props: Record<string, unknown>) {
       >
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">
-            {title}. Select a column heading to sort.
+            {tNow("{title}. Select a column heading to sort.", { title })}
           </caption>
           <thead className="bg-muted/50 text-xs text-muted-foreground">
             <tr>
