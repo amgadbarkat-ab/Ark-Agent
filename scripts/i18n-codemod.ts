@@ -67,6 +67,8 @@ function insideCallback(node: ts.Node, component: ts.Node): boolean {
 void insideCallback;
 
 const quote = (text: string) => JSON.stringify(text);
+const ENTITIES: Record<string, string> = { rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0", hellip: "…", mdash: "—", ndash: "–", middot: "·" };
+const decodeEntities = (text: string) => text.replace(/&([a-z]+);/g, (whole, name: string) => ENTITIES[name] ?? whole);
 
 function convert(path: string) {
   const original = readFileSync(path, "utf8");
@@ -201,7 +203,7 @@ function convert(path: string) {
       const otherText = siblings.some(
         (child) => child !== node && ts.isJsxText(child) && words(child.text),
       );
-      const normal = node.text.replace(/\s+/g, " ").trim();
+      const normal = decodeEntities(node.text.replace(/\s+/g, " ").trim());
       if (mixed || otherText) {
         left.push(normal);
       } else {

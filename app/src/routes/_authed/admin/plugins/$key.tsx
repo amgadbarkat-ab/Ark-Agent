@@ -160,7 +160,7 @@ function ConnectionStateUnreadable() {
         <ItemTitle>{t("Your account")}</ItemTitle>
         <ItemDescription role="alert">
           {t(
-            "Whether you have connected an account here could not be loaded, so nothing about it is shown rather than something that may be wrong. Reload the page, and check this deployment&rsquo;s logs if it persists.",
+            "Whether you have connected an account here could not be loaded, so nothing about it is shown rather than something that may be wrong. Reload the page, and check this deployment’s logs if it persists.",
           )}
         </ItemDescription>
       </ItemContent>
