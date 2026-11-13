@@ -319,7 +319,7 @@ export function connectionCheckQueryOptions(serverId: string) {
   return queryOptions({
     queryKey: [...pluginKeys.connections(), "check", serverId] as const,
     queryFn: async (): Promise<{
-      state: "ok" | "expired" | "unknown" | "not-connected";
+      state: "ok" | "expired" | "unknown";
     }> => {
       const response = await client(
         `/api/plugins/connections/${encodeURIComponent(serverId)}/check`,

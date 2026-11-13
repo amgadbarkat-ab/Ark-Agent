@@ -931,8 +931,13 @@ export function createPluginRoutes(
   routes.post("/connections/:serverId/check", requireUser, async (context) => {
     const serverId = context.req.param("serverId");
     const held = await store.connectionsFor(context.var.actor.id);
+    // Refused, not answered: a server this person never connected is nothing of theirs to ask about,
+    // and the security suite holds every route to that for another customer's ids.
     if (!held.some((connection) => connection.serverId === serverId)) {
-      return context.json({ state: "not-connected" as const });
+      return context.json(
+        { error: "You have not connected this account." },
+        404,
+      );
     }
     const state = await store
       .checkConnection({ serverId, actorId: context.var.actor.id })
