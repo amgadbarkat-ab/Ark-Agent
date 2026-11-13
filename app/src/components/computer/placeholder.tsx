@@ -9,7 +9,7 @@ export function ComputerPlaceholder(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 1200 800"
-      preserveAspectRatio={t("xMidYMin slice")}
+      preserveAspectRatio="xMidYMin slice"
       fill="none"
       aria-hidden="true"
       focusable="false"
@@ -27,7 +27,7 @@ export function ComputerPlaceholder(props: SVGProps<SVGSVGElement>) {
           }}
         >
           <path
-            transform={t("rotate(180 1201 754)")}
+            transform="rotate(180 1201 754)"
             fill="url(#paint1_radial_2002_10)"
             d="M1201 754H2402V1509H1201z"
           />
@@ -51,12 +51,8 @@ export function ComputerPlaceholder(props: SVGProps<SVGSVGElement>) {
           filterUnits="userSpaceOnUse"
           colorInterpolationFilters="sRGB"
         >
-          <feFlood floodOpacity={0} result={t("BackgroundImageFix")} />
-          <feBlend
-            in={t("SourceGraphic")}
-            in2={t("BackgroundImageFix")}
-            result="shape"
-          />
+          <feFlood floodOpacity={0} result="BackgroundImageFix" />
+          <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
           <feTurbulence
             type="fractalNoise"
             baseFrequency="0.76923078298568726 0.76923078298568726"
@@ -97,12 +93,8 @@ export function ComputerPlaceholder(props: SVGProps<SVGSVGElement>) {
           filterUnits="userSpaceOnUse"
           colorInterpolationFilters="sRGB"
         >
-          <feFlood floodOpacity={0} result={t("BackgroundImageFix")} />
-          <feBlend
-            in={t("SourceGraphic")}
-            in2={t("BackgroundImageFix")}
-            result="shape"
-          />
+          <feFlood floodOpacity={0} result="BackgroundImageFix" />
+          <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
           <feTurbulence
             type="fractalNoise"
             baseFrequency="2 2"
@@ -128,7 +120,7 @@ export function ComputerPlaceholder(props: SVGProps<SVGSVGElement>) {
             in="coloredNoise1"
             result="noise1Clipped"
           />
-          <feFlood floodColor={t("rgba(0, 0, 0, 0.25)")} result="color1Flood" />
+          <feFlood floodColor="rgba(0, 0, 0, 0.25)" result="color1Flood" />
           <feComposite
             operator="in"
             in2="noise1Clipped"
@@ -156,9 +148,7 @@ export function ComputerPlaceholder(props: SVGProps<SVGSVGElement>) {
           cx={0}
           cy={0}
           r={1}
-          gradientTransform={t(
-            "matrix(229.838 -1654.36 2337.29 481.415 2278.37 2408.36)",
-          )}
+          gradientTransform="matrix(229.838 -1654.36 2337.29 481.415 2278.37 2408.36)"
           gradientUnits="userSpaceOnUse"
         >
           <stop offset={0.420388} stopColor="#9DF200" />

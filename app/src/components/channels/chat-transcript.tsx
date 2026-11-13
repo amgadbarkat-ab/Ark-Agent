@@ -1266,9 +1266,7 @@ function AttachmentLightbox({
         onClick={(event) => {
           if (event.target === event.currentTarget) setOpen(false);
         }}
-        overlayClassName={t(
-          "bg-black/80 supports-backdrop-filter:backdrop-blur-sm",
-        )}
+        overlayClassName="bg-black/80 supports-backdrop-filter:backdrop-blur-sm"
         showCloseButton={false}
       >
         {/* Named for a screen reader; the picture carries the same name in its alt text. */}

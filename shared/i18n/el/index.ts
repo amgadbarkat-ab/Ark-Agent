@@ -3,7 +3,13 @@
  * ../translate.ts. One file per area keeps the review sheet readable and the merges small.
  */
 import { EL_COMMON } from "./common";
+import { EL_COMPONENTS } from "./components";
+import { EL_DAILY } from "./daily";
+import { EL_SCREENS } from "./screens";
 
 export const EL: Readonly<Record<string, string>> = {
   ...EL_COMMON,
+  ...EL_DAILY,
+  ...EL_COMPONENTS,
+  ...EL_SCREENS,
 };

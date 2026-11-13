@@ -78,6 +78,19 @@ const TECHNICAL_PROPS = new Set([
   "autoCapitalize",
   "spellCheck",
   "testId",
+  "preserveAspectRatio",
+  "transform",
+  "gradientTransform",
+  "result",
+  "in",
+  "in2",
+  "floodColor",
+  "stopColor",
+  "mask",
+  "filter",
+  "clipPath",
+  "colorInterpolationFilters",
+  "mode",
 ]);
 
 /** A word a person reads: two or more Latin letters. Brand names alone are allowed. */
@@ -129,6 +142,7 @@ export function scan(
         if (
           !TECHNICAL_PROPS.has(prop) &&
           !prop.startsWith("data-") &&
+          !prop.endsWith("ClassName") &&
           !prop.startsWith("on") &&
           isWords(node.initializer.text) &&
           /\s|^[A-Z][a-z]/.test(node.initializer.text)

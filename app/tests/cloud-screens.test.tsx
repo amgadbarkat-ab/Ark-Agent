@@ -17,9 +17,9 @@ import type {
   CloudOverview,
   CloudRates,
 } from "@/lib/cloud/queries";
+import { queryClient } from "@/query-client";
 import { Route as CloudAdminRoute } from "@/routes/_authed/admin/cloud";
 import { Route as PlanRoute } from "@/routes/_authed/settings/plan";
-import { queryClient } from "@/query-client";
 
 /**
  * The two screens that put a price in front of somebody: the one a customer reads before agreeing to

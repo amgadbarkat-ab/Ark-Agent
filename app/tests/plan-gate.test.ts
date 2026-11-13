@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
-import { accountKeys, type AccountOverview } from "@/lib/account/queries";
-import { authKeys, type AuthenticatedUser } from "@/lib/auth/queries";
+import { type AccountOverview, accountKeys } from "@/lib/account/queries";
+import { type AuthenticatedUser, authKeys } from "@/lib/auth/queries";
 import { Route } from "@/routes/_authed/_app";
 
 /**

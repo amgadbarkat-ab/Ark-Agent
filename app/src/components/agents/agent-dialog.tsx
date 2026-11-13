@@ -1008,9 +1008,7 @@ function ManageSection({
       >
         <DialogContent
           className="max-w-sm"
-          overlayClassName={t(
-            "bg-black/20 supports-backdrop-filter:backdrop-blur-sm",
-          )}
+          overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm"
         >
           <DialogHeader>
             <DialogTitle>Delete {profile.name}?</DialogTitle>

@@ -151,6 +151,19 @@ function convert(path: string) {
     "autoCapitalize",
     "spellCheck",
     "testId",
+    "preserveAspectRatio",
+    "transform",
+    "gradientTransform",
+    "result",
+    "in",
+    "in2",
+    "floodColor",
+    "stopColor",
+    "mask",
+    "filter",
+    "clipPath",
+    "colorInterpolationFilters",
+    "mode",
   ]);
   const BRAND_ONLY =
     /^(ArkAgent|Ark|OpenBot|Gmail|Google|Google Drive|Outlook|Microsoft 365|Microsoft|Telegram|WhatsApp|Slack|Notion|Composio|Stripe|Paddle|Mercury 3|Gemma|Claude|OpenAI|Anthropic|GitHub|MCP|API|URL|ID|PIN|OK|EUR|USD|PDF|CSV|JSON|HTML|SSO|OIDC|SAML|SCIM|Docker|Podman|Windows|macOS|Linux|Chrome|Edge|E-mail|Email|AI|[A-Z]{2,5}|\W+|[\d\s.,:/%+-]+)$/;
@@ -225,6 +238,7 @@ function convert(path: string) {
       if (
         !TECH.has(prop) &&
         !prop.startsWith("data-") &&
+        !prop.endsWith("ClassName") &&
         !prop.startsWith("on") &&
         words(value) &&
         /\s|^[A-Z][a-z]/.test(value)

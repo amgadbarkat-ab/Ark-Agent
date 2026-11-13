@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   type Advisory,
   type AllowEntry,
-  allowlistProblems,
   type AuditReport,
   advisoryId,
+  allowlistProblems,
   evaluate,
 } from "./audit-check";
 
