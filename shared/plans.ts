@@ -97,11 +97,29 @@ export function formatEur(cents: number): string {
  * `FREE_TRIAL_DAYS + 1` an account still without a plan pauses read-only (docs/ark/01-product-decisions.md).
  * Customers offered a 30-day trial before 12 Nov 2026 keep 30 days.
  *
- * Not read by any billing call: the trial length lives on the Stripe price or Paddle price, set at
- * go-live (see the `trialing` notes in server/src/billing/stripe.ts and paddle.ts). This is the
- * number those settings must match.
+ * ArkAgent counts it itself: an account whose trial was started here (`ARK_FREE_TRIAL_ENABLED`, see
+ * server/src/accounts/store.ts) ends `FREE_TRIAL_DAYS` days after it was made, and any `trialing`
+ * subscription past its end stops running, whatever a payment provider has or has not said. The
+ * Stripe price or Paddle price, set at go-live, must match this number (see the `trialing` notes in
+ * server/src/billing/stripe.ts and paddle.ts).
  */
 export const FREE_TRIAL_DAYS = 7;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** When a trial that starts at `start` ends: `FREE_TRIAL_DAYS` whole days later. */
+export function trialEndFrom(start: Date): Date {
+  return new Date(start.getTime() + FREE_TRIAL_DAYS * DAY_MS);
+}
+
+/**
+ * Whole days left on a trial ending at `end`, counted up: 7 on the day it starts, 1 on its last
+ * day, 0 once it has ended (day 8).
+ */
+export function trialDaysLeft(end: Date, now: Date = new Date()): number {
+  const left = end.getTime() - now.getTime();
+  return left <= 0 ? 0 : Math.ceil(left / DAY_MS);
+}
 
 export type SubscriptionStatus =
   | "incomplete"

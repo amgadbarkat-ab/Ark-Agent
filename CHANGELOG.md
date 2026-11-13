@@ -8,6 +8,51 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Conversations
+
+- **A group runs on the one you picked first** (DT Lab, v0.1.34). A new group answered from your
+  primary employee instead of the first member you chose. Groups now keep the order you picked them
+  in; the team channel still runs on its lead.
+- **The chat follows a new reply** when you were reading the end of it: a colleague's answer handed
+  back, or the next step after a card was approved, scrolls into view. If you scrolled up to read
+  something earlier, it stays where you are.
+- **No Stop button while a card waits for you.** The digital employee is waiting for your answer, so
+  answering the card is the next step.
+- **A card from an interrupted run says so** instead of sitting on "Preparing the request…" with no
+  buttons: "This request was not finished… Ask again if it is still needed." (Greek too.)
+- **Times in Requests follow the app's language**: «Ζητήθηκε χθες», not «Ζητήθηκε yesterday».
+- **A conversation is no longer titled after an error.** A first answer that is a failure is left
+  out of what the title is made from.
+
+### Connected accounts
+
+- **An expired Google sign-in reads as expired, not Connected.** The account page asks the vendor
+  once when it opens; a sign-in that expired or was withdrawn shows "Connect again", the list shows
+  "Connect", and a digital employee that tries it says to connect again in Settings.
+
+### Plans
+
+- **ArkAgent counts the 7-day trial itself, and day 8 is read-only.** A trial past its end stops
+  digital employees (chat replies, routines and hand-offs) while conversations, requests, memories
+  and settings stay readable; nothing is deleted. Choosing a plan starts them again. Settings → Plan
+  shows the days left.
+- **Starting new accounts on the trial is behind a switch**, `ARK_FREE_TRIAL_ENABLED=true`, off by
+  default and for subscriptions mode only. No live Stripe or Paddle setting changes.
+- **Sandbox test path:** with the sandbox payment provider, `/api/billing/sandbox/trial/start` and
+  `/api/billing/sandbox/trial/end` walk through a trial and its day 8 without waiting a week.
+
+### Desktop setup
+
+- **Try again clears the last failure** instead of leaving the old "That did not finish" box on
+  screen.
+- **A damaged container image store says what to do**: a containerd snapshot error now says to
+  restart Docker or Podman (or the computer) and try again, instead of "Something went wrong".
+
+### Upgrading
+
+- Two migrations run on start: `0068` (the order a channel's members were picked in) and `0069`
+  (when a vendor refused a connection). Both add a column, and both are quick.
+
 ## 0.1.34
 
 ### Plans

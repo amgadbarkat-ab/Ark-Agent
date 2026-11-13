@@ -400,6 +400,12 @@ export const channelAgents = pgTable(
     agentId: text("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "cascade" }),
+    /**
+     * Where this agent stands in the channel, in the order the person picked them. 0 for every
+     * member of a channel made before it existed and of the team channel, which then fall back to
+     * the lead first. A group's first pick is 0, so it is the one the conversation runs on.
+     */
+    position: integer("position").notNull().default(0),
     createdAt: createdAt(),
   },
   (table) => [primaryKey({ columns: [table.channelId, table.agentId] })],

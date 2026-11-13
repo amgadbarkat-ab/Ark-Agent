@@ -63,6 +63,12 @@ import {
   builtinOAuthClientFor,
 } from "./builtin-oauth-clients";
 import {
+  HELD_MARKER,
+  type ToolCallApprovals,
+  type ToolCallOutcome,
+  toolCallOutcome,
+} from "./call-outcome";
+import {
   type CatalogueEntry,
   catalogueEntry,
   classifyTool,
@@ -76,12 +82,6 @@ import {
   toolkitOf,
   VERSION_ARG,
 } from "./composio";
-import {
-  HELD_MARKER,
-  type ToolCallApprovals,
-  type ToolCallOutcome,
-  toolCallOutcome,
-} from "./call-outcome";
 import { inspectToolArguments } from "./content-governance";
 import { type ListedTool, McpServerError, readUiResource } from "./mcp";
 import { registerDynamicClient } from "./oauth";
@@ -457,6 +457,21 @@ export class PluginRefusedError extends Error {
 }
 
 /**
+ * A person's sign-in at a vendor has expired or was withdrawn there (`invalid_grant`). A refusal like
+ * any other, so it is relayed verbatim; its own class so a caller can tell it apart without reading
+ * the sentence.
+ */
+export class GrantExpiredError extends PluginRefusedError {
+  constructor(title: string) {
+    super(
+      `Your ${title} sign-in has expired or was withdrawn. Connect ${title} again in Settings → Connected accounts, then ask again.`,
+      null,
+    );
+    this.name = "GrantExpiredError";
+  }
+}
+
+/**
  * A person tried to write a skill under a name the deployment's own skills already answer to.
  *
  * Only that: another person's `/standup` is not a reason to refuse anybody, and is never mentioned.
@@ -767,6 +782,9 @@ export class TokenRefusedError extends McpServerError {
  * on its own: a client it issued to itself, it can issue again.
  */
 export const INVALID_CLIENT = "invalid_client";
+
+/** The vendor saying the GRANT is no longer good: expired, or withdrawn by the person. RFC 6749 §5.2. */
+export const INVALID_GRANT = "invalid_grant";
 
 /**
  * A transaction, as the writes in this module hand one to each other.
@@ -1973,6 +1991,26 @@ export function createPluginStore(options: PluginStoreOptions) {
         });
       } catch (error) {
         /*
+         * The vendor will not accept this grant any more: it expired (Google expires a test app's
+         * grant after 7 days) or the person withdrew it at the vendor. Recorded on the row, so the
+         * settings page stops saying "Connected" over it, and said as the one step that helps.
+         */
+        if (
+          error instanceof TokenRefusedError &&
+          error.code === INVALID_GRANT
+        ) {
+          await database
+            .update(mcpUserCredentials)
+            .set({ refusedAt: new Date() })
+            .where(
+              and(
+                eq(mcpUserCredentials.serverId, row.id),
+                eq(mcpUserCredentials.userId, actorId),
+              ),
+            );
+          throw new GrantExpiredError(title);
+        }
+        /*
          * Outside the transaction, so the row lock is already released and the vault read this does
          * is not a second connection held behind this one's.
          *
@@ -2126,6 +2164,8 @@ export function createPluginStore(options: PluginStoreOptions) {
             scope: input.scope,
             // A reconnect may be a different account; one the vendor did not name is not kept.
             account: input.account ?? null,
+            // A fresh grant is one the vendor has not refused.
+            refusedAt: null,
             updatedAt: new Date(),
           },
         });
@@ -5030,6 +5070,8 @@ export function createPluginStore(options: PluginStoreOptions) {
         scope: string;
         account: string | null;
         connectedAt: string;
+        /** The vendor refused the grant: the page says expired and offers to connect again. */
+        expired: boolean;
       }[]
     > {
       const rows = await database
@@ -5038,6 +5080,7 @@ export function createPluginStore(options: PluginStoreOptions) {
           scope: mcpUserCredentials.scope,
           account: mcpUserCredentials.account,
           connectedAt: mcpUserCredentials.connectedAt,
+          refusedAt: mcpUserCredentials.refusedAt,
         })
         .from(mcpUserCredentials)
         .where(eq(mcpUserCredentials.userId, userId))
@@ -5048,6 +5091,7 @@ export function createPluginStore(options: PluginStoreOptions) {
         scope: row.scope,
         account: row.account,
         connectedAt: iso(row.connectedAt) ?? "",
+        expired: row.refusedAt !== null,
       }));
     },
 
@@ -7196,6 +7240,28 @@ export function createPluginStore(options: PluginStoreOptions) {
      * person whose conversation shows the call: the same credential their own call would use. The
      * HTML is drawn in a sandboxed frame with no access to this app (see `mcp-app-frame.tsx`).
      */
+    /**
+     * Whether one person's own connection still opens anything, asked of the vendor by trading its
+     * refresh token once, for their settings page (DT Lab, #83: "Connected" over an expired grant).
+     *
+     * `expired` only when the vendor refused the grant itself, which is also recorded on the row;
+     * `unknown` when it could not be asked (vendor down, no client), which the page does not draw
+     * as a fault of the person's. Never the token.
+     */
+    async checkConnection(input: {
+      serverId: string;
+      actorId: string;
+    }): Promise<"ok" | "expired" | "unknown"> {
+      const { row, entry, access } = await requireServer(input.serverId);
+      if (access.credential !== "person-oauth") return "unknown";
+      try {
+        await connectionTokenFor(row, entry, input.actorId, access);
+        return "ok";
+      } catch (error) {
+        return error instanceof GrantExpiredError ? "expired" : "unknown";
+      }
+    },
+
     async toolInterface(input: {
       serverId: string;
       toolName: string;

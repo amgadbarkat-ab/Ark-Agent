@@ -32,6 +32,7 @@ import {
 } from "@/lib/account/queries";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
+import { trialDaysLeft } from "../../../../../shared/plans";
 
 export const Route = createFileRoute("/_authed/settings/plan")({
   // `paid` is put on the address by the payment page when the customer comes back from paying.
@@ -59,7 +60,9 @@ function statusLine(
   // store app is an invitation to buy and may not be made there (docs/ark/19-mobile.md).
   if (
     !purchasesAllowed &&
-    (account.blockedCode === "no_plan" || account.blockedCode === "canceled")
+    (account.blockedCode === "no_plan" ||
+      account.blockedCode === "canceled" ||
+      account.blockedCode === "trial_ended")
   ) {
     return "This account does not have an active plan.";
   }
@@ -73,8 +76,11 @@ function statusLine(
   switch (account.subscriptionStatus) {
     case "past_due":
       return "The last payment did not go through. Update your card to keep it.";
-    case "trialing":
-      return until ? `Trial until ${until}` : "On a trial";
+    case "trialing": {
+      if (!account.currentPeriodEnd || !until) return "On a trial";
+      const left = trialDaysLeft(new Date(account.currentPeriodEnd));
+      return `Trial: ${left === 1 ? "1 day" : `${left} days`} left (ends ${until})`;
+    }
     default:
       return until ? `Renews on ${until}` : "Active";
   }
@@ -104,7 +110,9 @@ function isWaiting(
   const paidAndNotYetSeen =
     paid !== undefined &&
     !account.canRun &&
-    (account.blockedCode === "no_plan" || account.blockedCode === "canceled");
+    (account.blockedCode === "no_plan" ||
+      account.blockedCode === "canceled" ||
+      account.blockedCode === "trial_ended");
   return (
     paidAndNotYetSeen || (requested !== null && account.planId !== requested)
   );
@@ -179,7 +187,8 @@ function PlanPage() {
             <p className="mt-4 text-sm" role="status">
               {!purchasesAllowed &&
               (data.account.blockedCode === "no_plan" ||
-                data.account.blockedCode === "canceled")
+                data.account.blockedCode === "canceled" ||
+                data.account.blockedCode === "trial_ended")
                 ? "This account does not have an active plan."
                 : data.account.blockedCode === "no_plan"
                   ? "Choose a plan to start your digital employees."

@@ -122,7 +122,10 @@ export function statusFromStripe(
       return "active";
     // TODO(go-live): the free trial is 7 days (`FREE_TRIAL_DAYS` in shared/plans.ts, 12 Nov 2026; it
     // was 30). Stripe holds the length, not this code: set `trial_period_days: 7` on the price or the
-    // Checkout session when Stripe goes live. Customers offered 30 days before 12 Nov 2026 keep 30.
+    // Checkout session when Stripe goes live, and `trial_settings.end_behavior.missing_payment_method:
+    // "pause"` so day 8 pauses. ArkAgent also counts the days itself (accounts/store.ts, entitlementOf),
+    // so a trial past its end stops running even if no webhook arrives. Customers offered 30 days
+    // before 12 Nov 2026 keep 30.
     case "trialing":
       return "trialing";
     case "past_due":

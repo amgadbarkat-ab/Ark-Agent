@@ -158,3 +158,28 @@ describe("the team channel", () => {
     expect(direct.agentIds).toEqual([ana.id]);
   });
 });
+
+describe("a group the person makes", () => {
+  test("runs on the one they picked first, not the lead (DT Lab, #83)", async () => {
+    const owner = await person();
+    const lead = await employee(owner, "Order Desk");
+    const front = await employee(owner, "Front Desk");
+    await profiles.setPrimary(owner, lead.id);
+
+    const group = await store.create(owner, [front.id, lead.id]);
+    channelIds.push(group.id);
+    expect(group.agentIds).toEqual([front.id, lead.id]);
+
+    const read = await store.get(owner, group.id);
+    expect(read?.agentIds).toEqual([front.id, lead.id]);
+    const listed = (await store.list(owner)).channels.find(
+      (channel) => channel.id === group.id,
+    );
+    expect(listed?.agentIds).toEqual([front.id, lead.id]);
+
+    // The team channel still runs on the lead.
+    const team = await store.team(owner);
+    channelIds.push(team.id);
+    expect(team.agentIds[0]).toBe(lead.id);
+  });
+});

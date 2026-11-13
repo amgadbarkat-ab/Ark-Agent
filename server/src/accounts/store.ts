@@ -11,10 +11,12 @@ import {
   sql,
 } from "drizzle-orm";
 import {
+  FREE_TRIAL_DAYS,
   type Plan,
   planById,
   type SubscriptionStatus,
   subscriptionAllowsRuns,
+  trialEndFrom,
 } from "../../../shared/plans";
 import type { Database } from "../db/client";
 import {
@@ -47,7 +49,7 @@ export class UnknownAccountError extends Error {
   }
 }
 
-export type BlockedCode = "suspended" | "no_plan" | "canceled";
+export type BlockedCode = "suspended" | "no_plan" | "canceled" | "trial_ended";
 
 /** What an account is allowed to do right now, decided in one place. */
 export type Entitlement = {
@@ -153,7 +155,13 @@ export function entitlementOf(
     status: "active" | "suspended";
     suspendedReason: string | null;
   },
-  subscription: { planId: string; status: SubscriptionStatus },
+  subscription: {
+    planId: string;
+    status: SubscriptionStatus;
+    /** For a `trialing` subscription, when the trial ends. */
+    currentPeriodEnd?: Date | null;
+  },
+  now: Date = new Date(),
 ): Entitlement {
   const plan: Plan | undefined = planById(subscription.planId);
   const base = {
@@ -184,14 +192,44 @@ export function entitlementOf(
           : "Choose a plan to start your digital employees.",
     };
   }
+  /*
+   * DAY 8 OF A TRIAL: READ-ONLY. Counted here rather than waited for from a payment provider, so a
+   * trial ends on time whether or not a webhook ever arrives (DT Lab, #83: "nothing in the app counts
+   * days"). Runs stop — chat replies, routines and hand-offs all pass the run gate — and everything
+   * else stays readable; nothing is deleted.
+   */
+  if (
+    subscription.status === "trialing" &&
+    subscription.currentPeriodEnd &&
+    now.getTime() >= subscription.currentPeriodEnd.getTime()
+  ) {
+    return {
+      ...base,
+      canRun: false,
+      blockedCode: "trial_ended",
+      blockedReason: `Your ${FREE_TRIAL_DAYS}-day trial ended on ${subscription.currentPeriodEnd.toISOString().slice(0, 10)}. Your conversations and settings are kept. Choose a plan to start your digital employees again.`,
+    };
+  }
   return { ...base, canRun: true };
 }
 
 export function createAccountStore(
   database: Database,
-  options: { billingMode?: BillingMode } = {},
+  options: {
+    billingMode?: BillingMode;
+    /**
+     * Start every new customer account on a `FREE_TRIAL_DAYS` trial, with no card, on the ArkAgent
+     * plan (docs/ark/01-product-decisions.md). Off unless `ARK_FREE_TRIAL_ENABLED=true`, so no
+     * deployment that takes payments changes until somebody decides it should. Subscriptions mode
+     * only; an internal deployment has no trial.
+     */
+    freeTrial?: boolean;
+    /** Injectable so a test can stand on day 8. */
+    now?: () => Date;
+  } = {},
 ): AccountStore {
   const billingMode = options.billingMode ?? "internal";
+  const now = options.now ?? (() => new Date());
 
   async function liveBots(tenantId: string): Promise<number> {
     const [row] = await database
@@ -279,9 +317,17 @@ export function createAccountStore(
       await tx
         .insert(tenantMemberships)
         .values({ tenantId: tenant.id, userId, role: "owner" });
-      await tx
-        .insert(subscriptions)
-        .values({ tenantId: tenant.id, planId: "agent", status: "incomplete" });
+      await tx.insert(subscriptions).values(
+        options.freeTrial
+          ? {
+              tenantId: tenant.id,
+              planId: "agent",
+              status: "trialing",
+              provider: "trial",
+              currentPeriodEnd: trialEndFrom(now()),
+            }
+          : { tenantId: tenant.id, planId: "agent", status: "incomplete" },
+      );
       return tenant.id;
     });
   }
@@ -320,7 +366,12 @@ export function createAccountStore(
           status: row.status,
           suspendedReason: row.suspendedReason,
         },
-        { planId: row.planId, status: row.subscriptionStatus },
+        {
+          planId: row.planId,
+          status: row.subscriptionStatus,
+          currentPeriodEnd: row.currentPeriodEnd,
+        },
+        now(),
       );
     },
 
@@ -334,7 +385,12 @@ export function createAccountStore(
             status: row.status,
             suspendedReason: row.suspendedReason,
           },
-          { planId: row.planId, status: row.subscriptionStatus },
+          {
+            planId: row.planId,
+            status: row.subscriptionStatus,
+            currentPeriodEnd: row.currentPeriodEnd,
+          },
+          now(),
         ),
         tenantName: row.name,
         activeBots: await liveBots(tenantId),

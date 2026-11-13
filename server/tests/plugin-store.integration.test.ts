@@ -52,6 +52,7 @@ import {
   CustomServerRefusedError,
   createPluginStore,
   exchangeRefreshTokenOverHttp,
+  GrantExpiredError,
   INVALID_CLIENT,
   isDeploymentFault,
   type OAuthClient,
@@ -2793,7 +2794,8 @@ describe("a dynamic client the vendor has evicted", () => {
         "invalid_grant",
       );
 
-    await expect(call()).rejects.toThrow("invalid_grant");
+    // Said as the step that helps (#83), not as the vendor's code.
+    await expect(call()).rejects.toThrow(GrantExpiredError);
 
     // A withdrawn grant is the person's to fix by connecting again. Minting a client for it would
     // leave a spare client behind and still refuse.

@@ -35,6 +35,24 @@ Migrations 0048 to 0050.
   first sign-in, with no paid plan, and cannot run coworkers until they have one. Nothing is shared
   between accounts.
 
+## The free trial (`ARK_FREE_TRIAL_ENABLED`)
+
+Off unless set to exactly `true`, and only in **subscriptions** mode. With it on:
+
+- A new account starts on the ArkAgent plan as `trialing`, with no card, and its trial ends
+  `FREE_TRIAL_DAYS` (7) days after the account was made (`subscriptions.current_period_end`).
+  Settings → Plan shows the days left.
+- **Day 8 is read-only.** ArkAgent counts the days itself (`entitlementOf`): a `trialing`
+  subscription past its end cannot run, so chat replies, routines and hand-offs stop at the run gate,
+  while conversations, requests, memories and settings stay readable. Nothing is deleted. The reason
+  shown is `trial_ended`.
+- Choosing a plan starts the employees again at once.
+- Deleting a lapsed trial's data after 30 days (docs/ark/01-product-decisions.md) is **not built**.
+- **Testing without waiting a week (sandbox provider only):** `GET /api/billing/sandbox/trial/start`
+  puts your own account on a fresh trial, and `GET /api/billing/sandbox/trial/end` moves its end to a
+  minute ago, which is day 8. `/api/billing/sandbox/checkout?tenant=…&plan=agent` (Settings → Plan,
+  choose a plan) ends it.
+
 ## The quota (D4)
 
 What counts is **how many different coworkers are working at the same moment**. Installed, idle, and

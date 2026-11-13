@@ -311,11 +311,26 @@ async function openingOf(
   // person's words. Unwrapped before it can become the title, same as the transcript unwraps it
   // before it can become what a person reads.
   const asked = readFiring(rawAsked) ?? rawAsked;
-  const replied = answer ? textOf(answer.content) : "";
+  const rawReplied = answer ? textOf(answer.content) : "";
+  // A first answer that is a failure says nothing about what the conversation is for, and a model
+  // shown it names the conversation after the failure (DT Lab, #83). The question alone names it.
+  const replied = looksLikeFailure(rawReplied) ? "" : rawReplied;
 
   return oneLine(
     replied ? `Asked: ${asked}\nAnswered: ${replied}` : `Asked: ${asked}`,
     MAX_EXCERPT_GRAPHEMES,
+  );
+}
+
+/**
+ * A short answer that is an error or a refusal rather than a reply: a sign-in that expired, a
+ * connection that is missing, a model or a tool that failed. Short only, so a long real answer that
+ * mentions an error somewhere is still used.
+ */
+export function looksLikeFailure(text: string): boolean {
+  if (!text || text.length > 400) return false;
+  return /\b(error|failed|could not|couldn't|cannot|can't|expired|withdrawn|not connected|refused|unauthori[sz]ed|forbidden|denied|timed out)\b|σφάλμα|δεν ήταν δυνατ|απέτυχε|έληξε/i.test(
+    text,
   );
 }
 

@@ -13,8 +13,6 @@ import * as React from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
-import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { DATA_SERVICES, type DataService } from "@/lib/data-services";
 import {
   InputGroup,
   InputGroupAddon,
@@ -27,6 +25,8 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { DATA_SERVICES, type DataService } from "@/lib/data-services";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -146,8 +146,12 @@ function RouteComponent() {
   const { data: currentUser } = useQuery(currentUserQueryOptions());
   const isAdmin = currentUser?.role === "admin";
 
+  // A grant the vendor refused (expired or withdrawn) is not connected: its row offers Connect, and
+  // its own page says why (DT Lab, #83).
   const connected = new Set(
-    (connections.data?.connections ?? []).map((row) => row.serverId),
+    (connections.data?.connections ?? [])
+      .filter((row) => row.expired !== true)
+      .map((row) => row.serverId),
   );
   const deployment = {
     catalogue: plugins.data?.catalogue ?? [],

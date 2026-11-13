@@ -982,7 +982,7 @@ describe("channel store integration", () => {
     expect(await json(response)).toEqual({ error: "Channel not found." });
   });
 
-  test("reads linked agent IDs in lexicographic order", async () => {
+  test("reads linked agent IDs in the order they were picked, not the order their ids sort in", async () => {
     const actor = await createPersistentUser();
     const agentIdBase = persistentId("ordered-agent");
     const laterAgentId = await createPersistentAgent({
@@ -1001,9 +1001,11 @@ describe("channel store integration", () => {
     ]);
     createdChannelIds.push(created.id);
 
-    expect((await persistentStore.get(actor, created.id))?.agentIds).toEqual(
-      [earlierAgentId, laterAgentId].sort(),
-    );
+    expect(created.agentIds).toEqual([laterAgentId, earlierAgentId]);
+    expect((await persistentStore.get(actor, created.id))?.agentIds).toEqual([
+      laterAgentId,
+      earlierAgentId,
+    ]);
   });
 
   test("keeps a historical channel readable but inactive after a linked profile is deleted", async () => {

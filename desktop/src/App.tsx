@@ -376,7 +376,10 @@ export function App() {
     if (busy || !root.trim()) return false;
     const key = installationKeyFor(root, nextHarness);
     setBusy(true);
+    // A new attempt clears what the last one said, including a failure from an interrupted start
+    // (DT Lab, #83: "That did not finish" stayed on screen during Try again).
     setFailure(null);
+    setRecoveryFailure(null);
     setSteps([
       {
         step: "engine",
@@ -431,6 +434,7 @@ export function App() {
   ) {
     setBusy(true);
     setFailure(null);
+    setRecoveryFailure(null);
     setSteps([]);
     try {
       await invoke("start_stack", {

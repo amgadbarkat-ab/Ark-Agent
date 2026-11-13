@@ -923,6 +923,28 @@ export function createPluginRoutes(
    * Not admin-only, and that is the point: an administrator registers the connector once, and then
    * everybody connects their own account. Somebody can only ever see or start their own.
    */
+  /**
+   * Ask the vendor whether one of the person's own connections still works, so their settings page
+   * says "expired" rather than "Connected" over a grant the vendor refuses (DT Lab, #83). Their own
+   * connection only; answers `ok`, `expired` or `unknown`, never a token.
+   */
+  routes.post("/connections/:serverId/check", requireUser, async (context) => {
+    const serverId = context.req.param("serverId");
+    const held = await store.connectionsFor(context.var.actor.id);
+    // Refused, not answered: a server this person never connected is nothing of theirs to ask about,
+    // and the security suite holds every route to that for another customer's ids.
+    if (!held.some((connection) => connection.serverId === serverId)) {
+      return context.json(
+        { error: "You have not connected this account." },
+        404,
+      );
+    }
+    const state = await store
+      .checkConnection({ serverId, actorId: context.var.actor.id })
+      .catch(() => "unknown" as const);
+    return context.json({ state });
+  });
+
   routes.get("/connections", requireUser, async (context) => {
     /*
      * BOTH TABLES, ONE LIST, because the person asking has one question.

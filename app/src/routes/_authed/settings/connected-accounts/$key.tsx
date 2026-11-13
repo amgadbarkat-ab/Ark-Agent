@@ -13,13 +13,13 @@ import {
   useBrokeredAccount,
 } from "@/components/plugins/brokered-account-row";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Item,
   ItemActions,
@@ -29,12 +29,15 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
-import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
+import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import {
+  connectionCheckQueryOptions,
   connectionsQueryOptions,
+  pluginKeys,
   pluginsPageQueryOptions,
 } from "@/lib/plugins/queries";
+import { queryClient } from "@/query-client";
 
 /**
  * One service, and whether a Bot may read it as you.
@@ -105,8 +108,30 @@ function RouteComponent() {
   const connection = (connections.data?.connections ?? []).find(
     (row) => row.serverId === key,
   );
-  // Connect is offered only while nothing is connected, so a connection appearing ends the wait.
-  const connected = connection !== undefined;
+  /*
+   * The vendor asked once when the page opens, because a grant can expire with nothing here knowing
+   * (DT Lab, #83: "Connected" over an expired Gmail sign-in). A refusal is recorded on the row, so
+   * the connections list is read again and the row's own `expired` is what the page draws.
+   */
+  const check = useQuery({
+    ...connectionCheckQueryOptions(key),
+    enabled:
+      connection !== undefined &&
+      server?.provenance !== "composio" &&
+      !connection.expired,
+  });
+  const checkSaysExpired = check.data?.state === "expired";
+  useEffect(() => {
+    if (checkSaysExpired) {
+      void queryClient.invalidateQueries({
+        queryKey: pluginKeys.connections(),
+        exact: true,
+      });
+    }
+  }, [checkSaysExpired]);
+  const expired = connection?.expired === true;
+  // Connect is offered only while nothing works, so a working connection appearing ends the wait.
+  const connected = connection !== undefined && !expired;
   useEffect(() => {
     if (signingIn && connected) setSigningIn(false);
   }, [signingIn, connected]);
@@ -344,13 +369,15 @@ function RouteComponent() {
               <ItemDescription>
                 {!enabled
                   ? "An administrator has not enabled this connector, so there is nothing to connect to yet."
-                  : connection
-                    ? `${connection.account ? `Connected as ${connection.account}. ` : ""}A digital employee granted its tools reads this as you, and sees only what you can see.`
-                    : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
+                  : connection && expired
+                    ? `Your sign-in${connection.account ? ` as ${connection.account}` : ""} has expired or was withdrawn at ${entry.vendor}, so no digital employee can read this as you. Connect again to renew it.`
+                    : connection
+                      ? `${connection.account ? `Connected as ${connection.account}. ` : ""}A digital employee granted its tools reads this as you, and sees only what you can see.`
+                      : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
-              {connection ? (
+              {connection && !expired ? (
                 /*
                  * A state and a menu, not a switch. Connected is a fact about a grant that lives at
                  * the vendor, and withdrawing it is a deliberate act rather than the other half of a
@@ -414,7 +441,7 @@ function RouteComponent() {
                   type="button"
                   variant="outline"
                 >
-                  Connect
+                  {expired ? "Connect again" : "Connect"}
                   <IconArrowUpRight />
                 </Button>
               )}

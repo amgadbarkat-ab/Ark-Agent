@@ -201,3 +201,54 @@ describe("the administrator's list", () => {
     await expect(store.listForAdmin({ cursor: "garbage" })).rejects.toThrow();
   });
 });
+
+describe("the 7-day free trial (DT Lab, #83)", () => {
+  test("a new account starts a trial with no card, runs for 7 days, and is read-only on day 8", async () => {
+    const ann = await person();
+    let clock = new Date("2026-11-14T09:00:00Z");
+    const store = createAccountStore(database, {
+      billingMode: "subscriptions",
+      freeTrial: true,
+      now: () => clock,
+    });
+
+    const first = await store.summaryFor(ann);
+    expect(first).toMatchObject({
+      planId: "agent",
+      subscriptionStatus: "trialing",
+      canRun: true,
+      provider: "trial",
+    });
+    expect(first.currentPeriodEnd).toBe("2026-11-21T09:00:00.000Z");
+
+    // The last minute of day 7 still runs.
+    clock = new Date("2026-11-21T08:59:00Z");
+    expect((await store.entitlementFor(ann)).canRun).toBe(true);
+
+    // Day 8: runs stop, with a reason that says nothing is lost.
+    clock = new Date("2026-11-21T09:00:00Z");
+    const day8 = await store.entitlementFor(ann);
+    expect(day8.canRun).toBe(false);
+    expect(day8.blockedCode).toBe("trial_ended");
+    expect(day8.blockedReason).toContain("kept");
+
+    // Choosing a plan starts them again.
+    await store.applySubscription(await store.ensureTenant(ann), {
+      status: "active",
+      currentPeriodEnd: new Date("2026-12-21T09:00:00Z"),
+    });
+    expect((await store.entitlementFor(ann)).canRun).toBe(true);
+  });
+
+  test("off by default: a new account still has no plan until it chooses one", async () => {
+    const ann = await person();
+    const entitlement = await createAccountStore(database, {
+      billingMode: "subscriptions",
+    }).entitlementFor(ann);
+    expect(entitlement).toMatchObject({
+      subscriptionStatus: "incomplete",
+      canRun: false,
+      blockedCode: "no_plan",
+    });
+  });
+});

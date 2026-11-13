@@ -1,5 +1,5 @@
 import { Hono, type MiddlewareHandler } from "hono";
-import { planById } from "../../../shared/plans";
+import { planById, trialEndFrom } from "../../../shared/plans";
 import type { AccountStore } from "../accounts/store";
 import type { AppVariables } from "../auth/guards";
 
@@ -39,5 +39,45 @@ export function sandboxCheckoutRoutes(options: {
     const back = `${appUrl?.replace(/\/+$/, "") ?? new URL(context.req.url).origin}/settings/plan`;
     return context.redirect(back, 302);
   });
+
+  /*
+   * THE TRIAL, WALKED THROUGH WITHOUT WAITING A WEEK (DT Lab, #83). Sandbox only, like the page
+   * above, and only ever the caller's own account.
+   *
+   * `/trial/start` puts the account on a fresh 7-day trial; `/trial/end` moves its end to a minute
+   * ago, which is day 8: digital employees stop and everything stays readable. Choosing a plan on
+   * `/checkout` starts them again.
+   */
+  app.get("/trial/start", requireUser, async (context) => {
+    const tenantId = await accounts.ensureTenant(context.var.actor.id);
+    await accounts.applySubscription(tenantId, {
+      planId: "agent",
+      status: "trialing",
+      provider: "trial",
+      providerCustomerId: null,
+      providerSubscriptionId: null,
+      currentPeriodEnd: trialEndFrom(new Date()),
+      cancelAtPeriodEnd: false,
+    });
+    return context.redirect(planPage(context.req.url), 302);
+  });
+  app.get("/trial/end", requireUser, async (context) => {
+    const tenantId = await accounts.ensureTenant(context.var.actor.id);
+    const summary = await accounts.summaryFor(context.var.actor.id);
+    if (summary.subscriptionStatus !== "trialing") {
+      return context.json(
+        { error: "This account is not on a trial. Start one first." },
+        400,
+      );
+    }
+    await accounts.applySubscription(tenantId, {
+      currentPeriodEnd: new Date(Date.now() - 60_000),
+    });
+    return context.redirect(planPage(context.req.url), 302);
+  });
+
+  function planPage(requestUrl: string): string {
+    return `${appUrl?.replace(/\/+$/, "") ?? new URL(requestUrl).origin}/settings/plan`;
+  }
   return app;
 }

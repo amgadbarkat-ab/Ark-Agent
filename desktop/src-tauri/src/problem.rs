@@ -144,6 +144,22 @@ pub fn said_about(output: &str) -> String {
                 space and try again."
             .into();
     }
+    // The engine's own image store is damaged: containerd could not prepare or find a layer it
+    // unpacked before (DT Lab, #83, shown as "Something went wrong"). A restart of the engine is
+    // what clears it; nothing the person chose is lost.
+    if lower.contains("snapshot")
+        && (lower.contains("containerd")
+            || lower.contains("snapshotter")
+            || lower.contains("failed to prepare")
+            || lower.contains("failed to extract")
+            || lower.contains("does not exist")
+            || lower.contains("already exists"))
+    {
+        return "The container engine's image store is in a bad state (a containerd snapshot \
+                error), so a part of ArkAgent could not be unpacked. Restart Docker or Podman, or \
+                restart the computer, then press Try again. Nothing you chose is lost."
+            .into();
+    }
     if lower.contains("cannot connect")
         || lower.contains("is the docker daemon running")
         || lower.contains("connection refused")
@@ -216,6 +232,21 @@ mod tests {
         let said =
             said_about("Cannot connect to the Docker daemon at unix:///var/run/docker.sock.");
         assert!(said.contains("Start Docker or Podman"), "{said}");
+    }
+
+    #[test]
+    fn a_damaged_image_store_says_to_restart_the_engine() {
+        let said = said_about(
+            "failed to prepare extraction snapshot \"extract-3021-abc sha256:9f1c\": parent \
+             snapshot sha256:77aa does not exist: not found",
+        );
+        assert!(said.contains("Restart Docker or Podman"), "{said}");
+        assert!(!said.contains("sha256"), "{said}");
+        let said = said_about(
+            "Error response from daemon: failed to create task: containerd: snapshotter \
+             overlayfs: failed to mount",
+        );
+        assert!(said.contains("snapshot"), "{said}");
     }
 
     /// Unrecognised output keeps a general sentence. Guessing at somebody's machine is worse than

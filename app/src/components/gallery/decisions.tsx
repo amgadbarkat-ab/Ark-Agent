@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { useApprovalCardSync } from "@/lib/approvals/card-sync";
 import { useDeclaredBotId } from "@/lib/copilot/active-bot";
+import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
 import { Badge, GalleryFrame } from "./frame";
 
@@ -65,6 +66,8 @@ const CARD_WORDS = {
     decline: "Decline",
     sending: "Sending…",
     preparing: "Preparing the request…",
+    unfinished:
+      "This request was not finished, so there is nothing to approve. Ask again if it is still needed.",
   },
   el: {
     reason: "Αιτιολογία, αν θέλετε να δώσετε",
@@ -75,6 +78,8 @@ const CARD_WORDS = {
     decline: "Απόρριψη",
     sending: "Αποστολή…",
     preparing: "Προετοιμασία του αιτήματος…",
+    unfinished:
+      "Αυτό το αίτημα δεν ολοκληρώθηκε, οπότε δεν υπάρχει κάτι για έγκριση. Ζητήστε το ξανά αν χρειάζεται ακόμη.",
   },
 } as const;
 
@@ -121,11 +126,23 @@ export function ApprovalCard(
   };
 
   const words = cardWords(args.title, args.summary);
+  const conversation = useConversation();
+  const holdForCard = conversation?.holdForCard;
+  // While this card waits for the person, Stop is withdrawn: answering the card is the next step.
+  useEffect(() => {
+    if (status !== "executing" || !holdForCard) return;
+    return holdForCard();
+  }, [status, holdForCard]);
 
   if (status === "inProgress") {
+    // Nothing is running, so the rest of this card is never coming: a run that was cut off part-way
+    // (DT Lab, #83: a v0.1.33 card stayed on "Preparing the request…" with no buttons).
+    const unfinished = conversation?.busy === false;
     return (
       <GalleryFrame title={args.title ?? "Waiting for the assistant…"}>
-        <p className="text-sm text-muted-foreground">{words.preparing}</p>
+        <p className="text-sm text-muted-foreground">
+          {unfinished ? words.unfinished : words.preparing}
+        </p>
       </GalleryFrame>
     );
   }

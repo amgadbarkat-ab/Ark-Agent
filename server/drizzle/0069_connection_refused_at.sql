@@ -1,0 +1,1 @@
+ALTER TABLE "mcp_user_credentials" ADD COLUMN "refused_at" timestamp with time zone;
