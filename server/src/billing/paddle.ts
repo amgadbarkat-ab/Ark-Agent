@@ -127,8 +127,9 @@ export function statusFromPaddle(
       return "active";
     // TODO(go-live): the free trial is 7 days (`FREE_TRIAL_DAYS` in shared/plans.ts, 12 Nov 2026; it
     // was 30). Paddle holds the length, not this code: set the price's `trial_period` to
-    // `{ interval: "day", frequency: 7 }` when Paddle goes live. Customers offered 30 days before
-    // 12 Nov 2026 keep 30.
+    // `{ interval: "day", frequency: 7 }` when Paddle goes live. ArkAgent also counts the days itself
+    // (accounts/store.ts, entitlementOf), so a trial past its end stops running even if no webhook
+    // arrives. Customers offered 30 days before 12 Nov 2026 keep 30.
     case "trialing":
       return "trialing";
     case "past_due":

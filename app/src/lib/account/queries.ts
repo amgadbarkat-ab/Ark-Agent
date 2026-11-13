@@ -11,7 +11,12 @@ export type PlanOffer = {
   summary: string;
 };
 
-export type BlockedCode = "suspended" | "no_plan" | "canceled";
+export type BlockedCode =
+  | "suspended"
+  | "no_plan"
+  | "canceled"
+  /** Day 8 of a free trial: read-only until a plan is chosen. */
+  | "trial_ended";
 
 export type SubscriptionStatus =
   | "incomplete"

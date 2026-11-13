@@ -272,6 +272,8 @@ const agentVault = {
 };
 const accountStore = createAccountStore(database, {
   billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
+  // Off unless exactly "true": a new account starting a 7-day trial is a billing decision.
+  freeTrial: process.env.ARK_FREE_TRIAL_ENABLED?.trim() === "true",
 });
 const agentProfileStore = createAgentProfileStore(
   database,

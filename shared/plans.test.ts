@@ -3,6 +3,8 @@ import {
   formatEur,
   nextPlanUp,
   PLANS,
+  trialDaysLeft,
+  trialEndFrom,
   planById,
   purchasablePlans,
   subscriptionAllowsRuns,
@@ -52,4 +54,13 @@ test("a failed card does not stop work, a cancelled or unfinished subscription d
   expect(subscriptionAllowsRuns("past_due")).toBe(true);
   expect(subscriptionAllowsRuns("incomplete")).toBe(false);
   expect(subscriptionAllowsRuns("canceled")).toBe(false);
+});
+
+test("trial days are counted up, and day 8 is zero", () => {
+  const start = new Date("2026-11-14T09:00:00Z");
+  const end = trialEndFrom(start);
+  expect(end.toISOString()).toBe("2026-11-21T09:00:00.000Z");
+  expect(trialDaysLeft(end, start)).toBe(7);
+  expect(trialDaysLeft(end, new Date("2026-11-20T09:00:01Z"))).toBe(1);
+  expect(trialDaysLeft(end, end)).toBe(0);
 });
