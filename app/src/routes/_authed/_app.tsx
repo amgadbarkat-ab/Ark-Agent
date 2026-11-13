@@ -1,4 +1,3 @@
-import { SimulatedPhone } from "@/components/phone/simulated-phone";
 import {
   createFileRoute,
   isRedirect,
@@ -8,6 +7,7 @@ import {
 import { AppSidebar } from "@/components/app-sidebar/app-sidebar";
 import { OwnBrowserIndicator } from "@/components/computer/own-browser-indicator";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
+import { SimulatedPhone } from "@/components/phone/simulated-phone";
 import { accountQueryOptions } from "@/lib/account/queries";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 

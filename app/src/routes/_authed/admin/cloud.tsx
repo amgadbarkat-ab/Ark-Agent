@@ -61,6 +61,7 @@ import {
   formatPeriod,
   formatRate,
 } from "@/lib/cloud/queries";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/cloud")({
@@ -138,6 +139,7 @@ function recentPeriods(count = 6): string[] {
 }
 
 function CloudCosts() {
+  const t = useT();
   const rates = useQuery(adminCloudRatesQueryOptions());
   const periods = recentPeriods();
   const [period, setPeriod] = useState(periods[0] as string);
@@ -154,16 +156,18 @@ function CloudCosts() {
 
   return (
     <PageShell
-      description="What running in Ark's cloud costs us, what it is priced at, and what has been charged. Set the prices from measured cost."
-      title="Cloud costs"
+      description={t(
+        "What running in Ark's cloud costs us, what it is priced at, and what has been charged. Set the prices from measured cost.",
+      )}
+      title={t("Cloud costs")}
     >
       <PageSection
         description={rates.data ? MODE_WORDS[rates.data.mode] : undefined}
-        title="Prices"
+        title={t("Prices")}
       >
         {rates.isPending ? null : rates.error || !rates.data ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load the prices.
+            {t("Could not load the prices.")}
           </p>
         ) : (
           <PageRows>
@@ -175,7 +179,7 @@ function CloudCosts() {
                 <IconCoins />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>Prices for cloud running</ItemTitle>
+                <ItemTitle>{t("Prices for cloud running")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {rates.data.rates
                     ? `${formatRate(rates.data.rates.computeCentsPerHour)} an hour, ${rates.data.rates.paymentFeePercent}% payment fee, ${rates.data.rates.marginPercent}% margin.`
@@ -196,7 +200,7 @@ function CloudCosts() {
             ? `${usage.data.totals.hours.toFixed(1)} hours of running cost us ${formatEur(Math.ceil(usage.data.totals.costCents))}. At these prices it is ${formatEur(usage.data.totals.chargeCents)} charged.`
             : "What each account used, and what it cost us."
         }
-        title="Usage"
+        title={t("Usage")}
       >
         <div className="mb-3">
           <Select
@@ -206,7 +210,7 @@ function CloudCosts() {
             onValueChange={(value) => setPeriod(String(value))}
             value={period}
           >
-            <SelectTrigger aria-label="Month" className="w-44" size="sm">
+            <SelectTrigger aria-label={t("Month")} className="w-44" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -220,10 +224,10 @@ function CloudCosts() {
         </div>
         {usage.isPending ? null : usage.error || !usage.data ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load the usage.
+            {t("Could not load the usage.")}
           </p>
         ) : usage.data.accounts.length === 0 ? (
-          <PageEmpty>Nothing ran in the cloud this month.</PageEmpty>
+          <PageEmpty>{t("Nothing ran in the cloud this month.")}</PageEmpty>
         ) : (
           <PageRows>
             {usage.data.accounts.map((account, index) => (
@@ -255,15 +259,17 @@ function CloudCosts() {
       </PageSection>
 
       <PageSection
-        description="A month the payment service refused, or that it did not answer for. A refused month is tried again by itself. One that was not answered is never sent again by a machine: look at the payment service's own record, then say what happened."
-        title="Needs a decision"
+        description={t(
+          "A month the payment service refused, or that it did not answer for. A refused month is tried again by itself. One that was not answered is never sent again by a machine: look at the payment service's own record, then say what happened.",
+        )}
+        title={t("Needs a decision")}
       >
         {charges.isPending ? null : charges.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load the charges.
+            {t("Could not load the charges.")}
           </p>
         ) : needsAttention.length === 0 ? (
-          <PageEmpty>Nothing is waiting.</PageEmpty>
+          <PageEmpty>{t("Nothing is waiting.")}</PageEmpty>
         ) : (
           <PageRows>
             {needsAttention.map((charge, index) => (
@@ -276,9 +282,9 @@ function CloudCosts() {
         )}
       </PageSection>
 
-      <PageSection title="Recent months">
+      <PageSection title={t("Recent months")}>
         {charges.isPending || charges.error ? null : settled.length === 0 ? (
-          <PageEmpty>No months have been charged yet.</PageEmpty>
+          <PageEmpty>{t("No months have been charged yet.")}</PageEmpty>
         ) : (
           <PageRows>
             {settled.map((charge, index) => (
@@ -319,6 +325,7 @@ function ChargeRow({
   charge: AdminCloudCharge;
   settle?: boolean;
 }) {
+  const t = useT();
   const [outcome, setOutcome] = useState<"charged" | "waived" | null>(null);
   const [note, setNote] = useState("");
   const settleCharge = useMutation(
@@ -343,7 +350,7 @@ function ChargeRow({
         </ItemDescription>
         {outcome ? (
           <Input
-            aria-label="Where you saw it"
+            aria-label={t("Where you saw it")}
             autoFocus
             className="mt-2"
             onChange={(event) => setNote(event.target.value)}
@@ -373,7 +380,7 @@ function ChargeRow({
                 size="sm"
                 variant="ghost"
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 disabled={settleCharge.isPending || note.trim().length < 3}
@@ -397,14 +404,14 @@ function ChargeRow({
                 size="sm"
                 variant="outline"
               >
-                It was charged
+                {t("It was charged")}
               </Button>
               <Button
                 onClick={() => setOutcome("waived")}
                 size="sm"
                 variant="outline"
               >
-                Waive
+                {t("Waive")}
               </Button>
             </>
           )
@@ -449,6 +456,7 @@ function RatesForm({
   onDone: () => void;
   rates: CloudRates | null;
 }) {
+  const t = useT();
   const [typed, setTyped] = useState<Record<keyof CloudRates, string>>(
     () =>
       Object.fromEntries(
@@ -474,12 +482,11 @@ function RatesForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Prices for cloud running</DialogTitle>
+        <DialogTitle>{t("Prices for cloud running")}</DialogTitle>
         <DialogDescription>
-          Customers see these exactly, and agree to them before anything is
-          charged. A customer who agreed to earlier prices is asked again. A
-          month is charged at the prices they agreed to, worked out from the
-          time the digital employees ran.
+          {t(
+            "Customers see these exactly, and agree to them before anything is charged. A customer who agreed to earlier prices is asked again. A month is charged at the prices they agreed to, worked out from the time the digital employees ran.",
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -517,7 +524,7 @@ function RatesForm({
       </DialogBody>
       <DialogFooter className="mt-4">
         <Button onClick={onDone} size="sm" type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={!complete || save.isPending}

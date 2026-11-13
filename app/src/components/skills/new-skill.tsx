@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SkillFields } from "@/components/skills/skill-fields";
+import { useT } from "@/lib/i18n";
 import { saveSkillMutationOptions } from "@/lib/plugins/mutations";
 import { emptySkillForm } from "@/lib/skills/form";
 
@@ -11,6 +12,7 @@ import { emptySkillForm } from "@/lib/skills/form";
  * write the next one — the usual reason to open this is to make a variant of one that exists.
  */
 export function NewSkill() {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -19,7 +21,7 @@ export function NewSkill() {
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
       <header>
-        <h1 className="text-2xl font-semibold">New skill</h1>
+        <h1 className="text-2xl font-semibold">{t("New skill")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           A named instruction you invoke with <code>/</code>. It goes on the
           Digital employees you own, and nobody else sees it.
@@ -35,7 +37,7 @@ export function NewSkill() {
           // skill than the form just said, and the new row is already behind it in the list.
           await navigate({ search: {}, to: "/skills" });
         }}
-        submitLabel="Save skill"
+        submitLabel={t("Save skill")}
       />
     </div>
   );

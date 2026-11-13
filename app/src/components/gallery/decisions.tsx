@@ -5,6 +5,7 @@ import { useApprovalCardSync } from "@/lib/approvals/card-sync";
 import { useDeclaredBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 /**
@@ -238,13 +239,16 @@ export const ChoiceCardProps = z.object({
 type ChoiceArgs = z.infer<typeof ChoiceCardProps>;
 
 export function ChoiceCard(props: Waiting<ChoiceArgs>) {
+  const t = useT();
   const { args, status, respond } = props;
   const [sending, setSending] = useState<string | null>(null);
 
   if (status === "inProgress") {
     return (
       <GalleryFrame title={args.title ?? "Waiting for the assistant…"}>
-        <p className="text-sm text-muted-foreground">Preparing the question…</p>
+        <p className="text-sm text-muted-foreground">
+          {t("Preparing the question…")}
+        </p>
       </GalleryFrame>
     );
   }
@@ -255,9 +259,9 @@ export function ChoiceCard(props: Waiting<ChoiceArgs>) {
     <GalleryFrame
       action={
         chosen ? (
-          <Badge tone="positive">Answered</Badge>
+          <Badge tone="positive">{t("Answered")}</Badge>
         ) : (
-          <Badge tone="caution">Waiting on you</Badge>
+          <Badge tone="caution">{t("Waiting on you")}</Badge>
         )
       }
       caption={args.summary}

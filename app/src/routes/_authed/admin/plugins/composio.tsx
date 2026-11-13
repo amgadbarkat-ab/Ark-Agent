@@ -19,6 +19,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { useT } from "@/lib/i18n";
 import {
   enableComposioAppMutationOptions,
   invalidatePlugins,
@@ -62,6 +63,7 @@ export function matchingApps(apps: ComposioApp[]): ComposioApp[] {
 }
 
 function RouteComponent() {
+  const t = useT();
   const [search, setSearch] = React.useState("");
   /*
    * Debounced, as on People, and for a stronger reason: every distinct term is a cache key of its
@@ -129,12 +131,16 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-      description="Composio's own directory. Adding an app makes its tools available to grant; each person still connects their own account before any of them reads anything."
-      title="Browse Composio"
+      description={t(
+        "Composio's own directory. Adding an app makes its tools available to grant; each person still connects their own account before any of them reads anything.",
+      )}
+      title={t("Browse Composio")}
     >
       <PageSection
-        description="Search by name. The directory is too long to read, and nothing here has been reviewed by this deployment."
-        title="Apps"
+        description={t(
+          "Search by name. The directory is too long to read, and nothing here has been reviewed by this deployment.",
+        )}
+        title={t("Apps")}
       >
         {enableError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -143,10 +149,10 @@ function RouteComponent() {
         ) : null}
 
         <Input
-          aria-label="Search Composio apps"
+          aria-label={t("Search Composio apps")}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by app name"
+          placeholder={t("Search by app name")}
           value={search}
         />
 
@@ -204,7 +210,7 @@ function RouteComponent() {
                        */}
                       {entry.enabled ? (
                         <span className="text-muted-foreground text-xs">
-                          Added
+                          {t("Added")}
                         </span>
                       ) : (
                         <Button

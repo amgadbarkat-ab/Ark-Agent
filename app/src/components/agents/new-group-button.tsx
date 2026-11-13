@@ -1,4 +1,3 @@
-import { useT } from "@/lib/i18n";
 import { IconUsersPlus } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -19,6 +18,7 @@ import {
   createChannelMutationOptions,
   renameChannelMutationOptions,
 } from "@/lib/channels/mutations";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -108,7 +108,7 @@ export function NewGroupForm({
         autoFocus
         maxLength={60}
         onChange={(event) => setName(event.target.value)}
-        placeholder="Test Group 1"
+        placeholder={t("Test Group 1")}
         value={name}
       />
       <fieldset className="flex max-h-72 flex-col gap-1 overflow-y-auto">

@@ -2,6 +2,7 @@ import { IconFile, IconX } from "@tabler/icons-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { Collapse } from "./collapse";
 
@@ -61,6 +62,7 @@ export function AttachmentStrip({
   images: readonly StagedImage[];
   onRemove: (id: string) => void;
 }) {
+  const t = useT();
   const occupied = images.length > 0 || files.length > 0;
 
   return (
@@ -84,7 +86,7 @@ export function AttachmentStrip({
     <Collapse open={occupied}>
       <ul
         aria-hidden={!occupied}
-        aria-label="Attachments"
+        aria-label={t("Attachments")}
         className="flex flex-wrap items-start gap-2 pb-3"
       >
         {images.map((image) => (
@@ -138,7 +140,9 @@ export function AttachmentStrip({
                 {file.name}
               </p>
               {file.loading ? (
-                <p className="text-muted-foreground text-xs">Uploading…</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("Uploading…")}
+                </p>
               ) : file.size === undefined ? null : (
                 /*
                  * ON THE SIZE LINE, NOT UNDER IT, AND THAT IS A LAYOUT CONSTRAINT RATHER THAN A

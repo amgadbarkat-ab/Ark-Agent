@@ -1,6 +1,6 @@
-import type { ConnectVoice, VoiceConnection, VoiceEvent } from "./types";
 import type { SaveVoiceSessionInput } from "../../../../shared/voice-session";
 import { VOICE_CONTEXT_ITEM_ID, VoiceTranscript } from "./transcript";
+import type { ConnectVoice, VoiceConnection, VoiceEvent } from "./types";
 
 export type VoiceState = {
   phase: "idle" | "connecting" | "connected" | "error";

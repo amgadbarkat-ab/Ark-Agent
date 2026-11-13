@@ -52,6 +52,7 @@ import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { readColleagueAnswer } from "@/lib/copilot/markers";
+import { useT } from "@/lib/i18n";
 import { markdownComponents } from "@/lib/markdown";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -149,9 +150,10 @@ const RESTORING_ANSWER_LINES = [
 ] as const;
 
 function RestoringTranscript() {
+  const t = useT();
   return (
     // One announcement, with every bar hidden from it: nine empty shapes read aloud is worse.
-    <div aria-label="Loading this conversation" role="status">
+    <div aria-label={t("Loading this conversation")} role="status">
       <div aria-hidden="true" className="flex justify-end pb-7">
         <Skeleton className="h-10 w-64 rounded-xl bg-muted/40 motion-reduce:animate-none" />
       </div>
@@ -179,6 +181,7 @@ function RestoringTranscript() {
  * work is a tool call or a model that has not spoken yet.
  */
 function Thinking() {
+  const t = useT();
   return (
     <p
       className="tool-line-running text-muted-foreground text-sm"
@@ -186,7 +189,7 @@ function Thinking() {
       // is doing. The text says it, so a screen reader is told the same thing the shimmer implies.
       role="status"
     >
-      Thinking
+      {t("Thinking")}
     </p>
   );
 }
@@ -315,6 +318,7 @@ function Queued({
   text: string;
   onRemove?: (() => void) | undefined;
 }) {
+  const t = useT();
   /*
    * THE FILES COME WITH IT, and until they did they were on NO SURFACE IN THE APP AT ALL. Parking
    * consumes the draft, so the composer's strip empties in the same beat this line appears; drawing
@@ -348,7 +352,7 @@ function Queued({
            * `status` rather than `alert`, matching the thinking line: a person who has just chosen
            * to queue something is not being interrupted by the news that it is queued.
            */}
-          <span role="status">Queued</span>
+          <span role="status">{t("Queued")}</span>
           {onRemove ? (
             <button
               /*
@@ -366,7 +370,7 @@ function Queued({
               onClick={onRemove}
               type="button"
             >
-              Remove
+              {t("Remove")}
             </button>
           ) : null}
         </MessageFooter>
@@ -584,11 +588,12 @@ function Arriving({
  * the part a person wrote and the only part addressed to them.
  */
 function RoutineFiring({ instruction }: { instruction: string }) {
+  const t = useT();
   return (
     <div className="flex min-w-0 items-baseline gap-2 text-muted-foreground text-sm">
       <IconClock aria-hidden className="size-4 shrink-0 translate-y-0.5" />
       <span className="min-w-0">
-        <span className="font-medium">Routine ran.</span>{" "}
+        <span className="font-medium">{t("Routine ran.")}</span>{" "}
         <span className="whitespace-pre-wrap">{instruction}</span>
       </span>
     </div>
@@ -622,12 +627,13 @@ function PacedMarkdown({ text }: { text: string }) {
  * speaking and the person should be able to read exactly what it said.
  */
 function ColleagueAnswer({ name, answer }: { name: string; answer: string }) {
+  const t = useT();
   return (
     <div className="w-full">
       <div className="mb-1 flex items-center gap-2 text-muted-foreground text-xs">
         <IconUsersGroup aria-hidden className="size-4 shrink-0" />
         <span className="font-medium">{name}</span>
-        <span>answered</span>
+        <span>{t("answered")}</span>
       </div>
       <Bubble align="start" variant="ghost" className="w-full">
         <BubbleContent className="w-full">
@@ -1035,6 +1041,7 @@ function useDocumentIsGone(url: string, ask: boolean): boolean {
 }
 
 function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
+  const t = useT();
   const [failedToLoad, setFailedToLoad] = useState(false);
   const { filename, modality, url } = attachment;
   /*
@@ -1097,7 +1104,7 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
           <p className="truncate font-medium text-sm" title={filename}>
             {filename ?? "Untitled file"}
           </p>
-          <p className="text-muted-foreground text-xs">Attachment</p>
+          <p className="text-muted-foreground text-xs">{t("Attachment")}</p>
         </div>
       </div>
     );
@@ -1222,6 +1229,7 @@ function AttachmentLightbox({
   filename?: string;
   url: string;
 }) {
+  const t = useT();
   const label = filename ?? "Attachment";
   /*
    * Controlled only so that clicking the dark space around the picture closes it, the way every
@@ -1258,7 +1266,9 @@ function AttachmentLightbox({
         onClick={(event) => {
           if (event.target === event.currentTarget) setOpen(false);
         }}
-        overlayClassName="bg-black/80 supports-backdrop-filter:backdrop-blur-sm"
+        overlayClassName={t(
+          "bg-black/80 supports-backdrop-filter:backdrop-blur-sm",
+        )}
         showCloseButton={false}
       >
         {/* Named for a screen reader; the picture carries the same name in its alt text. */}
@@ -1267,7 +1277,7 @@ function AttachmentLightbox({
         <DialogClose
           render={
             <button
-              aria-label="Close"
+              aria-label={t("Close")}
               className="absolute top-4 right-4 grid size-9 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               type="button"
             />

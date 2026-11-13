@@ -30,6 +30,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
+import { useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
 import { trialDaysLeft } from "../../../../../shared/plans";
@@ -119,6 +120,7 @@ function isWaiting(
 }
 
 function PlanPage() {
+  const t = useT();
   const { paid } = useSearch({ strict: false }) as { paid?: unknown };
   /** A plan the customer asked to move to, until the account shows it. */
   const [requested, setRequested] = useState<string | null>(null);
@@ -166,11 +168,11 @@ function PlanPage() {
           ? "What you have, how much of it is in use, and how to change it. A digital employee counts only while it is working."
           : "What you have and how much of it is in use. A digital employee counts only while it is working."
       }
-      title="Plan"
+      title={t("Plan")}
     >
       {overview.isPending ? null : overview.error || !data ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Could not load your plan.
+          {t("Could not load your plan.")}
         </p>
       ) : (
         <>
@@ -207,7 +209,7 @@ function PlanPage() {
                 ? "This deployment is run by your company: nobody pays and there is no limit."
                 : undefined
             }
-            title="Your plan"
+            title={t("Your plan")}
           >
             <PageRows>
               <Item size="sm">
@@ -227,7 +229,7 @@ function PlanPage() {
                   <IconRobot />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Digital employees</ItemTitle>
+                  <ItemTitle>{t("Digital employees")}</ItemTitle>
                   <ItemDescription>{workingLine(data.account)}</ItemDescription>
                 </ItemContent>
               </Item>
@@ -236,11 +238,13 @@ function PlanPage() {
 
           {purchasesAllowed && data.billing.mode === "subscriptions" ? (
             <PageSection
-              description="Every plan is for one person. Switch any time; your digital employees keep their work."
-              title="Plans"
+              description={t(
+                "Every plan is for one person. Switch any time; your digital employees keep their work.",
+              )}
+              title={t("Plans")}
             >
               {data.plans.length === 0 ? (
-                <PageEmpty>No plans are on offer right now.</PageEmpty>
+                <PageEmpty>{t("No plans are on offer right now.")}</PageEmpty>
               ) : (
                 <PageRows>
                   {data.plans.map((plan, index) => (
@@ -271,8 +275,9 @@ function PlanPage() {
               )}
               {!data.billing.selfService ? (
                 <p className="mt-4 text-muted-foreground text-sm">
-                  Online payment is not available yet. Contact us to start or
-                  change a plan.
+                  {t(
+                    "Online payment is not available yet. Contact us to start or change a plan.",
+                  )}
                 </p>
               ) : null}
             </PageSection>
@@ -287,16 +292,16 @@ function PlanPage() {
           {purchasesAllowed &&
           data.billing.mode === "subscriptions" &&
           data.billing.selfService ? (
-            <PageSection title="Billing">
+            <PageSection title={t("Billing")}>
               <PageRows>
                 <Item size="sm">
                   <ItemMedia variant="icon">
                     <IconCreditCard />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>Cards and invoices</ItemTitle>
+                    <ItemTitle>{t("Cards and invoices")}</ItemTitle>
                     <ItemDescription>
-                      Update your card, or download an invoice.
+                      {t("Update your card, or download an invoice.")}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -310,7 +315,7 @@ function PlanPage() {
                       size="sm"
                       variant="outline"
                     >
-                      Manage billing
+                      {t("Manage billing")}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -319,7 +324,7 @@ function PlanPage() {
                     <Separator />
                     <Item size="sm">
                       <ItemContent>
-                        <ItemTitle>Cancel</ItemTitle>
+                        <ItemTitle>{t("Cancel")}</ItemTitle>
                         <ItemDescription>
                           {confirmCancel
                             ? "Your digital employees keep working until the end of the period you have paid for. Cancel now?"
@@ -334,7 +339,7 @@ function PlanPage() {
                               size="sm"
                               variant="ghost"
                             >
-                              Keep my plan
+                              {t("Keep my plan")}
                             </Button>
                             <Button
                               disabled={cancel.isPending}
@@ -355,7 +360,7 @@ function PlanPage() {
                             size="sm"
                             variant="outline"
                           >
-                            Cancel plan
+                            {t("Cancel plan")}
                           </Button>
                         )}
                       </ItemActions>
@@ -395,6 +400,7 @@ function PlanRow({
   plan: PlanOffer;
   selfService: boolean;
 }) {
+  const t = useT();
   const picture = PLAN_PICTURE[plan.id];
   return (
     <Item size="sm">
@@ -416,7 +422,9 @@ function PlanRow({
       </ItemContent>
       <ItemActions>
         {current ? (
-          <span className="text-muted-foreground text-sm">Your plan</span>
+          <span className="text-muted-foreground text-sm">
+            {t("Your plan")}
+          </span>
         ) : (
           <Button
             aria-label={`Choose ${plan.name}`}
@@ -425,7 +433,7 @@ function PlanRow({
             size="sm"
             variant="outline"
           >
-            Choose
+            {t("Choose")}
           </Button>
         )}
       </ItemActions>

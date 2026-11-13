@@ -43,6 +43,7 @@ import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
 import { readThreadMessages } from "@/lib/copilot/thread-messages";
+import { useT } from "@/lib/i18n";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import {
   askChannelAgent,
@@ -256,6 +257,7 @@ export function ChannelChat({
   channel: AgentChannel;
   runtimeAgentId: string;
 }) {
+  const t = useT();
   // The core attaches the frontend tool registry; direct agent runs do not.
   const { copilotkit } = useCopilotKit();
   // The `@` menu lists every digital employee; who is inside the channel is decided at send time.
@@ -1009,7 +1011,7 @@ export function ChannelChat({
                 <ConversationRequests channelId={channel.id} />
                 {voiceArchive.error && (
                   <p className="pb-2 text-sm text-destructive" role="alert">
-                    Voice chats couldn’t be loaded. Refresh to try again.
+                    {t("Voice chats couldn’t be loaded. Refresh to try again.")}
                   </p>
                 )}
                 {voiceContextNotice && (
@@ -1033,8 +1035,9 @@ export function ChannelChat({
                     className="pb-2 text-sm text-muted-foreground"
                     role="status"
                   >
-                    This digital employee has been deleted. The conversation
-                    stays readable, but it can no longer reply.
+                    {t(
+                      "This digital employee has been deleted. The conversation stays readable, but it can no longer reply.",
+                    )}
                   </p>
                 )}
               </>

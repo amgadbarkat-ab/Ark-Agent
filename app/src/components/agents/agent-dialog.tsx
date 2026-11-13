@@ -78,6 +78,7 @@ import {
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
 import { cloudQueryOptions } from "@/lib/cloud/queries";
 import { isComposing } from "@/lib/composing";
+import { useT } from "@/lib/i18n";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 
@@ -126,6 +127,7 @@ const SECTIONS = [
 type SectionId = (typeof SECTIONS)[number]["id"];
 
 function AgentDialogBody({ agentId }: { agentId: string }) {
+  const t = useT();
   const [section, setSection] = useState<SectionId>("general");
   const agent = useQuery(agentQueryOptions(agentId));
 
@@ -141,7 +143,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-6 text-sm text-destructive" role="alert">
-        Could not load this digital employee.
+        {t("Could not load this digital employee.")}
       </p>
     );
   }
@@ -259,6 +261,7 @@ function GeneralSection({
   agentId: string;
   profile: AgentProfile;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const updateAgent = useMutation(updateAgentMutationOptions(queryClient));
@@ -299,21 +302,21 @@ function GeneralSection({
         />
         <EditableTextItem
           canManage={profile.canManage}
-          label="Name"
+          label={t("Name")}
           onSave={(name) => save({ name })}
           schema={agentFormSchema.shape.name}
           value={profile.name}
         />
         <EditableTextItem
           canManage={profile.canManage}
-          label="Title"
+          label={t("Title")}
           onSave={(title) => save({ title })}
           schema={agentFormSchema.shape.title}
           value={profile.title}
         />
         <EditableTextItem
           canManage={profile.canManage}
-          label="Role"
+          label={t("Role")}
           multiline
           onSave={(roleDescription) => save({ roleDescription })}
           schema={agentFormSchema.shape.roleDescription}
@@ -322,10 +325,10 @@ function GeneralSection({
         {profile.canManage && !profile.systemOwned ? (
           <EditableTextItem
             canManage
-            label="Instructions"
+            label={t("Instructions")}
             multiline
             onSave={(persona) => save({ persona })}
-            placeholder="Using the role above"
+            placeholder={t("Using the role above")}
             schema={instructionsSchema}
             value={profile.persona ?? ""}
           />
@@ -344,9 +347,11 @@ function GeneralSection({
         {profile.systemOwned ? (
           <Item variant="muted">
             <ItemContent>
-              <ItemTitle>System owned</ItemTitle>
+              <ItemTitle>{t("System owned")}</ItemTitle>
               <ItemDescription>
-                Ships with this deployment rather than belonging to a person.
+                {t(
+                  "Ships with this deployment rather than belonging to a person.",
+                )}
               </ItemDescription>
             </ItemContent>
           </Item>
@@ -355,9 +360,9 @@ function GeneralSection({
 
       <Item variant="muted">
         <ItemContent>
-          <ItemTitle>Start channel</ItemTitle>
+          <ItemTitle>{t("Start channel")}</ItemTitle>
           <ItemDescription>
-            Open a new channel with this digital employee.
+            {t("Open a new channel with this digital employee.")}
           </ItemDescription>
         </ItemContent>
         <ItemActions>
@@ -370,7 +375,7 @@ function GeneralSection({
             }
             size="sm"
           >
-            Start
+            {t("Start")}
           </Button>
         </ItemActions>
       </Item>
@@ -390,13 +395,14 @@ function PrimaryItem({
   agentId: string;
   profile: AgentProfile;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const makePrimary = useMutation(setPrimaryAgentMutationOptions(queryClient));
   if (profile.systemOwned || !profile.mine) return null;
   return (
     <Item variant="muted">
       <ItemContent>
-        <ItemTitle>Primary digital employee</ItemTitle>
+        <ItemTitle>{t("Primary digital employee")}</ItemTitle>
         <ItemDescription>
           {profile.primary
             ? "Leads your team. The others know it is the lead, and when a request spans several roles it is the one to ask."
@@ -410,7 +416,7 @@ function PrimaryItem({
       </ItemContent>
       <ItemActions>
         {profile.primary ? (
-          <span className="text-sm text-muted-foreground">Primary</span>
+          <span className="text-sm text-muted-foreground">{t("Primary")}</span>
         ) : (
           <Button
             disabled={makePrimary.isPending}
@@ -418,7 +424,7 @@ function PrimaryItem({
             size="sm"
             variant="outline"
           >
-            Make primary
+            {t("Make primary")}
           </Button>
         )}
       </ItemActions>
@@ -452,6 +458,7 @@ function EditableTextItem({
   /** Shown, muted, in place of an empty value. */
   placeholder?: string;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
@@ -546,7 +553,7 @@ function EditableTextItem({
             {saving ? "Saving…" : "Save"}
           </Button>
           <Button disabled={saving} onClick={close} size="sm" variant="outline">
-            Cancel
+            {t("Cancel")}
           </Button>
         </div>
       </ItemContent>
@@ -567,13 +574,14 @@ function VisibilityItem({
   canManage: boolean;
   onSave: (visibility: AgentProfile["visibility"]) => Promise<unknown>;
 }) {
+  const t = useT();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
     <Item variant="muted">
       <ItemContent>
-        <ItemTitle>Visibility</ItemTitle>
+        <ItemTitle>{t("Visibility")}</ItemTitle>
         <ItemDescription>
           {value === "private"
             ? "Only you can see it and start channels with it."
@@ -613,8 +621,8 @@ function VisibilityItem({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="private">Private</SelectItem>
-              <SelectItem value="public">Public</SelectItem>
+              <SelectItem value="private">{t("Private")}</SelectItem>
+              <SelectItem value="public">{t("Public")}</SelectItem>
             </SelectContent>
           </Select>
         ) : (
@@ -644,6 +652,7 @@ function RunLocationItem({
   canManage: boolean;
   onSave: (runLocation: AgentProfile["runLocation"]) => Promise<unknown>;
 }) {
+  const t = useT();
   const cloud = useQuery(cloudQueryOptions());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -654,7 +663,7 @@ function RunLocationItem({
   return (
     <Item variant="muted">
       <ItemContent>
-        <ItemTitle>Where it runs</ItemTitle>
+        <ItemTitle>{t("Where it runs")}</ItemTitle>
         <ItemDescription>
           {value === "device"
             ? "On your own computer, in the Ark desktop app. Included, and never run in the cloud instead."
@@ -691,12 +700,12 @@ function RunLocationItem({
             }}
             value={value}
           >
-            <SelectTrigger aria-label="Where it runs" className="w-36">
+            <SelectTrigger aria-label={t("Where it runs")} className="w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="cloud">Ark's cloud</SelectItem>
-              <SelectItem value="device">My computer</SelectItem>
+              <SelectItem value="cloud">{t("Ark's cloud")}</SelectItem>
+              <SelectItem value="device">{t("My computer")}</SelectItem>
             </SelectContent>
           </Select>
         ) : (
@@ -726,13 +735,14 @@ function connectorName(key: string): string {
  * the Plugins screens, and a row of switches here would be a second place for the same decision.
  */
 function AccessSection({ agentId }: { agentId: string }) {
+  const t = useT();
   const plugins = useQuery(agentPluginsQueryOptions(agentId));
 
   if (plugins.isPending) return null;
   if (plugins.error || !plugins.data) {
     return (
       <p className="text-sm text-destructive" role="alert">
-        What this digital employee may reach could not be loaded.
+        {t("What this digital employee may reach could not be loaded.")}
       </p>
     );
   }
@@ -763,12 +773,12 @@ function AccessSection({ agentId }: { agentId: string }) {
       <Empty className="h-[180px] border border-dashed">
         <EmptyHeader>
           <EmptyTitle className="text-muted-foreground">
-            Nothing granted yet
+            {t("Nothing granted yet")}
           </EmptyTitle>
           <EmptyDescription>
-            An administrator grants connectors and skills from the Plugins
-            screens. Until then this digital employee can converse, and nothing
-            more.
+            {t(
+              "An administrator grants connectors and skills from the Plugins screens. Until then this digital employee can converse, and nothing more.",
+            )}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -778,9 +788,9 @@ function AccessSection({ agentId }: { agentId: string }) {
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        What this digital employee may reach when it works. Granted by an
-        administrator on the Plugins screens; anything not listed is refused
-        when called.
+        {t(
+          "What this digital employee may reach when it works. Granted by an administrator on the Plugins screens; anything not listed is refused when called.",
+        )}
       </p>
       <div className="flex flex-col gap-2">
         {[...connectors.entries()].map(([key, labels]) => (
@@ -806,7 +816,9 @@ function AccessSection({ agentId }: { agentId: string }) {
               <ItemDescription>{skill.summary}</ItemDescription>
             </ItemContent>
             <ItemActions>
-              <span className="text-sm text-muted-foreground">Skill</span>
+              <span className="text-sm text-muted-foreground">
+                {t("Skill")}
+              </span>
             </ItemActions>
           </Item>
         ))}
@@ -822,6 +834,7 @@ function ConnectionSection({
   agentId: string;
   profile: AgentProfile;
 }) {
+  const t = useT();
   /*
    * A built-in coworker is done the moment it exists: it runs on the deployment's own Bot, whose
    * process already holds the deployment's tool credential, so its tool calls authenticate with no
@@ -831,9 +844,9 @@ function ConnectionSection({
   if (!profile.endpoint || profile.builtIn) {
     return (
       <p className="text-sm text-muted-foreground">
-        Runs on this deployment's own digital employee. Nothing to connect and
-        nothing to authenticate: its tool calls are covered by the deployment's
-        own credential.
+        {t(
+          "Runs on this deployment's own digital employee. Nothing to connect and nothing to authenticate: its tool calls are covered by the deployment's own credential.",
+        )}
       </p>
     );
   }
@@ -841,7 +854,7 @@ function ConnectionSection({
     <>
       <section className="grid gap-2">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Endpoint
+          {t("Endpoint")}
         </h2>
         <p className="break-all font-mono text-sm">{profile.endpoint}</p>
       </section>
@@ -862,6 +875,7 @@ function ManageSection({
   agentId: string;
   profile: AgentProfile;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -913,9 +927,9 @@ function ManageSection({
 
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>Duplicate</ItemTitle>
+            <ItemTitle>{t("Duplicate")}</ItemTitle>
             <ItemDescription>
-              A copy of your own, with no key and no channels.
+              {t("A copy of your own, with no key and no channels.")}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
@@ -936,10 +950,11 @@ function ManageSection({
         {profile.mine && !profile.systemOwned ? (
           <Item variant="muted">
             <ItemContent>
-              <ItemTitle>Share</ItemTitle>
+              <ItemTitle>{t("Share")}</ItemTitle>
               <ItemDescription>
-                Put it in the marketplace as a guide others can read. They
-                cannot install, copy or export it.
+                {t(
+                  "Put it in the marketplace as a guide others can read. They cannot install, copy or export it.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -948,7 +963,7 @@ function ManageSection({
                 size="sm"
                 variant="outline"
               >
-                Share
+                {t("Share")}
               </Button>
             </ItemActions>
           </Item>
@@ -957,8 +972,8 @@ function ManageSection({
         {profile.canManage ? (
           <Item variant="muted">
             <ItemContent>
-              <ItemTitle>Delete</ItemTitle>
-              <ItemDescription>This cannot be undone.</ItemDescription>
+              <ItemTitle>{t("Delete")}</ItemTitle>
+              <ItemDescription>{t("This cannot be undone.")}</ItemDescription>
             </ItemContent>
             <ItemActions>
               <Button
@@ -966,7 +981,7 @@ function ManageSection({
                 size="sm"
                 variant="destructive"
               >
-                Delete
+                {t("Delete")}
               </Button>
             </ItemActions>
           </Item>
@@ -993,11 +1008,13 @@ function ManageSection({
       >
         <DialogContent
           className="max-w-sm"
-          overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm"
+          overlayClassName={t(
+            "bg-black/20 supports-backdrop-filter:backdrop-blur-sm",
+          )}
         >
           <DialogHeader>
             <DialogTitle>Delete {profile.name}?</DialogTitle>
-            <DialogDescription>This cannot be undone.</DialogDescription>
+            <DialogDescription>{t("This cannot be undone.")}</DialogDescription>
           </DialogHeader>
           {deleteAgent.error ? (
             <p className="mt-4 text-sm text-destructive" role="alert">
@@ -1010,7 +1027,7 @@ function ManageSection({
               size="sm"
               variant="outline"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={deleteAgent.isPending}

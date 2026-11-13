@@ -21,6 +21,7 @@ import {
   agentHandoffQueryOptions,
   agentListQueryOptions,
 } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 
 /**
  * Which Bots this one may hand work to.
@@ -36,6 +37,7 @@ import {
  * which is exactly the row kind a Switch means everywhere else in this app.
  */
 export function HandoffPanel({ agentId }: { agentId: string }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const handoff = useQuery(agentHandoffQueryOptions(agentId));
   const agents = useQuery(agentListQueryOptions());
@@ -68,7 +70,7 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
     <section className="grid gap-2">
       <header className="flex items-baseline justify-between gap-2">
         <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-          Digital employees it may ask
+          {t("Digital employees it may ask")}
         </h2>
         {/* The current answer at a glance, so the list below is detail rather than homework. */}
         {grantable && total > 0 ? (
@@ -79,23 +81,24 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
       </header>
 
       <p className="text-muted-foreground text-sm">
-        Who this digital employee may ask, not who may ask it. What the asked
-        digital employee says comes back into the conversation that asked,
-        relayed and attributed.
+        {t(
+          "Who this digital employee may ask, not who may ask it. What the asked digital employee says comes back into the conversation that asked, relayed and attributed.",
+        )}
       </p>
 
       {enabled ? null : (
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>Switched off for this deployment</ItemTitle>
+            <ItemTitle>{t("Switched off for this deployment")}</ItemTitle>
             {/*
              * Unclamped: `ItemDescription` clips to two lines, which is right for a roster row
              * whose description is a subtitle and wrong for an item that exists to explain. The
              * sentence that gets cut is the one saying what to do about it.
              */}
             <ItemDescription className="line-clamp-none">
-              These grants are kept but none takes effect until handing work
-              between digital employees is switched back on.
+              {t(
+                "These grants are kept but none takes effect until handing work between digital employees is switched back on.",
+              )}
             </ItemDescription>
           </ItemContent>
         </Item>
@@ -104,13 +107,14 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
       {grantable ? null : (
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>This digital employee cannot hand work on</ItemTitle>
+            <ItemTitle>
+              {t("This digital employee cannot hand work on")}
+            </ItemTitle>
             {/* Unclamped for the same reason as above: three lines, and the third is the useful one. */}
             <ItemDescription className="line-clamp-none">
-              Handing work on is a tool that runs inside this deployment's own
-              loop, and this digital employee runs as its own agent — so there
-              is nothing to grant it. It can still be asked by digital employees
-              that can.
+              {t(
+                "Handing work on is a tool that runs inside this deployment's own loop, and this digital employee runs as its own agent — so there is nothing to grant it. It can still be asked by digital employees that can.",
+              )}
             </ItemDescription>
           </ItemContent>
         </Item>
@@ -126,11 +130,12 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
         <Empty className="h-[180px] border border-dashed">
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
-              No other digital employee here yet
+              {t("No other digital employee here yet")}
             </EmptyTitle>
             <EmptyDescription>
-              When this deployment has more digital employees, this is where
-              this one is allowed to ask them.
+              {t(
+                "When this deployment has more digital employees, this is where this one is allowed to ask them.",
+              )}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -180,7 +185,7 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
 
       {canGrant ? null : (
         <p className="text-muted-foreground text-xs">
-          An administrator decides which digital employees may be asked.
+          {t("An administrator decides which digital employees may be asked.")}
         </p>
       )}
     </section>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ApprovalsList } from "@/components/approvals/approvals-list";
 import { PageShell } from "@/components/layout/page-shell";
+import { useT } from "@/lib/i18n";
 
 /**
  * Everything that needs the person: a lead's request to change a colleague's work, a tool call or a
@@ -13,10 +14,13 @@ export const Route = createFileRoute("/_authed/_app/approvals")({
 });
 
 function ApprovalsPage() {
+  const t = useT();
   return (
     <PageShell
-      description="Everything your digital employees are waiting on you for. Nothing here has happened yet: it is carried out when you approve it, exactly as shown, and not before."
-      title="Requests"
+      description={t(
+        "Everything your digital employees are waiting on you for. Nothing here has happened yet: it is carried out when you approve it, exactly as shown, and not before.",
+      )}
+      title={t("Requests")}
     >
       <ApprovalsList />
     </PageShell>

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useT } from "@/lib/i18n";
 import {
   deleteMyAccountMutationOptions,
   MY_EXPORT_PATH,
@@ -45,17 +46,22 @@ function leave() {
 }
 
 function PrivacyPage() {
+  const t = useT();
   const me = useQuery(currentUserQueryOptions());
   const [confirming, setConfirming] = useState(false);
 
   return (
     <PageShell
-      description="Everything Ark holds about you is yours to have, and to have removed."
-      title="Your data"
+      description={t(
+        "Everything Ark holds about you is yours to have, and to have removed.",
+      )}
+      title={t("Your data")}
     >
       <PageSection
-        description="Your account, your digital employees and what they were told, your skills and routines, your conversations and the record of what you did. Never a key or a token."
-        title="Get a copy"
+        description={t(
+          "Your account, your digital employees and what they were told, your skills and routines, your conversations and the record of what you did. Never a key or a token.",
+        )}
+        title={t("Get a copy")}
       >
         <PageRows>
           <Item size="sm">
@@ -63,10 +69,11 @@ function PrivacyPage() {
               <IconDownload />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Download your data</ItemTitle>
+              <ItemTitle>{t("Download your data")}</ItemTitle>
               <ItemDescription className="line-clamp-none">
-                One file you can keep, as it is today. It can be large if you
-                have had a lot of conversations.
+                {t(
+                  "One file you can keep, as it is today. It can be large if you have had a lot of conversations.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -76,7 +83,7 @@ function PrivacyPage() {
                 download
                 href={MY_EXPORT_PATH}
               >
-                Download
+                {t("Download")}
               </a>
             </ItemActions>
           </Item>
@@ -84,8 +91,10 @@ function PrivacyPage() {
       </PageSection>
 
       <PageSection
-        description="Removes you, your digital employees, your conversations, your keys and your sign-ins. If this account is only you, the account and its plan go too, and your subscription is stopped at once. This cannot be undone."
-        title="Delete your account"
+        description={t(
+          "Removes you, your digital employees, your conversations, your keys and your sign-ins. If this account is only you, the account and its plan go too, and your subscription is stopped at once. This cannot be undone.",
+        )}
+        title={t("Delete your account")}
       >
         <PageRows>
           <Item size="sm">
@@ -93,10 +102,11 @@ function PrivacyPage() {
               <IconTrash />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Delete my account</ItemTitle>
+              <ItemTitle>{t("Delete my account")}</ItemTitle>
               <ItemDescription className="line-clamp-none">
-                Download your data first if you want to keep a copy. What we
-                must keep, and why, is in the privacy notice.
+                {t(
+                  "Download your data first if you want to keep a copy. What we must keep, and why, is in the privacy notice.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -105,7 +115,7 @@ function PrivacyPage() {
                 size="sm"
                 variant="destructive"
               >
-                Delete…
+                {t("Delete…")}
               </Button>
             </ItemActions>
           </Item>
@@ -129,6 +139,7 @@ function DeleteDialog({
   email: string;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const [typed, setTyped] = useState("");
   const remove = useMutation(deleteMyAccountMutationOptions(queryClient));
   const matches =
@@ -145,10 +156,11 @@ function DeleteDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
+            <DialogTitle>{t("Delete your account?")}</DialogTitle>
             <DialogDescription>
-              This removes everything that is yours and signs you out. It cannot
-              be undone.
+              {t(
+                "This removes everything that is yours and signs you out. It cannot be undone.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4 overflow-y-auto">
@@ -176,7 +188,7 @@ function DeleteDialog({
               type="button"
               variant="ghost"
             >
-              Keep my account
+              {t("Keep my account")}
             </Button>
             <Button
               disabled={!matches || remove.isPending}

@@ -24,6 +24,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -97,6 +98,7 @@ function summaryFor(
 }
 
 function RouteComponent() {
+  const t = useT();
   const plugins = useQuery(pluginsPageQueryOptions());
   const connections = useQuery(connectionsQueryOptions());
 
@@ -114,23 +116,27 @@ function RouteComponent() {
 
   return (
     <PageShell
-      description="What this deployment can reach, and which digital employees may reach it. Adding a plugin is account-wide; which digital employees hold its tools is decided on its own page."
-      title="Plugins"
+      description={t(
+        "What this deployment can reach, and which digital employees may reach it. Adding a plugin is account-wide; which digital employees hold its tools is decided on its own page.",
+      )}
+      title={t("Plugins")}
     >
       {/* Pending, error, empty, rows — pending first, so no sentence asserts anything mid-fetch. */}
       {plugins.isPending ? null : plugins.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Plugins could not be loaded.
+          {t("Plugins could not be loaded.")}
         </p>
       ) : (
         <>
           <PageSection
-            description="Added for the whole deployment. Open one to set what it needs and which digital employees hold its tools."
-            title="Connected"
+            description={t(
+              "Added for the whole deployment. Open one to set what it needs and which digital employees hold its tools.",
+            )}
+            title={t("Connected")}
           >
             {plugins.data?.servers.length === 0 ? (
               <PageEmpty>
-                Nothing connected yet. Everything available is below.
+                {t("Nothing connected yet. Everything available is below.")}
               </PageEmpty>
             ) : (
               <PageRows>
@@ -193,11 +199,15 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="Reviewed, first-party servers this build will talk to. Open one to add it."
-            title="Explore plugins"
+            description={t(
+              "Reviewed, first-party servers this build will talk to. Open one to add it.",
+            )}
+            title={t("Explore plugins")}
           >
             {explore.length === 0 ? (
-              <PageEmpty>Everything in the catalogue is connected.</PageEmpty>
+              <PageEmpty>
+                {t("Everything in the catalogue is connected.")}
+              </PageEmpty>
             ) : (
               <PageRows>
                 {explore.map((entry: CatalogueItem, index) => {
@@ -223,7 +233,7 @@ function RouteComponent() {
                         </ItemContent>
                         <ItemActions>
                           <span className="text-muted-foreground text-xs">
-                            Not added
+                            {t("Not added")}
                           </span>
                           <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                         </ItemActions>
@@ -237,8 +247,10 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="A directory this deployment has not reviewed, reached through Composio."
-            title="More apps"
+            description={t(
+              "A directory this deployment has not reviewed, reached through Composio.",
+            )}
+            title={t("More apps")}
           >
             <PageRows>
               {/*
@@ -258,10 +270,11 @@ function RouteComponent() {
                     <IconPlug className="size-4" />
                   </RowMark>
                   <ItemContent>
-                    <ItemTitle>Browse Composio</ItemTitle>
+                    <ItemTitle>{t("Browse Composio")}</ItemTitle>
                     <ItemDescription>
-                      A few hundred apps, reached as whoever is asking. Each
-                      person connects their own account.
+                      {t(
+                        "A few hundred apps, reached as whoever is asking. Each person connects their own account.",
+                      )}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -278,8 +291,9 @@ function RouteComponent() {
                   <ItemContent>
                     <ItemTitle>Composio</ItemTitle>
                     <ItemDescription>
-                      Add your Composio key to enable a catalogue of tools. Set
-                      COMPOSIO_API_KEY on this deployment.
+                      {t(
+                        "Add your Composio key to enable a catalogue of tools. Set COMPOSIO_API_KEY on this deployment.",
+                      )}
                     </ItemDescription>
                   </ItemContent>
                 </Item>

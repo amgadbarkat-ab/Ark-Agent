@@ -36,6 +36,7 @@ import {
   type AdminAccount,
   adminAccountsQueryOptions,
 } from "@/lib/account/queries";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/accounts")({
@@ -58,6 +59,7 @@ function describe(account: AdminAccount): string {
 }
 
 function AccountsPage() {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -81,12 +83,16 @@ function AccountsPage() {
 
   return (
     <PageShell
-      description="Every customer account: what it has bought, how much is in use, and whether it is allowed to run."
-      title="Accounts"
+      description={t(
+        "Every customer account: what it has bought, how much is in use, and whether it is allowed to run.",
+      )}
+      title={t("Accounts")}
     >
       <PageSection
-        description="Changing a plan here sets it by hand and does not charge anyone. Suspending stops every digital employee on the account at its next run and shows the customer the reason."
-        title="Who is paying"
+        description={t(
+          "Changing a plan here sets it by hand and does not charge anyone. Suspending stops every digital employee on the account at its next run and shows the customer the reason.",
+        )}
+        title={t("Who is paying")}
       >
         {failure ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -94,16 +100,16 @@ function AccountsPage() {
           </p>
         ) : null}
         <Input
-          aria-label="Search accounts"
+          aria-label={t("Search accounts")}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or address"
+          placeholder={t("Search by name or address")}
           value={search}
         />
 
         {accounts.isPending ? null : accounts.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load accounts.
+            {t("Could not load accounts.")}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
@@ -141,7 +147,7 @@ function AccountsPage() {
                             reason: event.target.value,
                           })
                         }
-                        placeholder="Why? The customer is shown this."
+                        placeholder={t("Why? The customer is shown this.")}
                         value={suspending.reason}
                       />
                     ) : null}
@@ -181,7 +187,7 @@ function AccountsPage() {
                         size="sm"
                         variant="outline"
                       >
-                        Restore
+                        {t("Restore")}
                       </Button>
                     ) : suspending?.tenantId === account.tenantId ? (
                       <>
@@ -190,7 +196,7 @@ function AccountsPage() {
                           size="sm"
                           variant="ghost"
                         >
-                          Cancel
+                          {t("Cancel")}
                         </Button>
                         <Button
                           disabled={busy || !suspending.reason.trim()}
@@ -206,7 +212,7 @@ function AccountsPage() {
                           size="sm"
                           variant="destructive"
                         >
-                          Suspend
+                          {t("Suspend")}
                         </Button>
                       </>
                     ) : (
@@ -221,7 +227,7 @@ function AccountsPage() {
                         size="sm"
                         variant="outline"
                       >
-                        Suspend
+                        {t("Suspend")}
                       </Button>
                     )}
                   </ItemActions>

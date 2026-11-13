@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 import {
   type Finding,
   savePublisherMutationOptions,
@@ -89,6 +90,7 @@ function ShareForm({
   listing?: ListingDetail;
   onDone: () => void;
 }) {
+  const t = useT();
   const editing = listing !== undefined;
   const mine = useQuery(myListingsQueryOptions());
   const roster = useQuery({
@@ -163,22 +165,22 @@ function ShareForm({
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Sent for review</DialogTitle>
+          <DialogTitle>{t("Sent for review")}</DialogTitle>
           <DialogDescription>
-            Our team reads every shared digital employee before anyone else can
-            see it. You can follow it, change it or withdraw it from your shared
-            digital employees.
+            {t(
+              "Our team reads every shared digital employee before anyone else can see it. You can follow it, change it or withdraw it from your shared digital employees.",
+            )}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-4">
           <Button onClick={onDone} size="sm" variant="ghost">
-            Close
+            {t("Close")}
           </Button>
           <Button
             render={(props) => <Link to="/marketplace/mine" {...props} />}
             size="sm"
           >
-            See my shared digital employees
+            {t("See my shared digital employees")}
           </Button>
         </DialogFooter>
       </>
@@ -202,9 +204,9 @@ function ShareForm({
               : "Share a digital employee"}
         </DialogTitle>
         <DialogDescription>
-          People can read how it is set up: its role, its instruction and the
-          names of its tools. They cannot install it, copy it or export it, and
-          it never runs on their account. Its address and keys are never shown.
+          {t(
+            "People can read how it is set up: its role, its instruction and the names of its tools. They cannot install it, copy it or export it, and it never runs on their account. Its address and keys are never shown.",
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -212,7 +214,7 @@ function ShareForm({
           {editing || agent ? null : (
             <Field>
               <FieldLabel htmlFor="share-coworker">
-                Which digital employee
+                {t("Which digital employee")}
               </FieldLabel>
               <Select
                 onValueChange={(value) => {
@@ -223,7 +225,7 @@ function ShareForm({
                 value={agentId}
               >
                 <SelectTrigger id="share-coworker">
-                  <SelectValue placeholder="Choose one of yours">
+                  <SelectValue placeholder={t("Choose one of yours")}>
                     {choices.find((c) => c.id === agentId)?.name}
                   </SelectValue>
                 </SelectTrigger>
@@ -241,24 +243,24 @@ function ShareForm({
           {needsName ? (
             <Field>
               <FieldLabel htmlFor="share-publisher">
-                Your name in the marketplace
+                {t("Your name in the marketplace")}
               </FieldLabel>
               <Input
                 autoComplete="off"
                 id="share-publisher"
                 maxLength={LIMITS.displayName}
                 onChange={(event) => setPublisherName(event.target.value)}
-                placeholder="A name or a team"
+                placeholder={t("A name or a team")}
                 value={publisherName}
               />
               <FieldDescription>
-                Shown on everything you share. Not your email address.
+                {t("Shown on everything you share. Not your email address.")}
               </FieldDescription>
             </Field>
           ) : null}
 
           <Field>
-            <FieldLabel htmlFor="share-title">Title</FieldLabel>
+            <FieldLabel htmlFor="share-title">{t("Title")}</FieldLabel>
             <Input
               id="share-title"
               maxLength={LIMITS.title}
@@ -268,7 +270,7 @@ function ShareForm({
           </Field>
           <Field>
             <FieldLabel htmlFor="share-summary">
-              One line about what it does
+              {t("One line about what it does")}
             </FieldLabel>
             <Input
               id="share-summary"
@@ -278,7 +280,7 @@ function ShareForm({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="share-category">Category</FieldLabel>
+            <FieldLabel htmlFor="share-category">{t("Category")}</FieldLabel>
             <Select
               onValueChange={(value) => setCategory(String(value))}
               value={category}
@@ -298,11 +300,11 @@ function ShareForm({
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="share-tags">Tags</FieldLabel>
+            <FieldLabel htmlFor="share-tags">{t("Tags")}</FieldLabel>
             <Input
               id="share-tags"
               onChange={(event) => setTags(event.target.value)}
-              placeholder="analysis, reports"
+              placeholder={t("analysis, reports")}
               value={tags}
             />
             <FieldDescription>
@@ -311,7 +313,7 @@ function ShareForm({
           </Field>
           <Field>
             <FieldLabel htmlFor="share-description">
-              How you use it and what to watch for
+              {t("How you use it and what to watch for")}
             </FieldLabel>
             <Textarea
               id="share-description"
@@ -320,7 +322,7 @@ function ShareForm({
               rows={5}
               value={description}
             />
-            <FieldDescription>Plain text.</FieldDescription>
+            <FieldDescription>{t("Plain text.")}</FieldDescription>
           </Field>
         </FieldGroup>
 
@@ -338,9 +340,9 @@ function ShareForm({
             </ul>
             {hasSecret ? (
               <p className="text-muted-foreground">
-                Fix these in the digital employee itself, then share it again.
-                The listing is a copy, so changing the digital employee changes
-                what is shared only when you share it again.
+                {t(
+                  "Fix these in the digital employee itself, then share it again. The listing is a copy, so changing the digital employee changes what is shared only when you share it again.",
+                )}
               </p>
             ) : (
               <div className="flex items-start gap-2">
@@ -350,8 +352,9 @@ function ShareForm({
                   onCheckedChange={(next) => setConfirmed(next === true)}
                 />
                 <label htmlFor="share-confirm">
-                  I have read these and nothing here is private or belongs to
-                  somebody else.
+                  {t(
+                    "I have read these and nothing here is private or belongs to somebody else.",
+                  )}
                 </label>
               </div>
             )}
@@ -366,7 +369,7 @@ function ShareForm({
       </DialogBody>
       <DialogFooter className="mt-4">
         <Button onClick={onDone} size="sm" type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button disabled={busy || !complete} size="sm" type="submit">
           {busy ? "Sending…" : editing ? "Send for review" : "Share"}

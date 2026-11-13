@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillFields } from "@/components/skills/skill-fields";
-import { saveSkillMutationOptions } from "@/lib/plugins/mutations";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useT } from "@/lib/i18n";
+import { saveSkillMutationOptions } from "@/lib/plugins/mutations";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 
 /**
@@ -19,6 +20,7 @@ import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
  * their list does.
  */
 export function EditSkill({ reference }: { reference: string }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { data, isPending } = useQuery(pluginsPageQueryOptions());
@@ -57,7 +59,7 @@ export function EditSkill({ reference }: { reference: string }) {
          * not own.
          */}
         <p className="text-muted-foreground text-sm">
-          That skill no longer exists, or it is not yours to edit.
+          {t("That skill no longer exists, or it is not yours to edit.")}
         </p>
       </div>
     );
@@ -66,7 +68,7 @@ export function EditSkill({ reference }: { reference: string }) {
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
       <header>
-        <h1 className="text-2xl font-semibold">Edit skill</h1>
+        <h1 className="text-2xl font-semibold">{t("Edit skill")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Changes apply the next time <code>/{skill.slug}</code> is used. Agents
           already carrying it keep it.
@@ -101,7 +103,7 @@ export function EditSkill({ reference }: { reference: string }) {
           await navigate({ search: {}, to: "/skills" });
         }}
         slugLocked
-        submitLabel="Save changes"
+        submitLabel={t("Save changes")}
       />
     </div>
   );

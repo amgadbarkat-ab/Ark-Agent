@@ -5,6 +5,7 @@ import { callComponentFunction } from "@/lib/components/queries";
 import { useActiveBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 import { seriesColour } from "./palette";
 
@@ -57,6 +58,7 @@ export function ActivityReportCard({
   title,
   days,
 }: Partial<ActivityArgs>) {
+  const t = useT();
   const botId = useActiveBotId();
   const conversation = useConversation();
   const [state, setState] = useState<State>({ status: "reading" });
@@ -93,8 +95,10 @@ export function ActivityReportCard({
 
   if (!report) {
     return (
-      <GalleryFrame title="Report">
-        <p className="text-sm text-muted-foreground">Choosing a report…</p>
+      <GalleryFrame title={t("Report")}>
+        <p className="text-sm text-muted-foreground">
+          {t("Choosing a report…")}
+        </p>
       </GalleryFrame>
     );
   }
@@ -102,10 +106,10 @@ export function ActivityReportCard({
   if (state.status === "reading") {
     return (
       <GalleryFrame
-        caption="Reading from this deployment"
+        caption={t("Reading from this deployment")}
         title={title ?? "Report"}
       >
-        <p className="text-sm text-muted-foreground">Reading…</p>
+        <p className="text-sm text-muted-foreground">{t("Reading…")}</p>
       </GalleryFrame>
     );
   }
@@ -113,7 +117,7 @@ export function ActivityReportCard({
   if (state.status === "refused") {
     return (
       <GalleryFrame title={title ?? "Report"}>
-        <p className="text-sm text-destructive">Not shown</p>
+        <p className="text-sm text-destructive">{t("Not shown")}</p>
         <p className="mt-1 text-sm text-foreground/80">{state.reason}</p>
       </GalleryFrame>
     );
@@ -143,6 +147,7 @@ function ActivityChart({
   title?: string;
   ask?: (text: string) => void;
 }) {
+  const t = useT();
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
@@ -170,7 +175,7 @@ function ActivityChart({
             size="sm"
             variant="outline"
           >
-            Ask about the busiest
+            {t("Ask about the busiest")}
           </Button>
         ) : undefined
       }
@@ -212,12 +217,13 @@ function RefusalList({
   title?: string;
   ask?: (text: string) => void;
 }) {
+  const t = useT();
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
       <GalleryFrame title={title ?? "Recent refusals"}>
         <p className="text-sm text-muted-foreground">
-          This deployment has refused nothing.
+          {t("This deployment has refused nothing.")}
         </p>
       </GalleryFrame>
     );
@@ -236,11 +242,11 @@ function RefusalList({
             size="sm"
             variant="outline"
           >
-            Explain the latest
+            {t("Explain the latest")}
           </Button>
         ) : undefined
       }
-      caption="Read from this deployment's audit trail"
+      caption={t("Read from this deployment's audit trail")}
       title={title ?? "Recent refusals"}
     >
       <ul className="flex flex-col gap-2">

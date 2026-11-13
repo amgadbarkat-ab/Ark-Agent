@@ -48,6 +48,7 @@ import {
   formatPeriod,
   formatRate,
 } from "@/lib/cloud/queries";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 const CHARGE_WORDS: Record<CloudChargeView["status"], string> = {
@@ -67,6 +68,7 @@ const CHARGE_WORDS: Record<CloudChargeView["status"], string> = {
  * The server's verdicts (`addOn`, `priced`, `enabled`, `atCap`) are shown as given.
  */
 export function CloudRunningSection() {
+  const t = useT();
   const overview = useQuery(cloudQueryOptions());
   const [open, setOpen] = useState(false);
 
@@ -74,7 +76,7 @@ export function CloudRunningSection() {
   if (overview.error || !overview.data) {
     return (
       <p className="mt-4 text-destructive text-sm" role="alert">
-        Could not load cloud running.
+        {t("Could not load cloud running.")}
       </p>
     );
   }
@@ -83,8 +85,10 @@ export function CloudRunningSection() {
 
   return (
     <PageSection
-      description="Your digital employees can run on your own computer at no charge. Letting them run on Ark's computers is optional: you pay what it costs us, for the time they are working, and never more than the limit you set."
-      title="Cloud running"
+      description={t(
+        "Your digital employees can run on your own computer at no charge. Letting them run on Ark's computers is optional: you pay what it costs us, for the time they are working, and never more than the limit you set.",
+      )}
+      title={t("Cloud running")}
     >
       <PageRows>
         <Item
@@ -95,7 +99,7 @@ export function CloudRunningSection() {
             <IconCloud />
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>Run in Ark's cloud</ItemTitle>
+            <ItemTitle>{t("Run in Ark's cloud")}</ItemTitle>
             <ItemDescription className="line-clamp-none">
               {summary(cloud)}
             </ItemDescription>
@@ -265,6 +269,7 @@ function CloudForm({
   limits: CloudOverview["limits"];
   onDone: () => void;
 }) {
+  const t = useT();
   const [typed, setTyped] = useState(
     String(
       (cloud.enabled ? cloud.monthlyCapCents : cloud.defaultCapCents) / 100,
@@ -303,9 +308,9 @@ function CloudForm({
             : "Switch on cloud running"}
         </DialogTitle>
         <DialogDescription>
-          You pay what it costs us to run your digital employees for you, and
-          nothing for the ones that run on your own computer. It is charged once
-          a month to your plan's payment method, with tax where it applies.
+          {t(
+            "You pay what it costs us to run your digital employees for you, and nothing for the ones that run on your own computer. It is charged once a month to your plan's payment method, with tax where it applies.",
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -324,13 +329,13 @@ function CloudForm({
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">
-            Cloud running has not been priced yet.
+            {t("Cloud running has not been priced yet.")}
           </p>
         )}
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="cloud-cap">
-              Most to spend in a month (€)
+              {t("Most to spend in a month (€)")}
             </FieldLabel>
             <Input
               id="cloud-cap"
@@ -354,8 +359,9 @@ function CloudForm({
                 }
               />
               <label htmlFor="cloud-agree">
-                I have read these prices and agree to be charged them for the
-                time my digital employees run in Ark's cloud.
+                {t(
+                  "I have read these prices and agree to be charged them for the time my digital employees run in Ark's cloud.",
+                )}
               </label>
             </div>
           ) : null}
@@ -374,7 +380,7 @@ function CloudForm({
       </DialogBody>
       <DialogFooter className="mt-4">
         <Button onClick={onDone} size="sm" type="button" variant="ghost">
-          Close
+          {t("Close")}
         </Button>
         {cloud.enabled ? (
           <Button

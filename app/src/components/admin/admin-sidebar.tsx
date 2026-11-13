@@ -26,6 +26,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useT } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
@@ -130,6 +131,7 @@ const GROUPS: {
 export function AdminSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const t = useT();
   return (
     <Sidebar {...props}>
       {/*
@@ -148,7 +150,7 @@ export function AdminSidebar({
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
                   <IconArrowLeft className="mr-2 h-4 w-4" />
-                  Back to app
+                  {t("Back to app")}
                 </Link>
               )}
             />
@@ -171,7 +173,7 @@ export function AdminSidebar({
                     activeProps={{ className: "bg-foreground/5" }}
                     {...props}
                   >
-                    Overview
+                    {t("Overview")}
                   </Link>
                 )}
               />

@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client } from "@/lib/client";
-import { readDevice, type DeviceState } from "@/lib/push/device";
+import { type DeviceState, readDevice } from "@/lib/push/device";
 
 /**
  * What the server says about notifications, and what this browser says about itself.

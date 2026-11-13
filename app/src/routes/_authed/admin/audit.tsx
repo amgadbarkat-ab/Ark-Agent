@@ -17,6 +17,7 @@ import {
 } from "@/lib/audit/outcome";
 import { auditEventsQueryOptions } from "@/lib/audit/queries";
 import { silenceOf } from "@/lib/audit/silence";
+import { useT } from "@/lib/i18n";
 
 /**
  * Read surface for policy, computer, component, MCP, and credential audit events.
@@ -60,6 +61,7 @@ const FILTERS = [
 ] as const;
 
 function AuditPage() {
+  const t = useT();
   const [search, setSearch] = useState<string>(FILTERS[0].search);
   const events = useQuery(auditEventsQueryOptions(search));
   const rows = (events.data?.events ?? []) as AuditEvent[];
@@ -76,11 +78,13 @@ function AuditPage() {
       action={
         <Button onClick={() => events.refetch()} size="sm" variant="ghost">
           <IconRefresh />
-          Refresh
+          {t("Refresh")}
         </Button>
       }
-      description="Every action a digital employee took, and every one this deployment's policy refused."
-      title="Audit"
+      description={t(
+        "Every action a digital employee took, and every one this deployment's policy refused.",
+      )}
+      title={t("Audit")}
       width="wide"
     >
       <PageSection>
@@ -101,21 +105,21 @@ function AuditPage() {
 
         {events.isPending ? null : events.isError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            The audit trail could not be loaded.
+            {t("The audit trail could not be loaded.")}
           </p>
         ) : rows.length === 0 ? (
-          <PageEmpty>No events match this filter yet.</PageEmpty>
+          <PageEmpty>{t("No events match this filter yet.")}</PageEmpty>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full text-left text-sm">
               <thead className="text-muted-foreground text-xs uppercase">
                 <tr className="border-border border-b">
-                  <th className="px-4 py-2 font-medium">When</th>
-                  <th className="px-4 py-2 font-medium">What</th>
-                  <th className="px-4 py-2 font-medium">On</th>
-                  <th className="px-4 py-2 font-medium">Bot</th>
-                  <th className="px-4 py-2 font-medium">Started by</th>
-                  <th className="px-4 py-2 font-medium">Decision</th>
+                  <th className="px-4 py-2 font-medium">{t("When")}</th>
+                  <th className="px-4 py-2 font-medium">{t("What")}</th>
+                  <th className="px-4 py-2 font-medium">{t("On")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Bot")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Started by")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Decision")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -138,13 +142,14 @@ function StartedBy({
   event: AuditEvent;
   nameFor: (botId: string) => string;
 }) {
+  const t = useT();
   if (event.initiatorKind === "routine") {
     return (
       <span
         className="font-medium text-amber-600 dark:text-amber-500"
         title={event.initiatorId ?? undefined}
       >
-        A routine
+        {t("A routine")}
       </span>
     );
   }
@@ -161,9 +166,11 @@ function StartedBy({
     );
   }
   if (event.initiatorKind === "deployment") {
-    return <span className="text-muted-foreground">This deployment</span>;
+    return (
+      <span className="text-muted-foreground">{t("This deployment")}</span>
+    );
   }
-  return <span className="text-muted-foreground">A person</span>;
+  return <span className="text-muted-foreground">{t("A person")}</span>;
 }
 
 function Row({
@@ -173,6 +180,7 @@ function Row({
   event: AuditEvent;
   nameFor: (botId: string) => string;
 }) {
+  const t = useT();
   const payload = event.payload ?? {};
   const decision = (payload.decision ?? {}) as {
     allowed?: boolean;
@@ -357,7 +365,7 @@ function Row({
           <div className="mt-0.5 text-xs text-muted-foreground">
             {payload.reason}
             <span className="italic">
-              , reported by the digital employee itself
+              {t(", reported by the digital employee itself")}
             </span>
           </div>
         ) : null}
@@ -384,7 +392,7 @@ function Row({
         decision.allowed === false &&
         decision.carriedOut ? (
           <div className="text-xs text-muted-foreground">
-            dry-run: recorded, not enforced
+            {t("dry-run: recorded, not enforced")}
           </div>
         ) : null}
       </td>

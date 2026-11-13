@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n";
 import { type SkillFormValues, skillFormSchema } from "@/lib/skills/form";
 
 /**
@@ -45,6 +46,7 @@ export function SkillFields({
    */
   slugLocked?: boolean;
 }) {
+  const t = useT();
   const form = useForm({
     defaultValues,
     validators: { onSubmit: skillFormSchema },
@@ -68,7 +70,7 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Command</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("Command")}</FieldLabel>
                 <Input
                   aria-invalid={isInvalid}
                   disabled={slugLocked}
@@ -113,14 +115,14 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Title</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("Title")}</FieldLabel>
                 <Input
                   aria-invalid={isInvalid}
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="My standup skill"
+                  placeholder={t("My standup skill")}
                   value={field.state.value}
                 />
                 {isInvalid ? (
@@ -137,14 +139,16 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>One-liner</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("One-liner")}</FieldLabel>
                 <Input
                   aria-invalid={isInvalid}
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Turns yesterday's work into a standup update"
+                  placeholder={t(
+                    "Turns yesterday's work into a standup update",
+                  )}
                   value={field.state.value}
                 />
                 {isInvalid ? (
@@ -166,7 +170,9 @@ export function SkillFields({
               field.state.meta.isTouched && !field.state.meta.isValid;
             return (
               <Field data-invalid={isInvalid}>
-                <FieldLabel htmlFor={field.name}>Instructions</FieldLabel>
+                <FieldLabel htmlFor={field.name}>
+                  {t("Instructions")}
+                </FieldLabel>
                 <Textarea
                   aria-invalid={isInvalid}
                   className="min-h-40"
@@ -174,16 +180,18 @@ export function SkillFields({
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Summarise what I did yesterday from the channel, then list what is left."
+                  placeholder={t(
+                    "Summarise what I did yesterday from the channel, then list what is left.",
+                  )}
                   value={field.state.value}
                 />
                 {isInvalid ? (
                   <FieldError errors={field.state.meta.errors} />
                 ) : (
                   <p className="text-muted-foreground text-xs">
-                    Added to the run when the command is used. Write it as
-                    instructions to the digital employee, not as a description
-                    of them.
+                    {t(
+                      "Added to the run when the command is used. Write it as instructions to the digital employee, not as a description of them.",
+                    )}
                   </p>
                 )}
               </Field>
@@ -228,7 +236,7 @@ export function SkillFields({
         </form.Subscribe>
         {onCancel ? (
           <Button onClick={onCancel} type="button" variant="outline">
-            Cancel
+            {t("Cancel")}
           </Button>
         ) : null}
       </div>

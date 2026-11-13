@@ -14,6 +14,7 @@ import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/_app/bot")({
   component: RouteComponent,
@@ -63,6 +64,7 @@ async function loadExplicitBot(agentId: string): Promise<BotDetailLookup> {
 }
 
 function RouteComponent() {
+  const t = useT();
   const search = Route.useSearch();
   const agent = search.agent === "" ? undefined : search.agent;
   const {
@@ -94,7 +96,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Digital employees couldn't be loaded.
+          {t("Digital employees couldn't be loaded.")}
         </p>
       </div>
     );
@@ -103,7 +105,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Digital employee couldn't be loaded.
+          {t("Digital employee couldn't be loaded.")}
         </p>
       </div>
     );
@@ -128,6 +130,7 @@ function RouteComponent() {
 }
 
 function BotChat({ agentId, name }: { agentId: string; name: string }) {
+  const t = useT();
   // Tool calls here act on this Bot's own computer.
   useActiveBot(agentId);
   /*
@@ -167,11 +170,11 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
            */}
           <Button onClick={startNew} size="sm" variant="ghost">
             <IconPlus />
-            New chat
+            {t("New chat")}
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Ask it to open a page and watch it work.
+          {t("Ask it to open a page and watch it work.")}
         </p>
       </header>
       {/*
@@ -185,8 +188,9 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           data-testid="bot-chat-history-unavailable"
           role="alert"
         >
-          Earlier messages in this conversation could not be loaded, and the
-          digital employee is answering without them.
+          {t(
+            "Earlier messages in this conversation could not be loaded, and the digital employee is answering without them.",
+          )}
         </p>
       ) : null}
       {/*

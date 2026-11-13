@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { Button } from "@/components/ui/button";
 import type { AgentProfile } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 
 export function AgentCard({
   agent,
@@ -11,6 +12,7 @@ export function AgentCard({
   agent: AgentProfile;
   appearance?: "compact" | "artwork";
 }) {
+  const t = useT();
   if (appearance === "artwork") {
     return (
       <div className="relative h-[180px] w-[144px] overflow-hidden rounded-2xl bg-foreground/10">
@@ -48,7 +50,7 @@ export function AgentCard({
           {agent.name}
           {agent.primary ? (
             <span className="ml-1.5 rounded-full border border-border px-1.5 py-px align-middle text-[10px] font-normal text-muted-foreground">
-              Primary
+              {t("Primary")}
             </span>
           ) : null}
         </span>
@@ -65,7 +67,7 @@ export function AgentCard({
           className="-ml-2 text-muted-foreground after:absolute after:inset-0"
           render={<Link to="/agents" search={{ agent: agent.id }} />}
         >
-          Details
+          {t("Details")}
         </Button>
         <IconArrowRight
           aria-hidden="true"

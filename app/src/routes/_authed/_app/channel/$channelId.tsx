@@ -26,6 +26,7 @@ import {
   channelQueryOptions,
 } from "@/lib/channels/queries";
 import { onComputerActivity } from "@/lib/copilot/computer-activity";
+import { useT } from "@/lib/i18n";
 
 const chatSearchSchema = z.object({
   settings: z.boolean().optional(),
@@ -62,13 +63,14 @@ function ComputerViewPanel({
   agentId: string;
   name?: string;
 }) {
+  const t = useT();
   return (
     <div className="mt-4 px-4">
       <div className="p-4">
         <ComputerView active computerId={agentId} name={name} />
 
         <div className="mt-10">
-          <h3 className="mb-2 font-medium text-sm">Activity</h3>
+          <h3 className="mb-2 font-medium text-sm">{t("Activity")}</h3>
           <ActivityLog computerId={agentId} />
         </div>
       </div>
@@ -77,6 +79,7 @@ function ComputerViewPanel({
 }
 
 function RouteComponent() {
+  const t = useT();
   const { channelId } = Route.useParams();
   const { settings, watch } = Route.useSearch();
   const channel = useQuery(channelQueryOptions(channelId));
@@ -240,7 +243,7 @@ function RouteComponent() {
               ) : null}
             </Button>
             <Button
-              aria-label="Channel digital employee"
+              aria-label={t("Channel digital employee")}
               aria-pressed={isSettingsOpen}
               className={isSettingsOpen ? "bg-foreground/5" : undefined}
               disabled={agentId === undefined}
@@ -278,12 +281,13 @@ function ChannelBody({
   isPending: boolean;
   hasError: boolean;
 }) {
+  const t = useT();
   // Nothing while the channel loads: a placeholder inside a local round-trip is a flicker.
   if (isPending) return null;
   if (hasError || !channel) {
     return (
       <p className="p-8 text-sm text-destructive" role="alert">
-        Could not load this channel.
+        {t("Could not load this channel.")}
       </p>
     );
   }
@@ -292,7 +296,7 @@ function ChannelBody({
   if (!runtimeAgentId) {
     return (
       <p className="p-8 text-sm text-destructive" role="alert">
-        This channel has no digital employee left in it.
+        {t("This channel has no digital employee left in it.")}
       </p>
     );
   }

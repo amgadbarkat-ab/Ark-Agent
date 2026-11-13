@@ -1,4 +1,3 @@
-import { useT } from "@/lib/i18n";
 import {
   IconBox,
   IconInbox,
@@ -56,6 +55,7 @@ import {
 } from "@/lib/channels/queries";
 import { useChannelEvents } from "@/lib/channels/use-channel-events";
 import { appConfig } from "@/lib/generated/application-config";
+import { useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { relativeTime } from "@/lib/relative-time";
 import {
@@ -293,7 +293,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <InputGroup className="bg-background text-sm rounded-lg h-9">
                 <InputGroupInput
-                  aria-label="Search channels"
+                  aria-label={t("Search channels")}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder={t("sidebar.search")}
                   value={search}
@@ -334,8 +334,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <EmptyHeader>
                     <EmptyTitle>{t("sidebar.noChannels")}</EmptyTitle>
                     <EmptyDescription className="text-pretty">
-                      Start talking to agents and your channels will appear
-                      here.
+                      {t(
+                        "Start talking to agents and your channels will appear here.",
+                      )}
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -471,7 +472,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     render={<Link {...adminLinkOptions} />}
                   >
                     <IconShieldLock />
-                    Admin
+                    {t("Admin")}
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem
@@ -479,7 +480,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   render={<Link {...settingsLinkOptions} />}
                 >
                   <IconSettings />
-                  Settings
+                  {t("Settings")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className={userMenuItemClassName}
@@ -488,7 +489,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   variant="destructive"
                 >
                   <IconLogout />
-                  Log out
+                  {t("Log out")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

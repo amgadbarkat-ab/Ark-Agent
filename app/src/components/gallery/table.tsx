@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 export const DataTableProps = z
@@ -35,6 +36,7 @@ export const DataTableProps = z
 
 /** A real table: header buttons sort while the native row/column relationships stay intact. */
 export function DataTable(props: Record<string, unknown>) {
+  const t = useT();
   const [sort, setSort] = useState<{
     column: number;
     ascending: boolean;
@@ -42,9 +44,9 @@ export function DataTable(props: Record<string, unknown>) {
   const parsed = DataTableProps.safeParse(props);
   if (!parsed.success) {
     return (
-      <GalleryFrame title="Table">
+      <GalleryFrame title={t("Table")}>
         <p className="text-sm text-muted-foreground">
-          Waiting for complete table data…
+          {t("Waiting for complete table data…")}
         </p>
       </GalleryFrame>
     );
@@ -145,7 +147,7 @@ export function DataTable(props: Record<string, unknown>) {
                         >
                           —
                         </span>
-                        <span className="sr-only">Empty</span>
+                        <span className="sr-only">{t("Empty")}</span>
                       </>
                     ) : (
                       row.cells[index]
@@ -160,7 +162,7 @@ export function DataTable(props: Record<string, unknown>) {
                   colSpan={columns.length}
                   className="px-3 py-8 text-center text-muted-foreground"
                 >
-                  No rows to show.
+                  {t("No rows to show.")}
                 </td>
               </tr>
             )}

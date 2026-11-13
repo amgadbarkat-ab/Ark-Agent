@@ -41,21 +41,25 @@ function RouteComponent() {
    */
   return (
     <PageShell
-      description="How ArkAgent looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser."
-      title="Preferences"
+      description={t(
+        "How ArkAgent looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser.",
+      )}
+      title={t("Preferences")}
     >
-      <PageSection title="General">
+      <PageSection title={t("General")}>
         <PageRows>
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Dark theme</ItemTitle>
+              <ItemTitle>{t("Dark theme")}</ItemTitle>
               <ItemDescription>
-                Dark is the default. Turn it off to use the light appearance.
+                {t(
+                  "Dark is the default. Turn it off to use the light appearance.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Dark theme"
+                aria-label={t("Dark theme")}
                 checked={dark}
                 onCheckedChange={setDark}
               />
@@ -75,7 +79,7 @@ function RouteComponent() {
                 size="sm"
                 variant={language === "en" ? "secondary" : "ghost"}
               >
-                English
+                {t("English")}
               </Button>
               <Button
                 aria-pressed={language === "el"}
@@ -103,7 +107,7 @@ function RouteComponent() {
        * actually do rather than what somebody remembered they did. Read-only on purpose: these
        * are not rebindable, and a row with nothing to click says so by having nothing to click.
        */}
-      <PageSection title="Keyboard shortcuts">
+      <PageSection title={t("Keyboard shortcuts")}>
         <PageRows>
           {HOTKEYS.map((hotkey, index) => (
             <React.Fragment key={hotkey.id}>

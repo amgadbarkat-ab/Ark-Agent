@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useT } from "@/lib/i18n";
 import { removeSkillMutationOptions } from "@/lib/plugins/mutations";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/_authed/_app/skills")({
 });
 
 function SkillsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const { new: isCreating, edit: editing } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -114,7 +116,7 @@ function SkillsPage() {
             digital employees you own.
           </>
         }
-        title="Agent Skills"
+        title={t("Agent Skills")}
       >
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -132,10 +134,10 @@ function SkillsPage() {
               variant="ghost"
             >
               <IconPlus />
-              New skill
+              {t("New skill")}
             </Button>
           }
-          title="Your skills"
+          title={t("Your skills")}
         >
           {/*
            * Nothing while the two queries are still in flight. The alternative is the empty state
@@ -146,7 +148,7 @@ function SkillsPage() {
             <Empty className="mt-4 h-[180px] border border-dashed">
               <EmptyHeader>
                 <EmptyTitle className="text-muted-foreground">
-                  You don't have any skills yet.
+                  {t("You don't have any skills yet.")}
                 </EmptyTitle>
               </EmptyHeader>
             </Empty>
@@ -188,7 +190,7 @@ function SkillsPage() {
                                 navigate({ search: { edit: skill.id } })
                               }
                             >
-                              Edit
+                              {t("Edit")}
                             </DropdownMenuItem>
                             {/*
                              * Deleting is immediate and there is no undo. It is behind a menu rather
@@ -229,8 +231,10 @@ function SkillsPage() {
          */}
         {deployment.length > 0 ? (
           <PageSection
-            description="Written for everyone by an administrator. Which digital employees carry them is decided in Admin."
-            title="Workspace skills"
+            description={t(
+              "Written for everyone by an administrator. Which digital employees carry them is decided in Admin.",
+            )}
+            title={t("Workspace skills")}
           >
             <PageRows>
               {deployment.map((skill, index) => (

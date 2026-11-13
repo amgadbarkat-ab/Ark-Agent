@@ -20,6 +20,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { useT } from "@/lib/i18n";
 import {
   dismissReportMutationOptions,
   reviewListingMutationOptions,
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/_authed/admin/marketplace")({
 });
 
 function MarketplaceReview() {
+  const t = useT();
   const pending = useInfiniteQuery(pendingListingsQueryOptions());
   const reports = useInfiniteQuery(reportsQueryOptions());
   const waiting = pending.data?.pages.flatMap((page) => page.listings) ?? [];
@@ -46,19 +48,23 @@ function MarketplaceReview() {
 
   return (
     <PageShell
-      description="Shared digital employees are read here before anyone else can see them, and reported ones are decided here."
-      title="Marketplace"
+      description={t(
+        "Shared digital employees are read here before anyone else can see them, and reported ones are decided here.",
+      )}
+      title={t("Marketplace")}
     >
       <PageSection
-        description="Oldest first. Look at what a stranger would read: the role, the instruction and the tool names. Reject anything with a secret, private data or somebody else's work, and say why. The publisher is shown the reason."
-        title="Waiting for review"
+        description={t(
+          "Oldest first. Look at what a stranger would read: the role, the instruction and the tool names. Reject anything with a secret, private data or somebody else's work, and say why. The publisher is shown the reason.",
+        )}
+        title={t("Waiting for review")}
       >
         {pending.isPending ? null : pending.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load the review queue.
+            {t("Could not load the review queue.")}
           </p>
         ) : waiting.length === 0 ? (
-          <PageEmpty>Nothing is waiting.</PageEmpty>
+          <PageEmpty>{t("Nothing is waiting.")}</PageEmpty>
         ) : (
           <PageRows>
             {waiting.map((listing, index) => (
@@ -83,15 +89,17 @@ function MarketplaceReview() {
       </PageSection>
 
       <PageSection
-        description="Taking a listing down settles every report about it. Dismiss a report that is not a problem."
-        title="Reports"
+        description={t(
+          "Taking a listing down settles every report about it. Dismiss a report that is not a problem.",
+        )}
+        title={t("Reports")}
       >
         {reports.isPending ? null : reports.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load the reports.
+            {t("Could not load the reports.")}
           </p>
         ) : open.length === 0 ? (
-          <PageEmpty>No open reports.</PageEmpty>
+          <PageEmpty>{t("No open reports.")}</PageEmpty>
         ) : (
           <PageRows>
             {open.map((report, index) => (
@@ -120,6 +128,7 @@ function MarketplaceReview() {
 
 /** What a stranger would read, on one line each, so the reviewer sees the same thing. */
 function PendingRow({ listing }: { listing: ListingDetail }) {
+  const t = useT();
   const review = useMutation(reviewListingMutationOptions(queryClient));
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState("");
@@ -155,7 +164,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
             autoFocus
             className="mt-2"
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Why? The publisher is shown this."
+            placeholder={t("Why? The publisher is shown this.")}
             value={note}
           />
         ) : null}
@@ -173,7 +182,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={review.isPending || !note.trim()}
@@ -187,7 +196,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
               size="sm"
               variant="destructive"
             >
-              Reject
+              {t("Reject")}
             </Button>
           </>
         ) : (
@@ -198,7 +207,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
               size="sm"
               variant="outline"
             >
-              Reject
+              {t("Reject")}
             </Button>
             <Button
               disabled={review.isPending}
@@ -217,6 +226,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
 }
 
 function ReportItem({ report }: { report: ReportRow }) {
+  const t = useT();
   const dismiss = useMutation(dismissReportMutationOptions(queryClient));
   const remove = useMutation(reviewListingMutationOptions(queryClient));
   const [removing, setRemoving] = useState(false);
@@ -242,7 +252,7 @@ function ReportItem({ report }: { report: ReportRow }) {
             params={{ slug: report.listing.slug }}
             to="/marketplace/$slug"
           >
-            Read the listing
+            {t("Read the listing")}
           </Link>
         </ItemDescription>
         {removing ? (
@@ -251,7 +261,7 @@ function ReportItem({ report }: { report: ReportRow }) {
             autoFocus
             className="mt-2"
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Why? The publisher is shown this."
+            placeholder={t("Why? The publisher is shown this.")}
             value={note}
           />
         ) : null}
@@ -269,7 +279,7 @@ function ReportItem({ report }: { report: ReportRow }) {
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={remove.isPending || !note.trim()}
@@ -283,7 +293,7 @@ function ReportItem({ report }: { report: ReportRow }) {
               size="sm"
               variant="destructive"
             >
-              Take down
+              {t("Take down")}
             </Button>
           </>
         ) : (
@@ -294,14 +304,14 @@ function ReportItem({ report }: { report: ReportRow }) {
               size="sm"
               variant="outline"
             >
-              Dismiss
+              {t("Dismiss")}
             </Button>
             <Button
               onClick={() => setRemoving(true)}
               size="sm"
               variant="outline"
             >
-              Take down
+              {t("Take down")}
             </Button>
           </>
         )}

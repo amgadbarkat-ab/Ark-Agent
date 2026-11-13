@@ -1,3 +1,5 @@
+import { sentenceNow } from "./i18n";
+
 /**
  * The one place the browser talks to the API server.
  *
@@ -27,6 +29,14 @@ export type ClientOptions = {
   /** For the calls a Bot makes on a person's behalf, which are abandoned when the turn is. */
   signal?: AbortSignal;
 };
+
+/**
+ * The error a person reads, in the language they chose (#108). The server writes its sentences in
+ * English; the shared Greek table holds the Greek for each, matched whole or by its pattern.
+ */
+function failure(message: string): Error {
+  return new Error(sentenceNow(message));
+}
 
 /** Every request in this app is authenticated, and every one of them is JSON or nothing. */
 async function send(path: string, options: ClientOptions): Promise<Response> {
@@ -93,7 +103,7 @@ export async function client<T>(
       .json()
       .then((body: { error?: string }) => body.error)
       .catch(() => undefined);
-    throw new Error(message ?? options.fallback ?? "That request failed.");
+    throw failure(message ?? options.fallback ?? "That request failed.");
   }
 
   if (key === undefined) return response;
@@ -102,7 +112,7 @@ export async function client<T>(
   // a TypeError on property access. Malformed success is a failed request with the fallback.
   const body = (await response.json().catch(() => null)) as unknown;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new Error(options.fallback ?? "That request failed.");
+    throw failure(options.fallback ?? "That request failed.");
   }
   return (body as Record<string, T>)[key];
 }

@@ -1,10 +1,10 @@
 import {
   IconBuildingBank,
   IconBuildingStore,
-  IconCloud,
-  IconCreditCard,
   IconChevronRight,
+  IconCloud,
   IconCode,
+  IconCreditCard,
   IconDeviceDesktop,
   IconFileText,
   IconKey,
@@ -19,12 +19,12 @@ import {
   Link,
   type LinkOptions,
 } from "@tanstack/react-router";
+import { AdminOverview } from "@/components/admin/overview";
 import {
   PageRows,
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
-import { AdminOverview } from "@/components/admin/overview";
 import { StaggerItem } from "@/components/layout/stagger";
 import {
   Item,
@@ -34,6 +34,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/")({
   component: RouteComponent,
@@ -169,10 +170,13 @@ const SECTIONS: {
 ];
 
 function RouteComponent() {
+  const t = useT();
   return (
     <PageShell
-      description="What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every digital employee, which is what separates it from your own preferences."
-      title="Admin"
+      description={t(
+        "What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every digital employee, which is what separates it from your own preferences.",
+      )}
+      title={t("Admin")}
     >
       <AdminOverview />
       {SECTIONS.map((section) => (

@@ -9,6 +9,7 @@ import {
   ownBrowserQueryOptions,
   stopOwnBrowserMutationOptions,
 } from "@/lib/computers/own-browser";
+import { useT } from "@/lib/i18n";
 
 /**
  * The band that says a digital employee may be working in the person's own browser (desk #27).
@@ -24,6 +25,7 @@ import {
  * again. The desktop switch, in the desktop app's menu, turns the whole thing off.
  */
 export function OwnBrowserIndicator() {
+  const t = useT();
   const queryClient = useQueryClient();
   const nameFor = useBotNames();
   const status = useQuery(ownBrowserQueryOptions());
@@ -73,7 +75,7 @@ export function OwnBrowserIndicator() {
         {heldBy ? (
           <>
             <span className="font-medium">
-              You have taken over your browser.
+              {t("You have taken over your browser.")}
             </span>{" "}
             {names} will wait until you hand it back.
           </>
@@ -96,11 +98,11 @@ export function OwnBrowserIndicator() {
       <div className="flex items-center gap-2">
         {heldBy ? (
           <Button onClick={() => void handBack()} size="sm" variant="outline">
-            Hand back
+            {t("Hand back")}
           </Button>
         ) : (
           <Button onClick={() => void takeOver()} size="sm" variant="outline">
-            Take over
+            {t("Take over")}
           </Button>
         )}
         <Button
@@ -115,7 +117,7 @@ export function OwnBrowserIndicator() {
           {stop.isPending ? "Stopping…" : "Stop"}
         </Button>
         <Link className="text-muted-foreground underline" to="/admin/audit">
-          Activity
+          {t("Activity")}
         </Link>
       </div>
     </div>

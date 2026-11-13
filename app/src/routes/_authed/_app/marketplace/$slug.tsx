@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageEmpty, PageShell } from "@/components/layout/page-shell";
 import { ListingView } from "@/components/marketplace/listing-view";
+import { useT } from "@/lib/i18n";
 import { listingQueryOptions } from "@/lib/marketplace/queries";
 
 export const Route = createFileRoute("/_authed/_app/marketplace/$slug")({
@@ -9,6 +10,7 @@ export const Route = createFileRoute("/_authed/_app/marketplace/$slug")({
 });
 
 function ListingPage() {
+  const t = useT();
   const { slug } = Route.useParams();
   const listing = useQuery(listingQueryOptions(slug));
 
@@ -20,8 +22,10 @@ function ListingPage() {
   if (listing.isPending) return null;
   if (listing.error || !listing.data) {
     return (
-      <PageShell backButton={back} title="Not found">
-        <PageEmpty>That listing is not here, or is not public yet.</PageEmpty>
+      <PageShell backButton={back} title={t("Not found")}>
+        <PageEmpty>
+          {t("That listing is not here, or is not public yet.")}
+        </PageEmpty>
       </PageShell>
     );
   }

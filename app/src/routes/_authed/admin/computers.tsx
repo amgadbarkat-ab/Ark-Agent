@@ -27,15 +27,15 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { setComputerStateMutationOptions } from "@/lib/computers/mutations";
 import {
+  type HostAccessPendingOperation,
+  type HostFolderGrant,
   hostAccessQueryOptions,
   requestHostFolderGrantMutationOptions,
   revokeHostFolderGrantMutationOptions,
   stopHostAccessMutationOptions,
-  type HostFolderGrant,
-  type HostAccessPendingOperation,
 } from "@/lib/computers/host-access";
+import { setComputerStateMutationOptions } from "@/lib/computers/mutations";
 import {
   isDriving,
   type OwnBrowserStatus,
@@ -43,12 +43,14 @@ import {
   setOwnBrowserEmployeeMutationOptions,
 } from "@/lib/computers/own-browser";
 import { computerFleetQueryOptions } from "@/lib/computers/queries";
+import { useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
   component: ComputersPage,
 });
 
 function ComputersPage() {
+  const t = useT();
   /** Bot id currently running a stop/reset request. */
   const [busy, setBusy] = useState<string | null>(null);
   /** Reset deletes the browser profile, so it requires confirmation. */
@@ -103,8 +105,10 @@ function ComputersPage() {
 
   return (
     <PageShell
-      description="Each digital employee's browser and the profile it keeps. A profile is what makes a digital employee still signed in tomorrow, and resetting one signs it out of everything."
-      title="Computers"
+      description={t(
+        "Each digital employee's browser and the profile it keeps. A profile is what makes a digital employee still signed in tomorrow, and resetting one signs it out of everything.",
+      )}
+      title={t("Computers")}
     >
       {problem ? (
         <p
@@ -118,17 +122,18 @@ function ComputersPage() {
       {isolation === "shared" ? (
         <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
           <span className="font-medium">
-            Every digital employee is sharing one computer.
+            {t("Every digital employee is sharing one computer.")}
           </span>{" "}
           They share its logins, its files and its session, so a digital
           employee can reach what another signed into. Set{" "}
-          <code>COMPUTER_SUPERVISOR_URL</code> to give each digital employee its
-          own.
+          <code>{t("COMPUTER_SUPERVISOR_URL")}</code> to give each digital
+          employee its own.
         </p>
       ) : isolation === "per-bot" ? (
         <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-          Each digital employee has a computer of its own: its own container,
-          its own files and its own browser profile.
+          {t(
+            "Each digital employee has a computer of its own: its own container, its own files and its own browser profile.",
+          )}
         </p>
       ) : null}
 
@@ -171,13 +176,14 @@ function ComputersPage() {
         stopping={stopHostAccess.isPending}
       />
 
-      <PageSection title="Computers in this deployment">
+      <PageSection title={t("Computers in this deployment")}>
         {computers === null && problem ? (
-          <PageEmpty>The list could not be loaded.</PageEmpty>
+          <PageEmpty>{t("The list could not be loaded.")}</PageEmpty>
         ) : computers === null ? null : computers.length === 0 ? (
           <PageEmpty>
-            No computers yet. One appears the first time a digital employee
-            opens a page.
+            {t(
+              "No computers yet. One appears the first time a digital employee opens a page.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -215,7 +221,7 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      Reset
+                      {t("Reset")}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -244,9 +250,9 @@ function ComputersPage() {
               Reset {confirming ? nameFor(confirming) : ""}'s computer?
             </DialogTitle>
             <DialogDescription>
-              Its profile is deleted, so the digital employee is signed out of
-              every service it had logged into and starts clean. This cannot be
-              undone.
+              {t(
+                "Its profile is deleted, so the digital employee is signed out of every service it had logged into and starts clean. This cannot be undone.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -255,7 +261,7 @@ function ComputersPage() {
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={busy === confirming}
@@ -272,12 +278,12 @@ function ComputersPage() {
       </Dialog>
 
       <p className="mt-4 text-muted-foreground text-sm">
-        <strong>Stop</strong> closes the browser and keeps its logins: the next
-        thing the Bot does starts it again where it left off.{" "}
-        <strong>Reset</strong> deletes the profile, so the Bot is signed out of
-        everything and starts clean. Both are recorded in{" "}
+        <strong>{t("Stop")}</strong> closes the browser and keeps its logins:
+        the next thing the Bot does starts it again where it left off.{" "}
+        <strong>{t("Reset")}</strong> deletes the profile, so the Bot is signed
+        out of everything and starts clean. Both are recorded in{" "}
         <Link className="underline" to="/admin/audit">
-          Audit
+          {t("Audit")}
         </Link>
         .
       </p>
@@ -306,6 +312,7 @@ function OwnBrowserSection({
   problem: string | null;
   status: OwnBrowserStatus;
 }) {
+  const t = useT();
   const chosen = new Map(
     status.employees.map((choice) => [choice.botId, choice]),
   );
@@ -314,8 +321,10 @@ function OwnBrowserSection({
   );
   return (
     <PageSection
-      description="Let a digital employee work in your own Chrome or Edge, in a separate ArkAgent profile with none of your saved passwords. Payments, sending, form submissions and deletions wait for your approval, and every action is recorded."
-      title="Your own browser"
+      description={t(
+        "Let a digital employee work in your own Chrome or Edge, in a separate ArkAgent profile with none of your saved passwords. Payments, sending, form submissions and deletions wait for your approval, and every action is recorded.",
+      )}
+      title={t("Your own browser")}
     >
       {problem ? (
         <p
@@ -329,14 +338,14 @@ function OwnBrowserSection({
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
           Switched off. To use it, choose{" "}
           <span className="font-medium">
-            Let digital employees use my browser
+            {t("Let digital employees use my browser")}
           </span>{" "}
           in the ArkAgent menu of the desktop app. Switching it off there, or
           closing that browser window, ends it at once.
         </p>
       ) : null}
       {sorted.length === 0 ? (
-        <PageEmpty>No digital employees yet.</PageEmpty>
+        <PageEmpty>{t("No digital employees yet.")}</PageEmpty>
       ) : (
         <PageRows>
           {sorted.map((botId, index) => {
@@ -412,6 +421,7 @@ function HostFoldersSection({
   revokingGrantId,
   stopping,
 }: HostFoldersSectionProps) {
+  const t = useT();
   const botIds = Array.from(
     new Set([
       ...knownBotIds,
@@ -422,8 +432,10 @@ function HostFoldersSection({
 
   return (
     <PageSection
-      description="Choose folders a digital employee can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot."
-      title="Folders on this computer"
+      description={t(
+        "Choose folders a digital employee can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot.",
+      )}
+      title={t("Folders on this computer")}
     >
       {problem ? (
         <p
@@ -436,15 +448,17 @@ function HostFoldersSection({
 
       {!connected && !loading ? (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          The desktop app is offline. Folders can only be approved from the
-          desktop app, and command access stays unavailable while it is offline.
+          {t(
+            "The desktop app is offline. Folders can only be approved from the desktop app, and command access stays unavailable while it is offline.",
+          )}
         </p>
       ) : null}
 
       {loading ? null : botIds.length === 0 ? (
         <PageEmpty>
-          No digital employees yet. Create a digital employee before choosing
-          folders.
+          {t(
+            "No digital employees yet. Create a digital employee before choosing folders.",
+          )}
         </PageEmpty>
       ) : (
         <PageRows>
@@ -483,8 +497,9 @@ function HostFoldersSection({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-muted-foreground text-sm">
         <p>
-          Grants are read-only by default. Writes are requested from the native
-          desktop prompt when a digital employee needs them.
+          {t(
+            "Grants are read-only by default. Writes are requested from the native desktop prompt when a digital employee needs them.",
+          )}
         </p>
         <div className="flex items-center gap-3">
           <Button
@@ -496,7 +511,7 @@ function HostFoldersSection({
             {stopping ? "Stopping…" : "Stop folder access"}
           </Button>
           <Link className="underline" to="/admin/audit">
-            View audit
+            {t("View audit")}
           </Link>
         </div>
       </div>

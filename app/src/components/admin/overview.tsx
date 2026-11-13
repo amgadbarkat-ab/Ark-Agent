@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { formatEur } from "@/lib/account/queries";
+import { useT } from "@/lib/i18n";
 import {
   type OverviewAttention,
   type OverviewCheck,
@@ -58,13 +59,14 @@ const number = new Intl.NumberFormat("en");
  * the server's verdicts, in the order the server gave them.
  */
 export function AdminOverview() {
+  const t = useT();
   const overview = useQuery(overviewQueryOptions());
 
   if (overview.isPending) return null;
   if (overview.error || !overview.data) {
     return (
       <p className="mt-8 text-destructive text-sm" role="alert">
-        Could not load the overview.
+        {t("Could not load the overview.")}
       </p>
     );
   }
@@ -77,11 +79,11 @@ export function AdminOverview() {
   return (
     <>
       <PageSection
-        description="Things only you can settle. Each links to where."
-        title="Needs your attention"
+        description={t("Things only you can settle. Each links to where.")}
+        title={t("Needs your attention")}
       >
         {attention.length === 0 ? (
-          <PageEmpty>Nothing needs you right now.</PageEmpty>
+          <PageEmpty>{t("Nothing needs you right now.")}</PageEmpty>
         ) : (
           <PageRows>
             {attention.map((item, index) => (
@@ -95,8 +97,10 @@ export function AdminOverview() {
       </PageSection>
 
       <PageSection
-        description="Counts from this moment. Revenue is at list price, before tax."
-        title="Right now"
+        description={t(
+          "Counts from this moment. Revenue is at list price, before tax.",
+        )}
+        title={t("Right now")}
       >
         <PageRows>
           <Figure
@@ -113,23 +117,25 @@ export function AdminOverview() {
           />
           <Separator />
           <Figure
-            description="Every account paying now, at the price of its plan."
+            description={t(
+              "Every account paying now, at the price of its plan.",
+            )}
             icon={<IconCash />}
-            title="Monthly recurring revenue"
+            title={t("Monthly recurring revenue")}
             value={formatEur(revenue.monthlyRecurringCents)}
           />
           <Separator />
           <Figure
             description={`${plural(customers.newLast30Days, "account", "accounts")} in the last 30 days, and ${plural(customers.newPeopleLast7Days, "person", "people")} signed up this week.`}
             icon={<IconUserPlus />}
-            title="New accounts this week"
+            title={t("New accounts this week")}
             value={number.format(customers.newLast7Days)}
           />
           <Separator />
           <Figure
             description={`${plural(now.queuedWork, "background job", "background jobs")} waiting for a turn.`}
             icon={<IconActivity />}
-            title="Working right now"
+            title={t("Working right now")}
             value={`${plural(now.runs, "run", "runs")}, ${plural(now.accounts, "account", "accounts")}`}
           />
           {cloud ? (
@@ -156,7 +162,7 @@ export function AdminOverview() {
             ? `${plural(outstanding, "thing is", "things are")} still to settle before customers can rely on this. Read from how it is set up now.`
             : "Nothing is outstanding. Read from how it is set up now."
         }
-        title="Before customers rely on it"
+        title={t("Before customers rely on it")}
       >
         <PageRows>
           {ordered.map((check, index) => (

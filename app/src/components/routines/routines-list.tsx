@@ -27,6 +27,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/lib/i18n";
 import { relativeTime } from "@/lib/relative-time";
 import {
   deleteRoutineMutationOptions,
@@ -139,6 +140,7 @@ export function RoutinesList({
   /** Inside a dialog, where the page section's own top margin is somebody else's spacing. */
   embedded?: boolean;
 } = {}) {
+  const t = useT();
   const routines = useQuery(routinesQueryOptions());
   const setEnabled = useMutation(setRoutineEnabledMutationOptions(queryClient));
   const deleteRoutine = useMutation(deleteRoutineMutationOptions(queryClient));
@@ -167,7 +169,7 @@ export function RoutinesList({
         >
           <ItemContent>
             <ItemTitle className="text-amber-600 dark:text-amber-500">
-              Nothing is running these
+              {t("Nothing is running these")}
             </ItemTitle>
             <ItemDescription>
               {sweep?.lastSweptAt
@@ -181,7 +183,7 @@ export function RoutinesList({
       {/* Pending renders nothing: the empty-state sentence would otherwise flash for the fetch. */}
       {routines.isPending ? null : routines.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Your routines could not be loaded.
+          {t("Your routines could not be loaded.")}
         </p>
       ) : rows.length === 0 ? (
         <Empty className="h-[180px] border border-dashed">
@@ -220,7 +222,7 @@ export function RoutinesList({
                     <div className="flex flex-wrap items-center gap-1.5">
                       {routine.channel.gone ? (
                         <Chip className="border-destructive/40 text-destructive">
-                          This channel is gone
+                          {t("This channel is gone")}
                         </Chip>
                       ) : (
                         // Where it posts is a place, so the chip goes there.
@@ -246,7 +248,9 @@ export function RoutinesList({
                        * takes its place, so the switch's state has a word as well as a position.
                        */}
                       {!routine.enabled ? (
-                        <Chip className="text-muted-foreground">Paused</Chip>
+                        <Chip className="text-muted-foreground">
+                          {t("Paused")}
+                        </Chip>
                       ) : new Date(routine.nextRunAt).getTime() <=
                         Date.now() ? (
                         /*
@@ -255,7 +259,7 @@ export function RoutinesList({
                          */
                         <Chip className="text-amber-600 dark:text-amber-500">
                           <span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
-                          Due
+                          {t("Due")}
                         </Chip>
                       ) : (
                         <Chip className="text-muted-foreground">
@@ -316,12 +320,17 @@ export function RoutinesList({
       >
         {/* The heavier backdrop, forced: opened from a Bot's dialog this stacks over it, and Base
             UI would otherwise render a nested dialog with no backdrop at all. */}
-        <DialogContent overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm">
+        <DialogContent
+          overlayClassName={t(
+            "bg-black/20 supports-backdrop-filter:backdrop-blur-sm",
+          )}
+        >
           <DialogHeader>
             <DialogTitle>Delete "{confirming?.schedule}"?</DialogTitle>
             <DialogDescription>
-              This standing instruction stops for good. Nothing further runs on
-              this schedule, and there is no undo.
+              {t(
+                "This standing instruction stops for good. Nothing further runs on this schedule, and there is no undo.",
+              )}
             </DialogDescription>
           </DialogHeader>
           {deleteRoutine.error ? (
@@ -335,7 +344,7 @@ export function RoutinesList({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={deleteRoutine.isPending}

@@ -1,13 +1,15 @@
 import { IconChevronDown, IconLoader2 } from "@tabler/icons-react";
 import { IconWaveform } from "@/components/icons/waveform";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 import {
   saveVoiceSession,
-  voiceSessionInput,
   type VoiceChatEntry,
+  voiceSessionInput,
 } from "@/lib/voice/archive";
 
 export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
+  const t = useT();
   const saving = call.saveState === "saving";
   const unsaved = call.saveState === "unsaved";
   const duration = `${Math.floor(call.durationSeconds / 60)
@@ -21,10 +23,10 @@ export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-sm text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
           <IconWaveform className="size-3.5" />
-          <span className="flex-1 font-medium">Voice chat</span>
+          <span className="flex-1 font-medium">{t("Voice chat")}</span>
           {saving && (
             <IconLoader2
-              aria-label="Saving voice chat"
+              aria-label={t("Saving voice chat")}
               className="size-3 motion-safe:animate-spin"
             />
           )}

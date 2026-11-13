@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 import {
   grantPlugin,
   invalidatePlugins,
@@ -71,6 +72,7 @@ export function readOnlyRefs(tools: PluginTool[]): string[] {
 }
 
 function RouteComponent() {
+  const t = useT();
   const { key, agentId } = useParams({
     from: "/_authed/admin/plugins/$key_/bots/$agentId",
   });
@@ -141,7 +143,7 @@ function RouteComponent() {
 
   /* Nothing rather than a placeholder, so no sentence asserts anything while a fetch is open. */
   if (plugins.isPending || agents.isPending) {
-    return <PageShell title="Bot">{null}</PageShell>;
+    return <PageShell title={t("Bot")}>{null}</PageShell>;
   }
 
   /*
@@ -156,10 +158,10 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-        description="This deployment has not enabled an app by that name."
+        description={t("This deployment has not enabled an app by that name.")}
         title={appTitle}
       >
-        <PageEmpty>There is nothing here to grant.</PageEmpty>
+        <PageEmpty>{t("There is nothing here to grant.")}</PageEmpty>
       </PageShell>
     );
   }
@@ -175,10 +177,10 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-        title="Plugins"
+        title={t("Plugins")}
       >
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Plugins could not be loaded.
+          {t("Plugins could not be loaded.")}
         </p>
       </PageShell>
     );
@@ -199,11 +201,13 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="This deployment has no digital employee by that name, so there is nobody to grant these actions to."
-        title="Not a digital employee"
+        description={t(
+          "This deployment has no digital employee by that name, so there is nobody to grant these actions to.",
+        )}
+        title={t("Not a digital employee")}
       >
         <PageEmpty>
-          It may have been deleted since this page was opened.
+          {t("It may have been deleted since this page was opened.")}
         </PageEmpty>
       </PageShell>
     );
@@ -262,7 +266,7 @@ function RouteComponent() {
                */}
               {tool.destructive ? (
                 <span className="text-destructive text-xs">
-                  destroys things
+                  {t("destroys things")}
                 </span>
               ) : null}
               {/*
@@ -319,7 +323,7 @@ function RouteComponent() {
             aria-label={`Search ${appTitle} actions`}
             className="mt-6"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by action name"
+            placeholder={t("Search by action name")}
             value={search}
           />
 
@@ -354,8 +358,10 @@ function RouteComponent() {
           ) : null}
 
           <PageSection
-            description="These only read. A boundary written about writes does not apply to them."
-            title="Reads"
+            description={t(
+              "These only read. A boundary written about writes does not apply to them.",
+            )}
+            title={t("Reads")}
           >
             {reads.length === 0 ? (
               <PageEmpty>
@@ -369,8 +375,10 @@ function RouteComponent() {
           </PageSection>
 
           <PageSection
-            description="These change something at the vendor. A boundary written about writes applies to them, and each call is refused when one matches."
-            title="Changes things"
+            description={t(
+              "These change something at the vendor. A boundary written about writes applies to them, and each call is refused when one matches.",
+            )}
+            title={t("Changes things")}
           >
             {writes.length === 0 ? (
               <PageEmpty>

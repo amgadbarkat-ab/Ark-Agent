@@ -28,6 +28,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { useT } from "@/lib/i18n";
 import {
   installListingMutationOptions,
   withdrawListingMutationOptions,
@@ -58,6 +59,7 @@ export function ListingView({
   backButton: { label: string; linkProps: { to: "/agents" } };
   listing: ListingDetail;
 }) {
+  const t = useT();
   const content = listing.content;
   const official = isOfficialContent(content);
   const install = useMutation(installListingMutationOptions(queryClient));
@@ -85,7 +87,7 @@ export function ListingView({
         ) : listing.mine ? null : (
           <Button onClick={() => setReporting(true)} size="sm" variant="ghost">
             <IconFlag />
-            Report
+            {t("Report")}
           </Button>
         )
       }
@@ -106,7 +108,7 @@ export function ListingView({
             search={{ agent: install.data.agentId }}
             to="/agents"
           >
-            Open it
+            {t("Open it")}
           </Link>
         </p>
       ) : null}
@@ -119,11 +121,11 @@ export function ListingView({
                 <IconBook />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>For reading only</ItemTitle>
+                <ItemTitle>{t("For reading only")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  This is a guide to how someone set up their digital employee.
-                  It cannot be installed, copied or exported, and it never runs
-                  on your account.
+                  {t(
+                    "This is a guide to how someone set up their digital employee. It cannot be installed, copied or exported, and it never runs on your account.",
+                  )}
                 </ItemDescription>
               </ItemContent>
             </Item>
@@ -133,7 +135,7 @@ export function ListingView({
 
       {/* Where it stands matters to its owner, and to staff for anything not yet public. */}
       {listing.status && (listing.mine || listing.status !== "published") ? (
-        <PageSection title="Status">
+        <PageSection title={t("Status")}>
           <PageRows>
             <Item size="sm">
               <ItemMedia variant="icon">
@@ -159,14 +161,14 @@ export function ListingView({
                     size="sm"
                     variant="outline"
                   >
-                    Change
+                    {t("Change")}
                   </Button>
                   <Button
                     onClick={() => setConfirmingWithdraw(true)}
                     size="sm"
                     variant="outline"
                   >
-                    Withdraw
+                    {t("Withdraw")}
                   </Button>
                 </ItemActions>
               ) : null}
@@ -174,13 +176,13 @@ export function ListingView({
           </PageRows>
           {confirmingWithdraw ? (
             <div className="mt-3 flex items-center gap-2 text-sm">
-              <span>Withdraw this listing for good?</span>
+              <span>{t("Withdraw this listing for good?")}</span>
               <Button
                 onClick={() => setConfirmingWithdraw(false)}
                 size="sm"
                 variant="ghost"
               >
-                Keep it
+                {t("Keep it")}
               </Button>
               <Button
                 disabled={withdraw.isPending}
@@ -205,7 +207,7 @@ export function ListingView({
       ) : null}
 
       {listing.description ? (
-        <PageSection title="About">
+        <PageSection title={t("About")}>
           <p className="mt-3 whitespace-pre-wrap text-pretty text-sm leading-relaxed">
             {listing.description}
           </p>
@@ -223,12 +225,12 @@ export function ListingView({
         <PageRows>
           {official ? (
             <>
-              <Detail label="Name" value={content.install.name} />
+              <Detail label={t("Name")} value={content.install.name} />
               <Separator />
-              <Detail label="Title" value={content.install.title} />
+              <Detail label={t("Title")} value={content.install.title} />
               <Separator />
               <Detail
-                label="Starts with this role"
+                label={t("Starts with this role")}
                 value={content.install.roleDescription}
               />
               {content.suggestedTools.length > 0 ? (
@@ -236,7 +238,7 @@ export function ListingView({
                   <Separator />
                   <Detail
                     icon={<IconTool />}
-                    label="Works best with"
+                    label={t("Works best with")}
                     value={content.suggestedTools.join(", ")}
                   />
                 </>
@@ -244,17 +246,20 @@ export function ListingView({
             </>
           ) : (
             <>
-              <Detail label="Role" value={content.roleDescription} />
+              <Detail label={t("Role")} value={content.roleDescription} />
               {content.instructions ? (
                 <>
                   <Separator />
-                  <Detail label="Instruction" value={content.instructions} />
+                  <Detail
+                    label={t("Instruction")}
+                    value={content.instructions}
+                  />
                 </>
               ) : null}
               <Separator />
               <Detail
                 icon={<IconTool />}
-                label="Tools it could use"
+                label={t("Tools it could use")}
                 value={
                   content.tools.length > 0 ? content.tools.join(", ") : "None"
                 }
@@ -268,7 +273,7 @@ export function ListingView({
         <RoleSections role={content.role} />
       ) : null}
 
-      <PageSection title="Details">
+      <PageSection title={t("Details")}>
         <PageRows>
           <Item
             render={
@@ -328,6 +333,7 @@ const bullets = (items: string[]) =>
 
 /** What a role is, said the way it says it: who it is, who it works with, what it brings and what it asks for. */
 function RoleSections({ role }: { role: OfficialRole }) {
+  const t = useT();
   const requests = [
     ...role.connections.map((request) => ({
       label: request.app,
@@ -341,24 +347,29 @@ function RoleSections({ role }: { role: OfficialRole }) {
   return (
     <>
       <PageSection
-        description="How it introduces itself, and what its work is."
-        title="Who it is"
+        description={t("How it introduces itself, and what its work is.")}
+        title={t("Who it is")}
       >
         <PageRows>
-          <Detail label="Introduces itself as" value={`I am ${role.iam}.`} />
+          <Detail
+            label={t("Introduces itself as")}
+            value={`I am ${role.iam}.`}
+          />
           <Separator />
-          <Detail label="Its work" value={bullets(role.duties)} />
+          <Detail label={t("Its work")} value={bullets(role.duties)} />
           <Separator />
-          <Detail label="Works with" value={bullets(role.worksWith)} />
+          <Detail label={t("Works with")} value={bullets(role.worksWith)} />
           <Separator />
-          <Detail label="Supported by" value={bullets(role.supportedBy)} />
+          <Detail label={t("Supported by")} value={bullets(role.supportedBy)} />
           <Separator />
-          <Detail label="What it can do" value={bullets(role.canDo)} />
+          <Detail label={t("What it can do")} value={bullets(role.canDo)} />
         </PageRows>
       </PageSection>
       <PageSection
-        description="Added to your Skills page and switched on for it when you add it."
-        title="Skills it comes with"
+        description={t(
+          "Added to your Skills page and switched on for it when you add it.",
+        )}
+        title={t("Skills it comes with")}
       >
         <PageRows>
           {role.skills.map((skill, index) => (
@@ -373,8 +384,10 @@ function RoleSections({ role }: { role: OfficialRole }) {
         </PageRows>
       </PageSection>
       <PageSection
-        description="Nothing is connected for you. It asks, and works only with what you allow."
-        title="What it will ask you to connect"
+        description={t(
+          "Nothing is connected for you. It asks, and works only with what you allow.",
+        )}
+        title={t("What it will ask you to connect")}
       >
         <PageRows>
           {requests.map((request, index) => (

@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useT } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 
@@ -86,6 +87,7 @@ const ITEMS: {
 export function SettingsSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const t = useT();
   return (
     <Sidebar {...props}>
       {/* Matched to the app sidebar's header, as Admin's is. See admin-sidebar.tsx. */}
@@ -96,7 +98,7 @@ export function SettingsSidebar({
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
                   <IconArrowLeft className="mr-2 h-4 w-4" />
-                  Back to app
+                  {t("Back to app")}
                 </Link>
               )}
             />

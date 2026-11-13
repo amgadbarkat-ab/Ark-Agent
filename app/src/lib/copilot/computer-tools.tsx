@@ -6,6 +6,7 @@ import { ComputerView } from "@/components/computer/computer-view";
 import { tryClient } from "@/lib/client";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { type ControlState, readControl } from "@/lib/computers/control";
+import { useT } from "@/lib/i18n";
 import { useActiveBotHolder } from "./active-bot";
 import { reportComputerActivity } from "./computer-activity";
 
@@ -277,6 +278,7 @@ function didNotWork(outcome: ComputerOutcome): boolean {
 }
 
 export function ComputerTools() {
+  const t = useT();
   const bot = useActiveBotHolder();
 
   useFrontendTool({
@@ -407,7 +409,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Read the page"
+          label={t("Read the page")}
           detail={
             elements.length
               ? `${elements.length} thing${elements.length === 1 ? "" : "s"} it can act on`
@@ -751,7 +753,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Listed files"
+          label={t("Listed files")}
           detail={
             outcome.refused === true || didNotWork(outcome)
               ? String(outcome.reason ?? "")
@@ -796,7 +798,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Read file"
+          label={t("Read file")}
           detail={
             outcome.refused === true
               ? String(outcome.reason ?? "")
@@ -873,7 +875,7 @@ export function ComputerTools() {
       return (
         <ToolLine
           running={status !== "complete"}
-          label="Ran a command"
+          label={t("Ran a command")}
           detail={
             outcome.refused === true
               ? String(outcome.reason ?? "")
@@ -997,7 +999,7 @@ export function ComputerTools() {
     render: ({ result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Scrolled"
+        label={t("Scrolled")}
         refused={outcomeOf(result).refused === true}
         failed={didNotWork(outcomeOf(result))}
       />

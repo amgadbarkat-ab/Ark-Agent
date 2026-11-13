@@ -39,6 +39,7 @@ import {
   testAgentConnection,
 } from "@/lib/agents/queries";
 import { isComposing } from "@/lib/composing";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -154,6 +155,7 @@ function CreateAgentWizard({
   onClose: () => void;
   onCreated: (agentId: string) => void;
 }) {
+  const t = useT();
   const createAgent = useMutation(createAgentMutationOptions(queryClient));
   /*
    * Whether "built-in" is a coworker this deployment can actually make. Assumed true while the
@@ -245,7 +247,7 @@ function CreateAgentWizard({
     <>
       {/* Read aloud, never shown: each step carries its own heading, and a dialog-level title
           above them made two heading sizes compete. The popup still needs an accessible name. */}
-      <DialogTitle className="sr-only">New digital employee</DialogTitle>
+      <DialogTitle className="sr-only">{t("New digital employee")}</DialogTitle>
       <DialogBody className="overflow-y-auto">
         <Questionnaire
           item={STEPS[step]}
@@ -407,21 +409,25 @@ function IdentityStep({
     value: AgentFormValues[K],
   ) => void;
 }) {
+  const t = useT();
   return (
     <StepItem name="identity">
-      <QuestionnaireTitle>Who is this digital employee?</QuestionnaireTitle>
+      <QuestionnaireTitle>
+        {t("Who is this digital employee?")}
+      </QuestionnaireTitle>
       <QuestionnaireDescription>
-        The role you write here applies in every channel this digital employee
-        works in.
+        {t(
+          "The role you write here applies in every channel this digital employee works in.",
+        )}
       </QuestionnaireDescription>
       <FieldGroup>
         <Field data-invalid={errors.name ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-name">Name</FieldLabel>
+          <FieldLabel htmlFor="create-agent-name">{t("Name")}</FieldLabel>
           <Input
             aria-invalid={errors.name ? true : undefined}
             id="create-agent-name"
             onChange={(event) => set("name", event.target.value)}
-            placeholder="Expense Manager"
+            placeholder={t("Expense Manager")}
             value={values.name}
           />
           {errors.name ? (
@@ -429,12 +435,12 @@ function IdentityStep({
           ) : null}
         </Field>
         <Field data-invalid={errors.title ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-title">Title</FieldLabel>
+          <FieldLabel htmlFor="create-agent-title">{t("Title")}</FieldLabel>
           <Input
             aria-invalid={errors.title ? true : undefined}
             id="create-agent-title"
             onChange={(event) => set("title", event.target.value)}
-            placeholder="Finance Operations"
+            placeholder={t("Finance Operations")}
             value={values.title}
           />
           {errors.title ? (
@@ -442,12 +448,14 @@ function IdentityStep({
           ) : null}
         </Field>
         <Field data-invalid={errors.roleDescription ? true : undefined}>
-          <FieldLabel htmlFor="create-agent-role">Role</FieldLabel>
+          <FieldLabel htmlFor="create-agent-role">{t("Role")}</FieldLabel>
           <Textarea
             aria-invalid={errors.roleDescription ? true : undefined}
             id="create-agent-role"
             onChange={(event) => set("roleDescription", event.target.value)}
-            placeholder="Review receipts, categorize expenses, and prepare reimbursement reports."
+            placeholder={t(
+              "Review receipts, categorize expenses, and prepare reimbursement reports.",
+            )}
             rows={4}
             value={values.roleDescription}
           />
@@ -470,9 +478,10 @@ function VisibilityStep({
     value: AgentFormValues[K],
   ) => void;
 }) {
+  const t = useT();
   return (
     <StepItem name="visibility">
-      <QuestionnaireTitle>Who can see it?</QuestionnaireTitle>
+      <QuestionnaireTitle>{t("Who can see it?")}</QuestionnaireTitle>
       <QuestionnaireChoices>
         {VISIBILITY_OPTIONS.map((option) => (
           <QuestionnaireChoice
@@ -519,9 +528,10 @@ function KindStep({
   testing: boolean;
   onTest: () => void;
 }) {
+  const t = useT();
   return (
     <StepItem name="kind">
-      <QuestionnaireTitle>Where does it run?</QuestionnaireTitle>
+      <QuestionnaireTitle>{t("Where does it run?")}</QuestionnaireTitle>
       <QuestionnaireChoices>
         {KIND_OPTIONS.map((option) => {
           /*
@@ -550,14 +560,14 @@ function KindStep({
       </QuestionnaireChoices>
       {showKindError ? (
         <p className="text-sm text-destructive" role="alert">
-          Choose where this digital employee runs.
+          {t("Choose where this digital employee runs.")}
         </p>
       ) : null}
       {kind === "managed" ? (
         <FieldGroup>
           <Field data-invalid={endpointError ? true : undefined}>
             <FieldLabel htmlFor="create-agent-endpoint">
-              Agent endpoint
+              {t("Agent endpoint")}
             </FieldLabel>
             <div className="flex gap-2">
               <Input
@@ -590,26 +600,27 @@ function KindStep({
               </p>
             ) : (
               <p className="text-muted-foreground text-sm">
-                Anything that speaks AG-UI works. This server dials your agent,
-                so an agent on your own machine has to be reachable from here.
+                {t(
+                  "Anything that speaks AG-UI works. This server dials your agent, so an agent on your own machine has to be reachable from here.",
+                )}
               </p>
             )}
           </Field>
           <Field>
             <FieldLabel htmlFor="create-agent-key">
-              Key for that agent (optional)
+              {t("Key for that agent (optional)")}
             </FieldLabel>
             <Input
               autoComplete="off"
               id="create-agent-key"
               onChange={(event) => set("authValue", event.target.value)}
-              placeholder="Bearer …"
+              placeholder={t("Bearer …")}
               type="password"
               value={values.authValue}
             />
             <p className="text-muted-foreground text-sm">
-              Sent as an <code>Authorization</code> header on every run, and
-              kept in the credential vault.
+              Sent as an <code>{t("Authorization")}</code> header on every run,
+              and kept in the credential vault.
             </p>
           </Field>
         </FieldGroup>

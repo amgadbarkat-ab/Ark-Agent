@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/item";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { DATA_SERVICES, type DataService } from "@/lib/data-services";
+import { useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -139,6 +140,7 @@ export function dataServiceState(
 }
 
 function RouteComponent() {
+  const t = useT();
   const { connected: outcome } = Route.useSearch();
   const [search, setSearch] = React.useState("");
   const plugins = useQuery(pluginsPageQueryOptions());
@@ -213,8 +215,10 @@ function RouteComponent() {
   return (
     <PageShell
       className="max-w-4xl @container"
-      description="Connect the places your work lives, so your digital employees can read them as you. They only ever see what your own account can see."
-      title="Connect your Data"
+      description={t(
+        "Connect the places your work lives, so your digital employees can read them as you. They only ever see what your own account can see.",
+      )}
+      title={t("Connect your Data")}
     >
       {/*
        * Only the failure is worth saying. A success needs no sentence: the row it came back to now
@@ -222,7 +226,9 @@ function RouteComponent() {
        */}
       {outcome === "failed" ? (
         <p className="text-destructive text-sm" role="alert">
-          That account could not be connected. Nothing was saved — try again.
+          {t(
+            "That account could not be connected. Nothing was saved — try again.",
+          )}
         </p>
       ) : null}
       {/*
@@ -234,9 +240,9 @@ function RouteComponent() {
       {plugins.isPending || connections.isPending ? null : plugins.error ||
         connections.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Your connections could not be loaded, so nothing is listed here rather
-          than a list that may be wrong. Reload the page, and tell an
-          administrator if it persists.
+          {t(
+            "Your connections could not be loaded, so nothing is listed here rather than a list that may be wrong. Reload the page, and tell an administrator if it persists.",
+          )}
         </p>
       ) : (
         <>
@@ -248,8 +254,8 @@ function RouteComponent() {
               <IconSearch aria-hidden="true" className="size-4" />
             </InputGroupAddon>
             <InputGroupInput
-              aria-label="Search services"
-              placeholder="Search services"
+              aria-label={t("Search services")}
+              placeholder={t("Search services")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -291,9 +297,9 @@ function RouteComponent() {
                   </section>
                 ))}
               {brokeredMatching.length > 0 ? (
-                <section className="mt-8" aria-label="More apps">
+                <section className="mt-8" aria-label={t("More apps")}>
                   <h2 className="mb-3 px-2 text-xs font-medium text-muted-foreground">
-                    More apps
+                    {t("More apps")}
                   </h2>
                   <div className="grid grid-cols-1 gap-x-6 gap-y-2 @min-[36rem]:grid-cols-2">
                     {brokeredMatching.map((server) => (
@@ -331,6 +337,7 @@ function ServiceRow({
   service: DataService;
   state: DataServiceState;
 }) {
+  const t = useT();
   const Mark = service.connector
     ? (MARKS[service.connector] ?? IconPlug)
     : IconPlug;
@@ -368,7 +375,7 @@ function ServiceRow({
           </span>
         ) : (
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Not yet
+            {t("Not yet")}
           </span>
         )}
       </ItemActions>
@@ -414,6 +421,7 @@ function AccountLink({
   summary: string;
   title: string;
 }) {
+  const t = useT();
   return (
     <Item
       className="min-w-0 flex-nowrap gap-3 px-2 py-3"
@@ -441,11 +449,11 @@ function AccountLink({
               aria-hidden="true"
               className="size-3.5 text-emerald-600 dark:text-emerald-400"
             />
-            Connected
+            {t("Connected")}
           </span>
         ) : (
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-            Connect
+            {t("Connect")}
           </span>
         )}
       </ItemActions>
@@ -455,10 +463,11 @@ function AccountLink({
 
 /** Where a tool that speaks MCP is added. It is an administrator's decision, so it says whose. */
 function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
+  const t = useT();
   return (
-    <section className="mt-8" aria-label="Your own tools">
+    <section className="mt-8" aria-label={t("Your own tools")}>
       <h2 className="mb-3 px-2 text-xs font-medium text-muted-foreground">
-        Your own tools
+        {t("Your own tools")}
       </h2>
       <Item
         className="min-w-0 flex-nowrap gap-3 px-2 py-3"
@@ -471,7 +480,7 @@ function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
         </RowMark>
         <ItemContent className="min-w-0 gap-0.5">
           <ItemTitle className="block w-auto truncate">
-            Add your own MCP server
+            {t("Add your own MCP server")}
           </ItemTitle>
           <ItemDescription className="line-clamp-2 text-xs">
             Anything that speaks MCP can be connected, so your digital employees
@@ -484,7 +493,7 @@ function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
         {isAdmin ? (
           <ItemActions className="shrink-0">
             <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-              Add
+              {t("Add")}
             </span>
           </ItemActions>
         ) : null}

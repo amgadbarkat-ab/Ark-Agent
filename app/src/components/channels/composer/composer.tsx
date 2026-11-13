@@ -1,4 +1,3 @@
-import { useT } from "@/lib/i18n";
 import {
   type Attachment,
   type AttachmentsConfig,
@@ -38,6 +37,7 @@ import {
   mediaTypeOf,
   shouldClaimPaste,
 } from "@/lib/channels/attachments";
+import { useT } from "@/lib/i18n";
 import { newId } from "@/lib/new-id";
 import { cn } from "@/lib/utils";
 import { Button } from "../../ui/button";
@@ -1376,7 +1376,7 @@ export function Composer({
   );
   const primaryAction = canStop ? (
     <Button
-      aria-label="Stop the digital employee"
+      aria-label={t("Stop the digital employee")}
       className={actionClassName}
       data-testid="composer-stop"
       onClick={onStop}
@@ -1554,7 +1554,7 @@ export function Composer({
             <div className="flex items-center gap-3">
               {attachmentsEnabled ? (
                 <Button
-                  aria-label="Attach a file"
+                  aria-label={t("Attach a file")}
                   className="self-end"
                   // The button stays, and stays labelled: a conversation that cannot take another
                   // message has not lost the ability to attach, it has lost the message. Swapping it
@@ -1569,7 +1569,7 @@ export function Composer({
                 </Button>
               ) : (
                 <Button
-                  aria-label="More message options unavailable"
+                  aria-label={t("More message options unavailable")}
                   className="self-end disabled:opacity-100"
                   disabled
                   size="icon"
@@ -1580,7 +1580,7 @@ export function Composer({
                 </Button>
               )}
               <PromptArea
-                aria-label="Message"
+                aria-label={t("Message")}
                 className={cn(
                   "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none",
                   editorClassName,
@@ -1637,7 +1637,7 @@ export function Composer({
               onRemove={discardAttachment}
             />
             <PromptArea
-              aria-label="Message"
+              aria-label={t("Message")}
               autoGrow
               className={cn(
                 "w-full border-0 bg-transparent p-0 text-sm shadow-none",
@@ -1658,7 +1658,7 @@ export function Composer({
           <div className="flex items-center justify-between">
             {attachmentsEnabled ? (
               <Button
-                aria-label="Attach a file"
+                aria-label={t("Attach a file")}
                 className="size-7 rounded-full p-0"
                 disabled={disabled}
                 onClick={() => fileInputRef.current?.click()}

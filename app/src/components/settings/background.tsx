@@ -1,13 +1,15 @@
 import type { SVGProps } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Decorative waiting artwork for the fixed-size computer frame.
  */
 export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
+  const t = useT();
   return (
     <svg
       viewBox="0 0 1200 800"
-      preserveAspectRatio="xMidYMin slice"
+      preserveAspectRatio={t("xMidYMin slice")}
       fill="none"
       aria-hidden="true"
       focusable="false"
@@ -25,7 +27,7 @@ export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
           }}
         >
           <path
-            transform="rotate(180 1201 754)"
+            transform={t("rotate(180 1201 754)")}
             fill="url(#paint1_radial_2002_10)"
             d="M1201 754H2402V1509H1201z"
           />
@@ -49,8 +51,12 @@ export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
           filterUnits="userSpaceOnUse"
           colorInterpolationFilters="sRGB"
         >
-          <feFlood floodOpacity={0} result="BackgroundImageFix" />
-          <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+          <feFlood floodOpacity={0} result={t("BackgroundImageFix")} />
+          <feBlend
+            in={t("SourceGraphic")}
+            in2={t("BackgroundImageFix")}
+            result="shape"
+          />
           <feTurbulence
             type="fractalNoise"
             baseFrequency="0.76923078298568726 0.76923078298568726"
@@ -91,8 +97,12 @@ export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
           filterUnits="userSpaceOnUse"
           colorInterpolationFilters="sRGB"
         >
-          <feFlood floodOpacity={0} result="BackgroundImageFix" />
-          <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
+          <feFlood floodOpacity={0} result={t("BackgroundImageFix")} />
+          <feBlend
+            in={t("SourceGraphic")}
+            in2={t("BackgroundImageFix")}
+            result="shape"
+          />
           <feTurbulence
             type="fractalNoise"
             baseFrequency="2 2"
@@ -118,7 +128,7 @@ export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
             in="coloredNoise1"
             result="noise1Clipped"
           />
-          <feFlood floodColor="rgba(0, 0, 0, 0.25)" result="color1Flood" />
+          <feFlood floodColor={t("rgba(0, 0, 0, 0.25)")} result="color1Flood" />
           <feComposite
             operator="in"
             in2="noise1Clipped"
@@ -146,7 +156,9 @@ export function SettingsItemBackground(props: SVGProps<SVGSVGElement>) {
           cx={0}
           cy={0}
           r={1}
-          gradientTransform="matrix(229.838 -1654.36 2337.29 481.415 2278.37 2408.36)"
+          gradientTransform={t(
+            "matrix(229.838 -1654.36 2337.29 481.415 2278.37 2408.36)",
+          )}
           gradientUnits="userSpaceOnUse"
         >
           <stop offset={0.420388} stopColor="#9DF200" />

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LiveWaveform } from "@/components/ui/live-waveform";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { useVoiceCall } from "@/lib/voice/use-voice-call";
@@ -36,6 +37,7 @@ export function VoiceCallWidget({
   avatarImage: string | null;
   taskRunning: boolean;
 }) {
+  const t = useT();
   const { state, session, minimized, setMinimized } = call;
   const { data: user } = useQuery(currentUserQueryOptions(), queryClient);
   const [failedImage, setFailedImage] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export function VoiceCallWidget({
         <span
           className="shrink-0 tabular-nums"
           role="timer"
-          aria-label="Call duration"
+          aria-label={t("Call duration")}
         >
           {duration}
         </span>
@@ -101,8 +103,8 @@ export function VoiceCallWidget({
           <AbstractAvatar name={name} image={avatarImage} size={32} />
           <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
           <Button
-            aria-label="Expand voice call"
-            title="Expand call"
+            aria-label={t("Expand voice call")}
+            title={t("Expand call")}
             variant="ghost"
             size="icon-sm"
             onClick={() => setMinimized(false)}
@@ -110,8 +112,8 @@ export function VoiceCallWidget({
             <IconWaveform className="size-4" />
           </Button>
           <Button
-            aria-label="End voice call"
-            title="End call"
+            aria-label={t("End voice call")}
+            title={t("End call")}
             variant="destructive"
             size="icon-sm"
             className="rounded-full"
@@ -159,7 +161,7 @@ export function VoiceCallWidget({
               {user?.image && user.image !== failedImage ? (
                 <img
                   src={user.image}
-                  alt="You"
+                  alt={t("You")}
                   className="size-full rounded-full object-cover"
                   onError={() => setFailedImage(user.image ?? null)}
                 />
@@ -175,7 +177,9 @@ export function VoiceCallWidget({
               {state.muted && (
                 <span className="absolute -bottom-1 -right-1 rounded-full bg-card p-1">
                   <IconMicrophoneOff className="size-2.5" />
-                  <span className="sr-only">Your microphone is muted</span>
+                  <span className="sr-only">
+                    {t("Your microphone is muted")}
+                  </span>
                 </span>
               )}
             </div>
@@ -185,8 +189,8 @@ export function VoiceCallWidget({
               <DropdownMenuTrigger
                 render={
                   <Button
-                    aria-label="Call settings"
-                    title="Call settings"
+                    aria-label={t("Call settings")}
+                    title={t("Call settings")}
                     variant="secondary"
                     size="icon"
                     className="size-12 rounded-full"
@@ -200,13 +204,13 @@ export function VoiceCallWidget({
                   checked={captions}
                   onCheckedChange={setCaptions}
                 >
-                  Show live captions
+                  {t("Show live captions")}
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button
-              aria-label="Return to chat"
-              title="Return to chat · keep call open"
+              aria-label={t("Return to chat")}
+              title={t("Return to chat · keep call open")}
               variant="secondary"
               size="icon"
               className="size-12 rounded-full"
@@ -245,8 +249,8 @@ export function VoiceCallWidget({
               size="icon"
               className="size-12 rounded-full bg-rose-500 text-white hover:bg-rose-600 dark:bg-rose-500 dark:hover:bg-rose-600"
               onClick={session.end}
-              aria-label="End voice call"
-              title="End call"
+              aria-label={t("End voice call")}
+              title={t("End call")}
             >
               <IconX className="size-5" />
             </Button>
@@ -280,7 +284,7 @@ export function VoiceCallWidget({
                 className="mt-2"
                 onClick={() => void session.start()}
               >
-                Try again
+                {t("Try again")}
               </Button>
             </div>
           )}

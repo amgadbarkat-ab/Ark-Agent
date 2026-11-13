@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { useT } from "@/lib/i18n";
 import {
   type BrowseFilter,
   browseQueryOptions,
@@ -46,6 +47,7 @@ const KINDS: { id: BrowseFilter["kind"]; name: string }[] = [
  * team above it are one motion.
  */
 export function HireSection() {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("");
@@ -65,7 +67,7 @@ export function HireSection() {
         action={
           <Button onClick={() => setSharing(true)} size="sm" variant="ghost">
             <IconPlus />
-            Share one of yours
+            {t("Share one of yours")}
           </Button>
         }
         description={
@@ -73,7 +75,7 @@ export function HireSection() {
             ? "Made by Ark. Hire one and it joins your team as a digital employee of yours, with its skills and no tools until you grant them."
             : "Set up by other people. These are for reading: they cannot be hired, copied or exported."
         }
-        title="Hire a digital employee"
+        title={t("Hire a digital employee")}
       >
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {KINDS.map((option) => (
@@ -92,15 +94,15 @@ export function HireSection() {
             size="sm"
             variant="ghost"
           >
-            Shared by you
+            {t("Shared by you")}
           </Button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Input
-            aria-label="Search digital employees to hire"
+            aria-label={t("Search digital employees to hire")}
             className="min-w-48 flex-1"
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search"
+            placeholder={t("Search")}
             value={search}
           />
           <Select
@@ -109,7 +111,7 @@ export function HireSection() {
             }
             value={category || "all"}
           >
-            <SelectTrigger aria-label="Category" className="w-44">
+            <SelectTrigger aria-label={t("Category")} className="w-44">
               <SelectValue>
                 {category
                   ? CATEGORIES.find((c) => c.id === category)?.name
@@ -117,7 +119,7 @@ export function HireSection() {
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
+              <SelectItem value="all">{t("All categories")}</SelectItem>
               {CATEGORIES.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.name}
@@ -129,7 +131,7 @@ export function HireSection() {
 
         {listings.isPending ? null : listings.error && rows.length === 0 ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load the digital employees to hire.
+            {t("Could not load the digital employees to hire.")}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
@@ -163,10 +165,11 @@ export function HireSection() {
                 <IconPlus />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>A role you write yourself</ItemTitle>
+                <ItemTitle>{t("A role you write yourself")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  Not on the list? Describe the job in your own words and you
-                  have a digital employee for it.
+                  {t(
+                    "Not on the list? Describe the job in your own words and you have a digital employee for it.",
+                  )}
                 </ItemDescription>
               </ItemContent>
             </Item>

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n";
 import { reportListingMutationOptions } from "@/lib/marketplace/mutations";
 import { LIMITS, REPORT_REASONS } from "@/lib/marketplace/queries";
 
@@ -32,6 +33,7 @@ export function ReportDialog({
   open: boolean;
   slug: string;
 }) {
+  const t = useT();
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
   const report = useMutation(reportListingMutationOptions());
@@ -51,14 +53,16 @@ export function ReportDialog({
         {report.isSuccess ? (
           <>
             <DialogHeader>
-              <DialogTitle>Thank you</DialogTitle>
+              <DialogTitle>{t("Thank you")}</DialogTitle>
               <DialogDescription>
-                Our team will look at it. You do not need to do anything else.
+                {t(
+                  "Our team will look at it. You do not need to do anything else.",
+                )}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4">
               <Button onClick={() => close(false)} size="sm">
-                Close
+                {t("Close")}
               </Button>
             </DialogFooter>
           </>
@@ -71,22 +75,25 @@ export function ReportDialog({
             }}
           >
             <DialogHeader>
-              <DialogTitle>Report this listing</DialogTitle>
+              <DialogTitle>{t("Report this listing")}</DialogTitle>
               <DialogDescription>
-                Tell us what is wrong. Each person can report a listing once,
-                and a person on our team reads it.
+                {t(
+                  "Tell us what is wrong. Each person can report a listing once, and a person on our team reads it.",
+                )}
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="mt-4 overflow-y-auto">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="report-reason">What is wrong</FieldLabel>
+                  <FieldLabel htmlFor="report-reason">
+                    {t("What is wrong")}
+                  </FieldLabel>
                   <Select
                     onValueChange={(value) => setReason(String(value))}
                     value={reason}
                   >
                     <SelectTrigger id="report-reason">
-                      <SelectValue placeholder="Choose a reason">
+                      <SelectValue placeholder={t("Choose a reason")}>
                         {REPORT_REASONS.find((r) => r.id === reason)?.name}
                       </SelectValue>
                     </SelectTrigger>
@@ -101,7 +108,7 @@ export function ReportDialog({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="report-details">
-                    Anything we should know (optional)
+                    {t("Anything we should know (optional)")}
                   </FieldLabel>
                   <Textarea
                     id="report-details"
@@ -125,7 +132,7 @@ export function ReportDialog({
                 type="button"
                 variant="ghost"
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 disabled={report.isPending || reason === ""}

@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   BILLING_MONTH_SECONDS,
   type CloudRates,
-  checkRates,
   chargeCents,
   chargeForParts,
+  checkRates,
   costOf,
   isBelowMinimum,
   NO_USAGE,

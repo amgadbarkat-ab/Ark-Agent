@@ -1,12 +1,18 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+import {
+  translateSentence,
+  translateText,
+} from "../../../shared/i18n/translate";
 
 /**
  * The app's own words in the person's language (DT Lab, #83: "App UI is English only").
  *
- * STARTED WITH WHAT A PERSON USES ALL DAY: the sidebar, the message box, the conversation's waiting
- * requests, Requests, the cards a connector draws, and naming a group. Every other screen is still
- * English, and moves over a screen at a time; a word missing here falls back to English rather
- * than to its key.
+ * THE WHOLE APP (MD order, 13 Nov 2026, #108). Two ways in, one table of Greek behind both:
+ *  - `t("Save changes")`: the English itself is the key, looked up in shared/i18n. This is how every
+ *    screen is written now; see shared/i18n/translate.ts for why.
+ *  - `t("sidebar.search")`: the first keys, from before, kept so nothing that used them moves.
+ * A sentence that arrives whole (a server error) goes through `translateSentence`, which `client`
+ * applies to every error it raises.
  *
  * Chosen per device under Settings, then General, and kept in this browser's storage. English
  * unless chosen: a person who did not ask should not find the buttons moved.
@@ -160,8 +166,47 @@ export function translate(
   );
 }
 
+/** An English text, or one of the first keys, in `language`. */
+export function translateAny(
+  language: Language,
+  text: MessageKey | (string & {}),
+  values?: Record<string, string | number>,
+): string {
+  return text in EN
+    ? translate(language, text as MessageKey, values)
+    : translateText(language, text, values);
+}
+
 export function useT() {
   const language = useLanguage();
-  return (key: MessageKey, values?: Record<string, string | number>) =>
-    translate(language, key, values);
+  // The same function for as long as the language is, so it can sit in a hook's dependencies.
+  return useCallback(
+    (
+      text: MessageKey | (string & {}),
+      values?: Record<string, string | number>,
+    ) => translateAny(language, text, values),
+    [language],
+  );
+}
+
+/**
+ * For code that is not a component (a mutation's error, a toast): the text in the language chosen
+ * right now. A component should use `useT`, which also redraws when the language changes.
+ */
+export function tNow(
+  text: MessageKey | (string & {}),
+  values?: Record<string, string | number>,
+): string {
+  return translateAny(storedLanguage(), text, values);
+}
+
+/** A whole sentence from elsewhere (the server, a runtime), in the language chosen right now. */
+export function sentenceNow(sentence: string): string {
+  return translateSentence(storedLanguage(), sentence);
+}
+
+/** The same, redrawing when the language changes. */
+export function useSentence() {
+  const language = useLanguage();
+  return (sentence: string) => translateSentence(language, sentence);
 }

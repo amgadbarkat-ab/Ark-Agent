@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 import {
   clearDefaultModelMutationOptions,
   setBotModelMutationOptions,
@@ -72,6 +73,7 @@ type Editing =
   | { kind: "edit"; id: string };
 
 function ModelsPage() {
+  const t = useT();
   const catalogue = useQuery(modelCatalogueQueryOptions());
   const connections = useQuery(modelConnectionsQueryOptions());
   const coworkers = useQuery(agentListQueryOptions());
@@ -107,11 +109,13 @@ function ModelsPage() {
           variant="ghost"
         >
           <IconPlus />
-          Add model
+          {t("Add model")}
         </Button>
       }
-      description="Choose the model your digital employees think with. Models on your computer and free models cost nothing. If you use your own key, your provider bills you directly."
-      title="Models"
+      description={t(
+        "Choose the model your digital employees think with. Models on your computer and free models cost nothing. If you use your own key, your provider bills you directly.",
+      )}
+      title={t("Models")}
     >
       {catalogue.data ? (
         <ModelDialog
@@ -132,17 +136,20 @@ function ModelsPage() {
       ) : null}
 
       <PageSection
-        description="Your default is used for every conversation unless a digital employee says otherwise."
-        title="Your models"
+        description={t(
+          "Your default is used for every conversation unless a digital employee says otherwise.",
+        )}
+        title={t("Your models")}
       >
         {connections.isPending ? null : connections.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load your models.
+            {t("Could not load your models.")}
           </p>
         ) : connections.data?.length === 0 && !offline ? (
           <PageEmpty>
-            No model is connected. Your digital employees use this deployment's
-            own model, if it has one. Add one to choose for yourself.
+            {t(
+              "No model is connected. Your digital employees use this deployment's own model, if it has one. Add one to choose for yourself.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -170,8 +177,10 @@ function ModelsPage() {
       </PageSection>
 
       <PageSection
-        description="Models you can add right now. A model on this computer appears here only while it is running, and this page notices when one starts."
-        title="Available models"
+        description={t(
+          "Models you can add right now. A model on this computer appears here only while it is running, and this page notices when one starts.",
+        )}
+        title={t("Available models")}
       >
         {catalogue.data ? (
           <PageRows>
@@ -249,8 +258,10 @@ function ModelsPage() {
       (coworkers.data?.length ?? 0) > 0 &&
       choices.data ? (
         <PageSection
-          description="Each digital employee uses your default model unless you choose another for it."
-          title="Digital employees"
+          description={t(
+            "Each digital employee uses your default model unless you choose another for it.",
+          )}
+          title={t("Digital employees")}
         >
           <PageRows>
             {coworkers.data?.map((coworker, index) => (
@@ -287,6 +298,7 @@ function OfflineModelRow({
   /** The person's own connection that is their default instead, if one is. */
   otherDefault: ModelConnection | undefined;
 }) {
+  const t = useT();
   const running = offline.state === "running";
   const makeDefault = useMutation(
     clearDefaultModelMutationOptions(queryClient),
@@ -301,7 +313,7 @@ function OfflineModelRow({
           ArkAgent offline model · {offline.label}
           {otherDefault ? null : (
             <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
-              Default
+              {t("Default")}
             </span>
           )}
           <span
@@ -336,7 +348,7 @@ function OfflineModelRow({
             type="button"
             variant="outline"
           >
-            Make default
+            {t("Make default")}
           </Button>
         </ItemActions>
       ) : null}
@@ -353,6 +365,7 @@ function ConnectionRow({
   connection: ModelConnection;
   onOpen: () => void;
 }) {
+  const t = useT();
   const provider = catalogue?.providers.find(
     (p) => p.id === connection.providerId,
   );
@@ -366,7 +379,7 @@ function ConnectionRow({
           {connection.label}
           {connection.isDefault ? (
             <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
-              Default
+              {t("Default")}
             </span>
           ) : null}
         </ItemTitle>

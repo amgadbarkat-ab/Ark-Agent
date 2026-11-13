@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
-import { ParticleMark } from "@/components/brand/particle-mark";
 import { ProviderLogo } from "@/components/auth/provider-logo";
+import { ParticleMark } from "@/components/brand/particle-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth/client";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { appConfig } from "@/lib/generated/application-config";
+import { useT } from "@/lib/i18n";
 import { openSystemBrowser } from "@/lib/native/listener";
 import { beginNativeSignIn, NATIVE_PROVIDERS } from "@/lib/native/sign-in";
 import { isIosApp } from "@/lib/store-app";
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/sign")({
 });
 
 function SignScreen() {
+  const t = useT();
   // Which provider is being opened, rather than whether one is: with three buttons, a single
   // boolean would put "Opening…" on all of them.
   const [opening, setOpening] = useState<AuthProviderId | "sso" | null>(null);
@@ -219,7 +221,9 @@ function SignScreen() {
               {providers.length > 0 ? (
                 <div className="mb-3 flex items-center gap-3">
                   <Separator className="flex-1" />
-                  <span className="text-muted-foreground text-xs">or</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t("or")}
+                  </span>
                   <Separator className="flex-1" />
                 </div>
               ) : null}
@@ -250,7 +254,7 @@ function SignScreen() {
             </p>
           ) : search.native === "failed" ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
-              Signing in did not finish. Please try again.
+              {t("Signing in did not finish. Please try again.")}
             </p>
           ) : null}
         </motion.div>
@@ -265,11 +269,11 @@ function SignScreen() {
         >
           By continuing you will be asked to agree to the{" "}
           <a className="underline underline-offset-4" href="/terms">
-            terms of service
+            {t("terms of service")}
           </a>
           . How we handle your data is in the{" "}
           <a className="underline underline-offset-4" href="/privacy">
-            privacy notice
+            {t("privacy notice")}
           </a>
           .
         </motion.p>

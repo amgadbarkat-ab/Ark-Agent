@@ -18,6 +18,7 @@ import {
   type ComputerActivity,
   subscribeToActivity,
 } from "@/lib/computers/activity";
+import { useT } from "@/lib/i18n";
 import { CommandOutput } from "./command-output";
 
 const ICONS = {
@@ -95,6 +96,7 @@ function Entry({ entry }: { entry: ComputerActivity }) {
 }
 
 export function ActivityLog({ computerId }: { computerId: string }) {
+  const t = useT();
   const entries = useSyncExternalStore(
     subscribeToActivity,
     () => activityFor(computerId),
@@ -106,8 +108,9 @@ export function ActivityLog({ computerId }: { computerId: string }) {
       <Empty className="h-[180px] border border-dashed">
         <EmptyHeader>
           <EmptyTitle className="text-muted-foreground">
-            Nothing yet. Commands the digital employee runs, and files it reads,
-            appear here as they happen.
+            {t(
+              "Nothing yet. Commands the digital employee runs, and files it reads, appear here as they happen.",
+            )}
           </EmptyTitle>
         </EmptyHeader>
       </Empty>

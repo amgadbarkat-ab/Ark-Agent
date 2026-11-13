@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/lib/i18n";
 import type { DeviceSupport } from "@/lib/push/device";
 import {
   disablePushMutationOptions,
@@ -59,6 +60,7 @@ export function testOutcome(result: PushTestResult): string {
  * read by whoever is standing next to the phone.
  */
 export function NotificationSettings() {
+  const t = useT();
   const status = useQuery(pushStatusQueryOptions());
   const device = useQuery(pushDeviceQueryOptions());
   const enable = useMutation(enablePushMutationOptions(queryClient));
@@ -71,13 +73,15 @@ export function NotificationSettings() {
 
   return (
     <PageSection
-      description="Ark can tell you on this device when a routine finishes or needs you, even when Ark is closed. A notification says that something happened, never what it was."
-      title="Notifications"
+      description={t(
+        "Ark can tell you on this device when a routine finishes or needs you, even when Ark is closed. A notification says that something happened, never what it was.",
+      )}
+      title={t("Notifications")}
     >
       {status.isPending || device.isPending ? null : status.error ||
         device.error ? (
         <p className="text-destructive text-sm" role="alert">
-          Could not load notification settings.
+          {t("Could not load notification settings.")}
         </p>
       ) : (
         <PageRows>
@@ -86,7 +90,7 @@ export function NotificationSettings() {
               <IconBell />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>Notify this device</ItemTitle>
+              <ItemTitle>{t("Notify this device")}</ItemTitle>
               <ItemDescription className="line-clamp-none">
                 {!status.data.enabled || publicKey === null
                   ? "Not set up on this server. An administrator has to switch notifications on first."
@@ -103,7 +107,7 @@ export function NotificationSettings() {
             device.data.support === "ready" ? (
               <ItemActions>
                 <Switch
-                  aria-label="Notify this device"
+                  aria-label={t("Notify this device")}
                   checked={device.data.subscribed}
                   disabled={busy}
                   onCheckedChange={(on) => {
@@ -126,7 +130,7 @@ export function NotificationSettings() {
                   <IconBellRinging />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Send a test</ItemTitle>
+                  <ItemTitle>{t("Send a test")}</ItemTitle>
                   <ItemDescription className="line-clamp-none">
                     {test.data
                       ? testOutcome(test.data)

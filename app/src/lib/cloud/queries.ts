@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { CloudRates, CloudUsage } from "../../../../shared/cloud-pricing";
 import { client } from "@/lib/client";
+import type { CloudRates, CloudUsage } from "../../../../shared/cloud-pricing";
 
 export type { CloudRates, CloudUsage };
 

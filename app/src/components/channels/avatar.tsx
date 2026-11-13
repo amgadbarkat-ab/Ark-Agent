@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { memo } from "react";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -77,9 +78,10 @@ export const ChannelAvatar = memo(function ChannelAvatar({
  * a different point in the same bounce, which is what makes the three read as one wave.
  */
 function TypingBadge() {
+  const t = useT();
   return (
     <div className="absolute -bottom-0.5 -right-0.5 flex items-center gap-0.5 rounded-full bg-sidebar p-0.5 ring-2 ring-sidebar">
-      <span className="sr-only">Working…</span>
+      <span className="sr-only">{t("Working…")}</span>
       <Dot className="[animation-delay:-0.3s]" />
       <Dot className="[animation-delay:-0.15s]" />
       <Dot />

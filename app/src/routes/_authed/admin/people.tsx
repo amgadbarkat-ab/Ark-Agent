@@ -22,15 +22,16 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { useT } from "@/lib/i18n";
 import {
   setPersonAccessMutationOptions,
   setPersonRoleMutationOptions,
 } from "@/lib/people/mutations";
+import { type Person, peopleListQueryOptions } from "@/lib/people/queries";
 import {
   erasePersonMutationOptions,
   personExportPath,
 } from "@/lib/privacy/mutations";
-import { type Person, peopleListQueryOptions } from "@/lib/people/queries";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/people")({
@@ -67,6 +68,7 @@ function describe(person: Person): string {
 }
 
 function PeoplePage() {
+  const t = useT();
   const [search, setSearch] = useState("");
   /*
    * Debounced, so typing a name is one request rather than one per keystroke against an aggregate
@@ -96,12 +98,16 @@ function PeoplePage() {
 
   return (
     <PageShell
-      description="Everybody who has signed in. Administrators reach these screens; everybody else talks to digital employees."
-      title="People"
+      description={t(
+        "Everybody who has signed in. Administrators reach these screens; everybody else talks to digital employees.",
+      )}
+      title={t("People")}
     >
       <PageSection
-        description="An address named in INITIAL_ADMIN_EMAILS is an administrator whatever this screen says, so it cannot be changed here."
-        title="Who is here"
+        description={t(
+          "An address named in INITIAL_ADMIN_EMAILS is an administrator whatever this screen says, so it cannot be changed here.",
+        )}
+        title={t("Who is here")}
       >
         {failure ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -113,16 +119,16 @@ function PeoplePage() {
           is the opposite of what somebody looking for a colleague needs.
         */}
         <Input
-          aria-label="Search people"
+          aria-label={t("Search people")}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or address"
+          placeholder={t("Search by name or address")}
           value={search}
         />
 
         {people.isPending ? null : people.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load people.
+            {t("Could not load people.")}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
@@ -184,7 +190,7 @@ function PeoplePage() {
                             size="sm"
                             variant="ghost"
                           >
-                            Cancel
+                            {t("Cancel")}
                           </Button>
                           <Button
                             disabled={
@@ -204,7 +210,7 @@ function PeoplePage() {
                             size="sm"
                             variant="destructive"
                           >
-                            Erase data
+                            {t("Erase data")}
                           </Button>
                         </>
                       ) : (
@@ -217,7 +223,7 @@ function PeoplePage() {
                             download
                             href={personExportPath(person.id)}
                           >
-                            Export
+                            {t("Export")}
                           </a>
                           <Button
                             disabled={busy || isSelf}
@@ -227,7 +233,7 @@ function PeoplePage() {
                             size="sm"
                             variant="outline"
                           >
-                            Erase…
+                            {t("Erase…")}
                           </Button>
                         </>
                       )}

@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/i18n";
 import {
   FREE_MODEL_NOTE,
   isFreeModel,
@@ -104,6 +105,7 @@ function ModelForm({
   initialProviderId?: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const editing = connection !== undefined;
   const choices = usable(catalogue.providers);
   const first =
@@ -199,8 +201,9 @@ function ModelForm({
       <DialogHeader>
         <DialogTitle>{editing ? "Change model" : "Add a model"}</DialogTitle>
         <DialogDescription>
-          Your digital employees think with the model you choose. Keys are held
-          encrypted and are never shown again.
+          {t(
+            "Your digital employees think with the model you choose. Keys are held encrypted and are never shown again.",
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -210,7 +213,7 @@ function ModelForm({
               {(field) => (
                 <Field>
                   <FieldLabel htmlFor={field.name}>
-                    Where it comes from
+                    {t("Where it comes from")}
                   </FieldLabel>
                   <Select
                     onValueChange={(value) => {
@@ -270,7 +273,7 @@ function ModelForm({
                     rel="noreferrer"
                     target="_blank"
                   >
-                    Get a key
+                    {t("Get a key")}
                   </a>
                 </p>
               ) : null}
@@ -280,7 +283,7 @@ function ModelForm({
           <form.Field name="label">
             {(field) => (
               <Field>
-                <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("Name")}</FieldLabel>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -297,7 +300,7 @@ function ModelForm({
             <form.Field name="baseUrl">
               {(field) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>Address</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>{t("Address")}</FieldLabel>
                   <Input
                     autoComplete="off"
                     id={field.name}
@@ -348,7 +351,7 @@ function ModelForm({
                 field.state.meta.isTouched && !field.state.meta.isValid;
               return (
                 <Field data-invalid={invalid}>
-                  <FieldLabel htmlFor={field.name}>Model</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>{t("Model")}</FieldLabel>
                   {suggestions.length > 0 ? (
                     <Select
                       onValueChange={(value) =>
@@ -459,7 +462,7 @@ function ModelForm({
                 type="button"
                 variant="ghost"
               >
-                Make default
+                {t("Make default")}
               </Button>
             )}
             {confirmRemove ? (
@@ -482,13 +485,13 @@ function ModelForm({
                 type="button"
                 variant="ghost"
               >
-                Remove
+                {t("Remove")}
               </Button>
             )}
           </div>
         ) : null}
         <Button onClick={onDone} size="sm" type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <form.Subscribe
           selector={(state) => [state.canSubmit, state.isSubmitting]}

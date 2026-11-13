@@ -6,6 +6,7 @@ import { AgentDialog } from "@/components/agents/agent-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agentQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 
 function Tag({ children }: { children: ReactNode }) {
   return (
@@ -48,6 +49,7 @@ function ProfileSkeleton() {
  * two places to maintain and a sidebar that scrolled past the conversation it sat beside.
  */
 export function AgentProfile({ agentId }: { agentId: string }) {
+  const t = useT();
   /** The full dialog, opened over the chat rather than navigating away from it. */
   const [managing, setManaging] = useState(false);
   const navigate = useNavigate();
@@ -59,7 +61,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
   if (agent.error || !agent.data) {
     return (
       <p className="p-8 text-sm text-destructive" role="alert">
-        Could not load this digital employee.
+        {t("Could not load this digital employee.")}
       </p>
     );
   }
@@ -85,14 +87,14 @@ export function AgentProfile({ agentId }: { agentId: string }) {
 
         <div className="flex flex-wrap justify-center gap-1.5">
           <Tag>{profile.visibility === "private" ? "Private" : "Public"}</Tag>
-          {profile.primary ? <Tag>Primary</Tag> : null}
-          {profile.systemOwned ? <Tag>System owned</Tag> : null}
+          {profile.primary ? <Tag>{t("Primary")}</Tag> : null}
+          {profile.systemOwned ? <Tag>{t("System owned")}</Tag> : null}
         </div>
       </header>
 
       <section className="grid gap-2">
         <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Role
+          {t("Role")}
         </h2>
         <p className="text-sm whitespace-pre-wrap text-pretty">
           {profile.roleDescription}
@@ -106,14 +108,14 @@ export function AgentProfile({ agentId }: { agentId: string }) {
             void navigate({ search: { agent: agentId }, to: "/channel/new" })
           }
         >
-          Start new channel
+          {t("Start new channel")}
         </Button>
         <Button
           className="w-full text-sm!"
           onClick={() => setManaging(true)}
           variant="outline"
         >
-          Manage digital employee
+          {t("Manage digital employee")}
         </Button>
       </div>
 

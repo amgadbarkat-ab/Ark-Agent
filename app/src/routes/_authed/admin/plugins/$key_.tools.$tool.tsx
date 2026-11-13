@@ -7,6 +7,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import {
   Item,
   ItemActions,
@@ -14,11 +15,11 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 import {
   setPluginGrantMutationOptions,
   setToolCallOutcomeMutationOptions,
@@ -71,6 +72,7 @@ export const Route = createFileRoute(
 )({ component: RouteComponent });
 
 function RouteComponent() {
+  const t = useT();
   const { key, tool: toolName } = useParams({
     from: "/_authed/admin/plugins/$key_/tools/$tool",
   });
@@ -114,14 +116,16 @@ function RouteComponent() {
 
   /* Nothing rather than a placeholder, so no sentence asserts anything while the fetch is open. */
   if (plugins.isPending) {
-    return <PageShell title="Tool">{null}</PageShell>;
+    return <PageShell title={t("Tool")}>{null}</PageShell>;
   }
 
   if (!tool) {
     return (
       <PageShell
         backButton={back}
-        description="This connector does not advertise a tool by that name."
+        description={t(
+          "This connector does not advertise a tool by that name.",
+        )}
         title={toolName}
       >
         {/*
@@ -160,7 +164,7 @@ function RouteComponent() {
             ? "This tool changes something at the vendor. A boundary written about writes applies to it, and unless an administrator says otherwise below, a person approves each call first."
             : "This tool only reads. A boundary written about writes does not apply to it."
         }
-        title="What it does"
+        title={t("What it does")}
       >
         <PageRows>
           {/*
@@ -170,10 +174,11 @@ function RouteComponent() {
            */}
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Effect</ItemTitle>
+              <ItemTitle>{t("Effect")}</ItemTitle>
               <ItemDescription>
-                Decided by the connector, not by the tool's name. Anything
-                unrecognised counts as a write.
+                {t(
+                  "Decided by the connector, not by the tool's name. Anything unrecognised counts as a write.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -204,10 +209,13 @@ function RouteComponent() {
               ? "Not set, so the default applies: a tool that changes things asks a person first."
               : "Not set, so the default applies: a tool that only reads runs."
         }
-        title="When a digital employee calls it"
+        title={t("When a digital employee calls it")}
       >
         <PageRows>
-          <div aria-label="When a digital employee calls it" role="radiogroup">
+          <div
+            aria-label={t("When a digital employee calls it")}
+            role="radiogroup"
+          >
             {ON_CALL.map((option, index) => {
               /*
                * The choice being saved, while it is saved: the radio would otherwise snap back to
@@ -265,20 +273,23 @@ function RouteComponent() {
               size="sm"
               variant="ghost"
             >
-              Use the default
+              {t("Use the default")}
             </Button>
           </div>
         ) : null}
       </PageSection>
 
       <PageSection
-        description="A digital employee may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between."
-        title="Bots"
+        description={t(
+          "A digital employee may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between.",
+        )}
+        title={t("Bots")}
       >
         {bots.length === 0 ? (
           <PageEmpty>
-            This deployment has no digital employees yet, so there is nobody to
-            grant this to.
+            {t(
+              "This deployment has no digital employees yet, so there is nobody to grant this to.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>

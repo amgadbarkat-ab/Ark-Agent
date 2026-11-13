@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
+import { useT } from "@/lib/i18n";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import {
@@ -52,6 +53,7 @@ export const Route = createFileRoute(
 )({ component: RouteComponent });
 
 function RouteComponent() {
+  const t = useT();
   const { key } = useParams({
     from: "/_authed/settings/connected-accounts/$key",
   });
@@ -191,7 +193,7 @@ function RouteComponent() {
    * whole of its state defaulted to "you have never connected this".
    */
   if (plugins.isPending || connections.isPending) {
-    return <PageShell title="Account">{null}</PageShell>;
+    return <PageShell title={t("Account")}>{null}</PageShell>;
   }
 
   const back = {
@@ -219,9 +221,9 @@ function RouteComponent() {
     return (
       <PageShell backButton={back} title={server?.title ?? key}>
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Whether you have connected this account could not be loaded, so
-          nothing about it is shown here rather than something that may be
-          wrong. Reload the page, and tell an administrator if it persists.
+          {t(
+            "Whether you have connected this account could not be loaded, so nothing about it is shown here rather than something that may be wrong. Reload the page, and tell an administrator if it persists.",
+          )}
         </p>
       </PageShell>
     );
@@ -243,7 +245,9 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="Reached through Composio, which holds the account, so a digital employee sees only what you can see."
+        description={t(
+          "Reached through Composio, which holds the account, so a digital employee sees only what you can see.",
+        )}
         title={server.title}
       >
         {notice ? (
@@ -283,7 +287,7 @@ function RouteComponent() {
     return (
       <PageShell
         backButton={back}
-        description="This is not a service you connect for yourself."
+        description={t("This is not a service you connect for yourself.")}
         title={entry?.title ?? key}
       >
         <PageEmpty>
@@ -309,8 +313,9 @@ function RouteComponent() {
       {signingIn ? (
         <div className="flex flex-col gap-2">
           <p className="text-muted-foreground text-sm" role="status">
-            Finish signing in in your web browser. This page updates by itself
-            when you are connected.
+            {t(
+              "Finish signing in in your web browser. This page updates by itself when you are connected.",
+            )}
           </p>
           {/*
            * For a browser that cannot reach this app (another computer, another network): the
@@ -332,8 +337,9 @@ function RouteComponent() {
               className="text-muted-foreground text-xs"
               htmlFor="pasted-callback"
             >
-              Browser showed "can't reach this page" at the end? Paste the
-              address it ended on.
+              {t(
+                'Browser showed "can\'t reach this page" at the end? Paste the address it ended on.',
+              )}
             </label>
             <div className="flex gap-2">
               <Input
@@ -346,7 +352,7 @@ function RouteComponent() {
                 value={pasted}
               />
               <Button size="sm" type="submit" variant="outline">
-                Finish
+                {t("Finish")}
               </Button>
             </div>
             {pasteProblem ? (
@@ -365,7 +371,7 @@ function RouteComponent() {
             <ItemContent>
               {/* Not "Connect your account": the row is also the connected state, and a title has to
                   read for both. */}
-              <ItemTitle>Your account</ItemTitle>
+              <ItemTitle>{t("Your account")}</ItemTitle>
               <ItemDescription>
                 {!enabled
                   ? "An administrator has not enabled this connector, so there is nothing to connect to yet."
@@ -392,7 +398,7 @@ function RouteComponent() {
                           aria-hidden="true"
                           className="size-1.5 rounded-full bg-emerald-500"
                         />
-                        Connected
+                        {t("Connected")}
                         <IconChevronDown />
                       </Button>
                     }
@@ -452,13 +458,15 @@ function RouteComponent() {
 
       {connection ? (
         <PageSection
-          description="What you agreed to, as the vendor recorded it — not what was asked for. The two differ when a consent screen is only partly accepted."
-          title="Access"
+          description={t(
+            "What you agreed to, as the vendor recorded it — not what was asked for. The two differ when a consent screen is only partly accepted.",
+          )}
+          title={t("Access")}
         >
           <PageRows>
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Granted</ItemTitle>
+                <ItemTitle>{t("Granted")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {connection.scope || "The vendor named no scope."}
                 </ItemDescription>
@@ -467,7 +475,7 @@ function RouteComponent() {
             <Separator />
             <Item size="sm">
               <ItemContent>
-                <ItemTitle>Connected</ItemTitle>
+                <ItemTitle>{t("Connected")}</ItemTitle>
               </ItemContent>
               <ItemActions>
                 <span className="text-muted-foreground text-xs">

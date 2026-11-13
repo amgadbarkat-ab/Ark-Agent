@@ -1,4 +1,3 @@
-import { useT } from "@/lib/i18n";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +8,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { useConversation } from "@/lib/copilot/conversation";
+import { useT } from "@/lib/i18n";
 import type { ConnectorCard as Card } from "../../../../shared/connector-results";
 
 /** How many items show before "Show more": a page of results, not the whole mailbox. */
