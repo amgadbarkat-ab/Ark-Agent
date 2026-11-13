@@ -463,6 +463,13 @@ export const mcpUserCredentials = pgTable(
      */
     account: text("account"),
     /**
+     * When the vendor last refused this grant outright (`invalid_grant`): the sign-in expired or
+     * was withdrawn at the vendor's end, and only connecting again brings it back. Null while it
+     * works, and cleared by a reconnect. What lets the settings page say "expired" rather than
+     * "Connected" over a grant nothing can use (DT Lab, #83).
+     */
+    refusedAt: timestamp("refused_at", { withTimezone: true }),
+    /**
      * When this person connected.
      *
      * Written out rather than using the shared `createdAt()` helper, which fixes the column name to

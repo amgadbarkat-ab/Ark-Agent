@@ -196,3 +196,23 @@ test("the title is asked for in the person's language, as plain words (desk #83)
   expect(system).toContain("language the person wrote in");
   expect(system).toContain("no markdown");
 });
+
+describe("a first answer that is a failure", () => {
+  test("is left out of what the title is made from (DT Lab, #83)", async () => {
+    const { looksLikeFailure } = await import("../src/channels/summary");
+    expect(
+      looksLikeFailure(
+        "Your Gmail sign-in has expired or was withdrawn. Connect Gmail again in Settings → Connected accounts, then ask again.",
+      ),
+    ).toBe(true);
+    expect(looksLikeFailure("Δεν ήταν δυνατή η αποστολή του μηνύματος.")).toBe(
+      true,
+    );
+    expect(
+      looksLikeFailure("Here are the three orders that came in today."),
+    ).toBe(false);
+    expect(looksLikeFailure(`${"A long real answer. ".repeat(30)} error`)).toBe(
+      false,
+    );
+  });
+});

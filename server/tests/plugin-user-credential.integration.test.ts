@@ -14,7 +14,12 @@ import {
   pluginGrants,
   users,
 } from "../src/db/schema";
-import { createPluginStore, PluginRefusedError } from "../src/plugins/store";
+import {
+  createPluginStore,
+  GrantExpiredError,
+  PluginRefusedError,
+  TokenRefusedError,
+} from "../src/plugins/store";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**
@@ -493,6 +498,47 @@ describe("a person who has connected", () => {
       store.callTool({ ref, args: {}, botId, actorId: askerId }),
     ).rejects.toThrow(PluginRefusedError);
     expect(decrypted).toEqual([]);
+  });
+
+  test("a grant the vendor refuses reads as expired, not Connected (DT Lab, #83)", async () => {
+    await registerClient();
+    await connect(askerId, askerRefreshToken);
+    const refusing = createPluginStore({
+      ...storeOptions,
+      exchangeRefreshToken: async () => {
+        throw new TokenRefusedError(
+          "The vendor refused the token (invalid_grant).",
+          "invalid_grant",
+        );
+      },
+    });
+    decrypted.length = 0;
+
+    await expect(
+      refusing.callTool({ ref, args: {}, botId, actorId: askerId }),
+    ).rejects.toThrow(GrantExpiredError);
+    expect(decrypted).toEqual([]);
+    const [row] = (await store.connectionsFor(askerId)).filter(
+      (connection) => connection.serverId === serverId,
+    );
+    expect(row?.expired).toBe(true);
+    expect(
+      await refusing.checkConnection({ serverId, actorId: askerId }),
+    ).toBe("expired");
+
+    // A working grant reads as working.
+    await database
+      .update(mcpUserCredentials)
+      .set({ refusedAt: null })
+      .where(eq(mcpUserCredentials.userId, askerId));
+    expect(await store.checkConnection({ serverId, actorId: askerId })).toBe(
+      "ok",
+    );
+    expect(
+      (await store.connectionsFor(askerId)).find(
+        (connection) => connection.serverId === serverId,
+      )?.expired,
+    ).toBe(false);
   });
 
   test("does not gain access to a server they connected a different one for", async () => {

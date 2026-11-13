@@ -13,6 +13,8 @@ const INSTRUCTION = [
   "Answer with three to six words naming what the conversation is about.",
   "No quotation marks, no trailing period, no prefix such as 'Conversation about'.",
   "Name the subject itself, not the fact that somebody asked about it.",
+  // DT Lab, #83: a conversation whose first answer was an expired-sign-in error was named after the error.
+  "Name what the person asked for. If the answer is an error, a refusal or a problem with a connection, ignore it: never name the conversation after an error.",
   // Desk #83: a conversation held in Greek was named in English.
   "Write the title in the language the person wrote in: Greek for a conversation in Greek, English for one in English.",
   "Plain words only: no markdown, no list marks, no asterisks.",

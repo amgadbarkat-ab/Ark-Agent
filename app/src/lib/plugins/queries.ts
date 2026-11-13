@@ -219,6 +219,11 @@ export type PluginConnection = {
   account?: string | null;
   connectedAt: string;
   /**
+   * The vendor refused this grant (expired, or withdrawn at the vendor): drawn as expired with a way
+   * to connect again, never as "Connected". Held rows only.
+   */
+  expired?: boolean;
+  /**
    * Whether a real call was last made with this credential, present only on a BROKERED row.
    *
    * Only a brokered row has anything to re-check: this deployment holds no secret for it, only a
@@ -302,6 +307,31 @@ export function connectionsQueryOptions() {
       });
       return response.json();
     },
+  });
+}
+
+/**
+ * Whether one of the person's own connections still works, asked of the vendor when its page opens
+ * (DT Lab, #83: the Gmail page said "Connected" over an expired sign-in). `expired` is also recorded
+ * on the row, so the connections list is refetched when it says so.
+ */
+export function connectionCheckQueryOptions(serverId: string) {
+  return queryOptions({
+    queryKey: [...pluginKeys.connections(), "check", serverId] as const,
+    queryFn: async (): Promise<{
+      state: "ok" | "expired" | "unknown" | "not-connected";
+    }> => {
+      const response = await client(
+        `/api/plugins/connections/${encodeURIComponent(serverId)}/check`,
+        {
+          method: "POST",
+          fallback: "This connection could not be checked.",
+        },
+      );
+      return response.json();
+    },
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

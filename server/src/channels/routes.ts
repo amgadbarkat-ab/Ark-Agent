@@ -333,9 +333,16 @@ export function createChannelStore(
       channelId: id,
       userId: actor.id,
     });
-    await transaction
-      .insert(channelAgents)
-      .values(agentIds.map((agentId) => ({ channelId: id, agentId })));
+    // In the caller's order, so a group the person made runs on the one they picked first (DT Lab,
+    // #83: the lead answered a group whose first pick was somebody else). The team channel keeps
+    // every member at 0 and so the lead first, whoever the lead is at the time.
+    await transaction.insert(channelAgents).values(
+      agentIds.map((agentId, index) => ({
+        channelId: id,
+        agentId,
+        position: kind ? 0 : index,
+      })),
+    );
     await transaction.insert(intelligenceChannelMappings).values({
       userId: actor.id,
       channelId: id,
@@ -536,9 +543,14 @@ export function createChannelStore(
           eq(agentProfiles.agentId, channelAgents.agentId),
         )
         .where(and(eq(channels.id, channelId), isNull(channels.deletedAt)))
-        // The lead of the person's team first, so the one a conversation runs on is `agentIds[0]`
-        // wherever a channel holds more than one. Everything else keeps the order it always had.
-        .orderBy(desc(agentProfiles.isPrimary), asc(channelAgents.agentId));
+        // The order the person picked them in, then the lead of their team first, so the one a
+        // conversation runs on is `agentIds[0]` wherever a channel holds more than one: a group's
+        // first pick, or the lead of the team channel and of every channel made before groups.
+        .orderBy(
+          asc(channelAgents.position),
+          desc(agentProfiles.isPrimary),
+          asc(channelAgents.agentId),
+        );
 
       const first = rows[0];
       if (!first) return null;
@@ -658,12 +670,13 @@ export function createChannelStore(
         // The same order the page was chosen in, since the rows below are read in order.
         .orderBy(
           ...ROSTER_ORDER,
+          asc(channelAgents.position),
           desc(agentProfiles.isPrimary),
           asc(channelAgents.agentId),
         );
 
       // One row per channel-agent pair; the ordering above keeps each channel's rows together and
-      // its agents in the same lexicographic order `get` returns.
+      // its agents in the same order `get` returns.
       const summaries = new Map<string, ChannelSummary>();
       for (const row of rows) {
         const summary = summaries.get(row.id);

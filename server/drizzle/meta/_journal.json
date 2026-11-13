@@ -477,6 +477,20 @@
       "when": 1794474618271,
       "tag": "0067_phone_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1794584495304,
+      "tag": "0068_channel_agent_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1794584652807,
+      "tag": "0069_connection_refused_at",
+      "breakpoints": true
     }
   ]
 }
