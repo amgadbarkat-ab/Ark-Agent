@@ -50,17 +50,17 @@ const GROUPS: {
     label: tNow("What digital employees can reach"),
     items: [
       {
-        title: "Credentials",
+        title: tNow("Credentials"),
         icon: IconKey,
         linkOptions: { to: "/admin/credentials" },
       },
       {
-        title: "Boundaries",
+        title: tNow("Boundaries"),
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
       {
-        title: "Computers",
+        title: tNow("Computers"),
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
       },
@@ -70,12 +70,12 @@ const GROUPS: {
     label: tNow("What digital employees can do"),
     items: [
       {
-        title: "Plugins",
+        title: tNow("Plugins"),
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
       {
-        title: "Skills",
+        title: tNow("Skills"),
         icon: IconFileText,
         linkOptions: { to: "/admin/skills" },
       },
@@ -85,7 +85,7 @@ const GROUPS: {
         linkOptions: { to: "/admin/components" },
       },
       {
-        title: "Playground",
+        title: tNow("Playground"),
         icon: IconCode,
         linkOptions: { to: "/admin/playground" },
       },
@@ -95,17 +95,17 @@ const GROUPS: {
     label: tNow("Who can get in"),
     items: [
       {
-        title: "People",
+        title: tNow("People"),
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
       },
       {
-        title: "Accounts",
+        title: tNow("Accounts"),
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
       },
       {
-        title: "Marketplace",
+        title: tNow("Marketplace"),
         icon: IconBuildingStore,
         linkOptions: { to: "/admin/marketplace" },
       },
@@ -120,7 +120,7 @@ const GROUPS: {
     label: tNow("What happened"),
     items: [
       {
-        title: "Audit",
+        title: tNow("Audit"),
         icon: IconListDetails,
         linkOptions: { to: "/admin/audit" },
       },

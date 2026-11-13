@@ -130,7 +130,10 @@ function RouteComponent() {
 
   return (
     <PageShell
-      backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
+      backButton={{
+        label: tNow("Plugins"),
+        linkProps: { to: "/admin/plugins" },
+      }}
       description={t(
         "Composio's own directory. Adding an app makes its tools available to grant; each person still connects their own account before any of them reads anything.",
       )}

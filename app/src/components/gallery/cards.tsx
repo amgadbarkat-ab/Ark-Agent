@@ -225,7 +225,7 @@ export function NoticeCard({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showRecord",
-    title: "Record",
+    title: tNow("Record"),
     kind: "card",
     description:
       "Show one thing and its fields, an order, a person, a ticket. Use instead of describing a record in prose.",
@@ -234,11 +234,11 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       title: "Invoice 2043",
       subtitle: "Northwind Traders",
-      status: "Approved",
+      status: tNow("Approved"),
       fields: [
-        { label: "Amount", value: "$4,280.00" },
-        { label: "Raised", value: "12 March" },
-        { label: "Owner", value: "Priya Raman" },
+        { label: tNow("Amount"), value: "$4,280.00" },
+        { label: tNow("Raised"), value: "12 March" },
+        { label: tNow("Owner"), value: tNow("Priya Raman") },
       ],
     },
     confirmation: "The record is now on screen for the person.",
@@ -255,14 +255,14 @@ export const GALLERY: GalleryComponent[] = [
       title: tNow("This month"),
       metrics: [
         {
-          label: "Revenue",
+          label: tNow("Revenue"),
           value: "$412k",
           change: "+12% on last month",
           changeTone: "positive",
         },
         { label: tNow("Open deals"), value: "38" },
         {
-          label: "Churn",
+          label: tNow("Churn"),
           value: "1.4%",
           change: "+0.3pt",
           changeTone: "caution",
@@ -273,7 +273,7 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showChecklist",
-    title: "Checklist",
+    title: tNow("Checklist"),
     kind: "card",
     description:
       "Show a list of things and which are done. Reporting only, the person cannot tick these, so do not use it to ask for anything.",
@@ -295,7 +295,7 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showNotice",
-    title: "Notice",
+    title: tNow("Notice"),
     kind: "card",
     description:
       "Show a headline, a short explanation and optional supporting points. Use instead of writing several paragraphs of prose.",

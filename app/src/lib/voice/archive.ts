@@ -225,15 +225,14 @@ export function withVoiceChats(
 export function voiceArchiveContext(calls: readonly VoiceChatEntry[]): string {
   return calls
     .slice(-6)
-    .map((call) =>
-      tNow("Voice chat ({startedAt}):\n{value2}", {
-        startedAt: call.startedAt,
-        value2:
+    .map(
+      (call) =>
+        `Voice chat (${call.startedAt}):\n${
           call.summary ??
           call.transcript
             .map((entry) => `${entry.role}: ${entry.text}`)
-            .join("\n"),
-      }),
+            .join("\n")
+        }`,
     )
     .join("\n\n")
     .slice(-12000);

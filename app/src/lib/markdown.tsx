@@ -5,6 +5,7 @@ import {
   IconTable,
 } from "@tabler/icons-react";
 import type { ComponentProps } from "react";
+import { tNow } from "@/lib/i18n";
 import { isPurchaseLink, usePurchasesAllowed } from "@/lib/store-app";
 
 /**
@@ -28,9 +29,9 @@ import { isPurchaseLink, usePurchasesAllowed } from "@/lib/store-app";
  * is not something to claim about a URL a model wrote.
  */
 const DRIVE_KINDS = [
-  { match: "/document/", icon: IconFileText, label: "Doc" },
-  { match: "/spreadsheets/", icon: IconTable, label: "Sheet" },
-  { match: "/presentation/", icon: IconPresentation, label: "Slides" },
+  { match: "/document/", icon: IconFileText, label: tNow("Doc") },
+  { match: "/spreadsheets/", icon: IconTable, label: tNow("Sheet") },
+  { match: "/presentation/", icon: IconPresentation, label: tNow("Slides") },
 ] as const;
 
 export function documentChipKind(href: string | undefined) {

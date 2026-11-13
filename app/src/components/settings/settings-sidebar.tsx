@@ -37,7 +37,7 @@ const ITEMS: {
   title: string;
 }[] = [
   {
-    title: "General",
+    title: tNow("General"),
     icon: IconSettings,
     /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
     exact: true,
@@ -45,13 +45,13 @@ const ITEMS: {
   },
   {
     /* Where the model behind every coworker comes from: on this computer, free, or your own key. */
-    title: "Models",
+    title: tNow("Models"),
     icon: IconCpu,
     linkOptions: { to: "/settings/models" },
   },
   {
     /* What is bought, and how many coworkers it lets work at once. */
-    title: "Plan",
+    title: tNow("Plan"),
     icon: IconCreditCard,
     linkOptions: { to: "/settings/plan" },
   },

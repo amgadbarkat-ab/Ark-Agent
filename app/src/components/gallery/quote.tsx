@@ -51,7 +51,7 @@ export function QuoteCard({ quote, attribution, context }: Partial<QuoteArgs>) {
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showQuote",
-    title: "Quotation",
+    title: tNow("Quotation"),
     kind: "card",
     description:
       "Show a quotation with its attribution. Use when the exact words matter, something a person said, or a line from a document you were given.",

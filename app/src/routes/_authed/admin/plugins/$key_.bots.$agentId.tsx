@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   grantPlugin,
   invalidatePlugins,
@@ -157,7 +157,10 @@ function RouteComponent() {
   if (plugins.data && !server) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
+        backButton={{
+          label: tNow("Plugins"),
+          linkProps: { to: "/admin/plugins" },
+        }}
         description={t("This deployment has not enabled an app by that name.")}
         title={appTitle}
       >
@@ -176,7 +179,10 @@ function RouteComponent() {
   if (!server) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
+        backButton={{
+          label: tNow("Plugins"),
+          linkProps: { to: "/admin/plugins" },
+        }}
         title={t("Plugins")}
       >
         <p className="mt-12 text-destructive text-sm" role="alert">

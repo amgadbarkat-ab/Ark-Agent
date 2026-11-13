@@ -253,7 +253,7 @@ export const EL_ADMIN: Record<string, string> = {
   // Playground
   Playground: "Δοκιμαστικός χώρος",
   "Write a component here and publish it without a deployment. What you edit is a draft; a conversation only ever draws what is published.":
-    "Γράψτε ένα στοιχείο εδώ και δημοσιεύστε το χωρίς νέα έκδοση. Ό,τι επεξεργάζεστε είναι πρόχειρο· μια συζήτηση σχεδιάζει μόνο ό,τι έχει δημοσιευτεί.",
+    "Γράψτε ένα στοιχείο εδώ και δημοσιεύστε το χωρίς νέα έκδοση. Ό,τι επεξεργάζεστε είναι πρόχειρο· μια συνομιλία σχεδιάζει μόνο ό,τι έχει δημοσιευτεί.",
   "Save draft": "Αποθήκευση προχείρου",
   Publish: "Δημοσίευση",
   "Refund card": "Κάρτα επιστροφής χρημάτων",

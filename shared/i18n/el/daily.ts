@@ -1,21 +1,21 @@
 /** Conversations, the sidebar, requests, calls, routines and the other screens used all day. */
 export const EL_DAILY: Record<string, string> = {
   // Sidebar
-  "Search channels": "Αναζήτηση συζητήσεων",
+  "Search channels": "Αναζήτηση συνομιλιών",
   "Start talking to agents and your channels will appear here.":
-    "Ξεκινήστε να μιλάτε με τους ψηφιακούς υπαλλήλους και οι συζητήσεις σας θα εμφανιστούν εδώ.",
+    "Ξεκινήστε να μιλάτε με τους ψηφιακούς υπαλλήλους και οι συνομιλίες σας θα εμφανιστούν εδώ.",
   Admin: "Διαχείριση",
   "Log out": "Αποσύνδεση",
   "Rename…": "Μετονομασία…",
-  "Delete channel…": "Διαγραφή συζήτησης…",
+  "Delete channel…": "Διαγραφή συνομιλίας…",
   "The conversation will no longer appear for anyone in it.":
-    "Η συζήτηση δεν θα εμφανίζεται πλέον σε κανέναν από τους συμμετέχοντες.",
-  "Rename conversation": "Μετονομασία συζήτησης",
+    "Η συνομιλία δεν θα εμφανίζεται πλέον σε κανέναν από τους συμμετέχοντες.",
+  "Rename conversation": "Μετονομασία συνομιλίας",
   "Everyone in the conversation sees the new name.":
-    "Όλοι στη συζήτηση βλέπουν το νέο όνομα.",
-  "Conversation name": "Όνομα συζήτησης",
+    "Όλοι στη συνομιλία βλέπουν το νέο όνομα.",
+  "Conversation name": "Όνομα συνομιλίας",
   "Could not load older conversations.":
-    "Δεν ήταν δυνατή η φόρτωση παλαιότερων συζητήσεων.",
+    "Δεν ήταν δυνατή η φόρτωση παλαιότερων συνομιλιών.",
   "Delete {name}?": "Διαγραφή «{name}»;",
   // Requests
   "Your requests could not be loaded.":
@@ -24,7 +24,7 @@ export const EL_DAILY: Record<string, string> = {
     "Όταν ένας ψηφιακός υπάλληλος χρειάζεται την έγκρισή σας — για να στείλει, να πληρώσει, να διαγράψει ή να αλλάξει κάτι, ή να αλλάξει τη δουλειά ενός συναδέλφου — σας ρωτά πρώτα εδώ.",
   Requests: "Αιτήματα",
   // Conversation
-  "Loading this conversation": "Φόρτωση της συζήτησης",
+  "Loading this conversation": "Φόρτωση της συνομιλίας",
   Thinking: "Σκέφτεται",
   Queued: "Σε αναμονή",
   "Routine ran.": "Η ρουτίνα εκτελέστηκε.",
@@ -33,7 +33,7 @@ export const EL_DAILY: Record<string, string> = {
   "Voice chat": "Φωνητική συνομιλία",
   "Saving voice chat": "Αποθήκευση φωνητικής συνομιλίας",
   "could not be drawn. The rest of this conversation is unaffected.":
-    "δεν ήταν δυνατό να εμφανιστεί. Η υπόλοιπη συζήτηση δεν επηρεάζεται.",
+    "δεν ήταν δυνατό να εμφανιστεί. Η υπόλοιπη συνομιλία δεν επηρεάζεται.",
   "What should we work on?": "Σε τι να δουλέψουμε;",
   "Say what you need. Your digital employee plans the work, takes the steps and checks with you before anything important.":
     "Πείτε τι χρειάζεστε. Ο ψηφιακός σας υπάλληλος σχεδιάζει τη δουλειά, κάνει τα βήματα και σας ρωτά πριν από κάθε σημαντική ενέργεια.",
@@ -65,13 +65,13 @@ export const EL_DAILY: Record<string, string> = {
   "Your microphone is muted": "Το μικρόφωνό σας είναι σε σίγαση",
   "Call settings": "Ρυθμίσεις κλήσης",
   "Show live captions": "Εμφάνιση ζωντανών υποτίτλων",
-  "Return to chat": "Επιστροφή στη συζήτηση",
+  "Return to chat": "Επιστροφή στη συνομιλία",
   "Return to chat · keep call open":
-    "Επιστροφή στη συζήτηση · η κλήση μένει ανοιχτή",
+    "Επιστροφή στη συνομιλία · η κλήση μένει ανοιχτή",
   "Voice chats couldn’t be loaded. Refresh to try again.":
     "Δεν ήταν δυνατή η φόρτωση των φωνητικών συνομιλιών. Ανανεώστε για να δοκιμάσετε ξανά.",
   "This digital employee has been deleted. The conversation stays readable, but it can no longer reply.":
-    "Αυτός ο ψηφιακός υπάλληλος έχει διαγραφεί. Η συζήτηση παραμένει διαθέσιμη για ανάγνωση, αλλά δεν μπορεί πλέον να απαντήσει.",
+    "Αυτός ο ψηφιακός υπάλληλος έχει διαγραφεί. Η συνομιλία παραμένει διαθέσιμη για ανάγνωση, αλλά δεν μπορεί πλέον να απαντήσει.",
   "Close details": "Κλείσιμο λεπτομερειών",
   BlackArk: "BlackArk",
   // What a digital employee did, as the transcript names it
@@ -99,7 +99,7 @@ export const EL_DAILY: Record<string, string> = {
   "Nothing is running these": "Τίποτα δεν τις εκτελεί",
   "Your routines could not be loaded.":
     "Δεν ήταν δυνατή η φόρτωση των ρουτινών σας.",
-  "This channel is gone": "Αυτή η συζήτηση δεν υπάρχει πια",
+  "This channel is gone": "Αυτή η συνομιλία δεν υπάρχει πια",
   Paused: "Σε παύση",
   Due: "Προγραμματισμένη",
   "This standing instruction stops for good. Nothing further runs on this schedule, and there is no undo.":

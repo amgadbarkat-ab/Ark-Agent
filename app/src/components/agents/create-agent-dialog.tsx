@@ -83,12 +83,12 @@ const VISIBILITY_OPTIONS: Array<{
 }> = [
   {
     value: "private",
-    title: "Private",
+    title: tNow("Private"),
     description: tNow("Only you can see it and start channels with it."),
   },
   {
     value: "public",
-    title: "Public",
+    title: tNow("Public"),
     description: tNow("Everyone in the deployment can find and use it."),
   },
 ];
@@ -113,7 +113,7 @@ const KIND_OPTIONS: Array<{
   },
   {
     value: "managed",
-    title: "Managed",
+    title: tNow("Managed"),
     description: tNow(
       "Runs on an agent you host, spoken to over AG-UI. This server dials your endpoint on every run.",
     ),

@@ -82,9 +82,11 @@ function statusLine(
         "The last payment did not go through. Update your card to keep it.",
       );
     case "trialing": {
-      if (!account.currentPeriodEnd || !until) return "On a trial";
+      if (!account.currentPeriodEnd || !until) return tNow("On a trial");
       const left = trialDaysLeft(new Date(account.currentPeriodEnd));
-      return `Trial: ${left === 1 ? "1 day" : `${left} days`} left (ends ${until})`;
+      return left === 1
+        ? tNow("Trial: 1 day left (ends {until})", { until })
+        : tNow("Trial: {days} days left (ends {until})", { days: left, until });
     }
     default:
       return until ? tNow("Renews on {until}", { until: until }) : "Active";

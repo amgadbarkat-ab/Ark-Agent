@@ -299,9 +299,8 @@ export const GALLERY: GalleryComponent[] = [
       "Show what this deployment has actually been doing, read from its own records rather than from anything you know. Use for 'what have the digital employees been up to' and 'what has been refused'. You choose the report and the period; the figures are read for you and you will not see them.",
     parameters: ActivityReportProps,
     Component: ActivityReportCard as GalleryComponent["Component"],
-    confirmation: tNow(
+    confirmation:
       "The report is on screen for the person, filled with figures read from this deployment. You were not given the figures.",
-    ),
     reads: (args) => {
       const report = typeof args.report === "string" ? args.report : undefined;
       const functionName = report ? FUNCTION_FOR[report] : undefined;

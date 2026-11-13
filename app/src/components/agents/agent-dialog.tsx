@@ -115,13 +115,13 @@ export function AgentDialog({
 }
 
 const SECTIONS = [
-  { id: "general", name: "General", icon: IconUser },
-  { id: "access", name: "Access", icon: IconPuzzle },
-  { id: "connection", name: "Connection", icon: IconPlugConnected },
-  { id: "handoff", name: "Handoff", icon: IconArrowsExchange },
-  { id: "memories", name: "Memories", icon: IconBrain },
-  { id: "routines", name: "Routines", icon: IconClock },
-  { id: "manage", name: "Manage", icon: IconAdjustments },
+  { id: "general", name: tNow("General"), icon: IconUser },
+  { id: "access", name: tNow("Access"), icon: IconPuzzle },
+  { id: "connection", name: tNow("Connection"), icon: IconPlugConnected },
+  { id: "handoff", name: tNow("Handoff"), icon: IconArrowsExchange },
+  { id: "memories", name: tNow("Memories"), icon: IconBrain },
+  { id: "routines", name: tNow("Routines"), icon: IconClock },
+  { id: "manage", name: tNow("Manage"), icon: IconAdjustments },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];

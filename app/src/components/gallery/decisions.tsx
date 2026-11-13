@@ -342,7 +342,7 @@ function readChoice(result: string | undefined): string | undefined {
 export const GALLERY: GalleryComponent[] = [
   {
     name: "askApproval",
-    title: "Approval",
+    title: tNow("Approval"),
     kind: "decision",
     description:
       "Ask the person to approve or decline something, and WAIT for their answer. Use before doing anything you cannot undo, spending money, sending a message, changing a record. Write everything you want to say BEFORE calling this, and nothing after it: your message ends with the card. You are given their decision and any reason they typed.",
@@ -358,9 +358,9 @@ export const GALLERY: GalleryComponent[] = [
           "The customer was charged twice for the same order and the second charge has not settled.",
         ),
         details: [
-          { label: "Amount", value: "$128.40" },
-          { label: "Customer", value: "Northwind Traders" },
-          { label: "Order", value: "2043" },
+          { label: tNow("Amount"), value: "$128.40" },
+          { label: tNow("Customer"), value: tNow("Northwind Traders") },
+          { label: tNow("Order"), value: "2043" },
         ],
         approveLabel: "Refund",
       },
@@ -369,7 +369,7 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "askChoice",
-    title: "Choice",
+    title: tNow("Choice"),
     kind: "decision",
     description:
       "Ask the person to pick one of several options, and WAIT for their answer. Use when you cannot sensibly guess which one they meant. Write everything you want to say BEFORE calling this, and nothing after it: your message ends with the card. You are given the id of the option they chose.",
@@ -383,12 +383,12 @@ export const GALLERY: GalleryComponent[] = [
         options: [
           {
             id: "staging",
-            label: "Staging",
+            label: tNow("Staging"),
             description: tNow("Safe, and reversible"),
           },
           {
             id: "production",
-            label: "Production",
+            label: tNow("Production"),
             description: tNow("Live customers"),
           },
         ],

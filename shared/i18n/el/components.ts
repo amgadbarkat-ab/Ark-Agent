@@ -4,7 +4,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   "Digital employees it may ask":
     "Ψηφιακοί υπάλληλοι στους οποίους μπορεί να απευθυνθεί",
   "Who this digital employee may ask, not who may ask it. What the asked digital employee says comes back into the conversation that asked, relayed and attributed.":
-    "Σε ποιους μπορεί να απευθυνθεί αυτός ο ψηφιακός υπάλληλος, όχι ποιοι μπορούν να απευθυνθούν σε αυτόν. Η απάντηση επιστρέφει στη συζήτηση που ρώτησε, με το όνομα αυτού που απάντησε.",
+    "Σε ποιους μπορεί να απευθυνθεί αυτός ο ψηφιακός υπάλληλος, όχι ποιοι μπορούν να απευθυνθούν σε αυτόν. Η απάντηση επιστρέφει στη συνομιλία που ρώτησε, με το όνομα αυτού που απάντησε.",
   "Switched off for this deployment":
     "Απενεργοποιημένο σε αυτή την εγκατάσταση",
   "These grants are kept but none takes effect until handing work between digital employees is switched back on.":
@@ -20,14 +20,14 @@ export const EL_COMPONENTS: Record<string, string> = {
   "An administrator decides which digital employees may be asked.":
     "Ο διαχειριστής αποφασίζει σε ποιους ψηφιακούς υπαλλήλους μπορεί να απευθυνθεί.",
   "What this digital employee keeps in mind. It reads all of this at the start of every conversation. Passwords, keys and card numbers are never kept.":
-    "Τι θυμάται αυτός ο ψηφιακός υπάλληλος. Τα διαβάζει όλα στην αρχή κάθε συζήτησης. Κωδικοί, κλειδιά και αριθμοί καρτών δεν φυλάσσονται ποτέ.",
+    "Τι θυμάται αυτός ο ψηφιακός υπάλληλος. Τα διαβάζει όλα στην αρχή κάθε συνομιλίας. Κωδικοί, κλειδιά και αριθμοί καρτών δεν φυλάσσονται ποτέ.",
   "New memory": "Νέα ανάμνηση",
   "Something to keep in mind…": "Κάτι που πρέπει να θυμάται…",
   "Its memories could not be loaded.":
     "Δεν ήταν δυνατή η φόρτωση των αναμνήσεών του.",
   "Nothing kept in mind yet": "Δεν θυμάται τίποτα ακόμη",
   "Ask it to remember something in a conversation, or add a line above.":
-    "Ζητήστε του να θυμηθεί κάτι σε μια συζήτηση ή προσθέστε μια γραμμή παραπάνω.",
+    "Ζητήστε του να θυμηθεί κάτι σε μια συνομιλία ή προσθέστε μια γραμμή παραπάνω.",
   "Edit memory": "Επεξεργασία ανάμνησης",
   "Edit this memory": "Επεξεργασία αυτής της ανάμνησης",
   "Delete this memory": "Διαγραφή αυτής της ανάμνησης",
@@ -41,7 +41,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   Primary: "Κύριος",
   "System owned": "Του συστήματος",
   Role: "Ρόλος",
-  "Start new channel": "Νέα συζήτηση",
+  "Start new channel": "Νέα συνομιλία",
   "Manage digital employee": "Διαχείριση ψηφιακού υπαλλήλου",
   "Writing the digital employee…": "Δημιουργία του ψηφιακού υπαλλήλου…",
   Job: "Εργασία",
@@ -57,7 +57,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   "New digital employee": "Νέος ψηφιακός υπάλληλος",
   "Who is this digital employee?": "Ποιος είναι αυτός ο ψηφιακός υπάλληλος;",
   "The role you write here applies in every channel this digital employee works in.":
-    "Ο ρόλος που γράφετε εδώ ισχύει σε κάθε συζήτηση όπου εργάζεται αυτός ο ψηφιακός υπάλληλος.",
+    "Ο ρόλος που γράφετε εδώ ισχύει σε κάθε συνομιλία όπου εργάζεται αυτός ο ψηφιακός υπάλληλος.",
   "Expense Manager": "Υπεύθυνος εξόδων",
   "Finance Operations": "Οικονομική διαχείριση",
   "Review receipts, categorize expenses, and prepare reimbursement reports.":
@@ -73,7 +73,7 @@ export const EL_COMPONENTS: Record<string, string> = {
     "Κλειδί για αυτόν τον πράκτορα (προαιρετικό)",
   "Bearer …": "Bearer …",
   Authorization: "Εξουσιοδότηση",
-  "Team channel": "Συζήτηση ομάδας",
+  "Team channel": "Συνομιλία ομάδας",
   Icon: "Εικονίδιο",
   "Choose an icon picture": "Επιλέξτε εικόνα για εικονίδιο",
   "Use default": "Χρήση προεπιλογής",
@@ -81,9 +81,9 @@ export const EL_COMPONENTS: Record<string, string> = {
   "Using the role above": "Με τον παραπάνω ρόλο",
   "Ships with this deployment rather than belonging to a person.":
     "Συνοδεύει την εγκατάσταση και δεν ανήκει σε κάποιο πρόσωπο.",
-  "Start channel": "Έναρξη συζήτησης",
+  "Start channel": "Έναρξη συνομιλίας",
   "Open a new channel with this digital employee.":
-    "Ανοίξτε νέα συζήτηση με αυτόν τον ψηφιακό υπάλληλο.",
+    "Ανοίξτε νέα συνομιλία με αυτόν τον ψηφιακό υπάλληλο.",
   Start: "Έναρξη",
   "Primary digital employee": "Κύριος ψηφιακός υπάλληλος",
   "Make primary": "Ορισμός ως κύριου",
@@ -105,7 +105,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   Endpoint: "Διεύθυνση",
   Duplicate: "Αντίγραφο",
   "A copy of your own, with no key and no channels.":
-    "Ένα δικό σας αντίγραφο, χωρίς κλειδί και χωρίς συζητήσεις.",
+    "Ένα δικό σας αντίγραφο, χωρίς κλειδί και χωρίς συνομιλίες.",
   "Put it in the marketplace as a guide others can read. They cannot install, copy or export it.":
     "Δημοσιεύστε το στην αγορά ως οδηγό που μπορούν να διαβάσουν άλλοι. Δεν μπορούν να το εγκαταστήσουν, να το αντιγράψουν ή να το εξαγάγουν.",
   "This cannot be undone.": "Δεν μπορεί να αναιρεθεί.",
@@ -204,7 +204,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   "Turns yesterday's work into a standup update":
     "Μετατρέπει τη χθεσινή δουλειά σε σύντομη ενημέρωση",
   "Summarise what I did yesterday from the channel, then list what is left.":
-    "Συνόψισε τι έκανα χθες από τη συζήτηση και μετά απαρίθμησε τι απομένει.",
+    "Συνόψισε τι έκανα χθες από τη συνομιλία και μετά απαρίθμησε τι απομένει.",
   "Added to the run when the command is used. Write it as instructions to the digital employee, not as a description of them.":
     "Προστίθεται όταν χρησιμοποιείται η εντολή. Γράψτε το ως οδηγίες προς τον ψηφιακό υπάλληλο, όχι ως περιγραφή του.",
   "New skill": "Νέα δεξιότητα",
@@ -244,7 +244,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   "Typed here, never shown to the assistant":
     "Πληκτρολογείται εδώ, δεν εμφανίζεται ποτέ στον βοηθό",
   "This goes straight to the page. It is not shown in the conversation and the assistant never receives it.":
-    "Πηγαίνει απευθείας στη σελίδα. Δεν εμφανίζεται στη συζήτηση και ο βοηθός δεν το λαμβάνει ποτέ.",
+    "Πηγαίνει απευθείας στη σελίδα. Δεν εμφανίζεται στη συνομιλία και ο βοηθός δεν το λαμβάνει ποτέ.",
   "The assistant's screen": "Η οθόνη του βοηθού",
   "Close the assistant's screen": "Κλείσιμο της οθόνης του βοηθού",
   "What this turn had open": "Τι είχε ανοιχτό αυτή η απάντηση",
@@ -318,7 +318,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   Model: "Μοντέλο",
   "Make default": "Ορισμός ως προεπιλογής",
   "Applies to every digital employee in every channel. Your role text on a digital employee says what it does; this says how you want things done, for example writing style or how to describe your company.":
-    "Ισχύει για κάθε ψηφιακό υπάλληλο σε κάθε συζήτηση. Ο ρόλος ενός υπαλλήλου λέει τι κάνει· αυτό λέει πώς θέλετε να γίνονται τα πράγματα, για παράδειγμα το ύφος γραφής ή πώς να περιγράφεται η εταιρεία σας.",
+    "Ισχύει για κάθε ψηφιακό υπάλληλο σε κάθε συνομιλία. Ο ρόλος ενός υπαλλήλου λέει τι κάνει· αυτό λέει πώς θέλετε να γίνονται τα πράγματα, για παράδειγμα το ύφος γραφής ή πώς να περιγράφεται η εταιρεία σας.",
   "Standing instructions": "Μόνιμες οδηγίες",
   "We are two people, not a team. Write in British English, and never call our product a platform.":
     "Είμαστε δύο άτομα, όχι ομάδα. Γράφετε σε απλά ελληνικά και μην αποκαλείτε ποτέ το προϊόν μας πλατφόρμα.",
@@ -326,7 +326,7 @@ export const EL_COMPONENTS: Record<string, string> = {
   "Message list emphasis": "Έμφαση στη λίστα μηνυμάτων",
   "Choose which name appears larger in the sidebar.":
     "Επιλέξτε ποιο όνομα εμφανίζεται μεγαλύτερο στην πλαϊνή στήλη.",
-  "Thread title": "Τίτλος συζήτησης",
+  "Thread title": "Τίτλος συνομιλίας",
   "Agent name": "Όνομα ψηφιακού υπαλλήλου",
   "Message list preview": "Προεπισκόπηση λίστας μηνυμάτων",
   "Plan next week": "Σχεδιασμός επόμενης εβδομάδας",

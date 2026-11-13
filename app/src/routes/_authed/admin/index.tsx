@@ -63,13 +63,13 @@ const SECTIONS: {
     ),
     items: [
       {
-        title: "Credentials",
+        title: tNow("Credentials"),
         description: tNow("Keys and tokens held for this deployment."),
         icon: IconKey,
         linkOptions: { to: "/admin/credentials" },
       },
       {
-        title: "Boundaries",
+        title: tNow("Boundaries"),
         description: tNow(
           "Rules that decide what a digital employee may never do.",
         ),
@@ -77,7 +77,7 @@ const SECTIONS: {
         linkOptions: { to: "/admin/boundaries" },
       },
       {
-        title: "Computers",
+        title: tNow("Computers"),
         description: tNow("The machines digital employees run their tools on."),
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
@@ -91,7 +91,7 @@ const SECTIONS: {
     ),
     items: [
       {
-        title: "Plugins",
+        title: tNow("Plugins"),
         description: tNow(
           "The services this deployment can reach, and which digital employees may.",
         ),
@@ -99,7 +99,7 @@ const SECTIONS: {
         linkOptions: { to: "/admin/plugins" },
       },
       {
-        title: "Skills",
+        title: tNow("Skills"),
         description: tNow(
           "Named instructions anybody can invoke with a slash.",
         ),
@@ -115,7 +115,7 @@ const SECTIONS: {
         linkOptions: { to: "/admin/components" },
       },
       {
-        title: "Playground",
+        title: tNow("Playground"),
         description: tNow("Write a component and watch it render as you type."),
         icon: IconCode,
         linkOptions: { to: "/admin/playground" },
@@ -127,7 +127,7 @@ const SECTIONS: {
     description: "",
     items: [
       {
-        title: "People",
+        title: tNow("People"),
         description: tNow(
           "Everybody who has signed in, who administers this deployment, and whose access has been removed.",
         ),
@@ -135,7 +135,7 @@ const SECTIONS: {
         linkOptions: { to: "/admin/people" },
       },
       {
-        title: "Accounts",
+        title: tNow("Accounts"),
         description: tNow(
           "Every customer account: its plan, how much is in use, and whether it may run.",
         ),
@@ -151,7 +151,7 @@ const SECTIONS: {
         linkOptions: { to: "/admin/cloud" },
       },
       {
-        title: "Marketplace",
+        title: tNow("Marketplace"),
         description: tNow(
           "Shared digital employees waiting for review, and the ones people have reported.",
         ),
@@ -172,7 +172,7 @@ const SECTIONS: {
     description: "",
     items: [
       {
-        title: "Audit",
+        title: tNow("Audit"),
         description: tNow(
           "Every action taken in this deployment, and by whom.",
         ),

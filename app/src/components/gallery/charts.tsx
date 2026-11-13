@@ -411,9 +411,9 @@ export const GALLERY: GalleryComponent[] = [
       title: tNow("Revenue by team"),
       caption: tNow("Sales leads, and Engineering is closing the gap."),
       points: [
-        { label: "Sales", value: 120 },
-        { label: "Engineering", value: 80 },
-        { label: "Support", value: 45 },
+        { label: tNow("Sales"), value: 120 },
+        { label: tNow("Engineering"), value: 80 },
+        { label: tNow("Support"), value: 45 },
       ],
     },
     confirmation: "The bar chart is now on screen for the person.",
@@ -429,9 +429,9 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       title: tNow("Where the month went"),
       points: [
-        { label: "Build", value: 48 },
-        { label: "Support", value: 26 },
-        { label: "Meetings", value: 26 },
+        { label: tNow("Build"), value: 48 },
+        { label: tNow("Support"), value: 26 },
+        { label: tNow("Meetings"), value: 26 },
       ],
     },
     confirmation: "The donut chart is now on screen for the person.",
@@ -445,10 +445,12 @@ export const GALLERY: GalleryComponent[] = [
     parameters: LineChartProps,
     Component: LineChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Signups",
+      title: tNow("Signups"),
       caption: tNow("Six weeks, one release."),
       labels: ["W1", "W2", "W3", "W4", "W5", "W6"],
-      series: [{ name: "Signups", values: [120, 180, 160, 240, 300, 420] }],
+      series: [
+        { name: tNow("Signups"), values: [120, 180, 160, 240, 300, 420] },
+      ],
     },
     confirmation: "The line chart is now on screen for the person.",
   },

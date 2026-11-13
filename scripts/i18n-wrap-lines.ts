@@ -39,7 +39,10 @@ for (const [file, lines] of wanted) {
       lines.has(line)
     ) {
       const text = node.text.trim();
-      if (/^[A-Z“"(][a-z]/.test(text) && /\s/.test(text)) {
+      if (
+        /^[A-Z“"(][a-z]/.test(text) &&
+        (/\s/.test(text) || process.env.SINGLE === "1")
+      ) {
         // A JSX attribute value needs braces.
         const inAttr = ts.isJsxAttribute(node.parent);
         edits.push({

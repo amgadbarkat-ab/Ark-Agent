@@ -87,7 +87,7 @@ const RATE_FIELDS: {
 }[] = [
   {
     key: "computeCentsPerHour",
-    label: "Running",
+    label: tNow("Running"),
     unit: "cents per hour",
     help: tNow(
       "What one digital employee's cloud capacity costs us for an hour. Measure it: see docs/ark/17-cloud-runtime.md.",
@@ -95,7 +95,7 @@ const RATE_FIELDS: {
   },
   {
     key: "storageCentsPerGbMonth",
-    label: "Storage",
+    label: tNow("Storage"),
     unit: "cents per GB a month",
     help: tNow(
       "What a gigabyte of a digital employee's saved files costs us for a month. Zero if storage is not charged.",
@@ -127,7 +127,7 @@ const RATE_FIELDS: {
   },
   {
     key: "marginPercent",
-    label: "Margin",
+    label: tNow("Margin"),
     unit: "percent",
     help: tNow(
       "Added to cost. Zero charges exactly what it costs us. A business decision, not an engineering one.",

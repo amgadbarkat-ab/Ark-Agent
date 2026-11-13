@@ -115,14 +115,15 @@ export function dataServiceState(
   const entry = deployment.catalogue.find((item) => item.key === key);
   if (!entry) return { kind: "not-available" };
   if (deployment.connected.has(key)) return { kind: "connected" };
+  const lowerFirst = (text: string) =>
+    text.charAt(0).toLowerCase() + text.slice(1);
   const server = deployment.servers.find((candidate) => candidate.id === key);
   if (!server) {
     return {
       kind: "needs-setup",
       reason: service.setup
-        ? tNow("Not turned on yet. It needs {value1}{value2}.", {
-            value1: service.setup.charAt(0).toLowerCase(),
-            value2: service.setup.slice(1),
+        ? tNow("Not turned on yet. It needs {setup}.", {
+            setup: lowerFirst(service.setup),
           })
         : tNow("Not turned on yet. An administrator turns it on."),
     };
@@ -135,7 +136,7 @@ export function dataServiceState(
     return {
       kind: "needs-setup",
       reason: service.setup
-        ? `It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
+        ? tNow("It needs {setup}.", { setup: lowerFirst(service.setup) })
         : tNow("An administrator has to add the app's client id and secret."),
     };
   }
@@ -191,7 +192,7 @@ function RouteComponent() {
     rows: typeof services;
   }> = [
     {
-      title: "Connected",
+      title: tNow("Connected"),
       rows: services.filter(({ state }) => state.kind === "connected"),
     },
     {

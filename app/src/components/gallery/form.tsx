@@ -34,7 +34,7 @@ const Field = z
       (field.min === undefined ||
         field.max === undefined ||
         field.min <= field.max),
-    tNow("Select fields need unique options; minimum must not exceed maximum"),
+    "Select fields need unique options; minimum must not exceed maximum",
   );
 
 export const FormCardArgs = z
@@ -47,7 +47,7 @@ export const FormCardArgs = z
   .refine(
     (form) =>
       new Set(form.fields.map((field) => field.id)).size === form.fields.length,
-    tNow("Field IDs must be unique"),
+    "Field IDs must be unique",
   );
 
 const Submitted = z.object({
@@ -124,9 +124,8 @@ function InvalidForm({
     try {
       await respond({
         status: "invalid",
-        message: tNow(
+        message:
           "The form could not be displayed because its questions were invalid. Send a corrected form with unique field IDs, valid types, and options for each select field.",
-        ),
       });
       setReturned(true);
     } catch {
@@ -392,7 +391,7 @@ function FormEntry({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "askForm",
-    title: "Form",
+    title: tNow("Form"),
     kind: "decision",
     description:
       "Ask the person to fill in a short form and WAIT for their answers. Use when several related details are needed together. Provide up to eight labeled text, email, number, select, or textarea fields with unique IDs. Mark required fields and give options for selects. Never request passwords or secrets. The result has status submitted and values keyed by field ID; numbers are returned as numbers and blank optional fields are omitted.",
@@ -418,7 +417,7 @@ export const GALLERY: GalleryComponent[] = [
           },
           {
             id: "priority",
-            label: "Priority",
+            label: tNow("Priority"),
             type: "select",
             options: [tNow("This week"), tNow("This month"), "Exploring"],
           },

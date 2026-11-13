@@ -3,10 +3,14 @@
  * ../translate.ts. One file per area keeps the review sheet readable and the merges small.
  */
 import { EL_ADMIN } from "./admin";
+import { EL_ADMIN2 } from "./admin2";
 import { EL_COMMON } from "./common";
 import { EL_COMPONENTS } from "./components";
 import { EL_DAILY } from "./daily";
+import { EL_MESSAGES } from "./messages";
+import { EL_MORE } from "./more";
 import { EL_SCREENS } from "./screens";
+import { EL_SCREENS2 } from "./screens2";
 
 export const EL: Readonly<Record<string, string>> = {
   ...EL_COMMON,
@@ -14,4 +18,8 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_COMPONENTS,
   ...EL_SCREENS,
   ...EL_ADMIN,
+  ...EL_MESSAGES,
+  ...EL_MORE,
+  ...EL_SCREENS2,
+  ...EL_ADMIN2,
 };

@@ -36,7 +36,7 @@ import {
   type AdminAccount,
   adminAccountsQueryOptions,
 } from "@/lib/account/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/accounts")({
@@ -48,7 +48,7 @@ const PLAN_CHOICES: { id: string; name: string }[] = [
   { id: "agent", name: "ArkAgent" },
   { id: "team", name: "Ark Team" },
   { id: "enterprise", name: "Ark Team Enterprise" },
-  { id: "internal", name: "Internal" },
+  { id: "internal", name: tNow("Internal") },
 ];
 
 function describe(account: AdminAccount): string {

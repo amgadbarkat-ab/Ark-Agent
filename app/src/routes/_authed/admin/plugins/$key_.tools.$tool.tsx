@@ -51,7 +51,7 @@ const ON_CALL: {
   },
   {
     value: "refuse",
-    title: "Never",
+    title: tNow("Never"),
     description: tNow(
       "Refused every time, whoever asks. The employee is told an administrator switched it off.",
     ),

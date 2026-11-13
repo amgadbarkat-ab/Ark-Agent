@@ -19,17 +19,17 @@ export const EL_SCREENS: Record<string, string> = {
   Example: "Παράδειγμα",
   "Your own agent": "Ο δικός σας ψηφιακός υπάλληλος",
   // Conversations
-  "Channel digital employee": "Ψηφιακός υπάλληλος της συζήτησης",
+  "Channel digital employee": "Ψηφιακός υπάλληλος της συνομιλίας",
   "Could not load this channel.":
-    "Δεν ήταν δυνατή η φόρτωση αυτής της συζήτησης.",
+    "Δεν ήταν δυνατή η φόρτωση αυτής της συνομιλίας.",
   "This channel has no digital employee left in it.":
-    "Σε αυτή τη συζήτηση δεν έχει μείνει ψηφιακός υπάλληλος.",
-  "New chat": "Νέα συζήτηση",
+    "Σε αυτή τη συνομιλία δεν έχει μείνει ψηφιακός υπάλληλος.",
+  "New chat": "Νέα συνομιλία",
   "Ask it to open a page and watch it work.":
     "Ζητήστε του να ανοίξει μια σελίδα και δείτε τον να δουλεύει.",
   "Earlier messages in this conversation could not be loaded, and the digital employee is answering without them.":
-    "Δεν ήταν δυνατή η φόρτωση παλαιότερων μηνυμάτων της συζήτησης, και ο ψηφιακός υπάλληλος απαντά χωρίς αυτά.",
-  "Start a new channel": "Νέα συζήτηση",
+    "Δεν ήταν δυνατή η φόρτωση παλαιότερων μηνυμάτων της συνομιλίας, και ο ψηφιακός υπάλληλος απαντά χωρίς αυτά.",
+  "Start a new channel": "Νέα συνομιλία",
   "Your digital employees couldn't be loaded, so there's no one to send this to yet.":
     "Δεν ήταν δυνατή η φόρτωση των ψηφιακών σας υπαλλήλων, οπότε δεν υπάρχει ακόμη παραλήπτης.",
   // Digital Team and marketplace
@@ -118,7 +118,7 @@ export const EL_SCREENS: Record<string, string> = {
     "Μπορεί να έχει αποσυρθεί ή να μην περιλαμβάνεται πια σε αυτή την εγκατάσταση.",
   "Back to the gallery": "Πίσω στη συλλογή",
   "The pieces a digital employee can draw in a conversation instead of describing something in prose. Which of them any one digital employee may use is an administrator's decision.":
-    "Τα στοιχεία που μπορεί να σχεδιάσει ένας ψηφιακός υπάλληλος σε μια συζήτηση αντί να περιγράψει κάτι με κείμενο. Ποια μπορεί να χρησιμοποιεί ο καθένας το αποφασίζει ο διαχειριστής.",
+    "Τα στοιχεία που μπορεί να σχεδιάσει ένας ψηφιακός υπάλληλος σε μια συνομιλία αντί να περιγράψει κάτι με κείμενο. Ποια μπορεί να χρησιμοποιεί ο καθένας το αποφασίζει ο διαχειριστής.",
   "Nothing published yet": "Δεν έχει δημοσιευτεί τίποτα ακόμη",
   "When an administrator publishes a component, it will show up here.":
     "Όταν ο διαχειριστής δημοσιεύσει ένα στοιχείο, θα εμφανιστεί εδώ.",
@@ -149,7 +149,7 @@ export const EL_SCREENS: Record<string, string> = {
     "Επιλέξτε το μοντέλο με το οποίο σκέφτονται οι ψηφιακοί σας υπάλληλοι. Τα μοντέλα στον υπολογιστή σας και τα δωρεάν μοντέλα δεν κοστίζουν τίποτα. Αν χρησιμοποιείτε δικό σας κλειδί, σας χρεώνει απευθείας ο πάροχος.",
   Models: "Μοντέλα",
   "Your default is used for every conversation unless a digital employee says otherwise.":
-    "Η προεπιλογή σας χρησιμοποιείται σε κάθε συζήτηση, εκτός αν ένας ψηφιακός υπάλληλος ορίζει άλλο.",
+    "Η προεπιλογή σας χρησιμοποιείται σε κάθε συνομιλία, εκτός αν ένας ψηφιακός υπάλληλος ορίζει άλλο.",
   "Your models": "Τα μοντέλα σας",
   "Could not load your models.": "Δεν ήταν δυνατή η φόρτωση των μοντέλων σας.",
   "No model is connected. Your digital employees use this deployment's own model, if it has one. Add one to choose for yourself.":
@@ -178,13 +178,13 @@ export const EL_SCREENS: Record<string, string> = {
     "Ό,τι κρατά η Ark για εσάς σας ανήκει: μπορείτε να το λάβετε και να ζητήσετε τη διαγραφή του.",
   "Your data": "Τα δεδομένα σας",
   "Your account, your digital employees and what they were told, your skills and routines, your conversations and the record of what you did. Never a key or a token.":
-    "Ο λογαριασμός σας, οι ψηφιακοί σας υπάλληλοι και οι οδηγίες τους, οι δεξιότητες και οι ρουτίνες σας, οι συζητήσεις σας και το ιστορικό των ενεργειών σας. Ποτέ κλειδιά ή διακριτικά πρόσβασης.",
+    "Ο λογαριασμός σας, οι ψηφιακοί σας υπάλληλοι και οι οδηγίες τους, οι δεξιότητες και οι ρουτίνες σας, οι συνομιλίες σας και το ιστορικό των ενεργειών σας. Ποτέ κλειδιά ή διακριτικά πρόσβασης.",
   "Get a copy": "Λήψη αντιγράφου",
   "Download your data": "Λήψη των δεδομένων σας",
   "One file you can keep, as it is today. It can be large if you have had a lot of conversations.":
-    "Ένα αρχείο που μπορείτε να κρατήσετε, όπως είναι σήμερα. Μπορεί να είναι μεγάλο αν έχετε πολλές συζητήσεις.",
+    "Ένα αρχείο που μπορείτε να κρατήσετε, όπως είναι σήμερα. Μπορεί να είναι μεγάλο αν έχετε πολλές συνομιλίες.",
   "Removes you, your digital employees, your conversations, your keys and your sign-ins. If this account is only you, the account and its plan go too, and your subscription is stopped at once. This cannot be undone.":
-    "Διαγράφει εσάς, τους ψηφιακούς σας υπαλλήλους, τις συζητήσεις, τα κλειδιά και τις συνδέσεις σας. Αν ο λογαριασμός είναι μόνο δικός σας, διαγράφονται και ο λογαριασμός και το πρόγραμμά του, και η συνδρομή σας σταματά αμέσως. Δεν μπορεί να αναιρεθεί.",
+    "Διαγράφει εσάς, τους ψηφιακούς σας υπαλλήλους, τις συνομιλίες, τα κλειδιά και τις συνδέσεις σας. Αν ο λογαριασμός είναι μόνο δικός σας, διαγράφονται και ο λογαριασμός και το πρόγραμμά του, και η συνδρομή σας σταματά αμέσως. Δεν μπορεί να αναιρεθεί.",
   "Delete your account": "Διαγραφή του λογαριασμού σας",
   "Delete my account": "Διαγραφή του λογαριασμού μου",
   "Download your data first if you want to keep a copy. What we must keep, and why, is in the privacy notice.":

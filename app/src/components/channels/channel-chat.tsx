@@ -174,7 +174,7 @@ function uploadedAttachment(attachment: Attachment): {
     | undefined;
   const attachmentId = metadata?.attachmentId;
   if (typeof attachmentId !== "string") {
-    throw new Error(tNow("Attachment is missing its uploaded id."));
+    throw new Error("Attachment is missing its uploaded id.");
   }
   const filename =
     typeof metadata?.filename === "string" ? metadata.filename : undefined;
@@ -897,9 +897,7 @@ export function ChannelChat({
         send: (text) => sayRef.current(text),
       });
       if (started !== stopEpoch.current)
-        throw new Error(
-          tNow("The user stopped this task before it completed."),
-        );
+        throw new Error("The user stopped this task before it completed.");
       return answer;
     },
   });

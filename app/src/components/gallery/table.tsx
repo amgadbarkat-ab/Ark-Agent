@@ -31,9 +31,7 @@ export const DataTableProps = z
     (table) =>
       new Set(table.columns).size === table.columns.length &&
       table.rows.every((row) => row.cells.length === table.columns.length),
-    tNow(
-      "Column labels must be unique and every row must have one cell per column",
-    ),
+    "Column labels must be unique and every row must have one cell per column",
   );
 
 /** A real table: header buttons sort while the native row/column relationships stay intact. */

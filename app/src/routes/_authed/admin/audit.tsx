@@ -49,12 +49,12 @@ type AuditEvent = {
  * answered.
  */
 const FILTERS = [
-  { label: "Everything", search: "" },
+  { label: tNow("Everything"), search: "" },
   {
     label: tNow("Computer actions"),
     search: "?eventType=computer.action_allowed",
   },
-  { label: "Blocked", search: eventTypeFilter(REFUSED_EVENT_TYPES) },
+  { label: tNow("Blocked"), search: eventTypeFilter(REFUSED_EVENT_TYPES) },
   {
     label: tNow("Did not happen"),
     search: eventTypeFilter(DID_NOT_HAPPEN_EVENT_TYPES),

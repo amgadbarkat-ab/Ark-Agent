@@ -410,7 +410,10 @@ function RouteComponent() {
   if (!(entry || server)) {
     return (
       <PageShell
-        backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
+        backButton={{
+          label: tNow("Plugins"),
+          linkProps: { to: "/admin/plugins" },
+        }}
         description={t(
           "This deployment does not have a plugin by that name, and the catalogue does not offer one.",
         )}
@@ -433,7 +436,10 @@ function RouteComponent() {
 
   return (
     <PageShell
-      backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
+      backButton={{
+        label: tNow("Plugins"),
+        linkProps: { to: "/admin/plugins" },
+      }}
       description={entry?.summary ?? server?.summary}
       title={title}
     >

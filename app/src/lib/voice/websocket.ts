@@ -150,13 +150,13 @@ export const connectWebSocket: ConnectVoice = async ({
       !body.session ||
       typeof body.session !== "object"
     )
-      throw new Error(tNow("Invalid voice connection configuration."));
+      throw new Error("Invalid voice connection configuration.");
     const address = new URL(body.url);
     if (
       address.origin !== "wss://api.x.ai" ||
       address.pathname !== "/v1/realtime"
     )
-      throw new Error(tNow("Unsupported voice service address."));
+      throw new Error("Unsupported voice service address.");
     signal.throwIfAborted();
     socket = new WebSocket(body.url, [
       `xai-client-secret.${body.clientSecret}`,
@@ -183,7 +183,7 @@ export const connectWebSocket: ConnectVoice = async ({
           !("type" in raw) ||
           typeof raw.type !== "string"
         )
-          throw new Error(tNow("Invalid voice event."));
+          throw new Error("Invalid voice event.");
         const event = raw as VoiceEvent;
         if (event.type === "session.updated") {
           configured = true;
@@ -227,7 +227,7 @@ export const connectWebSocket: ConnectVoice = async ({
             typeof event.delta !== "string" ||
             typeof event.item_id !== "string"
           )
-            throw new Error(tNow("Invalid audio event."));
+            throw new Error("Invalid audio event.");
           const samples = decodePcm(event.delta);
           if (!samples.length) return;
           if (nextPlayback - audio.currentTime > 30)
