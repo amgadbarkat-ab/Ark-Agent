@@ -928,21 +928,17 @@ export function createPluginRoutes(
    * says "expired" rather than "Connected" over a grant the vendor refuses (DT Lab, #83). Their own
    * connection only; answers `ok`, `expired` or `unknown`, never a token.
    */
-  routes.post(
-    "/connections/:serverId/check",
-    requireUser,
-    async (context) => {
-      const serverId = context.req.param("serverId");
-      const held = await store.connectionsFor(context.var.actor.id);
-      if (!held.some((connection) => connection.serverId === serverId)) {
-        return context.json({ state: "not-connected" as const });
-      }
-      const state = await store
-        .checkConnection({ serverId, actorId: context.var.actor.id })
-        .catch(() => "unknown" as const);
-      return context.json({ state });
-    },
-  );
+  routes.post("/connections/:serverId/check", requireUser, async (context) => {
+    const serverId = context.req.param("serverId");
+    const held = await store.connectionsFor(context.var.actor.id);
+    if (!held.some((connection) => connection.serverId === serverId)) {
+      return context.json({ state: "not-connected" as const });
+    }
+    const state = await store
+      .checkConnection({ serverId, actorId: context.var.actor.id })
+      .catch(() => "unknown" as const);
+    return context.json({ state });
+  });
 
   routes.get("/connections", requireUser, async (context) => {
     /*

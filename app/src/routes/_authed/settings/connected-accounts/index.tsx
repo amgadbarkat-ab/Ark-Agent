@@ -13,8 +13,6 @@ import * as React from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
-import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { DATA_SERVICES, type DataService } from "@/lib/data-services";
 import {
   InputGroup,
   InputGroupAddon,
@@ -27,6 +25,8 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { DATA_SERVICES, type DataService } from "@/lib/data-services";
 import {
   type CatalogueItem,
   connectionsQueryOptions,

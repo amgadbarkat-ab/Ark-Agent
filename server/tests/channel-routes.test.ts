@@ -1002,9 +1002,10 @@ describe("channel store integration", () => {
     createdChannelIds.push(created.id);
 
     expect(created.agentIds).toEqual([laterAgentId, earlierAgentId]);
-    expect((await persistentStore.get(actor, created.id))?.agentIds).toEqual(
-      [laterAgentId, earlierAgentId],
-    );
+    expect((await persistentStore.get(actor, created.id))?.agentIds).toEqual([
+      laterAgentId,
+      earlierAgentId,
+    ]);
   });
 
   test("keeps a historical channel readable but inactive after a linked profile is deleted", async () => {

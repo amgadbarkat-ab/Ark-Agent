@@ -51,8 +51,6 @@ import {
   toolCallApprovals,
   toolCallExecutor,
 } from "./approvals/held";
-import { simulatedPhoneProvider } from "./phone/provider";
-import { createPhoneApprovals } from "./phone/service";
 import { createApprovalStore } from "./approvals/store";
 import {
   type AuditInitiator,
@@ -78,11 +76,11 @@ import {
   loadAttachmentForTurn,
   markAttachmentsSent,
 } from "./channels/attachments";
+import { createConversationOwnership } from "./channels/conversation-owner";
 import {
   createChannelEventHub,
   startChannelActivityListener,
 } from "./channels/events";
-import { createConversationOwnership } from "./channels/conversation-owner";
 import { createChannelStore } from "./channels/routes";
 import { websocket as channelSocket } from "./channels/socket";
 import { createStallGuard } from "./channels/stall-guard";
@@ -100,6 +98,7 @@ import { createCloudStore } from "./cloud/store";
 import { createSandboxedStore } from "./components/sandboxed";
 import { createComponentStore } from "./components/store";
 import { createComputerGateway } from "./computer/gateway";
+import { createOwnBrowser, withOwnBrowser } from "./computer/own-browser";
 import { createPageFrameStore } from "./computer/page-frames";
 import { startPolicyListener } from "./computer/policy-listener";
 import {
@@ -110,7 +109,6 @@ import {
   createComputerProvider,
   describeComputerIsolation,
 } from "./computer/provider";
-import { createOwnBrowser, withOwnBrowser } from "./computer/own-browser";
 import { createSnapshotStore } from "./computer/snapshot-store";
 import { LOCAL_APP_ORIGINS, loadConfig, mayBrowsePrivateHosts } from "./config";
 import {
@@ -153,6 +151,8 @@ import { createOverviewStore } from "./overview/store";
 import { createOnboardingStore } from "./people/onboarding";
 import { createPeopleStore } from "./people/store";
 import { createTermsStore } from "./people/terms";
+import { simulatedPhoneProvider } from "./phone/provider";
+import { createPhoneApprovals } from "./phone/service";
 import { builtinOAuthClientsFrom } from "./plugins/builtin-oauth-clients";
 import { useRoutineTools } from "./plugins/builtin-routines";
 import { useComposioClient } from "./plugins/composio";

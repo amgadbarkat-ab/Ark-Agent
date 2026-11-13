@@ -63,6 +63,12 @@ import {
   builtinOAuthClientFor,
 } from "./builtin-oauth-clients";
 import {
+  HELD_MARKER,
+  type ToolCallApprovals,
+  type ToolCallOutcome,
+  toolCallOutcome,
+} from "./call-outcome";
+import {
   type CatalogueEntry,
   catalogueEntry,
   classifyTool,
@@ -76,12 +82,6 @@ import {
   toolkitOf,
   VERSION_ARG,
 } from "./composio";
-import {
-  HELD_MARKER,
-  type ToolCallApprovals,
-  type ToolCallOutcome,
-  toolCallOutcome,
-} from "./call-outcome";
 import { inspectToolArguments } from "./content-governance";
 import { type ListedTool, McpServerError, readUiResource } from "./mcp";
 import { registerDynamicClient } from "./oauth";
@@ -1995,7 +1995,10 @@ export function createPluginStore(options: PluginStoreOptions) {
          * grant after 7 days) or the person withdrew it at the vendor. Recorded on the row, so the
          * settings page stops saying "Connected" over it, and said as the one step that helps.
          */
-        if (error instanceof TokenRefusedError && error.code === INVALID_GRANT) {
+        if (
+          error instanceof TokenRefusedError &&
+          error.code === INVALID_GRANT
+        ) {
           await database
             .update(mcpUserCredentials)
             .set({ refusedAt: new Date() })

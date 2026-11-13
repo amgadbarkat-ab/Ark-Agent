@@ -3,11 +3,11 @@ import {
   formatEur,
   nextPlanUp,
   PLANS,
-  trialDaysLeft,
-  trialEndFrom,
   planById,
   purchasablePlans,
   subscriptionAllowsRuns,
+  trialDaysLeft,
+  trialEndFrom,
 } from "./plans";
 
 test("the three plans are what was agreed", () => {

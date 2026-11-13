@@ -44,12 +44,10 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
+  useMessageScrollerVisibility,
 } from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePacedText } from "@/hooks/use-paced-text";
-import { connectorCard } from "../../../../shared/connector-results";
-import { ConnectorCard } from "./connector-card";
-import { McpAppFrame } from "./mcp-app-frame";
 import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
@@ -60,6 +58,7 @@ import { readToolName } from "@/lib/plugins/tool-name";
 import { asText, forDisplay, REFUSAL_MARKER } from "@/lib/plugins/tool-result";
 import { cn } from "@/lib/utils";
 import { VOICE_CHAT_ACTIVITY, type VoiceChatEntry } from "@/lib/voice/archive";
+import { connectorCard } from "../../../../shared/connector-results";
 import {
   BrowserActivity,
   groupBrowserSteps,
@@ -71,6 +70,8 @@ import {
   toVisibleChatItems,
 } from "./chat-messages";
 import type { QueuedMessage } from "./composer";
+import { ConnectorCard } from "./connector-card";
+import { McpAppFrame } from "./mcp-app-frame";
 import { ToolRenderBoundary } from "./tool-boundary";
 import { ToolLine } from "./tool-line";
 import { VoiceChatCard } from "./voice-chat-card";
@@ -409,6 +410,43 @@ function ScrollNewestQueuedIntoView({ newest }: { newest: string | null }) {
     }
     scrollToEnd();
   }, [newest, scrollToEnd]);
+
+  return null;
+}
+
+/**
+ * Bring a new reply into view when the person was reading the end of the conversation (DT Lab, #83:
+ * "the chat doesn't follow new replies"). A reply that is not the answer to something just typed —
+ * a colleague's answer handed back, the next step after a card was approved — lands below the fold,
+ * and the scroller only aligns a turn the person started.
+ *
+ * Only when the row above it was on screen a moment ago: somebody who scrolled up to read something
+ * earlier is not pulled away from it. Never on opening a conversation, which lands where it lands.
+ */
+function FollowNewReply({
+  newest,
+  previous,
+}: {
+  newest: string | null;
+  previous: string | null;
+}) {
+  const { scrollToMessage } = useMessageScroller();
+  const { visibleMessageIds } = useMessageScrollerVisibility();
+  // What was there when the conversation opened is not new.
+  const seen = useRef(newest);
+  const visible = useRef(visibleMessageIds);
+
+  useEffect(() => {
+    if (newest === null || newest === seen.current) return;
+    seen.current = newest;
+    if (previous !== null && !visible.current.includes(previous)) return;
+    scrollToMessage(newest, { align: "start", behavior: "smooth" });
+  }, [newest, previous, scrollToMessage]);
+
+  // After the effect above, so it reads what was visible before this reply arrived.
+  useEffect(() => {
+    visible.current = visibleMessageIds;
+  });
 
   return null;
 }
@@ -1621,6 +1659,26 @@ export function ChatTranscript({
 
   /* One rule for both kinds of row — see `anchorRowIds`, which is where it is written down. */
   const anchorRows = anchorRowIds(items);
+  // The newest reply that is not the person's own, and the row just above it. See `FollowNewReply`.
+  const newestReplyIndex = items.findLastIndex(
+    (item) =>
+      item.kind !== "attachments" &&
+      !(item.kind === "text" && isPersonSentMessage(item.role, item.text)),
+  );
+  const newestReply =
+    newestReplyIndex >= 0 ? items[newestReplyIndex] : undefined;
+  const rowAbove =
+    newestReplyIndex > 0 ? items[newestReplyIndex - 1] : undefined;
+  /*
+   * A reply straight under something the person just sent is the scroller's own to place: it aligns
+   * that turn to the top. Following it as well would scroll their question away.
+   */
+  const answersThePerson =
+    rowAbove !== undefined &&
+    (rowAbove.kind === "attachments" ||
+      (rowAbove.kind === "text" &&
+        isPersonSentMessage(rowAbove.role, rowAbove.text)));
+  const beforeNewestReply = rowAbove?.id ?? null;
 
   /*
    * One decider per mounted transcript, so opening a different channel starts the cascade over and
@@ -1789,6 +1847,10 @@ export function ChatTranscript({
         </MessageScrollerViewport>
         <MessageScrollerButton />
         <ScrollNewestQueuedIntoView newest={queued.at(-1)?.id ?? null} />
+        <FollowNewReply
+          newest={answersThePerson ? null : (newestReply?.id ?? null)}
+          previous={beforeNewestReply}
+        />
       </MessageScroller>
     </MessageScrollerProvider>
   );

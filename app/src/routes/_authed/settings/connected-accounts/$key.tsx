@@ -13,13 +13,13 @@ import {
   useBrokeredAccount,
 } from "@/components/plugins/brokered-account-row";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Item,
   ItemActions,
@@ -29,8 +29,8 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
-import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
+import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import {
   connectionCheckQueryOptions,
   connectionsQueryOptions,
@@ -372,8 +372,8 @@ function RouteComponent() {
                   : connection && expired
                     ? `Your sign-in${connection.account ? ` as ${connection.account}` : ""} has expired or was withdrawn at ${entry.vendor}, so no digital employee can read this as you. Connect again to renew it.`
                     : connection
-                    ? `${connection.account ? `Connected as ${connection.account}. ` : ""}A digital employee granted its tools reads this as you, and sees only what you can see.`
-                    : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
+                      ? `${connection.account ? `Connected as ${connection.account}. ` : ""}A digital employee granted its tools reads this as you, and sees only what you can see.`
+                      : "No digital employee can read this as you. Connecting takes you to the vendor to consent."}
               </ItemDescription>
             </ItemContent>
             <ItemActions>

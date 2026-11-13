@@ -522,9 +522,9 @@ describe("a person who has connected", () => {
       (connection) => connection.serverId === serverId,
     );
     expect(row?.expired).toBe(true);
-    expect(
-      await refusing.checkConnection({ serverId, actorId: askerId }),
-    ).toBe("expired");
+    expect(await refusing.checkConnection({ serverId, actorId: askerId })).toBe(
+      "expired",
+    );
 
     // A working grant reads as working.
     await database

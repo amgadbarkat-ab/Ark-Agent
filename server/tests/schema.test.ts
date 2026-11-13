@@ -108,6 +108,8 @@ describe("OpenBot database schema", () => {
       { name: "scope", notNull: true },
       // Which account consented, when the vendor said (#83). Nullable: older rows never asked.
       { name: "account", notNull: false },
+      // When the vendor last refused the grant outright (#83). Null while it works.
+      { name: "refused_at", notNull: false },
       { name: "connected_at", notNull: true },
       { name: "updated_at", notNull: true },
     ]);

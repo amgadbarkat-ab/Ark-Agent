@@ -31,8 +31,8 @@ import {
   type PlanOffer,
 } from "@/lib/account/queries";
 import { usePurchasesAllowed } from "@/lib/store-app";
-import { trialDaysLeft } from "../../../../../shared/plans";
 import { queryClient } from "@/query-client";
+import { trialDaysLeft } from "../../../../../shared/plans";
 
 export const Route = createFileRoute("/_authed/settings/plan")({
   // `paid` is put on the address by the payment page when the customer comes back from paying.

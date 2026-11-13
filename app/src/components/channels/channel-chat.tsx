@@ -595,6 +595,20 @@ export function ChannelChat({
   /* Authoritative once this screen unmounts, where `setTurnsInFlight` becomes a no-op. */
   const turnsRef = useRef(0);
   const [runsInFlight, setRunsInFlight] = useState(0);
+  /*
+   * Cards waiting for the person's answer. While one waits the Bot is waiting too, so Stop has
+   * nothing to stop and is withdrawn (DT Lab, #83: "the stop button stays on while a card waits").
+   */
+  const [cardsWaiting, setCardsWaiting] = useState(0);
+  const holdForCard = useCallback(() => {
+    setCardsWaiting((count) => count + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      setCardsWaiting((count) => Math.max(0, count - 1));
+    };
+  }, []);
 
   /**
    * Tell the roster what was just said. Failures here must not block the conversation.
@@ -921,7 +935,11 @@ export function ChannelChat({
       agentId={channelAgentId}
       threadId={channel.threadId}
     >
-      <ConversationProvider ask={askFromComponent}>
+      <ConversationProvider
+        ask={askFromComponent}
+        busy={agent.isRunning || turnsInFlight > 0}
+        holdForCard={holdForCard}
+      >
         <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
           <VoiceCallWidget
             call={call}
@@ -1082,7 +1100,9 @@ export function ChannelChat({
              * controller does not exist until `say` has finished waiting for the runtime agent — so
              * this is the one place the narrower fact is the honest one to draw a button from.
              */
-            stoppable={agent.isRunning || runsInFlight > 0}
+            stoppable={
+              (agent.isRunning || runsInFlight > 0) && cardsWaiting === 0
+            }
             /*
              * At the END OF THE TRANSCRIPT rather than above the composer, which is where this used to
              * be. A turn that ends without an answer leaves a gap exactly where the reply was going to
