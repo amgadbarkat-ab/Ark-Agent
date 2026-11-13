@@ -47,7 +47,7 @@ export function OwnBrowserIndicator() {
     const results = await Promise.all(ids.map((botId) => takeControl(botId)));
     if (results.some((state) => state === null)) {
       setProblem(
-        "Not every digital employee could be paused. Use Stop to end it.",
+        tNow("Not every digital employee could be paused. Use Stop to end it."),
       );
     }
     setHeldBy(ids);

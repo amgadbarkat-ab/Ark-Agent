@@ -15,7 +15,7 @@ import {
   ItemContent,
   ItemDescription,
 } from "@/components/ui/item";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   addMemoryMutationOptions,
   deleteMemoryMutationOptions,
@@ -28,9 +28,9 @@ import {
 import { queryClient } from "@/query-client";
 
 const WHO: Record<MemoryRecord["source"], string> = {
-  agent: "Kept by the digital employee",
-  person: "Written by you",
-  approved: "Changed by a request you approved",
+  agent: tNow("Kept by the digital employee"),
+  person: tNow("Written by you"),
+  approved: tNow("Changed by a request you approved"),
 };
 
 /**

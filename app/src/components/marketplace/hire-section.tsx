@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   type BrowseFilter,
   browseQueryOptions,
@@ -35,8 +35,8 @@ import {
 } from "@/lib/marketplace/queries";
 
 const KINDS: { id: BrowseFilter["kind"]; name: string }[] = [
-  { id: "official", name: "Made by Ark" },
-  { id: "shared", name: "Shared by people" },
+  { id: "official", name: tNow("Made by Ark") },
+  { id: "shared", name: tNow("Shared by people") },
 ];
 
 /**

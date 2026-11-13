@@ -52,7 +52,7 @@ import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { readColleagueAnswer } from "@/lib/copilot/markers";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { markdownComponents } from "@/lib/markdown";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -1141,7 +1141,7 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
 function unavailableSentence(filename?: string): string {
   return filename
     ? `${filename} is unavailable.`
-    : "This attachment is unavailable.";
+    : tNow("This attachment is unavailable.");
 }
 
 /**
@@ -1308,7 +1308,7 @@ function AttachmentLightbox({
  */
 function activityName(activityType: string): string {
   return activityType === "open-generative-ui"
-    ? "This digital employee's generated interface"
+    ? tNow("This digital employee's generated interface")
     : activityType;
 }
 

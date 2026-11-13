@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 
 export const QuoteCardProps = z.object({
@@ -58,10 +58,11 @@ export const GALLERY: GalleryComponent[] = [
     parameters: QuoteCardProps,
     Component: QuoteCard as GalleryComponent["Component"],
     preview: {
-      quote:
+      quote: tNow(
         "Meals under $75 need no receipt. Anything above needs one, and anything above $500 needs your manager before you spend it.",
+      ),
       attribution: "the expense policy",
-      context: "Last changed in March.",
+      context: tNow("Last changed in March."),
     },
     confirmation: "The quotation is now on screen for the person.",
   },

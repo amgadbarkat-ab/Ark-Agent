@@ -26,23 +26,27 @@ import { queryClient } from "@/query-client";
  */
 const PRESETS: { label: string; rule: string; cost?: string }[] = [
   {
-    label: "Never submit a form",
+    label: tNow("Never submit a form"),
     // `key` is guarded by tool name so the clause short-circuits before it on actions that have no
     // keypress in them. Both tools that can press Enter are named: `computer_type` takes a `submit`
     // flag that presses it once the text is in, and a rule naming only `computer_key` left that door
     // open.
     rule: '(intent == "activate" && contains(element.name, "submit")) || ((tool.name == "computer_key" || tool.name == "computer_type") && key == "Enter")',
-    cost: "Also stops the digital employee pressing Enter for anything else, because a form submits from Enter in any of its fields.",
+    cost: tNow(
+      "Also stops the digital employee pressing Enter for anything else, because a form submits from Enter in any of its fields.",
+    ),
   },
   {
-    label: "Never type into a password field",
+    label: tNow("Never type into a password field"),
     rule: 'intent == "type" && contains(element.name, "password")',
     cost: "A password box the page labels something else is not covered, the rule matches the label.",
   },
   {
-    label: "Stay off social media",
+    label: tNow("Stay off social media"),
     rule: 'intent == "navigate" && (contains(page.host, "facebook.com") || contains(page.host, "x.com"))',
-    cost: "Only the two hosts named. A link that redirects there from somewhere else is allowed.",
+    cost: tNow(
+      "Only the two hosts named. A link that redirects there from somewhere else is allowed.",
+    ),
   },
 ];
 

@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Badge, GalleryFrame } from "@/components/gallery/frame";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import type { SkillFormValues } from "@/lib/skills/form";
 import {
   checkProposal,
@@ -98,7 +98,9 @@ export function ProposedSkillCard({
       // Left on the card with the buttons still live. See `refusal` above.
       setSending(null);
       setRefusal(
-        cause instanceof Error ? cause.message : "The skill was not saved.",
+        cause instanceof Error
+          ? cause.message
+          : tNow("The skill was not saved."),
       );
       return;
     }

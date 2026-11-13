@@ -17,7 +17,7 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   type BrokerField,
   brokeredConnectionFieldsMutationOptions,
@@ -397,7 +397,9 @@ export function useBrokeredAccount(input: {
        */
       if (authorizationUrl === null) {
         report(
-          "This app is connected with a key you hold rather than through a consent screen, so there was no page to send you to and nothing was connected. Reload this page and press Connect again.",
+          tNow(
+            "This app is connected with a key you hold rather than through a consent screen, so there was no page to send you to and nothing was connected. Reload this page and press Connect again.",
+          ),
         );
         return;
       }
@@ -696,7 +698,9 @@ function accountSentence(input: {
   } = input;
 
   if (!account.configured) {
-    return "Set COMPOSIO_API_KEY on this deployment. Without it there is no broker to reach, so this account can be neither connected nor ended from here. The app stays enabled and every grant on its tools still stands.";
+    return tNow(
+      "Set COMPOSIO_API_KEY on this deployment. Without it there is no broker to reach, so this account can be neither connected nor ended from here. The app stays enabled and every grant on its tools still stands.",
+    );
   }
 
   if (account.kind === "no-auth") {
@@ -710,7 +714,10 @@ function accountSentence(input: {
   if (account.kind === "fields") {
     if (account.connected) {
       if (account.verified && account.verifiedAt) {
-        return `Connected with a key you provided, last checked ${formatDate(account.verifiedAt)}.`;
+        return tNow(
+          "Connected with a key you provided, last checked {formatDate}.",
+          { formatDate: formatDate(account.verifiedAt) },
+        );
       }
       /*
        * A CHECK WAS SPENT AND DID NOT COME BACK CLEAN, and the account it was spent in is still
@@ -757,7 +764,10 @@ function accountSentence(input: {
        * today.
        */
       if (account.probe === null) {
-        return `Connected with a key you provided. It was accepted without being checked against ${title}, which published nothing safe to try a key on at the time — that is about the app, not about your key.`;
+        return tNow(
+          "Connected with a key you provided. It was accepted without being checked against {title}, which published nothing safe to try a key on at the time — that is about the app, not about your key.",
+          { title: title },
+        );
       }
       /*
        * AND NOTHING HAS SAID WHICH, which is no longer the page load: the connections read carries
@@ -767,7 +777,10 @@ function accountSentence(input: {
        * two things a record can say; this is what stands where there is no record, and it must not
        * borrow either.
        */
-      return `Connected with a key you provided. It was accepted without being checked against ${title}.`;
+      return tNow(
+        "Connected with a key you provided. It was accepted without being checked against {title}.",
+        { title: title },
+      );
     }
     /*
      * WHAT DISCONNECTING DID NOT DO. The account ends at Composio and the key does not end
@@ -776,7 +789,10 @@ function accountSentence(input: {
      * have live, so the row names the step this deployment cannot take for them.
      */
     if (account.disconnected) {
-      return `Removed from Composio. Your key still works at ${title} — rotate it there if you meant to end its access.`;
+      return tNow(
+        "Removed from Composio. Your key still works at {title} — rotate it there if you meant to end its access.",
+        { title: title },
+      );
     }
     /*
      * NOT THE SCREEN'S OWN SENTENCE, which is written for the kind that leaves: one of the two says
@@ -789,7 +805,10 @@ function accountSentence(input: {
      * way this app is connected, and a row that replaced the whole line took it away with the trip
      * it was right to drop.
      */
-    const asked = `This app is connected with a key you already hold, not a trip to ${title}'s consent screen. Connect asks for it.`;
+    const asked = tNow(
+      "This app is connected with a key you already hold, not a trip to {title}'s consent screen. Connect asks for it.",
+      { title: title },
+    );
     return disconnectedReassurance
       ? `${asked} ${disconnectedReassurance}`
       : asked;
@@ -801,7 +820,10 @@ function accountSentence(input: {
    * mail is an argument, not a branch — see this file's opening comment.
    */
   return account.connected
-    ? `Connected through ${title}'s consent screen. ${connectedDescription}`
+    ? tNow(
+        "Connected through {title}'s consent screen. {connectedDescription}",
+        { title: title, connectedDescription: connectedDescription },
+      )
     : disconnectedDescription;
 }
 

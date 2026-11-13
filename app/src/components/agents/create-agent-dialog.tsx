@@ -84,12 +84,12 @@ const VISIBILITY_OPTIONS: Array<{
   {
     value: "private",
     title: "Private",
-    description: "Only you can see it and start channels with it.",
+    description: tNow("Only you can see it and start channels with it."),
   },
   {
     value: "public",
     title: "Public",
-    description: "Everyone in the deployment can find and use it.",
+    description: tNow("Everyone in the deployment can find and use it."),
   },
 ];
 
@@ -107,14 +107,16 @@ const KIND_OPTIONS: Array<{
   {
     value: "builtin",
     title: "Built-in",
-    description:
+    description: tNow(
       "Runs on this deployment's own digital employee. Nothing to host or connect — it is ready the moment it is created.",
+    ),
   },
   {
     value: "managed",
     title: "Managed",
-    description:
+    description: tNow(
       "Runs on an agent you host, spoken to over AG-UI. This server dials your endpoint on every run.",
+    ),
   },
 ];
 
@@ -200,7 +202,7 @@ function CreateAgentWizard({
   const endpointError = !tried
     ? undefined
     : kind === "managed" && values.endpoint.trim() === ""
-      ? "An endpoint is required for a managed digital employee."
+      ? tNow("An endpoint is required for a managed digital employee.")
       : agentFormSchema.shape.endpoint.safeParse(values.endpoint).error
           ?.issues[0]?.message;
 

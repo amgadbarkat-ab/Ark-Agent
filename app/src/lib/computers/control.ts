@@ -1,4 +1,5 @@
 import { tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 
 /**
  * Handing control of a Bot's computer to a person, and back.
@@ -70,11 +71,14 @@ export async function supplySecret(
     const body = (await response.json().catch(() => null)) as {
       error?: string;
     } | null;
-    return { ok: false, error: body?.error ?? "That could not be entered." };
+    return {
+      ok: false,
+      error: body?.error ?? tNow("That could not be entered."),
+    };
   } catch {
     return {
       ok: false,
-      error: "The assistant's computer could not be reached.",
+      error: tNow("The assistant's computer could not be reached."),
     };
   }
 }

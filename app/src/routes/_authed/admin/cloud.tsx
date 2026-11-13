@@ -69,11 +69,13 @@ export const Route = createFileRoute("/_authed/admin/cloud")({
 });
 
 const MODE_WORDS: Record<CloudMode, string> = {
-  included:
+  included: tNow(
     "Cloud running is included for everyone. Nothing is charged, and usage is recorded.",
-  metered:
+  ),
+  metered: tNow(
     "Cloud running is an add-on. Customers switch it on, see these prices, set a limit, and are charged each month.",
-  off: "Cloud running is switched off on this service.",
+  ),
+  off: tNow("Cloud running is switched off on this service."),
 };
 
 /** What each rate is, in the words staff think in, with the unit it is entered in. */
@@ -87,41 +89,53 @@ const RATE_FIELDS: {
     key: "computeCentsPerHour",
     label: "Running",
     unit: "cents per hour",
-    help: "What one digital employee's cloud capacity costs us for an hour. Measure it: see docs/ark/17-cloud-runtime.md.",
+    help: tNow(
+      "What one digital employee's cloud capacity costs us for an hour. Measure it: see docs/ark/17-cloud-runtime.md.",
+    ),
   },
   {
     key: "storageCentsPerGbMonth",
     label: "Storage",
     unit: "cents per GB a month",
-    help: "What a gigabyte of a digital employee's saved files costs us for a month. Zero if storage is not charged.",
+    help: tNow(
+      "What a gigabyte of a digital employee's saved files costs us for a month. Zero if storage is not charged.",
+    ),
   },
   {
     key: "egressCentsPerGb",
-    label: "Data sent out",
+    label: tNow("Data sent out"),
     unit: "cents per GB",
-    help: "Not measured yet, so it is not charged whatever is entered. Leave at zero.",
+    help: tNow(
+      "Not measured yet, so it is not charged whatever is entered. Leave at zero.",
+    ),
   },
   {
     key: "paymentFeePercent",
-    label: "Payment fee",
+    label: tNow("Payment fee"),
     unit: "percent",
-    help: "What the payment service keeps of each charge. The charge is raised so we receive the cost after this.",
+    help: tNow(
+      "What the payment service keeps of each charge. The charge is raised so we receive the cost after this.",
+    ),
   },
   {
     key: "paymentFeeFixedCents",
-    label: "Payment fee, fixed",
+    label: tNow("Payment fee, fixed"),
     unit: "cents per charge",
-    help: "What the payment service keeps of each charge whatever its size.",
+    help: tNow(
+      "What the payment service keeps of each charge whatever its size.",
+    ),
   },
   {
     key: "marginPercent",
     label: "Margin",
     unit: "percent",
-    help: "Added to cost. Zero charges exactly what it costs us. A business decision, not an engineering one.",
+    help: tNow(
+      "Added to cost. Zero charges exactly what it costs us. A business decision, not an engineering one.",
+    ),
   },
   {
     key: "minimumChargeCents",
-    label: "Smallest charge",
+    label: tNow("Smallest charge"),
     unit: "cents",
     help: "A month that comes to less than this is added to the next month instead of charged.",
   },

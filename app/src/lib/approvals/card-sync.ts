@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { tNow } from "@/lib/i18n";
 import {
   decideApprovalMutationOptions,
   registerApprovalCardMutationOptions,
@@ -81,10 +82,10 @@ export function useApprovalCardSync(input: {
       decision: status === "approved" ? "approved" : "declined",
       note:
         status === "approved"
-          ? "Approved from Requests."
+          ? tNow("Approved from Requests.")
           : status === "expired"
-            ? "Nobody answered in time, so this lapsed."
-            : "Declined from Requests.",
+            ? tNow("Nobody answered in time, so this lapsed.")
+            : tNow("Declined from Requests."),
     }).catch(() => {
       // The run being gone is not worth reporting: there is nothing left to answer.
     });

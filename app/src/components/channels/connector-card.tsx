@@ -8,7 +8,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { useConversation } from "@/lib/copilot/conversation";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import type { ConnectorCard as Card } from "../../../../shared/connector-results";
 
 /** How many items show before "Show more": a page of results, not the whole mailbox. */
@@ -61,7 +61,10 @@ export function ConnectorCard({ card }: { card: Card }) {
                 <Button
                   onClick={() =>
                     ask(
-                      `Summarise the email "${mail.subject}" from ${mail.from} (id: ${mail.id}).`,
+                      tNow(
+                        'Summarise the email "{subject}" from {from} (id: {id}).',
+                        { subject: mail.subject, from: mail.from, id: mail.id },
+                      ),
                     )
                   }
                   size="sm"
@@ -93,7 +96,12 @@ export function ConnectorCard({ card }: { card: Card }) {
                 {ask ? (
                   <Button
                     onClick={() =>
-                      ask(`Use the file "${file.name}" (id: ${file.id}).`)
+                      ask(
+                        tNow('Use the file "{name}" (id: {id}).', {
+                          name: file.name,
+                          id: file.id,
+                        }),
+                      )
                     }
                     size="sm"
                     type="button"

@@ -56,7 +56,7 @@ function statusLine(
   waiting: boolean,
   purchasesAllowed: boolean,
 ): string {
-  if (waiting) return "Waiting for confirmation";
+  if (waiting) return tNow("Waiting for confirmation");
   // The server's wording for an account with no plan tells the person to choose one, which inside a
   // store app is an invitation to buy and may not be made there (docs/ark/19-mobile.md).
   if (
@@ -65,25 +65,29 @@ function statusLine(
       account.blockedCode === "canceled" ||
       account.blockedCode === "trial_ended")
   ) {
-    return "This account does not have an active plan.";
+    return tNow("This account does not have an active plan.");
   }
   const until = account.currentPeriodEnd
     ? new Date(account.currentPeriodEnd).toLocaleDateString()
     : null;
   if (!account.canRun && account.blockedReason) return account.blockedReason;
   if (account.cancelAtPeriodEnd) {
-    return until ? `Ends on ${until}` : "Ends at the end of this period";
+    return until
+      ? tNow("Ends on {until}", { until: until })
+      : tNow("Ends at the end of this period");
   }
   switch (account.subscriptionStatus) {
     case "past_due":
-      return "The last payment did not go through. Update your card to keep it.";
+      return tNow(
+        "The last payment did not go through. Update your card to keep it.",
+      );
     case "trialing": {
       if (!account.currentPeriodEnd || !until) return "On a trial";
       const left = trialDaysLeft(new Date(account.currentPeriodEnd));
       return `Trial: ${left === 1 ? "1 day" : `${left} days`} left (ends ${until})`;
     }
     default:
-      return until ? `Renews on ${until}` : "Active";
+      return until ? tNow("Renews on {until}", { until: until }) : "Active";
   }
 }
 

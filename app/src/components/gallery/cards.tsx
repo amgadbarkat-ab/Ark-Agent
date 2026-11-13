@@ -245,14 +245,14 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showMetrics",
-    title: "Headline figures",
+    title: tNow("Headline figures"),
     kind: "card",
     description:
       "Show up to six headline figures, each with an optional movement. Use for a summary somebody reads at a glance.",
     parameters: MetricsCardProps,
     Component: MetricsCard as GalleryComponent["Component"],
     preview: {
-      title: "This month",
+      title: tNow("This month"),
       metrics: [
         {
           label: "Revenue",
@@ -260,7 +260,7 @@ export const GALLERY: GalleryComponent[] = [
           change: "+12% on last month",
           changeTone: "positive",
         },
-        { label: "Open deals", value: "38" },
+        { label: tNow("Open deals"), value: "38" },
         {
           label: "Churn",
           value: "1.4%",
@@ -280,11 +280,15 @@ export const GALLERY: GalleryComponent[] = [
     parameters: ChecklistCardProps,
     Component: ChecklistCard as GalleryComponent["Component"],
     preview: {
-      title: "Before the release",
+      title: tNow("Before the release"),
       items: [
-        { text: "Migrations applied", done: true },
-        { text: "Changelog written", done: true },
-        { text: "Load test", done: false, note: "Waiting on staging" },
+        { text: tNow("Migrations applied"), done: true },
+        { text: tNow("Changelog written"), done: true },
+        {
+          text: tNow("Load test"),
+          done: false,
+          note: tNow("Waiting on staging"),
+        },
       ],
     },
     confirmation: "The checklist is now on screen for the person.",
@@ -298,10 +302,15 @@ export const GALLERY: GalleryComponent[] = [
     parameters: NoticeCardProps,
     Component: NoticeCard as GalleryComponent["Component"],
     preview: {
-      title: "Certificate expires in 30 days",
-      body: "The checkout certificate has an owner now, and this is the first of the new alerts.",
+      title: tNow("Certificate expires in 30 days"),
+      body: tNow(
+        "The checkout certificate has an owner now, and this is the first of the new alerts.",
+      ),
       tone: "caution",
-      points: ["Owner: Platform", "Renews automatically once approved"],
+      points: [
+        tNow("Owner: Platform"),
+        tNow("Renews automatically once approved"),
+      ],
     },
     confirmation: "The notice is now on screen for the person.",
   },

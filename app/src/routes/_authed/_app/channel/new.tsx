@@ -24,7 +24,7 @@ import {
   agentQueryOptions,
 } from "@/lib/agents/queries";
 import { useStartChannel } from "@/lib/channels/start";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import { newId } from "../../../../lib/new-id";
 
@@ -78,9 +78,9 @@ function RouteComponent() {
   const urlAgentDetailFailed = needsUrlAgentDetail && detailError && !fetched;
   const loadError =
     rosterError && profiles === undefined
-      ? "Digital employees couldn't be loaded."
+      ? tNow("Digital employees couldn't be loaded.")
       : urlAgentDetailFailed
-        ? "Digital employee couldn't be loaded."
+        ? tNow("Digital employee couldn't be loaded.")
         : null;
   const recipients: Recipient[] = chosen
     ? [{ id: chosen.id, name: chosen.name }]
@@ -188,7 +188,7 @@ function RouteComponent() {
             setError(
               caught instanceof Error
                 ? caught.message
-                : "Could not start the conversation.",
+                : tNow("Could not start the conversation."),
             );
             throw caught;
           }

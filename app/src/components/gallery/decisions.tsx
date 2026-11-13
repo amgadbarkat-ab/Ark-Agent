@@ -5,7 +5,7 @@ import { useApprovalCardSync } from "@/lib/approvals/card-sync";
 import { useDeclaredBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 /**
@@ -60,15 +60,16 @@ type ApprovalArgs = z.infer<typeof ApprovalCardProps>;
 const CARD_WORDS = {
   en: {
     reason: "A reason, if you want to give one",
-    waiting: "Waiting on you",
+    waiting: tNow("Waiting on you"),
     approved: "Approved",
     declined: "Declined",
     approve: "Approve",
     decline: "Decline",
     sending: "Sending…",
-    preparing: "Preparing the request…",
-    unfinished:
+    preparing: tNow("Preparing the request…"),
+    unfinished: tNow(
       "This request was not finished, so there is nothing to approve. Ask again if it is still needed.",
+    ),
   },
   el: {
     reason: "Αιτιολογία, αν θέλετε να δώσετε",
@@ -352,9 +353,10 @@ export const GALLERY: GalleryComponent[] = [
       // so its arguments arrive wrapped in the state of the decision it is waiting on.
       status: "executing",
       args: {
-        title: "Refund this order?",
-        summary:
+        title: tNow("Refund this order?"),
+        summary: tNow(
           "The customer was charged twice for the same order and the second charge has not settled.",
+        ),
         details: [
           { label: "Amount", value: "$128.40" },
           { label: "Customer", value: "Northwind Traders" },
@@ -376,18 +378,18 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       status: "executing",
       args: {
-        title: "Which environment should this go to?",
-        summary: "The build is green and nothing else is queued.",
+        title: tNow("Which environment should this go to?"),
+        summary: tNow("The build is green and nothing else is queued."),
         options: [
           {
             id: "staging",
             label: "Staging",
-            description: "Safe, and reversible",
+            description: tNow("Safe, and reversible"),
           },
           {
             id: "production",
             label: "Production",
-            description: "Live customers",
+            description: tNow("Live customers"),
           },
         ],
       },

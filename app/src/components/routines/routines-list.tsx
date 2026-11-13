@@ -57,7 +57,7 @@ function lastRunLabel(lastRun: RoutineRecord["lastRun"]): {
 } {
   if (lastRun === null) {
     return {
-      text: "Never run yet",
+      text: tNow("Never run yet"),
       className: "text-muted-foreground",
       dot: "bg-muted-foreground/40",
     };

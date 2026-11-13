@@ -120,8 +120,11 @@ export function dataServiceState(
     return {
       kind: "needs-setup",
       reason: service.setup
-        ? `Not turned on yet. It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
-        : "Not turned on yet. An administrator turns it on.",
+        ? tNow("Not turned on yet. It needs {value1}{value2}.", {
+            value1: service.setup.charAt(0).toLowerCase(),
+            value2: service.setup.slice(1),
+          })
+        : tNow("Not turned on yet. An administrator turns it on."),
     };
   }
   if (
@@ -133,7 +136,7 @@ export function dataServiceState(
       kind: "needs-setup",
       reason: service.setup
         ? `It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
-        : "An administrator has to add the app's client id and secret.",
+        : tNow("An administrator has to add the app's client id and secret."),
     };
   }
   return { kind: "ready" };
@@ -192,19 +195,23 @@ function RouteComponent() {
       rows: services.filter(({ state }) => state.kind === "connected"),
     },
     {
-      title: "Ready to connect",
+      title: tNow("Ready to connect"),
       rows: services.filter(({ state }) => state.kind === "ready"),
     },
     {
-      title: "Needs setup",
+      title: tNow("Needs setup"),
       note: isAdmin
-        ? "You run this deployment, so you can set these up."
-        : "An administrator sets these up once, and then you can connect.",
+        ? tNow("You run this deployment, so you can set these up.")
+        : tNow(
+            "An administrator sets these up once, and then you can connect.",
+          ),
       rows: services.filter(({ state }) => state.kind === "needs-setup"),
     },
     {
-      title: "Not available yet",
-      note: "On the list because people ask for them. They are not built, so there is nothing to connect.",
+      title: tNow("Not available yet"),
+      note: tNow(
+        "On the list because people ask for them. They are not built, so there is nothing to connect.",
+      ),
       rows: services.filter(({ state }) => state.kind === "not-available"),
     },
   ];
@@ -409,7 +416,7 @@ function ServiceRow({
 }
 
 /** Said on a connector that has been written but never tried against a real account. */
-const UNTESTED = "Built, but not yet tried with a real account.";
+const UNTESTED = tNow("Built, but not yet tried with a real account.");
 
 function AccountLink({
   connected,

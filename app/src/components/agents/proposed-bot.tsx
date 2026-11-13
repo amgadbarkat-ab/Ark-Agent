@@ -122,7 +122,7 @@ export function ProposedBotCard({
       setRefusal(
         cause instanceof Error
           ? cause.message
-          : "The digital employee was not created.",
+          : tNow("The digital employee was not created."),
       );
       return;
     }

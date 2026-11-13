@@ -52,10 +52,12 @@ import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 const CHARGE_WORDS: Record<CloudChargeView["status"], string> = {
-  charged: "Charged to your plan's payment method.",
-  carried: "Too small to charge by itself, so it is added to the next month.",
-  pending: "Waiting to be charged.",
-  checking: "Being confirmed with the payment service.",
+  charged: tNow("Charged to your plan's payment method."),
+  carried: tNow(
+    "Too small to charge by itself, so it is added to the next month.",
+  ),
+  pending: tNow("Waiting to be charged."),
+  checking: tNow("Being confirmed with the payment service."),
   waived: "Not charged.",
 };
 
@@ -178,21 +180,30 @@ export function CloudRunningSection() {
 /** The current answer, not the field's name. */
 function summary(cloud: CloudOverview["cloud"]): string {
   if (!cloud.priced || !cloud.rates) {
-    return "Not available yet. For now, run your digital employees on your own computer.";
+    return tNow(
+      "Not available yet. For now, run your digital employees on your own computer.",
+    );
   }
   if (cloud.enabled && cloud.ratesChanged) {
-    return "The prices changed. Cloud runs are paused until you agree to the new ones.";
+    return tNow(
+      "The prices changed. Cloud runs are paused until you agree to the new ones.",
+    );
   }
   if (cloud.enabled) {
-    return `On. Up to ${formatEur(cloud.monthlyCapCents)} a month, charged once a month.`;
+    return tNow("On. Up to {formatEur} a month, charged once a month.", {
+      formatEur: formatEur(cloud.monthlyCapCents),
+    });
   }
-  return `Off. ${formatRate(cloud.rates.computeCentsPerHour)} for each hour a digital employee is working, plus the payment fee.`;
+  return tNow(
+    "Off. {formatRate} for each hour a digital employee is working, plus the payment fee.",
+    { formatRate: formatRate(cloud.rates.computeCentsPerHour) },
+  );
 }
 
 function priceLines(rates: CloudRates): { label: string; value: string }[] {
   const lines = [
     {
-      label: "An hour of a digital employee working",
+      label: tNow("An hour of a digital employee working"),
       value: formatRate(rates.computeCentsPerHour),
     },
   ];
@@ -209,7 +220,7 @@ function priceLines(rates: CloudRates): { label: string; value: string }[] {
     });
   }
   lines.push({
-    label: "Payment fee, added so the fee is not ours to carry",
+    label: tNow("Payment fee, added so the fee is not ours to carry"),
     value:
       rates.paymentFeeFixedCents > 0
         ? `${rates.paymentFeePercent}% + ${formatRate(rates.paymentFeeFixedCents)}`
@@ -217,7 +228,7 @@ function priceLines(rates: CloudRates): { label: string; value: string }[] {
   });
   if (rates.marginPercent > 0) {
     lines.push({
-      label: "Added on top of the cost",
+      label: tNow("Added on top of the cost"),
       value: `${rates.marginPercent}%`,
     });
   }

@@ -18,7 +18,7 @@ import {
   createChannelMutationOptions,
   renameChannelMutationOptions,
 } from "@/lib/channels/mutations";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -90,7 +90,9 @@ export function NewGroupForm({
       });
     } catch (error) {
       setProblem(
-        error instanceof Error ? error.message : "Could not start the group.",
+        error instanceof Error
+          ? error.message
+          : tNow("Could not start the group."),
       );
     }
   };

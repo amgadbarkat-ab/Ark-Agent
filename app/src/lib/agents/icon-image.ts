@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 /**
  * Turns the file somebody chose into the small picture a coworker keeps as its icon.
  *
@@ -22,7 +23,7 @@ export function iconFileProblem(file: {
     return "Choose a PNG, JPEG or WebP picture.";
   }
   if (file.size > MAX_ICON_FILE_BYTES) {
-    return "That picture is too large. Choose one under 8 MB.";
+    return tNow("That picture is too large. Choose one under 8 MB.");
   }
   return null;
 }
@@ -45,7 +46,7 @@ export async function iconFromFile(file: File): Promise<string> {
     canvas.width = ICON_SIDE;
     canvas.height = ICON_SIDE;
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("This browser cannot resize pictures.");
+    if (!context) throw new Error(tNow("This browser cannot resize pictures."));
     context.imageSmoothingQuality = "high";
     const { x, y, side } = centreSquare(bitmap.width, bitmap.height);
     context.drawImage(bitmap, x, y, side, side, 0, 0, ICON_SIDE, ICON_SIDE);

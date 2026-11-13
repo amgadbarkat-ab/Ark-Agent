@@ -7,6 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { tNow } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,8 +77,8 @@ export function SidebarToggle({ className }: { className?: string }) {
 
   // The label says what the click will do, not what is on screen.
   const label = (isMobile ? openMobile : open)
-    ? "Hide sidebar"
-    : "Show sidebar";
+    ? tNow("Hide sidebar")
+    : tNow("Show sidebar");
 
   return (
     <Tooltip>

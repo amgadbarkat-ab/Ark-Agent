@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   setPluginGrantMutationOptions,
   setToolCallOutcomeMutationOptions,
@@ -38,20 +38,23 @@ const ON_CALL: {
   {
     value: "allow",
     title: "Run it",
-    description:
+    description: tNow(
       "The call goes out as soon as a digital employee makes it, after the boundaries are checked.",
+    ),
   },
   {
     value: "ask",
-    title: "Ask a person first",
-    description:
+    title: tNow("Ask a person first"),
+    description: tNow(
       "The call waits in the person's Requests with its exact arguments, and runs as shown only if they approve.",
+    ),
   },
   {
     value: "refuse",
     title: "Never",
-    description:
+    description: tNow(
       "Refused every time, whoever asks. The employee is told an administrator switched it off.",
+    ),
   },
 ];
 

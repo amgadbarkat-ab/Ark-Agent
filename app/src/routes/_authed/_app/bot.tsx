@@ -14,7 +14,7 @@ import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/_app/bot")({
   component: RouteComponent,
@@ -55,11 +55,12 @@ async function loadExplicitBot(agentId: string): Promise<BotDetailLookup> {
     `/api/agents/${encodeURIComponent(agentId)}`,
   );
   if (response.status === 404) return { status: "missing" };
-  if (!response.ok) throw new Error("Digital employee couldn't be loaded.");
+  if (!response.ok)
+    throw new Error(tNow("Digital employee couldn't be loaded."));
 
   const body: unknown = await response.json().catch(() => null);
   if (!isAgentEnvelope(body))
-    throw new Error("Digital employee couldn't be loaded.");
+    throw new Error(tNow("Digital employee couldn't be loaded."));
   return { bot: body.agent, status: "found" };
 }
 

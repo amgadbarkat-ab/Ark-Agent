@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import type { DeviceSupport } from "@/lib/push/device";
 import {
   disablePushMutationOptions,
@@ -28,27 +28,35 @@ import { queryClient } from "@/query-client";
 
 /** What a row says when this browser cannot be switched on, and why. Only for the states that cannot. */
 const CANNOT: Record<Exclude<DeviceSupport, "ready">, string> = {
-  unsupported: "This browser cannot show notifications.",
-  "needs-install":
+  unsupported: tNow("This browser cannot show notifications."),
+  "needs-install": tNow(
     "On an iPhone or iPad, add Ark to your Home Screen first (Share, then Add to Home Screen), then open it from there and come back here.",
-  blocked:
+  ),
+  blocked: tNow(
     "Notifications are blocked for this site. Allow them in your browser's settings, then come back here.",
+  ),
 };
 
 /** What the test said, in the words a person wants: did it arrive, and if not, why not. */
 export function testOutcome(result: PushTestResult): string {
   if (result.sent > 0) {
     return result.sent === 1
-      ? "Sent. It should arrive in a moment."
-      : `Sent to ${result.sent} devices. It should arrive in a moment.`;
+      ? tNow("Sent. It should arrive in a moment.")
+      : tNow("Sent to {sent} devices. It should arrive in a moment.", {
+          sent: result.sent,
+        });
   }
   if (result.removed > 0) {
-    return "That device no longer accepts notifications, so it was removed. Switch them on again.";
+    return tNow(
+      "That device no longer accepts notifications, so it was removed. Switch them on again.",
+    );
   }
   if (result.failed > 0) {
-    return "The notification service did not accept it. Try again in a minute.";
+    return tNow(
+      "The notification service did not accept it. Try again in a minute.",
+    );
   }
-  return "No device is registered, so nothing was sent.";
+  return tNow("No device is registered, so nothing was sent.");
 }
 
 /**

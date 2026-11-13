@@ -20,7 +20,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 
@@ -57,7 +57,7 @@ const ITEMS: {
   },
   {
     /* A copy of what is held about you, and a way to have it removed. */
-    title: "Your data",
+    title: tNow("Your data"),
     icon: IconShieldLock,
     linkOptions: { to: "/settings/privacy" },
   },
@@ -66,19 +66,19 @@ const ITEMS: {
      * The same subject as Admin's Plugins, from the other side: there an administrator decides what
      * this deployment may reach at all, here you decide what it may reach as you.
      */
-    title: "Connect your Data",
+    title: tNow("Connect your Data"),
     icon: IconPlug,
     linkOptions: { to: "/settings/connected-accounts" },
   },
   {
     /* Being rung about a request that waits for you (P2 idea 10); off unless a deployment offers it. */
-    title: "Phone approval",
+    title: tNow("Phone approval"),
     icon: IconPhone,
     linkOptions: { to: "/settings/phone-approval" },
   },
   {
     /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */
-    title: "Components gallery",
+    title: tNow("Components gallery"),
     icon: IconLayoutGrid,
     linkOptions: { to: "/settings/components-gallery" },
   },

@@ -83,7 +83,9 @@ export function ActivityReportCard({
           : {
               status: "refused",
               reason:
-                result.reason ?? result.error ?? "That data could not be read.",
+                result.reason ??
+                result.error ??
+                tNow("That data could not be read."),
             },
       );
     });
@@ -172,7 +174,10 @@ function ActivityChart({
           <Button
             onClick={() =>
               ask(
-                `What has ${busiest.bot} actually been doing? Look at the audit trail and summarise it.`,
+                tNow(
+                  "What has {bot} actually been doing? Look at the audit trail and summarise it.",
+                  { bot: busiest.bot },
+                ),
               )
             }
             size="sm"
@@ -242,7 +247,9 @@ function RefusalList({
           <Button
             onClick={() =>
               ask(
-                "Explain the most recent refusal in that list, and what would have to change for it to be allowed.",
+                tNow(
+                  "Explain the most recent refusal in that list, and what would have to change for it to be allowed.",
+                ),
               )
             }
             size="sm"
@@ -286,14 +293,15 @@ export const GALLERY: GalleryComponent[] = [
      * only means to show what the component looks like. Admin draws it as unpreviewable instead.
      */
     name: "showActivityReport",
-    title: "Activity report",
+    title: tNow("Activity report"),
     kind: "card",
     description:
       "Show what this deployment has actually been doing, read from its own records rather than from anything you know. Use for 'what have the digital employees been up to' and 'what has been refused'. You choose the report and the period; the figures are read for you and you will not see them.",
     parameters: ActivityReportProps,
     Component: ActivityReportCard as GalleryComponent["Component"],
-    confirmation:
+    confirmation: tNow(
       "The report is on screen for the person, filled with figures read from this deployment. You were not given the figures.",
+    ),
     reads: (args) => {
       const report = typeof args.report === "string" ? args.report : undefined;
       const functionName = report ? FUNCTION_FOR[report] : undefined;

@@ -72,7 +72,7 @@ const EN = {
   "common.cancel": "Cancel",
   "settings.language": "Language",
   "settings.languageHint":
-    "The sidebar, the message box, requests and cards. Other screens follow.",
+    "Every screen, message and notification. Your digital employees answer in the language you write to them in.",
 } as const;
 
 export type MessageKey = keyof typeof EN;
@@ -121,7 +121,7 @@ const EL: Partial<Record<MessageKey, string>> = {
   "common.cancel": "Άκυρο",
   "settings.language": "Γλώσσα",
   "settings.languageHint":
-    "Η πλαϊνή στήλη, το πλαίσιο μηνύματος, τα αιτήματα και οι κάρτες. Οι άλλες οθόνες ακολουθούν.",
+    "Κάθε οθόνη, μήνυμα και ειδοποίηση. Οι ψηφιακοί σας υπάλληλοι απαντούν στη γλώσσα που τους γράφετε.",
 };
 
 const TABLES: Record<Language, Partial<Record<MessageKey, string>>> = {
@@ -145,6 +145,18 @@ export function setLanguage(language: Language) {
   }
   globalThis.dispatchEvent?.(new Event(CHANGED));
   if (typeof document !== "undefined") document.documentElement.lang = language;
+}
+
+/**
+ * Change the language from the Settings switch: remembered, then the app is drawn again from the
+ * start, so every screen, every label kept in a constant and every message already on screen is in
+ * the new language at once (#108). A reload is about a second, and nothing typed is lost that a
+ * page change would not lose.
+ */
+export function switchLanguage(language: Language) {
+  if (language === storedLanguage()) return;
+  setLanguage(language);
+  globalThis.location?.reload();
 }
 
 function subscribe(changed: () => void) {

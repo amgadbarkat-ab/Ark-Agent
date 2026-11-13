@@ -26,7 +26,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
@@ -47,7 +47,7 @@ const GROUPS: {
   }[];
 }[] = [
   {
-    label: "What digital employees can reach",
+    label: tNow("What digital employees can reach"),
     items: [
       {
         title: "Credentials",
@@ -67,7 +67,7 @@ const GROUPS: {
     ],
   },
   {
-    label: "What digital employees can do",
+    label: tNow("What digital employees can do"),
     items: [
       {
         title: "Plugins",
@@ -92,7 +92,7 @@ const GROUPS: {
     ],
   },
   {
-    label: "Who can get in",
+    label: tNow("Who can get in"),
     items: [
       {
         title: "People",
@@ -110,14 +110,14 @@ const GROUPS: {
         linkOptions: { to: "/admin/marketplace" },
       },
       {
-        title: "Identity providers",
+        title: tNow("Identity providers"),
         icon: IconBuildingBank,
         linkOptions: { to: "/admin/identity-providers" },
       },
     ],
   },
   {
-    label: "What happened",
+    label: tNow("What happened"),
     items: [
       {
         title: "Audit",

@@ -20,7 +20,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { formatHotkey, HOTKEYS } from "@/lib/hotkeys/hotkeys";
-import { setLanguage, useLanguage, useT } from "@/lib/i18n";
+import { switchLanguage, useLanguage, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/settings/")({
   component: RouteComponent,
@@ -66,7 +66,7 @@ function RouteComponent() {
             </ItemActions>
           </Item>
           <Separator />
-          {/* Per device, like the theme (DT Lab, #83: the app was English only). */}
+          {/* Per device, like the theme. The whole app follows it (#108). */}
           <Item size="sm">
             <ItemContent>
               <ItemTitle>{t("settings.language")}</ItemTitle>
@@ -75,7 +75,7 @@ function RouteComponent() {
             <ItemActions>
               <Button
                 aria-pressed={language === "en"}
-                onClick={() => setLanguage("en")}
+                onClick={() => switchLanguage("en")}
                 size="sm"
                 variant={language === "en" ? "secondary" : "ghost"}
               >
@@ -84,7 +84,7 @@ function RouteComponent() {
               <Button
                 aria-pressed={language === "el"}
                 lang="el"
-                onClick={() => setLanguage("el")}
+                onClick={() => switchLanguage("el")}
                 size="sm"
                 variant={language === "el" ? "secondary" : "ghost"}
               >

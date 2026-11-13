@@ -43,7 +43,7 @@ import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
 import { readThreadMessages } from "@/lib/copilot/thread-messages";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import {
   askChannelAgent,
@@ -115,12 +115,16 @@ export function channelHistoryNotice({
     historyAvailability === "unavailable" &&
     (historyReadFailed || (messageCount === 0 && lastMessageAt !== null))
   ) {
-    return "Earlier messages are temporarily unavailable. You can keep using this conversation.";
+    return tNow(
+      "Earlier messages are temporarily unavailable. You can keep using this conversation.",
+    );
   }
 
   if (unreadable > 0) {
     return unreadable === 1
-      ? "One earlier message could not be read and is not shown. The rest of this conversation is complete."
+      ? tNow(
+          "One earlier message could not be read and is not shown. The rest of this conversation is complete.",
+        )
       : `${unreadable} earlier messages could not be read and are not shown. The rest of this conversation is complete.`;
   }
 
@@ -170,7 +174,7 @@ function uploadedAttachment(attachment: Attachment): {
     | undefined;
   const attachmentId = metadata?.attachmentId;
   if (typeof attachmentId !== "string") {
-    throw new Error("Attachment is missing its uploaded id.");
+    throw new Error(tNow("Attachment is missing its uploaded id."));
   }
   const filename =
     typeof metadata?.filename === "string" ? metadata.filename : undefined;
@@ -239,7 +243,9 @@ export function toMessageContent(
 function describeAttachments(attachments: readonly Attachment[]): string {
   if (attachments.length === 1) {
     const { filename } = uploadedAttachment(attachments[0]);
-    return filename ? `Sent ${filename}` : "Sent an attachment";
+    return filename
+      ? tNow("Sent {filename}", { filename: filename })
+      : tNow("Sent an attachment");
   }
   return `Sent ${attachments.length} attachments`;
 }
@@ -671,14 +677,16 @@ export function ChannelChat({
       loadVoiceArchive(channel.id),
       new Promise<never>((_resolve, reject) => {
         voiceHistoryTimer = setTimeout(
-          () => reject(new Error("Voice history timed out")),
+          () => reject(new Error(tNow("Voice history timed out"))),
           2000,
         );
       }),
     ])
       .catch(() => {
         setVoiceContextNotice(
-          "Earlier voice context wasn’t available for this message. The agent may need you to repeat details from the call.",
+          tNow(
+            "Earlier voice context wasn’t available for this message. The agent may need you to repeat details from the call.",
+          ),
         );
         return cachedVoiceArchive(channel.id);
       })
@@ -806,7 +814,9 @@ export function ChannelChat({
     // Voice and typed requests share this turn boundary, including gaps between frontend tools.
     if (turnsRef.current > 0 || agentRef.current.isRunning) {
       throw new Error(
-        "The agent is still working on another request. Please wait or stop that task first.",
+        tNow(
+          "The agent is still working on another request. Please wait or stop that task first.",
+        ),
       );
     }
 
@@ -887,7 +897,9 @@ export function ChannelChat({
         send: (text) => sayRef.current(text),
       });
       if (started !== stopEpoch.current)
-        throw new Error("The user stopped this task before it completed.");
+        throw new Error(
+          tNow("The user stopped this task before it completed."),
+        );
       return answer;
     },
   });

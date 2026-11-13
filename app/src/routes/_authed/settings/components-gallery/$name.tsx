@@ -25,11 +25,11 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { componentListQueryOptions } from "@/lib/components/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 /** The same way back from every state this route can be in. */
 const BACK = {
-  label: "Components gallery",
+  label: tNow("Components gallery"),
   linkProps: { to: "/settings/components-gallery" },
 } as const;
 

@@ -92,9 +92,9 @@ function toggled(
  * case that gets a number.
  */
 function grantSummary(held: number, total: number): string {
-  if (held === 0) return "No digital employees";
+  if (held === 0) return tNow("No digital employees");
   if (held === total)
-    return total === 1 ? "1 digital employee" : "All digital employees";
+    return total === 1 ? "1 digital employee" : tNow("All digital employees");
   return `${held} of ${total} digital employees`;
 }
 
@@ -107,7 +107,7 @@ function grantSummary(held: number, total: number): string {
  */
 function heldSummary(held: number, total: number): string {
   if (held === 0) return "No tools";
-  if (held === total) return total === 1 ? "1 tool" : "Every tool";
+  if (held === total) return total === 1 ? "1 tool" : tNow("Every tool");
   return `${held} of ${total} tools`;
 }
 
@@ -274,7 +274,9 @@ function RouteComponent() {
        */
       if (authorizationUrl === null) {
         setError(
-          "This deployment answered without a consent link, so there was nowhere to send you and nothing was connected. Try again, and check this connector's setup if it persists.",
+          tNow(
+            "This deployment answered without a consent link, so there was nowhere to send you and nothing was connected. Try again, and check this connector's setup if it persists.",
+          ),
         );
         return;
       }
@@ -293,8 +295,9 @@ function RouteComponent() {
 
   /* Bound once because the brokered row below is told it twice — once inside the whole
      disconnected sentence and once on its own — and two copies of it would drift. */
-  const reassurance =
-    "Setup is complete without it, and it reaches your documents only.";
+  const reassurance = tNow(
+    "Setup is complete without it, and it reaches your documents only.",
+  );
 
   /*
    * Everything the brokered row below reads and does, shared with the personal connected-accounts

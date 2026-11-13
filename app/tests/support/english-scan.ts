@@ -107,7 +107,7 @@ function files(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) files(path, out);
-    else if (/\.tsx$/.test(name) && !/\.test\.tsx$/.test(name)) out.push(path);
+    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) && name !== "routeTree.gen.ts") out.push(path);
   }
   return out;
 }
@@ -161,7 +161,7 @@ export function scan(
       readFileSync(path, "utf8"),
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TSX,
+      path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
     const at = (node: ts.Node) =>
       source.getLineAndCharacterOfPosition(node.getStart()).line + 1;

@@ -473,7 +473,9 @@ function EditableTextItem({
   const submit = async () => {
     const parsed = schema.safeParse(draft);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "That value does not fit.");
+      setError(
+        parsed.error.issues[0]?.message ?? tNow("That value does not fit."),
+      );
       return;
     }
     setSaving(true);
@@ -481,7 +483,9 @@ function EditableTextItem({
       await onSave(parsed.data);
       close();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not save.");
+      setError(
+        failure instanceof Error ? failure.message : tNow("Could not save."),
+      );
     } finally {
       setSaving(false);
     }
@@ -611,7 +615,7 @@ function VisibilityItem({
                 setError(
                   failure instanceof Error
                     ? failure.message
-                    : "Could not save.",
+                    : tNow("Could not save."),
                 );
               } finally {
                 setSaving(false);
@@ -698,7 +702,7 @@ function RunLocationItem({
                 setError(
                   failure instanceof Error
                     ? failure.message
-                    : "Could not save.",
+                    : tNow("Could not save."),
                 );
               } finally {
                 setSaving(false);

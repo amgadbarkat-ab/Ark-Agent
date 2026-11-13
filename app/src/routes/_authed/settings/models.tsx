@@ -59,10 +59,10 @@ export const Route = createFileRoute("/_authed/settings/models")({
 
 /** How a provider's tier reads on a row. A model on this computer says whether it is running instead. */
 const TIER_LABEL: Record<ModelProviderTier, string> = {
-  local: "On this computer",
+  local: tNow("On this computer"),
   free: "Free",
-  paid: "Your own key",
-  custom: "Your own server",
+  paid: tNow("Your own key"),
+  custom: tNow("Your own server"),
   plan: "Subscription",
 };
 

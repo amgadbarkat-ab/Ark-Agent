@@ -1,5 +1,6 @@
 import { useAgent } from "@copilotkit/react-core/v2";
 import { useEffect, useState } from "react";
+import { tNow } from "@/lib/i18n";
 
 /**
  * Why the last turn ended without an answer, for a surface that has to say so itself.
@@ -29,7 +30,9 @@ export function stoppedReason(reported: unknown): string {
       : typeof reported === "string"
         ? reported
         : "";
-  return said.trim() || "The digital employee stopped without saying why.";
+  return (
+    said.trim() || tNow("The digital employee stopped without saying why.")
+  );
 }
 
 /**

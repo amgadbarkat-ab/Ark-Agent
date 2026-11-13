@@ -83,7 +83,7 @@ function ComputersPage() {
    * both "this did not work", and the page has one place to say so.
    */
   const problem = fleet.error
-    ? "The computers could not be listed."
+    ? tNow("The computers could not be listed.")
     : setState.error
       ? setState.error.message
       : null;
@@ -635,17 +635,17 @@ function ownerLabel(grant: { ownerName?: string; ownerEmail?: string }) {
 function pendingLabel(request: HostAccessPendingOperation) {
   switch (request.kind) {
     case "write_file":
-      return "File change awaiting approval or completion";
+      return tNow("File change awaiting approval or completion");
     case "run_command":
-      return "Command awaiting approval or completion";
+      return tNow("Command awaiting approval or completion");
     case "list_files":
-      return "Listing files";
+      return tNow("Listing files");
     case "read_file":
       return "Reading a file";
     case "cancel":
     case "stop":
-      return "Stopping folder work";
+      return tNow("Stopping folder work");
     default:
-      return "Folder access awaiting approval";
+      return tNow("Folder access awaiting approval");
   }
 }

@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LiveWaveform } from "@/components/ui/live-waveform";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { useVoiceCall } from "@/lib/voice/use-voice-call";
@@ -61,18 +61,18 @@ export function VoiceCallWidget({
   const connecting = state.phase === "connecting";
   const failed = state.phase === "error";
   const status = failed
-    ? "Call unavailable"
+    ? tNow("Call unavailable")
     : connecting
       ? "Connecting…"
       : state.speaking
         ? `${name} is speaking`
         : taskRunning
-          ? "Working on your request"
+          ? tNow("Working on your request")
           : state.muted
-            ? "Your microphone is muted"
+            ? tNow("Your microphone is muted")
             : state.listening
-              ? "Listening to you"
-              : "Ready when you are";
+              ? tNow("Listening to you")
+              : tNow("Ready when you are");
   const duration = `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, "0")}`;
   const transition = {
     duration: reduceMotion ? 0 : ENTRANCE_SECONDS,

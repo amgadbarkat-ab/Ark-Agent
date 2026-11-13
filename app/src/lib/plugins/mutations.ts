@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { pluginKeys } from "./queries";
 
 /**
@@ -57,7 +58,7 @@ export type CustomServerInput = {
 /** Which kinds of plugin a grant can be about. */
 export type PluginKind = "mcp" | "skill";
 
-const FALLBACK = "That did not work.";
+const FALLBACK = tNow("That did not work.");
 
 /**
  * Refetch everything the plugin screens read.

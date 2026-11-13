@@ -83,7 +83,74 @@ function insideTranslation(node: ts.Node): boolean {
   return false;
 }
 
-const TECH_PROPS = new Set(["className","href","to","from","type","id","key","variant","size","role","name","value","defaultValue","htmlFor","target","rel","src","method","autoComplete","inputMode","pattern","align","side","orientation","mode","tone","icon","lang","dir","form","accept","messageId","enterKeyHint","tabIndex","color","fill","stroke","d","viewBox","xmlns","path","hash","search","params","fallback","sandbox","allow","referrerPolicy","style","width","height","loading","decoding","kind","slot","behavior","direction","testId","preserveAspectRatio","transform","result","in","in2","mask","filter","clipPath"]);
+const TECH_PROPS = new Set([
+  "className",
+  "href",
+  "to",
+  "from",
+  "type",
+  "id",
+  "key",
+  "variant",
+  "size",
+  "role",
+  "name",
+  "value",
+  "defaultValue",
+  "htmlFor",
+  "target",
+  "rel",
+  "src",
+  "method",
+  "autoComplete",
+  "inputMode",
+  "pattern",
+  "align",
+  "side",
+  "orientation",
+  "mode",
+  "tone",
+  "icon",
+  "lang",
+  "dir",
+  "form",
+  "accept",
+  "messageId",
+  "enterKeyHint",
+  "tabIndex",
+  "color",
+  "fill",
+  "stroke",
+  "d",
+  "viewBox",
+  "xmlns",
+  "path",
+  "hash",
+  "search",
+  "params",
+  "fallback",
+  "sandbox",
+  "allow",
+  "referrerPolicy",
+  "style",
+  "width",
+  "height",
+  "loading",
+  "decoding",
+  "kind",
+  "slot",
+  "behavior",
+  "direction",
+  "testId",
+  "preserveAspectRatio",
+  "transform",
+  "result",
+  "in",
+  "in2",
+  "mask",
+  "filter",
+  "clipPath",
+]);
 
 function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
   let current: ts.Node = node;
@@ -93,7 +160,12 @@ function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
       const holder = parent.parent;
       if (holder && ts.isJsxAttribute(holder)) {
         const prop = holder.name.getText(source);
-        return !TECH_PROPS.has(prop) && !prop.endsWith("ClassName") && !prop.startsWith("on") && !prop.startsWith("data-");
+        return (
+          !TECH_PROPS.has(prop) &&
+          !prop.endsWith("ClassName") &&
+          !prop.startsWith("on") &&
+          !prop.startsWith("data-")
+        );
       }
       return true;
     }
@@ -103,11 +175,13 @@ function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
       (ts.isBinaryExpression(parent) &&
         (parent.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
           parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
-          parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)) ||
+          parent.operatorToken.kind ===
+            ts.SyntaxKind.AmpersandAmpersandToken)) ||
       ts.isTemplateSpan(parent) ||
       ts.isTemplateExpression(parent)
     ) {
-      if (ts.isConditionalExpression(parent) && parent.condition === current) return false;
+      if (ts.isConditionalExpression(parent) && parent.condition === current)
+        return false;
       current = parent;
       continue;
     }
@@ -115,8 +189,24 @@ function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
   }
   return false;
 }
-const ENTITIES: Record<string, string> = { rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0", hellip: "…", mdash: "—", ndash: "–", middot: "·" };
-const decodeEntities = (text: string) => text.replace(/&([a-z]+);/g, (whole, name: string) => ENTITIES[name] ?? whole);
+const ENTITIES: Record<string, string> = {
+  rsquo: "’",
+  lsquo: "‘",
+  rdquo: "”",
+  ldquo: "“",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+  hellip: "…",
+  mdash: "—",
+  ndash: "–",
+  middot: "·",
+};
+const decodeEntities = (text: string) =>
+  text.replace(/&([a-z]+);/g, (whole, name: string) => ENTITIES[name] ?? whole);
 
 function convert(path: string) {
   const original = readFileSync(path, "utf8");
@@ -311,9 +401,17 @@ function convert(path: string) {
     ) {
       const text = ts.isTemplateExpression(node) ? null : node.text;
       if (text !== null) {
-        if (words(text) && /\s/.test(text.trim()) && /^[A-Z“"(]/.test(text.trim())) {
+        if (
+          words(text) &&
+          /\s/.test(text.trim()) &&
+          /^[A-Z“"(]/.test(text.trim())
+        ) {
           const fn = callFor(node);
-          edits.push({ start: node.getStart(source), end: node.end, text: `${fn}(${quote(text)})` });
+          edits.push({
+            start: node.getStart(source),
+            end: node.end,
+            text: `${fn}(${quote(text)})`,
+          });
           wrapped.push(text);
         }
       } else if (ts.isTemplateExpression(node)) {
@@ -333,7 +431,11 @@ function convert(path: string) {
           values.push(`${name}: ${expr.getText(source)}`);
           key += `{${name}}${span.literal.text}`;
         }
-        if (words(key) && /\s/.test(key.trim()) && /^[A-Z“"(]/.test(key.trim())) {
+        if (
+          words(key) &&
+          /\s/.test(key.trim()) &&
+          /^[A-Z“"(]/.test(key.trim())
+        ) {
           const fn = callFor(node);
           edits.push({
             start: node.getStart(source),

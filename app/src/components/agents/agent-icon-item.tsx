@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/item";
 import { ICON_FILE_TYPES, iconFromFile } from "@/lib/agents/icon-image";
 import { setAgentIconMutationOptions } from "@/lib/agents/mutations";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 /** The coworker's picture, with a way to choose another or go back to ArkAgent's own. */
 export function AgentIconItem({
@@ -41,7 +41,7 @@ export function AgentIconItem({
       setProblem(
         error instanceof Error
           ? error.message
-          : "That picture could not be used.",
+          : tNow("That picture could not be used."),
       );
     }
   }

@@ -95,7 +95,7 @@ function RouteComponent() {
                 setError(
                   caught instanceof Error
                     ? caught.message
-                    : "Could not start the conversation.",
+                    : tNow("Could not start the conversation."),
                 );
                 throw caught;
               }

@@ -1,8 +1,9 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { memoriesPath, memoryKeys } from "./queries";
 
-const FALLBACK = "That memory could not be saved.";
+const FALLBACK = tNow("That memory could not be saved.");
 
 function refresh(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: memoryKeys.all });

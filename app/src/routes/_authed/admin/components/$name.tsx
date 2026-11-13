@@ -60,7 +60,7 @@ import {
   dataFunctionsQueryOptions,
 } from "@/lib/components/queries";
 import { RENDERABLE_NAMES } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -278,18 +278,18 @@ function ComponentDetail({
 
   const grantSummary =
     bots.length === 0
-      ? "There are no digital employees yet"
+      ? tNow("There are no digital employees yet")
       : granted.length === bots.length
-        ? `All ${bots.length} digital employees`
+        ? tNow("All {length} digital employees", { length: bots.length })
         : granted.length === 0
-          ? "No digital employees"
+          ? tNow("No digital employees")
           : `${granted.length} of ${bots.length} digital employees`;
 
   const functionSummary =
     dataFunctions.length === 0
-      ? "This deployment grants no data functions"
+      ? tNow("This deployment grants no data functions")
       : held.length === 0
-        ? "Nothing — it draws only what the model hands it"
+        ? tNow("Nothing — it draws only what the model hands it")
         : held.map((fn) => fn.name).join(", ");
 
   return (

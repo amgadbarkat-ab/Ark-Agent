@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 import { seriesColour } from "./palette";
 
@@ -408,8 +408,8 @@ export const GALLERY: GalleryComponent[] = [
     parameters: BarChartProps,
     Component: BarChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Revenue by team",
-      caption: "Sales leads, and Engineering is closing the gap.",
+      title: tNow("Revenue by team"),
+      caption: tNow("Sales leads, and Engineering is closing the gap."),
       points: [
         { label: "Sales", value: 120 },
         { label: "Engineering", value: 80 },
@@ -420,14 +420,14 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showPieChart",
-    title: "Donut chart",
+    title: tNow("Donut chart"),
     kind: "chart",
     description:
       "Show how a whole is divided, as a donut with a legend. Use only when the parts sum to something meaningful, and prefer a bar chart above about six slices.",
     parameters: PieChartProps,
     Component: PieChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Where the month went",
+      title: tNow("Where the month went"),
       points: [
         { label: "Build", value: 48 },
         { label: "Support", value: 26 },
@@ -438,7 +438,7 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showLineChart",
-    title: "Line chart",
+    title: tNow("Line chart"),
     kind: "chart",
     description:
       "Show one or more series over an ordered axis, usually time. Every series must have one value per label.",
@@ -446,7 +446,7 @@ export const GALLERY: GalleryComponent[] = [
     Component: LineChartCard as GalleryComponent["Component"],
     preview: {
       title: "Signups",
-      caption: "Six weeks, one release.",
+      caption: tNow("Six weeks, one release."),
       labels: ["W1", "W2", "W3", "W4", "W5", "W6"],
       series: [{ name: "Signups", values: [120, 180, 160, 240, 300, 420] }],
     },
@@ -454,15 +454,15 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showAreaChart",
-    title: "Area chart",
+    title: tNow("Area chart"),
     kind: "chart",
     description:
       "The same as showLineChart with the area under each line filled. Use for volume or accumulation rather than for a rate.",
     parameters: AreaChartProps,
     Component: AreaChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Storage used",
-      caption: "Growing steadily since the migration.",
+      title: tNow("Storage used"),
+      caption: tNow("Growing steadily since the migration."),
       labels: ["Jan", "Feb", "Mar", "Apr", "May"],
       series: [{ name: "TB", values: [12, 19, 26, 31, 44] }],
     },
@@ -470,18 +470,18 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showProgress",
-    title: "Progress against target",
+    title: tNow("Progress against target"),
     kind: "chart",
     description:
       "Show values against their targets as progress bars. Use for 'are we there yet' questions, budget spent against budget, done against planned.",
     parameters: ProgressChartProps,
     Component: ProgressChartCard as GalleryComponent["Component"],
     preview: {
-      title: "Migration to the new runtime",
-      caption: "Two services left.",
+      title: tNow("Migration to the new runtime"),
+      caption: tNow("Two services left."),
       points: [
-        { label: "Services moved", value: 18, target: 20 },
-        { label: "Tests ported", value: 240, target: 240 },
+        { label: tNow("Services moved"), value: 18, target: 20 },
+        { label: tNow("Tests ported"), value: 240, target: 240 },
       ],
     },
     confirmation: "The progress chart is now on screen for the person.",

@@ -31,7 +31,9 @@ export const DataTableProps = z
     (table) =>
       new Set(table.columns).size === table.columns.length &&
       table.rows.every((row) => row.cells.length === table.columns.length),
-    "Column labels must be unique and every row must have one cell per column",
+    tNow(
+      "Column labels must be unique and every row must have one cell per column",
+    ),
   );
 
 /** A real table: header buttons sort while the native row/column relationships stay intact. */
@@ -191,7 +193,7 @@ export function DataTable(props: Record<string, unknown>) {
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showTable",
-    title: "Data table",
+    title: tNow("Data table"),
     kind: "card",
     description:
       "Show a sortable table to compare records, plans, or other structured facts. Supply up to eight columns and 100 rows, with exactly one cell per column. Use numbers for quantities so sorting is numeric. Show only data you have; do not invent rows.",
@@ -199,13 +201,15 @@ export const GALLERY: GalleryComponent[] = [
     Component: DataTable,
     confirmation: "The sortable table is now on screen for the person.",
     preview: {
-      title: "Team capacity",
-      caption: "Three teams, one shared launch. Hours available this week.",
-      columns: ["Team", "Available hours", "Focus"],
+      title: tNow("Team capacity"),
+      caption: tNow(
+        "Three teams, one shared launch. Hours available this week.",
+      ),
+      columns: ["Team", tNow("Available hours"), "Focus"],
       rows: [
-        { cells: ["Product", 24, "Customer onboarding"] },
-        { cells: ["Engineering", 72, "Release readiness"] },
-        { cells: ["Design", 18, "Workspace polish"] },
+        { cells: ["Product", 24, tNow("Customer onboarding")] },
+        { cells: ["Engineering", 72, tNow("Release readiness")] },
+        { cells: ["Design", 18, tNow("Workspace polish")] },
       ],
     },
   },

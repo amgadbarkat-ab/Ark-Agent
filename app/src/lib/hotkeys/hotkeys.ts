@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 /**
  * Every app-wide keyboard shortcut, in one place.
  *
@@ -33,7 +34,7 @@ export const HOTKEYS = [
   {
     id: "new-chat",
     label: "New chat",
-    description: "Start a new chat from anywhere in the app.",
+    description: tNow("Start a new chat from anywhere in the app."),
     combo: { key: "n", shift: true },
   },
 ] as const satisfies readonly Hotkey[];

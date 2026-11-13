@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tNow } from "@/lib/i18n";
 
 /**
  * What the Add/Edit model dialog collects.
@@ -7,8 +8,8 @@ import { z } from "zod";
  * decides and says in plain words; this only refuses what no provider could accept.
  */
 export const modelFormSchema = z.object({
-  providerId: z.string().min(1, "Choose where the model comes from."),
-  label: z.string().trim().max(80, "Keep the name under 80 characters."),
+  providerId: z.string().min(1, tNow("Choose where the model comes from.")),
+  label: z.string().trim().max(80, tNow("Keep the name under 80 characters.")),
   baseUrl: z.string().trim().max(2048),
   apiKey: z.string().max(4096),
   model: z.string().trim().min(1, "Choose a model."),
@@ -27,5 +28,6 @@ export function isFreeModel(model: string): boolean {
   return /:free$/i.test(model.trim());
 }
 
-export const FREE_MODEL_NOTE =
-  "Free models are shared and small. They often ignore a digital employee's role and instructions, or cannot use tools such as asking a colleague. For a demo or real work, choose a paid model.";
+export const FREE_MODEL_NOTE = tNow(
+  "Free models are shared and small. They often ignore a digital employee's role and instructions, or cannot use tools such as asking a colleague. For a demo or real work, choose a paid model.",
+);

@@ -1,8 +1,9 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { type ModelConnection, modelKeys } from "./queries";
 
-const FALLBACK = "Could not save the model";
+const FALLBACK = tNow("Could not save the model");
 
 export type ModelConnectionInput = {
   providerId: string;
@@ -101,7 +102,7 @@ async function probeFrom(response: Response): Promise<ModelProbe> {
   if (response.ok && body && "ok" in body) return body;
   return {
     ok: false,
-    reason: body?.error ?? "Could not test that connection.",
+    reason: body?.error ?? tNow("Could not test that connection."),
   };
 }
 

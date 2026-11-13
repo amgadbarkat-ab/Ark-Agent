@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { keyOf } from "@/lib/hotkeys/hotkeys";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { socketUrl } from "@/lib/socket-url";
 import { currentPageVisible } from "./preview-visibility";
 import { pageCoordinates } from "./take-the-wheel";
@@ -160,7 +160,7 @@ export function LiveScreen({ computerId, driving, onProblem }: Props) {
       };
       if (typeof message.type !== "string") return;
       if (message.type === "error") {
-        onProblem?.(message.error ?? "The screen could not be shown.");
+        onProblem?.(message.error ?? tNow("The screen could not be shown."));
         return;
       }
       if (message.type !== "frame" || !message.data) return;
@@ -204,7 +204,8 @@ export function LiveScreen({ computerId, driving, onProblem }: Props) {
     };
 
     document.addEventListener("visibilitychange", drawLatestFrame);
-    socket.onerror = () => onProblem?.("The live screen could not be reached.");
+    socket.onerror = () =>
+      onProblem?.(tNow("The live screen could not be reached."));
     socket.onclose = () => setConnected(false);
 
     return () => {

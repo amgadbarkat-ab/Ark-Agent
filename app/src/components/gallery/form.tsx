@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 const Field = z
@@ -34,7 +34,7 @@ const Field = z
       (field.min === undefined ||
         field.max === undefined ||
         field.min <= field.max),
-    "Select fields need unique options; minimum must not exceed maximum",
+    tNow("Select fields need unique options; minimum must not exceed maximum"),
   );
 
 export const FormCardArgs = z
@@ -47,7 +47,7 @@ export const FormCardArgs = z
   .refine(
     (form) =>
       new Set(form.fields.map((field) => field.id)).size === form.fields.length,
-    "Field IDs must be unique",
+    tNow("Field IDs must be unique"),
   );
 
 const Submitted = z.object({
@@ -124,8 +124,9 @@ function InvalidForm({
     try {
       await respond({
         status: "invalid",
-        message:
+        message: tNow(
           "The form could not be displayed because its questions were invalid. Send a corrected form with unique field IDs, valid types, and options for each select field.",
+        ),
       });
       setReturned(true);
     } catch {
@@ -183,7 +184,7 @@ function FormEntry({
     for (const field of args.fields) {
       const control = form.elements.namedItem(field.id);
       if (control instanceof HTMLInputElement && control.validity.badInput) {
-        problems.set(field.id, "Enter a valid number.");
+        problems.set(field.id, tNow("Enter a valid number."));
         continue;
       }
       const value = (values.get(field.id) ?? "").trim();
@@ -193,15 +194,15 @@ function FormEntry({
         continue;
       }
       if (value.length > 2000)
-        problems.set(field.id, "Use 2,000 characters or fewer.");
+        problems.set(field.id, tNow("Use 2,000 characters or fewer."));
       else if (field.type === "email" && !z.email().safeParse(value).success)
-        problems.set(field.id, "Enter a valid email address.");
+        problems.set(field.id, tNow("Enter a valid email address."));
       else if (field.type === "select" && !field.options?.includes(value))
-        problems.set(field.id, "Choose one of the listed options.");
+        problems.set(field.id, tNow("Choose one of the listed options."));
       else if (field.type === "number") {
         const number = Number(value);
         if (!Number.isFinite(number))
-          problems.set(field.id, "Enter a valid number.");
+          problems.set(field.id, tNow("Enter a valid number."));
         else if (field.min !== undefined && number < field.min)
           problems.set(field.id, `Enter ${field.min} or more.`);
         else if (field.max !== undefined && number > field.max)
@@ -400,25 +401,40 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       status: "executing",
       args: {
-        title: "Plan your next project",
+        title: tNow("Plan your next project"),
         description: "A few details to prepare a useful first draft.",
         fields: [
-          { id: "team", label: "Team name", type: "text", required: true },
-          { id: "email", label: "Work email", type: "email", required: true },
+          {
+            id: "team",
+            label: tNow("Team name"),
+            type: "text",
+            required: true,
+          },
+          {
+            id: "email",
+            label: tNow("Work email"),
+            type: "email",
+            required: true,
+          },
           {
             id: "priority",
             label: "Priority",
             type: "select",
-            options: ["This week", "This month", "Exploring"],
+            options: [tNow("This week"), tNow("This month"), "Exploring"],
           },
-          { id: "seats", label: "People involved", type: "number", min: 1 },
+          {
+            id: "seats",
+            label: tNow("People involved"),
+            type: "number",
+            min: 1,
+          },
           {
             id: "notes",
-            label: "What would a good outcome look like?",
+            label: tNow("What would a good outcome look like?"),
             type: "textarea",
           },
         ],
-        submitLabel: "Prepare my brief",
+        submitLabel: tNow("Prepare my brief"),
       },
       respond: async () => {},
     },

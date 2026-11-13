@@ -93,7 +93,7 @@ function SignScreen() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "No identity provider is registered for that address.",
+          : tNow("No identity provider is registered for that address."),
       );
       setOpening(null);
     }
@@ -109,7 +109,7 @@ function SignScreen() {
           !appUrlScheme ||
           !(NATIVE_PROVIDERS as readonly string[]).includes(provider)
         ) {
-          throw new Error("Signing in is not set up in this app yet.");
+          throw new Error(tNow("Signing in is not set up in this app yet."));
         }
         await beginNativeSignIn({
           provider: provider as (typeof NATIVE_PROVIDERS)[number],
@@ -126,7 +126,9 @@ function SignScreen() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : `Could not start ${providerName(provider)} sign-in.`,
+          : tNow("Could not start {providerName} sign-in.", {
+              providerName: providerName(provider),
+            }),
       );
       setOpening(null);
     }

@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { savePublisherMutationOptions } from "@/lib/marketplace/mutations";
 import {
   LIMITS,
@@ -47,10 +47,10 @@ export const Route = createFileRoute("/_authed/_app/marketplace/mine")({
 });
 
 const STATUS_WORDS: Record<string, string> = {
-  pending: "Waiting for review",
+  pending: tNow("Waiting for review"),
   published: "Published",
   rejected: "Not approved",
-  removed: "Taken down",
+  removed: tNow("Taken down"),
 };
 
 function MinePage() {

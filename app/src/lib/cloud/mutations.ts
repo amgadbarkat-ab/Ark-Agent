@@ -1,8 +1,9 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { type CloudRates, cloudKeys } from "./queries";
 
-const FALLBACK = "Could not change cloud running";
+const FALLBACK = tNow("Could not change cloud running");
 
 /*
  * Settled, not just succeeded: a refusal because the prices moved is itself the reason to read them

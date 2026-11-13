@@ -22,7 +22,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   setPersonAccessMutationOptions,
   setPersonRoleMutationOptions,
@@ -60,9 +60,12 @@ function describe(person: Person): string {
     : "never signed in";
 
   if (person.revoked)
-    return `Access removed · ${providers || "no provider"} · ${when}`;
+    return tNow("Access removed · {value1} · {when}", {
+      value1: providers || "no provider",
+      when: when,
+    });
   if (person.configuredAdmin) {
-    return `Administrator by configuration · ${when}`;
+    return tNow("Administrator by configuration · {when}", { when: when });
   }
   return `${providers || "no provider"} · ${when}`;
 }

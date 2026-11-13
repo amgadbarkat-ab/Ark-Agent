@@ -90,7 +90,9 @@ function RouteComponent() {
        */
       if (authorizationUrl === null) {
         setNotice(
-          "This deployment answered without a consent link, so there was nowhere to send you and nothing was connected. Try again, and tell an administrator if it persists.",
+          tNow(
+            "This deployment answered without a consent link, so there was nowhere to send you and nothing was connected. Try again, and tell an administrator if it persists.",
+          ),
         );
         return;
       }
@@ -197,7 +199,7 @@ function RouteComponent() {
   }
 
   const back = {
-    label: "Connect your Data",
+    label: tNow("Connect your Data"),
     linkProps: { to: "/settings/connected-accounts" as const },
   };
 
@@ -240,7 +242,7 @@ function RouteComponent() {
   if (brokered && server) {
     /* Bound once because the row below is told it twice — once inside the whole disconnected
        sentence and once on its own — and two copies of it would drift. */
-    const reassurance = "No digital employee can read this as you.";
+    const reassurance = tNow("No digital employee can read this as you.");
 
     return (
       <PageShell
@@ -445,7 +447,10 @@ function RouteComponent() {
                          * had not, which is the one outcome worse than not offering it.
                          */
                         setNotice(
-                          `Disconnecting is not built yet. Until it is, revoke it in your ${entry.vendor} account's third-party access settings — that stops this deployment reading anything immediately.`,
+                          tNow(
+                            "Disconnecting is not built yet. Until it is, revoke it in your {vendor} account's third-party access settings — that stops this deployment reading anything immediately.",
+                            { vendor: entry.vendor },
+                          ),
                         )
                       }
                       className="whitespace-nowrap"

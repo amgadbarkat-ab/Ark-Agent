@@ -42,10 +42,10 @@ import {
 import { queryClient } from "@/query-client";
 
 const STATUS_WORDS: Record<string, string> = {
-  pending: "Waiting for review. Only you and our team can see it.",
+  pending: tNow("Waiting for review. Only you and our team can see it."),
   rejected: "Not approved.",
-  removed: "Taken down by our team.",
-  published: "Published. Everyone can read it.",
+  removed: tNow("Taken down by our team."),
+  published: tNow("Published. Everyone can read it."),
 };
 
 /**

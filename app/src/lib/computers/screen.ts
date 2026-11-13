@@ -1,4 +1,5 @@
 import { tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 
 /**
  * One frame of a Bot's screen.
@@ -26,7 +27,7 @@ export type Screenshot = {
 export async function readScreenshot(
   computerId: string,
 ): Promise<{ frame?: Screenshot; error?: string }> {
-  const unavailable = "The screen is not available right now.";
+  const unavailable = tNow("The screen is not available right now.");
   try {
     const response = await tryClient(`/api/computers/${computerId}/screenshot`);
     if (!response.ok) {
@@ -45,7 +46,7 @@ function parseScreenshot(body: unknown): {
   frame?: Screenshot;
   error?: string;
 } {
-  const unavailable = "The screen is not available right now.";
+  const unavailable = tNow("The screen is not available right now.");
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { error: unavailable };
   }

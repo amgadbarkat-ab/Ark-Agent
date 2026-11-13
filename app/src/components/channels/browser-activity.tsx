@@ -1,4 +1,4 @@
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import type { VisibleChatItem } from "./chat-messages";
 import { ToolLine } from "./tool-line";
 
@@ -11,13 +11,13 @@ export type BrowserGroup = {
 export type TranscriptItem = VisibleChatItem | BrowserGroup;
 
 const labels: Record<string, string> = {
-  computer_navigate: "Opened page",
-  computer_read: "Read page",
-  computer_snapshot: "Inspected page",
-  computer_click: "Clicked on page",
-  computer_type: "Filled in field",
-  computer_key: "Pressed key",
-  computer_scroll: "Scrolled page",
+  computer_navigate: tNow("Opened page"),
+  computer_read: tNow("Read page"),
+  computer_snapshot: tNow("Inspected page"),
+  computer_click: tNow("Clicked on page"),
+  computer_type: tNow("Filled in field"),
+  computer_key: tNow("Pressed key"),
+  computer_scroll: tNow("Scrolled page"),
 };
 
 /** Group adjacent browsing steps without moving messages or hiding requests for human help. */

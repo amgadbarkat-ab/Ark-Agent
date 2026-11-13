@@ -53,10 +53,10 @@ import { queryClient } from "@/query-client";
 
 /** The order and wording of the picker: what costs nothing first, then what the person pays for. */
 const TIER_GROUPS: { tier: ModelProviderTier; label: string }[] = [
-  { tier: "local", label: "On this computer" },
-  { tier: "free", label: "Free, hosted (with your own free key)" },
-  { tier: "paid", label: "Your own paid key" },
-  { tier: "custom", label: "Another server" },
+  { tier: "local", label: tNow("On this computer") },
+  { tier: "free", label: tNow("Free, hosted (with your own free key)") },
+  { tier: "paid", label: tNow("Your own paid key") },
+  { tier: "custom", label: tNow("Another server") },
 ];
 
 export function ModelDialog({

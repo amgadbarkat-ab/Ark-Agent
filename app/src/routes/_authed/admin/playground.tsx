@@ -90,7 +90,10 @@ export function validatePlaygroundDraft(draft: Draft): PlaygroundValidation {
     draft.argumentSchema,
     "Arguments (JSON Schema)",
   );
-  const sample = parseJsonObject(draft.sampleArguments, "Sample arguments");
+  const sample = parseJsonObject(
+    draft.sampleArguments,
+    tNow("Sample arguments"),
+  );
   if (!schema.ok || !sample.ok) {
     return {
       ok: false,
@@ -158,7 +161,7 @@ function PlaygroundPage() {
       setNotice(null);
       setError(
         Object.values(current.fields)[0] ??
-          "Fix the JSON fields before saving.",
+          tNow("Fix the JSON fields before saving."),
       );
       return null;
     }
@@ -170,7 +173,9 @@ function PlaygroundPage() {
     setNotice(null);
     const payload = input();
     if (!payload) return;
-    saveDraft.mutate(payload, { onSuccess: () => setNotice("Draft saved.") });
+    saveDraft.mutate(payload, {
+      onSuccess: () => setNotice(tNow("Draft saved.")),
+    });
   };
 
   const publish = () => {

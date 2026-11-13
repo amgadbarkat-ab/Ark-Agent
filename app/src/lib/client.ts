@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 import { sentenceNow } from "./i18n";
 
 /**
@@ -103,7 +104,7 @@ export async function client<T>(
       .json()
       .then((body: { error?: string }) => body.error)
       .catch(() => undefined);
-    throw failure(message ?? options.fallback ?? "That request failed.");
+    throw failure(message ?? options.fallback ?? tNow("That request failed."));
   }
 
   if (key === undefined) return response;
@@ -112,7 +113,7 @@ export async function client<T>(
   // a TypeError on property access. Malformed success is a failed request with the fallback.
   const body = (await response.json().catch(() => null)) as unknown;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw failure(options.fallback ?? "That request failed.");
+    throw failure(options.fallback ?? tNow("That request failed."));
   }
   return (body as Record<string, T>)[key];
 }
