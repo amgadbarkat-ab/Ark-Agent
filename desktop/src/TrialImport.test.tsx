@@ -42,7 +42,8 @@ test("a chosen profile is kept for when the app opens, and the person is told (#
     ),
   ).toBeTruthy();
   expect(calls[0]?.command).toBe("save_trial_profile");
-  expect((calls[0]?.args as { text: string }).text).toContain("arktrial/1");
+  const sent = calls[0]?.args as { text: string } | undefined;
+  expect(sent?.text).toContain("arktrial/1");
 });
 
 test("a refused file says why, in Greek when Greek was chosen (#109)", async () => {
