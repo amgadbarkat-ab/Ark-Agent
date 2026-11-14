@@ -1,0 +1,3 @@
+checkin/config.php
+checkin/data/*.sqlite*
+*.zip
