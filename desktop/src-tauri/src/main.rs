@@ -1694,7 +1694,9 @@ async fn start_stack_inner<R: tauri::Runtime>(
         };
         *shell.bridges.lock().unwrap() = relays;
         if loopback_only {
-            secrets.insert("LISTEN_HOSTS".into(), "127.0.0.1".into());
+            // Both loopbacks (#109): a sign-in that comes back to http://localhost:3001 arrives on
+            // `::1` first. The server skips `::1` on a computer without IPv6.
+            secrets.insert("LISTEN_HOSTS".into(), "127.0.0.1,::1".into());
         }
 
         let logs = root.join(".logs");

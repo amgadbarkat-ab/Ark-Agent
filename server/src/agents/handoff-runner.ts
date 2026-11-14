@@ -10,12 +10,13 @@
  * renewed for as long as the run takes, because a run is minutes and a lease that lapses mid-answer
  * hands the same hop to a second replica and bills for it twice.
  */
+
+import { frameColleagueAnswer } from "../../../shared/handoff-markers";
 import {
   type AuditInitiator,
   type AuditStore,
   recordAuditEvent,
 } from "../audit";
-import { frameColleagueAnswer } from "../../../shared/handoff-markers";
 import { cutAtCodeUnits } from "../channels/text";
 import { DEFAULT_MAX_ATTEMPTS, type WorkQueue } from "../work/queue";
 import { HANDOFF_KIND } from "./handoff";

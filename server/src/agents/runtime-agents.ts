@@ -12,9 +12,9 @@ import {
   channelMemberships,
   channels,
 } from "../db/schema";
+import { type MemoryStore, memoryGuidance } from "../memories/store";
 import { agentAuthHeaders, authFromConfiguration } from "./auth-header";
 import type { AgentActor } from "./profile-types";
-import { type MemoryStore, memoryGuidance } from "../memories/store";
 import { type TeamMember, teamGuidance } from "./team";
 
 /**

@@ -6,13 +6,13 @@ import { Hono } from "hono";
 import { runtimeModelForEnvironment } from "../src/copilot";
 import {
   encryptSecret,
-  resolveModelApiKey,
   type ModelCredentialSecretReader,
+  resolveModelApiKey,
 } from "../src/credentials";
 import {
   createProviderOAuthProxy,
-  mountProviderOAuthProxy,
   type ModelOAuthRecord,
+  mountProviderOAuthProxy,
 } from "../src/provider-oauth";
 import { createVoiceSummarizer } from "../src/voice/summary";
 

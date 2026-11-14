@@ -5,10 +5,9 @@ import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
 import type { AgentActor } from "../src/agents/profile-types";
 import { createRuntimeAgentLoader } from "../src/agents/runtime-agents";
-import { createChannelStore } from "../src/channels/routes";
-import { createMemoryStore } from "../src/memories/store";
-import { createThreadIdentity } from "../src/channels/thread-identity";
 import { teamGuidance } from "../src/agents/team";
+import { createChannelStore } from "../src/channels/routes";
+import { createThreadIdentity } from "../src/channels/thread-identity";
 import { standingRoleMessage } from "../src/copilot";
 import { type CredentialSecretReader, encryptSecret } from "../src/credentials";
 import { createDatabase } from "../src/db/client";
@@ -21,6 +20,7 @@ import {
   intelligenceChannelMappings,
   users,
 } from "../src/db/schema";
+import { createMemoryStore } from "../src/memories/store";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const databaseUrl = testDatabaseUrl();

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
+import type { ComputerProvider } from "../computer/provider";
 import type { Database } from "../db/client";
 import { agentProfiles } from "../db/schema";
-import type { ComputerProvider } from "../computer/provider";
 import type { CloudMeter } from "./meter";
 
 /**

@@ -4,7 +4,7 @@ import type { ApprovalRecord, ApprovalStore } from "../approvals/store";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import type { Database } from "../db/client";
 import { phoneApprovalSettings } from "../db/schema";
-import { type CallOutcome, type CallState, answered, pressed } from "./keypad";
+import { answered, type CallOutcome, type CallState, pressed } from "./keypad";
 import type { PhoneProvider } from "./provider";
 
 /**

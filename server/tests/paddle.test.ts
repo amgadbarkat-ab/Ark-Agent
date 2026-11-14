@@ -1,6 +1,5 @@
-import { createHmac } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import { billingFromEnvironment } from "../src/billing/select";
+import { createHmac } from "node:crypto";
 import {
   type PaddleConfig,
   paddleBilling,
@@ -12,6 +11,7 @@ import {
   BillingSignatureError,
   BillingUnavailableError,
 } from "../src/billing/provider";
+import { billingFromEnvironment } from "../src/billing/select";
 
 /**
  * Paddle as a payment provider, against a fake Paddle that follows its published API. Nothing here

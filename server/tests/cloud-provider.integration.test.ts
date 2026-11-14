@@ -1,16 +1,16 @@
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
-import type {
-  ComputerLocation,
-  ComputerProvider,
-} from "../src/computer/provider";
 import { createCloudMeter } from "../src/cloud/meter";
 import {
   meteredComputerProvider,
   reconcileCloudComputers,
   tenantOfBot,
 } from "../src/cloud/provider";
+import type {
+  ComputerLocation,
+  ComputerProvider,
+} from "../src/computer/provider";
 import { createDatabase } from "../src/db/client";
 import {
   agentProfiles,

@@ -3,15 +3,21 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
 import { MAX_IMAGE_BYTES } from "../../shared/attachments";
+import { withAccountProvisioning } from "./accounts/provisioning";
+import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
+import type { AccountStore } from "./accounts/store";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
   type RunAssertion,
   sameToken,
 } from "./agents/callback-token";
+import type { HandoffDesk } from "./agents/handoff";
 import type { BotAccessCheck } from "./agents/profile-policy";
 import type { AgentProfileStore } from "./agents/profile-store";
 import { createAgentRoutes } from "./agents/routes";
+import { createApprovalRoutes } from "./approvals/routes";
+import type { ApprovalStore } from "./approvals/store";
 import {
   type AuditEventType,
   type AuditInitiator,
@@ -32,20 +38,29 @@ import {
 } from "./auth/guards";
 import type { IdentityProviderStore } from "./auth/identity-provider-store";
 import { appAuthPage, desktopAuthPage } from "./auth/native-browser";
+import { manualBilling } from "./billing/manual";
+import type { BillingProvider } from "./billing/provider";
+import { sandboxCheckoutRoutes } from "./billing/sandbox-routes";
+import type { BillingWebhook } from "./billing/webhook";
+import { jsonBodyLimit } from "./body-limit";
 import {
   createAttachmentRoutes,
   createChannelAttachmentRoutes,
 } from "./channels/attachments";
 import type { ChannelEventHub } from "./channels/events";
+import { createFanoutRoutes } from "./channels/fanout-routes";
 import { type ChannelStore, createChannelRoutes } from "./channels/routes";
 import type { ThreadIdentity } from "./channels/thread-identity";
 import { createThreadRoutes } from "./channels/thread-routes";
 import { createThreadReader } from "./channels/thread-status";
+import type { CloudGate } from "./cloud/gate";
+import { adminCloudRoutes, type CloudAudit, cloudRoutes } from "./cloud/routes";
 import { createComponentRoutes } from "./components/routes";
 import type { SandboxedStore } from "./components/sandboxed";
 import { createSandboxedRoutes } from "./components/sandboxed-routes";
 import type { ComponentStore } from "./components/store";
 import type { ComputerGateway } from "./computer/gateway";
+import { createOwnBrowserRoutes } from "./computer/own-browser-routes";
 import type { PageFrameStore } from "./computer/page-frames";
 import type { PolicyStore } from "./computer/policy-store";
 import { createComputerRoutes } from "./computer/routes";
@@ -55,26 +70,41 @@ import {
   LOCAL_APP_ORIGINS,
 } from "./config";
 import type { CredentialAdminService, CredentialInput } from "./credentials";
+import {
+  appPolicy,
+  CSP_REPORT_PATH,
+  checkoutPolicy,
+  cspReportRoutes,
+} from "./csp";
 import type { Database } from "./db/client";
 import { withoutStatement } from "./db/query-failure";
+import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
-import { createVoiceProvider } from "./voice/provider";
-import { createVoiceRoutes } from "./voice/routes";
-import type { VoiceSessionServices } from "./voice/session-routes";
-import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import type { HostAccessBroker } from "./host-access/broker";
 import { createHostAccessRoutes } from "./host-access/routes";
-import { createOwnBrowserRoutes } from "./computer/own-browser-routes";
 import { createIntelligenceClient } from "./intelligence-client";
-import { parsePageLimit } from "./paging";
+import {
+  adminMarketplaceRoutes,
+  type MarketplaceAudit,
+  marketplaceRoutes,
+} from "./marketplace/routes";
+import type { MarketplaceStore } from "./marketplace/store";
+import { createMemoryRoutes } from "./memories/routes";
+import type { MemoryStore } from "./memories/store";
+import { appleAppSiteAssociation, assetLinks } from "./mobile/links";
+import { modelGatewayRoutes } from "./models/gateway";
+import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
-import type { OnboardingStore } from "./people/onboarding";
-import type { TermsStore } from "./people/terms";
+import { originGuard } from "./origin-guard";
 import { adminOverviewRoutes } from "./overview/routes";
-import { assetLinks, appleAppSiteAssociation } from "./mobile/links";
-import { pushRoutes } from "./push/routes";
+import { parsePageLimit } from "./paging";
+import type { OnboardingStore } from "./people/onboarding";
 import { MAX_PAGE, type PeopleStore } from "./people/store";
+import type { TermsStore } from "./people/terms";
+import { createPhoneRoutes } from "./phone/routes";
+import type { PhoneApprovals } from "./phone/service";
+import { createMcpAppRoutes } from "./plugins/apps-routes";
 import type { ComposioBroker } from "./plugins/broker";
 import { createPluginRoutes } from "./plugins/routes";
 import {
@@ -83,26 +113,22 @@ import {
   type PluginStore,
 } from "./plugins/store";
 import { REFUSAL_MARKER, vendorAnswer } from "./plugins/tools";
+import type { ErasureDependencies } from "./privacy/erase";
+import {
+  adminPrivacyRoutes,
+  type PrivacyAudit,
+  privacyRoutes,
+} from "./privacy/routes";
 import {
   type ModelProviderProxy,
   mountProviderOAuthProxy,
 } from "./provider-oauth";
-import { createApprovalRoutes } from "./approvals/routes";
-import type { ApprovalStore } from "./approvals/store";
-import { createMemoryRoutes } from "./memories/routes";
-import type { MemoryStore } from "./memories/store";
+import { pushRoutes } from "./push/routes";
+import { requestShape } from "./request-shape";
 import { createRoutineRoutes, type RoutineStore } from "./routines/routes";
 import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
-import { createFanoutRoutes } from "./channels/fanout-routes";
-import { createPhoneRoutes } from "./phone/routes";
-import type { PhoneApprovals } from "./phone/service";
-import { createMcpAppRoutes } from "./plugins/apps-routes";
-import type { HandoffDesk } from "./agents/handoff";
-import { jsonBodyLimit } from "./body-limit";
-import { originGuard } from "./origin-guard";
-import { requestShape } from "./request-shape";
 import { securityHeaders } from "./security-headers";
 import type { PackageStatusReader } from "./tenant-package";
 import {
@@ -111,36 +137,10 @@ import {
   type UserInstructionsStore,
 } from "./user-instructions";
 import type { UserPreferencesStore } from "./user-preferences";
-import { withAccountProvisioning } from "./accounts/provisioning";
-import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
-import type { CloudGate } from "./cloud/gate";
-import { adminCloudRoutes, type CloudAudit, cloudRoutes } from "./cloud/routes";
-import type { AccountStore } from "./accounts/store";
-import {
-  adminMarketplaceRoutes,
-  type MarketplaceAudit,
-  marketplaceRoutes,
-} from "./marketplace/routes";
-import type { MarketplaceStore } from "./marketplace/store";
-import {
-  adminPrivacyRoutes,
-  type PrivacyAudit,
-  privacyRoutes,
-} from "./privacy/routes";
-import type { ErasureDependencies } from "./privacy/erase";
-import { manualBilling } from "./billing/manual";
-import type { BillingProvider } from "./billing/provider";
-import { sandboxCheckoutRoutes } from "./billing/sandbox-routes";
-import type { BillingWebhook } from "./billing/webhook";
-import { modelGatewayRoutes } from "./models/gateway";
-import { modelConnectionRoutes } from "./models/routes";
-import {
-  appPolicy,
-  checkoutPolicy,
-  CSP_REPORT_PATH,
-  cspReportRoutes,
-} from "./csp";
 import { userPreferencesRoutes } from "./user-preferences-routes";
+import { createVoiceProvider } from "./voice/provider";
+import { createVoiceRoutes } from "./voice/routes";
+import type { VoiceSessionServices } from "./voice/session-routes";
 
 /**
  * How much of a multipart body is boundary, headers and other fields rather than file.

@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { joinCodeFor, signJoinToken } from "../../../hub/src/tokens";
 import { testDatabaseUrl } from "../support/database";

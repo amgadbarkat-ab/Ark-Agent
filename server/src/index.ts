@@ -1932,10 +1932,28 @@ const serverOptions = {
  * listened on every interface, so anyone on the same network reached an administrator's API.
  */
 const hosts = listenHosts(process.env.LISTEN_HOSTS);
-const servers =
-  hosts.length > 0
-    ? hosts.map((hostname) => serve<SocketData>({ ...serverOptions, hostname }))
-    : [serve<SocketData>(serverOptions)];
+/*
+ * `::1` beside `127.0.0.1` (#109): a browser resolves `localhost` to `::1` first, so a Google or
+ * Microsoft sign-in that comes back to http://localhost:3001 was refused while only 127.0.0.1
+ * listened. A computer with IPv6 switched off has no `::1`, and that alone must not stop the server:
+ * an address that cannot be bound is skipped, as long as one other address could be.
+ */
+const servers: ReturnType<typeof serve<SocketData>>[] = [];
+if (hosts.length === 0) servers.push(serve<SocketData>(serverOptions));
+for (const hostname of hosts) {
+  try {
+    servers.push(serve<SocketData>({ ...serverOptions, hostname }));
+  } catch (error) {
+    if (hostname !== "::1" || hosts.length === 1) throw error;
+    console.warn(
+      JSON.stringify({
+        type: "listen-skipped",
+        hostname,
+        reason: String(error),
+      }),
+    );
+  }
+}
 
 // Writes down every route this process registered, for the security tests (server/tests/security), which
 // need the real inventory: `createApp` registers a route only when the store behind it was given, so an

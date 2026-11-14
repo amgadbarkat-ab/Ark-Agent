@@ -41,8 +41,8 @@ import {
   type ActionPolicy,
   evaluateActionPolicy,
   type PolicyContext,
-  policyInitiator,
   type PolicyDecision,
+  policyInitiator,
 } from "./policy";
 import type { ComputerProvider } from "./provider";
 import type {

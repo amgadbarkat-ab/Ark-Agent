@@ -8,8 +8,8 @@ import { Observable } from "rxjs";
 import { formatEur, nextPlanUp } from "../../../shared/plans";
 import type { CloudGate } from "../cloud/gate";
 import type { CloudMeter } from "../cloud/meter";
-import type { AccountStore, Entitlement } from "./store";
 import type { RunSlots } from "./run-slots";
+import type { AccountStore, Entitlement } from "./store";
 
 export type RunGateOptions = {
   accounts: Pick<AccountStore, "entitlementFor">;

@@ -34,11 +34,11 @@ import {
   subscriptions,
   tenantMemberships,
   tenants,
+  termsAcceptances,
   userInstructions,
   userRoles,
   users,
   voiceSessions,
-  termsAcceptances,
 } from "../src/db/schema";
 import {
   type ConversationService,

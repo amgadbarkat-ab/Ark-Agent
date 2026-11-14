@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { RunAssertion } from "../src/agents/callback-token";
-import { teamTools, type TeamToolDependencies } from "../src/agents/team-tools";
 import type { AgentProfile } from "../src/agents/profile-types";
+import { type TeamToolDependencies, teamTools } from "../src/agents/team-tools";
 import type { RoutineSummary } from "../src/routines/store";
 
 const person = "owner-1";

@@ -5,17 +5,17 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { Registry } from "../../shared/metrics";
 import type { AppVariables } from "../src/auth/guards";
+import { loadConfig } from "../src/config";
 import { createDatabase } from "../src/db/client";
 import { runSlots, subscriptions, tenants } from "../src/db/schema";
-import { loadConfig } from "../src/config";
 import {
   describeError,
   parseRequestLogMode,
   registerBusinessMetrics,
   requestObservability,
+  SLOW_REQUEST_MS,
   serveMetrics,
   serverMetrics,
-  SLOW_REQUEST_MS,
   unhandledError,
 } from "../src/observability";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";

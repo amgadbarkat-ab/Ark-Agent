@@ -8,7 +8,7 @@ import {
 } from "@ag-ui/client";
 import { eq } from "drizzle-orm";
 import { Observable, type Subscriber } from "rxjs";
-import { chargeCents, type CloudRates } from "../../shared/cloud-pricing";
+import { type CloudRates, chargeCents } from "../../shared/cloud-pricing";
 import { RunGateAgent } from "../src/accounts/run-gate";
 import { createRunSlots } from "../src/accounts/run-slots";
 import { createAccountStore } from "../src/accounts/store";

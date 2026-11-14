@@ -2,7 +2,7 @@ import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import type { CloudUsage } from "../../../shared/cloud-pricing";
 import type { Database } from "../db/client";
 import { cloudIntervals } from "../db/schema";
-import { clip, merge, periodBounds, seconds, type Span } from "./intervals";
+import { clip, merge, periodBounds, type Span, seconds } from "./intervals";
 
 /**
  * A record of when the cloud was in use for each coworker, and how much of it, for each account.

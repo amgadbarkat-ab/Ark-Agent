@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { goLiveChecks, type DeploymentFacts } from "../src/overview/checks";
+import { type DeploymentFacts, goLiveChecks } from "../src/overview/checks";
 import {
   deploymentFacts,
   staffDirectoryConfigured,
