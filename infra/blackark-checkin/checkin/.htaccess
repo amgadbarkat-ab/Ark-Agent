@@ -1,0 +1,24 @@
+# BlackArk trial check-in receiver (#109).
+Options -Indexes
+DirectoryIndex index.php
+
+# Only the two entry points are reachable: index.php (the receiver) and admin/index.php.
+<FilesMatch "^(lib|config|config\.sample)\.php$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+<FilesMatch "\.(sqlite|sqlite-journal|sqlite-wal|sqlite-shm|md|txt|sh)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
