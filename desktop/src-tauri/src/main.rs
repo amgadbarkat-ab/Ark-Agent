@@ -4038,10 +4038,9 @@ fn main() {
             let stop_label = pick("Stop ArkAgent", "Διακοπή ArkAgent");
             let quit_label = pick("Quit", "Έξοδος");
             let about_label = pick(about::TITLE, "Σχετικά με το ArkAgent");
-            let own_browser_label = pick(
-                "Let digital employees use my browser",
-                "Οι ψηφιακοί υπάλληλοι μπορούν να χρησιμοποιούν τον περιηγητή μου",
-            );
+            // Device control (own browser): its label stays as it was until Amgad's separate yes on
+            // the translation (standing rule); the follow-up PR carries the Greek.
+            let own_browser_label = "Let digital employees use my browser";
 
             let open = MenuItem::with_id(app, "open", open_label, true, None::<&str>)?;
             let stop = MenuItem::with_id(app, "stop", stop_label, true, None::<&str>)?;

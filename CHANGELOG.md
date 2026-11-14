@@ -20,8 +20,9 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   Greek way.
 - **The setup window has its own EN / ΕΛ switch** on every step, starting from the computer's
   language. The app then opens in the language chosen there; after that it is changed in Settings.
-  The engine's steps and problems, the native folder-access dialogs and the tray and window menus
-  follow it (the menus from the next start).
+  The engine's steps and problems and the tray and window menus follow it (the menus from the next
+  start). The folder-access approval dialogs and the "use my browser" menu item are device control,
+  and stay English until Amgad's separate yes on their translation.
 - **The terms of service and the privacy notice stay in English** until legal counsel supplies the
   Greek. In Greek the page says so in Greek («Η ελληνική μετάφραση ετοιμάζεται από νομικό σύμβουλο.
   Μέχρι τότε ισχύει το αγγλικό κείμενο:») and shows the English text.
