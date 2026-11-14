@@ -161,7 +161,7 @@ test("an official digital employee shows what it starts with and can be installe
     .setup({ document })
     .click(screen.getByRole("button", { name: "Install" }));
   expect(
-    await screen.findByText(/is now one of your agents/, {}, SLOW),
+    await screen.findByText(/is now one of your digital employees/, {}, SLOW),
   ).toBeTruthy();
   expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
     "POST /api/marketplace/listings/research-analyst/install",
