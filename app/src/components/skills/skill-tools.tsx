@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { sentenceNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 import { undeclaredElsewhere } from "@/lib/skills/form";
 
@@ -153,7 +153,7 @@ export function SkillTools({
                  * The whole ref, not a tool name. There is no server here to put it under, and the
                  * server id is the part that says which connector is missing.
                  */
-                title={`${ref} — no connected server offers this`}
+                title={tNow("{ref} — no connected server offers this", { ref })}
                 type="button"
                 variant="secondary"
               >

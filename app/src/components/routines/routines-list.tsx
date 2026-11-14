@@ -372,7 +372,7 @@ export function RoutinesList({
               size="sm"
               variant="destructive"
             >
-              {deleteRoutine.isPending ? "Deleting…" : "Delete"}
+              {deleteRoutine.isPending ? tNow("Deleting…") : tNow("Delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

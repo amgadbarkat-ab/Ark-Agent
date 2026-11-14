@@ -79,10 +79,10 @@ export function ListingView({
             size="sm"
           >
             {install.isPending
-              ? "Installing…"
+              ? tNow("Installing…")
               : listing.installedByMe
                 ? t("Install another")
-                : "Install"}
+                : tNow("Install")}
           </Button>
         ) : listing.mine ? null : (
           <Button onClick={() => setReporting(true)} size="sm" variant="ghost">
@@ -196,7 +196,7 @@ export function ListingView({
                 size="sm"
                 variant="destructive"
               >
-                {withdraw.isPending ? "Withdrawing…" : "Withdraw"}
+                {withdraw.isPending ? tNow("Withdrawing…") : tNow("Withdraw")}
               </Button>
             </div>
           ) : null}

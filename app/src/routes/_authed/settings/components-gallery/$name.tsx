@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { componentListQueryOptions } from "@/lib/components/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 
 /** The same way back from every state this route can be in. */
 const BACK = {
@@ -125,7 +125,7 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={BACK}
-      description={component.publishedDescription ?? undefined}
+      description={sentenceNow(component.publishedDescription) ?? undefined}
       title={component.title}
     >
       <div className="relative mt-8 aspect-[2/1] overflow-hidden rounded-lg border border-border bg-card">

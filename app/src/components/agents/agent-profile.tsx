@@ -6,7 +6,7 @@ import { AgentDialog } from "@/components/agents/agent-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agentQueryOptions } from "@/lib/agents/queries";
-import { sentenceNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 
 function Tag({ children }: { children: ReactNode }) {
   return (
@@ -86,7 +86,11 @@ export function AgentProfile({ agentId }: { agentId: string }) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-1.5">
-          <Tag>{profile.visibility === "private" ? "Private" : "Public"}</Tag>
+          <Tag>
+            {profile.visibility === "private"
+              ? tNow("Private")
+              : tNow("Public")}
+          </Tag>
           {profile.primary ? <Tag>{t("Primary")}</Tag> : null}
           {profile.systemOwned ? <Tag>{t("System owned")}</Tag> : null}
         </div>

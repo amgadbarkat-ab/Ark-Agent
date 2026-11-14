@@ -1,7 +1,7 @@
 import { IconChevronDown, IconLoader2 } from "@tabler/icons-react";
 import { IconWaveform } from "@/components/icons/waveform";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   saveVoiceSession,
   type VoiceChatEntry,
@@ -37,7 +37,7 @@ export function VoiceChatCard({ call }: { call: VoiceChatEntry }) {
           {call.transcript.map((entry) => (
             <div key={entry.id}>
               <p className="mb-0.5 text-xs font-medium text-muted-foreground">
-                {entry.role === "user" ? "You" : "Agent"}
+                {entry.role === "user" ? tNow("You") : tNow("Agent")}
               </p>
               <p className="whitespace-pre-wrap text-sm leading-relaxed">
                 {entry.text}

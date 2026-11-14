@@ -55,7 +55,7 @@ import {
   type CredentialStatus,
   credentialListQueryOptions,
 } from "@/lib/credentials/queries";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/credentials")({
   component: CredentialsPage,
@@ -300,7 +300,7 @@ function CredentialsPage() {
                     type="submit"
                   >
                     {isSubmitting || createCredential.isPending
-                      ? "Saving…"
+                      ? tNow("Saving…")
                       : t("Save credential")}
                   </Button>
                 )}

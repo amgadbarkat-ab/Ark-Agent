@@ -328,7 +328,10 @@ function RouteComponent() {
       {server.tools.length === 0 ? (
         <PageEmpty>
           {server.lastError ??
-            `${appTitle} lists no actions. Refresh its tools to ask again.`}
+            tNow(
+              "{appTitle} lists no actions. Refresh its tools to ask again.",
+              { appTitle: appTitle },
+            )}
         </PageEmpty>
       ) : (
         <>
@@ -390,7 +393,9 @@ function RouteComponent() {
                   ? t('Nothing that only reads matches "{value1}".', {
                       value1: search.trim(),
                     })
-                  : `${appTitle} offers nothing that only reads.`}
+                  : tNow("{appTitle} offers nothing that only reads.", {
+                      appTitle: appTitle,
+                    })}
               </PageEmpty>
             ) : (
               rows(reads)
@@ -409,7 +414,9 @@ function RouteComponent() {
                   ? t('Nothing that changes things matches "{value1}".', {
                       value1: search.trim(),
                     })
-                  : `${appTitle} offers nothing that changes anything.`}
+                  : tNow("{appTitle} offers nothing that changes anything.", {
+                      appTitle: appTitle,
+                    })}
               </PageEmpty>
             ) : (
               rows(writes)

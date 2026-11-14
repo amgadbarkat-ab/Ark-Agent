@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { tNow, useT } from "@/lib/i18n";
+import { dateLocale, tNow, useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 import { seriesColour } from "./palette";
 
@@ -26,7 +26,7 @@ const HEIGHT = 180;
 
 function formatNumber(value: number): string {
   if (Math.abs(value) >= 1000) {
-    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    return value.toLocaleString(dateLocale(), { maximumFractionDigits: 0 });
   }
   return String(Math.round(value * 100) / 100);
 }
@@ -401,7 +401,7 @@ export function ProgressChartCard({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showBarChart",
-    title: "Bar chart",
+    title: tNow("Bar chart"),
     kind: "chart",
     description:
       "Show values as a bar chart. Use when comparing a handful of named things, teams, months, categories. Not for a trend over time, which is showLineChart.",
@@ -465,7 +465,7 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       title: tNow("Storage used"),
       caption: tNow("Growing steadily since the migration."),
-      labels: ["Jan", "Feb", "Mar", "Apr", "May"],
+      labels: [tNow("Jan"), tNow("Feb"), tNow("Mar"), tNow("Apr"), tNow("May")],
       series: [{ name: "TB", values: [12, 19, 26, 31, 44] }],
     },
     confirmation: "The area chart is now on screen for the person.",

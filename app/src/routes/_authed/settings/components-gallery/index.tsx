@@ -10,7 +10,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { componentListQueryOptions } from "@/lib/components/queries";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 
 /**
  * What a Bot can draw, for the person it draws for.
@@ -70,7 +70,7 @@ function RouteComponent() {
                   {component.title}
                 </h4>
                 <p className="mt-2 line-clamp-2 text-muted-foreground text-xs">
-                  {component.publishedDescription}
+                  {sentenceNow(component.publishedDescription)}
                 </p>
               </div>
               <div className="relative flex-1">

@@ -28,7 +28,7 @@ import {
   renameChannelMutationOptions,
   setChannelPinnedMutationOptions,
 } from "@/lib/channels/mutations";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import type { MessageListEmphasis } from "@/lib/settings/message-list";
 import { useTypedReveal } from "@/lib/typed-reveal";
 import { ChannelItemContent } from "./channel-item-content";
@@ -220,7 +220,7 @@ export const Channel = memo(function Channel({
               size="sm"
               variant="destructive"
             >
-              {deleteChannel.isPending ? "Deleting…" : "Delete"}
+              {deleteChannel.isPending ? tNow("Deleting…") : tNow("Delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -315,7 +315,7 @@ export function RenameChannelForm({
           size="sm"
           type="submit"
         >
-          {rename.isPending ? "Saving…" : "Save"}
+          {rename.isPending ? tNow("Saving…") : tNow("Save")}
         </Button>
       </DialogFooter>
     </form>

@@ -9,7 +9,8 @@ import {
 } from "@/lib/auth/mutations";
 import { currentUserQueryOptions, needsTerms } from "@/lib/auth/queries";
 import { appConfig } from "@/lib/generated/application-config";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
+import { EnglishOnlyNote } from "@/lib/legal-markdown";
 import { queryClient } from "@/query-client";
 
 /**
@@ -55,6 +56,7 @@ function AcceptTerms() {
             { product: appConfig.brand.productName },
           )}
         </p>
+        <EnglishOnlyNote />
         <p className="text-sm">
           <a
             className="underline underline-offset-4"
@@ -106,7 +108,7 @@ function AcceptTerms() {
           }}
           size="lg"
         >
-          {accept.isPending ? "Saving…" : t("Agree and continue")}
+          {accept.isPending ? tNow("Saving…") : t("Agree and continue")}
         </Button>
         {accept.error ? (
           <p className="text-sm text-destructive" role="alert">

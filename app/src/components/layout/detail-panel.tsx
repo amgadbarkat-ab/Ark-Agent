@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { EASE_OUT } from "@/lib/motion";
 
 /**
@@ -79,7 +79,7 @@ export function DetailPanel({
             style={{ width: `min(${detailWidth}px, 100vw)`, maxWidth: "100vw" }}
           >
             <SheetTitle className="h-12 shrink-0 px-4 pr-12 flex items-center">
-              {title ?? "Details"}
+              {title ?? tNow("Details")}
             </SheetTitle>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {open ? detail : null}

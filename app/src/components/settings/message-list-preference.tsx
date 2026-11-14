@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   saveUserPreferencesMutationOptions,
   useUserPreferences,
@@ -58,7 +58,7 @@ export function MessageListPreference() {
                   ? emphasis === "agent"
                     ? t("Agent name")
                     : t("Thread title")
-                  : "Loading…"}
+                  : tNow("Loading…")}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>

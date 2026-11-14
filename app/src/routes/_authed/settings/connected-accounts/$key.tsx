@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
-import { sentenceNow, tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import {
@@ -270,7 +270,10 @@ function RouteComponent() {
                 "A digital employee granted its tools reads your {title} as you. Disconnecting ends the account at Composio, not just here.",
                 { title: server.title },
               )}
-              disconnectedDescription={`${reassurance} Connecting takes you to Composio and then to the vendor to consent.`}
+              disconnectedDescription={tNow(
+                "{reassurance} Connecting takes you to Composio and then to the vendor to consent.",
+                { reassurance: reassurance },
+              )}
               /* What is true either way. The trip to Composio is not — an app whose key somebody
                  types never leaves this page — but which digital employees can read this person's mail is the
                  whole point of the screen and holds for both kinds. */
@@ -478,7 +481,7 @@ function RouteComponent() {
                   type="button"
                   variant="outline"
                 >
-                  {expired ? t("Connect again") : "Connect"}
+                  {expired ? t("Connect again") : tNow("Connect")}
                   <IconArrowUpRight />
                 </Button>
               )}
@@ -510,7 +513,9 @@ function RouteComponent() {
               </ItemContent>
               <ItemActions>
                 <span className="text-muted-foreground text-xs">
-                  {new Date(connection.connectedAt).toLocaleString()}
+                  {new Date(connection.connectedAt).toLocaleString(
+                    dateLocale(),
+                  )}
                 </span>
               </ItemActions>
             </Item>

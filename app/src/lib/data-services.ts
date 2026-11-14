@@ -49,8 +49,9 @@ export const DATA_SERVICES: readonly DataService[] = [
     name: "Google Drive",
     summary: tNow("Files in your Drive, including shared drives. Read only."),
     connector: "google-drive",
-    setup:
+    setup: tNow(
       "A Google OAuth client, with its client id and secret added by an administrator",
+    ),
   },
   {
     id: "gmail",
@@ -59,8 +60,9 @@ export const DATA_SERVICES: readonly DataService[] = [
       "Search and read your mail, and send a message once you approve it. Nothing is deleted or marked read.",
     ),
     connector: "google-gmail",
-    setup:
+    setup: tNow(
       "A Google OAuth client (the same one Google Drive uses works), with the Gmail API turned on and its client id and secret added by an administrator",
+    ),
     untested: true,
   },
   {

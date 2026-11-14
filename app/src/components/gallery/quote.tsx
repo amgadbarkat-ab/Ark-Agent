@@ -61,7 +61,7 @@ export const GALLERY: GalleryComponent[] = [
       quote: tNow(
         "Meals under $75 need no receipt. Anything above needs one, and anything above $500 needs your manager before you spend it.",
       ),
-      attribution: "the expense policy",
+      attribution: tNow("the expense policy"),
       context: tNow("Last changed in March."),
     },
     confirmation: "The quotation is now on screen for the person.",

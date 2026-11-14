@@ -1118,7 +1118,7 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
         alt={
           filename
             ? t("Attachment: {filename}", { filename: filename })
-            : "Attachment"
+            : tNow("Attachment")
         }
         className="size-32 rounded-xl object-cover"
         onError={() => setFailedToLoad(true)}
@@ -1140,7 +1140,7 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
  */
 function unavailableSentence(filename?: string): string {
   return filename
-    ? `${filename} is unavailable.`
+    ? tNow("{filename} is unavailable.", { filename })
     : tNow("This attachment is unavailable.");
 }
 
@@ -1201,7 +1201,7 @@ export function LightboxPicture({
 
   return (
     <img
-      alt={filename ?? "Attachment"}
+      alt={filename ?? tNow("Attachment")}
       className="max-h-[88svh] max-w-[92vw] rounded-lg object-contain"
       onError={() => setFailedToLoad(true)}
       src={url}

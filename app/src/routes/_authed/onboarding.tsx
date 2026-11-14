@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
 import { currentUserQueryOptions, needsOnboarding } from "@/lib/auth/queries";
 import { appConfig } from "@/lib/generated/application-config";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { completeOnboardingMutationOptions } from "@/lib/onboarding/mutations";
 import { queryClient } from "@/query-client";
 
@@ -254,10 +254,10 @@ function RouteComponent() {
                   size="lg"
                 >
                   {complete.isPending
-                    ? "Saving…"
+                    ? tNow("Saving…")
                     : last
                       ? t("Get started")
-                      : "Continue"}
+                      : tNow("Continue")}
                 </Button>
                 {step !== 0 && (
                   <Button

@@ -22,7 +22,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { dateLocale, tNow, useT } from "@/lib/i18n";
 import {
   setPersonAccessMutationOptions,
   setPersonRoleMutationOptions,
@@ -56,8 +56,10 @@ function describe(person: Person): string {
     .map((provider) => PROVIDER_NAMES[provider] ?? provider)
     .join(", ");
   const when = person.lastSignedInAt
-    ? `last signed in ${new Date(person.lastSignedInAt).toLocaleDateString()}`
-    : "never signed in";
+    ? tNow("last signed in {date}", {
+        date: new Date(person.lastSignedInAt).toLocaleDateString(dateLocale()),
+      })
+    : tNow("never signed in");
 
   if (person.revoked)
     return tNow("Access removed · {value1} · {when}", {
@@ -262,7 +264,7 @@ function PeoplePage() {
                         size="sm"
                         variant={person.revoked ? "outline" : "destructive"}
                       >
-                        {person.revoked ? "Restore" : "Remove"}
+                        {person.revoked ? tNow("Restore") : tNow("Remove")}
                       </Button>
                       <Switch
                         aria-label={t("Administrator: {email}", {
@@ -298,7 +300,7 @@ function PeoplePage() {
             size="sm"
             variant="outline"
           >
-            {people.isFetchingNextPage ? "Loading…" : t("Show more")}
+            {people.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

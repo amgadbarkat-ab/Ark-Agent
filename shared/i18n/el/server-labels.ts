@@ -379,4 +379,53 @@ export const EL_SERVER_LABELS: Record<string, string> = {
     "Αίτημα για συγκεκριμένη εγγραφή αρχείου σε φάκελο υπολογιστή που έχει δοθεί, επιβεβαιωμένη από τον κάτοχο στην εφαρμογή. Η εφαρμογή κρατά αντίγραφο του αρχικού και αρνείται αν ο κάτοχος δεν εγκρίνει τη συγκεκριμένη ενέργεια.",
   "Request an exact native-owner-confirmed shell command in the offline sandbox for a granted host folder. Set writable true only if the command needs write access; native still prompts before running.":
     "Αίτημα για συγκεκριμένη εντολή κελύφους, επιβεβαιωμένη από τον κάτοχο στην εφαρμογή, στο απομονωμένο περιβάλλον χωρίς δίκτυο για φάκελο υπολογιστή που έχει δοθεί. Ορίστε writable true μόνο αν η εντολή χρειάζεται εγγραφή· η εφαρμογή ρωτά πάντα πριν την εκτέλεση.",
+  "No rule in this deployment's policy permits that action, so it was refused. An administrator can add one.":
+    "Κανένας κανόνας στην πολιτική αυτής της εγκατάστασης δεν επιτρέπει αυτή την ενέργεια, οπότε απορρίφθηκε. Ένας διαχειριστής μπορεί να προσθέσει έναν.",
+  "This deployment's policy does not allow that: the command `{command}` is blocked by the rule `{expression}`.":
+    "Η πολιτική αυτής της εγκατάστασης δεν το επιτρέπει: η εντολή `{command}` μπλοκάρεται από τον κανόνα `{expression}`.",
+  "This deployment's policy does not allow that: {tool} on {server} is blocked by the rule `{expression}`.":
+    "Η πολιτική αυτής της εγκατάστασης δεν το επιτρέπει: το {tool} στο {server} μπλοκάρεται από τον κανόνα `{expression}`.",
+  "This deployment's policy does not allow that: the file {path} is blocked by the rule `{expression}`.":
+    "Η πολιτική αυτής της εγκατάστασης δεν το επιτρέπει: το αρχείο {path} μπλοκάρεται από τον κανόνα `{expression}`.",
+  "This deployment's policy does not allow that: {what} on {host} is blocked by the rule `{expression}`.":
+    "Η πολιτική αυτής της εγκατάστασης δεν το επιτρέπει: το {what} στο {host} μπλοκάρεται από τον κανόνα `{expression}`.",
+  "{botName} stopped responding. Nothing arrived from it for {inWords}, so this turn was ended. Ask again, or check that the digital employee is running.":
+    "Ο ψηφιακός υπάλληλος {botName} σταμάτησε να απαντά. Δεν ήρθε τίποτα για {inWords}, οπότε αυτός ο γύρος τερματίστηκε. Ρωτήστε ξανά ή ελέγξτε ότι ο ψηφιακός υπάλληλος εκτελείται.",
+  "This deployment has no managed digital employee. Give the digital employee its own AG-UI endpoint.":
+    "Αυτή η εγκατάσταση δεν έχει διαχειριζόμενο ψηφιακό υπάλληλο. Δώστε στον ψηφιακό υπάλληλο δικό του σημείο πρόσβασης AG-UI.",
+  "A team channel needs at least two digital employees. Add another and try again.":
+    "Μια ομαδική συνομιλία χρειάζεται τουλάχιστον δύο ψηφιακούς υπαλλήλους. Προσθέστε έναν ακόμη και δοκιμάστε ξανά.",
+  "The payment service did not say whether the charge went through.":
+    "Η υπηρεσία πληρωμών δεν είπε αν η χρέωση ολοκληρώθηκε.",
+  "That billing notification could not be verified.":
+    "Δεν ήταν δυνατή η επαλήθευση αυτής της ειδοποίησης χρέωσης.",
+  "The starter model is busy right now. Try again in a minute, or add your own model in Settings, then Models.":
+    "Το αρχικό μοντέλο είναι απασχολημένο αυτή τη στιγμή. Δοκιμάστε ξανά σε ένα λεπτό ή προσθέστε το δικό σας μοντέλο στις Ρυθμίσεις, στα Μοντέλα.",
+  "There is no such memory.": "Δεν υπάρχει τέτοια ανάμνηση.",
+  "The prices changed while you were looking. Read them again.":
+    "Οι τιμές άλλαξαν όσο τις κοιτάζατε. Διαβάστε τις ξανά.",
+  "Composio is not configured for this deployment, so nothing was asked. Set COMPOSIO_API_KEY to make the brokered apps available; until it is set there is nothing to connect, nothing to grant and no Composio tool for a digital employee to call, and the admin Plugins page shows one row under More apps that goes nowhere.":
+    "Η Composio δεν έχει ρυθμιστεί για αυτή την εγκατάσταση, οπότε δεν ρωτήθηκε τίποτα. Ορίστε το COMPOSIO_API_KEY για να γίνουν διαθέσιμες οι εφαρμογές μέσω μεσάζοντα· μέχρι τότε δεν υπάρχει τίποτα για σύνδεση ή παραχώρηση ούτε εργαλείο Composio για κάποιον ψηφιακό υπάλληλο, και η σελίδα Πρόσθετα δείχνει μία γραμμή στις Περισσότερες εφαρμογές που δεν οδηγεί πουθενά.",
+  "No component is called {name}.": "Κανένα στοιχείο δεν ονομάζεται {name}.",
+  "Agent {id} was not found.": "Ο ψηφιακός υπάλληλος {id} δεν βρέθηκε.",
+  "Agent {id} cannot be managed by this actor.":
+    "Ο ψηφιακός υπάλληλος {id} δεν μπορεί να τροποποιηθεί από αυτόν τον χρήστη.",
+  "Agent {id} is protected.": "Ο ψηφιακός υπάλληλος {id} είναι προστατευμένος.",
+  "Attachments were not recorded as sent: {value1}.":
+    "Τα συνημμένα δεν καταγράφηκαν ως σταλμένα: {value1}.",
+  "Channel {id} was not found.": "Η συνομιλία {id} δεν βρέθηκε.",
+  "Channel {id} is defined by the deployment package.":
+    "Η συνομιλία {id} ορίζεται από το πακέτο της εγκατάστασης.",
+  "{key} is not a server this deployment will connect to.":
+    "Το {key} δεν είναι διακομιστής με τον οποίο θα συνδεθεί αυτή η εγκατάσταση.",
+  "Standing instructions are at most {INSTRUCTIONS_LIMIT} characters.":
+    "Οι μόνιμες οδηγίες είναι το πολύ {INSTRUCTIONS_LIMIT} χαρακτήρες.",
+  "A person can keep {MAX_CONNECTIONS_PER_USER} model connections. Remove one to add another.":
+    "Ένα άτομο μπορεί να έχει {MAX_CONNECTIONS_PER_USER} συνδέσεις μοντέλων. Αφαιρέστε μία για να προσθέσετε άλλη.",
+  "Your {title} sign-in has expired or was withdrawn. Connect {title2} again in Settings → Connected accounts, then ask again.":
+    "Η σύνδεσή σας στο {title} έληξε ή ανακλήθηκε. Συνδέστε ξανά το {title2} στις Ρυθμίσεις → Συνδεδεμένοι λογαριασμοί και ρωτήστε ξανά.",
+  "/{slug} is a skill this deployment provides. Pick another name for yours.":
+    "Το /{slug} είναι δεξιότητα που παρέχει αυτή η εγκατάσταση. Διαλέξτε άλλο όνομα για τη δική σας.",
+  "This turn was not run, because {value1} could not be recorded as sent ({named}). A file withdrawn while the turn was being prepared is the usual cause. Nothing was sent to the digital employee — attach the file again and resend.":
+    "Αυτός ο γύρος δεν εκτελέστηκε, γιατί το {value1} δεν καταγράφηκε ως σταλμένο ({named}). Η συνήθης αιτία είναι ένα αρχείο που αποσύρθηκε ενώ ετοιμαζόταν ο γύρος. Δεν στάλθηκε τίποτα στον ψηφιακό υπάλληλο — επισυνάψτε ξανά το αρχείο και στείλτε ξανά.",
 };

@@ -72,13 +72,22 @@ export function parseJsonObject(raw: string, label: string): JsonObjectResult {
   } catch (thrown) {
     const reason =
       thrown instanceof SyntaxError ? thrown.message : "invalid JSON";
-    return { ok: false, message: `${label} must be valid JSON: ${reason}` };
+    return {
+      ok: false,
+      message: tNow("{label} must be valid JSON: {reason}", {
+        label: label,
+        reason: reason,
+      }),
+    };
   }
 
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {
       ok: false,
-      message: `${label} must be a JSON object, not ${jsonKind(value)}.`,
+      message: tNow("{label} must be a JSON object, not {jsonKind}.", {
+        label: label,
+        jsonKind: jsonKind(value),
+      }),
     };
   }
 
@@ -355,10 +364,12 @@ function PlaygroundPage() {
                       <div className="font-mono text-xs">{component.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {component.published
-                          ? `published, revision ${component.revision}`
-                          : "draft only, no digital employee can draw it"}
+                          ? tNow("published, revision {revision}", {
+                              revision: component.revision,
+                            })
+                          : tNow("draft only, no digital employee can draw it")}
                         {component.hasUnpublishedChanges
-                          ? " · edited since publishing"
+                          ? ` · ${tNow("edited since publishing")}`
                           : ""}
                       </div>
                     </div>

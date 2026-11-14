@@ -84,7 +84,7 @@ export function AgentIconItem({
             size="sm"
             variant="ghost"
           >
-            {image ? "Change" : t("Choose picture")}
+            {image ? tNow("Change") : t("Choose picture")}
           </Button>
           {image ? (
             <Button

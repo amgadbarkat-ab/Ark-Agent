@@ -60,7 +60,7 @@ import {
   dataFunctionsQueryOptions,
 } from "@/lib/components/queries";
 import { RENDERABLE_NAMES } from "@/lib/copilot/gallery-registry";
-import { sentenceNow, tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -69,7 +69,7 @@ import { queryClient } from "@/query-client";
  */
 /** The same way back from every state this route can be in. */
 const BACK = {
-  label: "UI Components",
+  label: tNow("UI Components"),
   linkProps: { to: "/admin/components" },
 } as const;
 
@@ -283,7 +283,10 @@ function ComponentDetail({
         ? tNow("All {length} digital employees", { length: bots.length })
         : granted.length === 0
           ? tNow("No digital employees")
-          : `${granted.length} of ${bots.length} digital employees`;
+          : tNow("{length} of {length2} digital employees", {
+              length: granted.length,
+              length2: bots.length,
+            });
 
   const functionSummary =
     dataFunctions.length === 0
@@ -296,7 +299,7 @@ function ComponentDetail({
     <PageShell
       backButton={BACK}
       description={
-        component.publishedDescription ??
+        sentenceNow(component.publishedDescription) ??
         t("Nothing is published, so no digital employee is told about this.")
       }
       title={sentenceNow(component.title)}
@@ -412,7 +415,7 @@ function ComponentDetail({
           </FactRow>
           <Separator />
           <FactRow icon={<IconClock />} label={t("Last changed")}>
-            {new Date(component.updatedAt).toLocaleString()}
+            {new Date(component.updatedAt).toLocaleString(dateLocale())}
             {component.updatedBy ? ` by ${component.updatedBy}` : null}
           </FactRow>
         </PageRows>

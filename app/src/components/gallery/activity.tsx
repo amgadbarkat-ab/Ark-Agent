@@ -5,7 +5,7 @@ import { callComponentFunction } from "@/lib/components/queries";
 import { useActiveBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
-import { sentenceNow, tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 import { seriesColour } from "./palette";
 
@@ -109,7 +109,7 @@ export function ActivityReportCard({
     return (
       <GalleryFrame
         caption={t("Reading from this deployment")}
-        title={title ?? "Report"}
+        title={title ?? tNow("Report")}
       >
         <p className="text-sm text-muted-foreground">{t("Reading…")}</p>
       </GalleryFrame>
@@ -118,7 +118,7 @@ export function ActivityReportCard({
 
   if (state.status === "refused") {
     return (
-      <GalleryFrame title={title ?? "Report"}>
+      <GalleryFrame title={title ?? tNow("Report")}>
         <p className="text-sm text-destructive">{t("Not shown")}</p>
         <p className="mt-1 text-sm text-foreground/80">
           {sentenceNow(state.reason)}
@@ -273,7 +273,7 @@ function RefusalList({
                 <span className="text-xs text-muted-foreground">{row.bot}</span>
               ) : null}
               <span className="ml-auto text-xs text-muted-foreground">
-                {new Date(row.at).toLocaleString()}
+                {new Date(row.at).toLocaleString(dateLocale())}
               </span>
             </div>
             {row.reason ? (

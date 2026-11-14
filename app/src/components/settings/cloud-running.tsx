@@ -209,13 +209,13 @@ function priceLines(rates: CloudRates): { label: string; value: string }[] {
   ];
   if (rates.storageCentsPerGbMonth > 0) {
     lines.push({
-      label: "A gigabyte of storage for a month",
+      label: tNow("A gigabyte of storage for a month"),
       value: formatRate(rates.storageCentsPerGbMonth),
     });
   }
   if (rates.egressCentsPerGb > 0) {
     lines.push({
-      label: "A gigabyte sent out",
+      label: tNow("A gigabyte sent out"),
       value: formatRate(rates.egressCentsPerGb),
     });
   }
@@ -423,7 +423,7 @@ function CloudForm({
             size="sm"
             type="button"
           >
-            {setCap.isPending ? "Saving…" : t("Save limit")}
+            {setCap.isPending ? tNow("Saving…") : t("Save limit")}
           </Button>
         ) : (
           <Button
@@ -440,7 +440,7 @@ function CloudForm({
             type="button"
           >
             {enable.isPending
-              ? "Saving…"
+              ? tNow("Saving…")
               : cloud.enabled
                 ? t("Agree to the new prices")
                 : t("Switch on")}

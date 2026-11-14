@@ -38,6 +38,7 @@ import {
 } from "@/lib/channels/queries";
 import { useStartChannel } from "@/lib/channels/start";
 import { useActiveBot } from "@/lib/copilot/active-bot";
+import { chatLabels } from "@/lib/copilot/chat-labels";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
@@ -125,7 +126,10 @@ export function channelHistoryNotice({
       ? tNow(
           "One earlier message could not be read and is not shown. The rest of this conversation is complete.",
         )
-      : `${unreadable} earlier messages could not be read and are not shown. The rest of this conversation is complete.`;
+      : tNow(
+          "{unreadable} earlier messages could not be read and are not shown. The rest of this conversation is complete.",
+          { unreadable },
+        );
   }
 
   return null;
@@ -945,6 +949,7 @@ export function ChannelChat({
     // channel instance so an action continues this thread instead of looking for a default agent.
     <CopilotChatConfigurationProvider
       agentId={channelAgentId}
+      labels={chatLabels()}
       threadId={channel.threadId}
     >
       <ConversationProvider

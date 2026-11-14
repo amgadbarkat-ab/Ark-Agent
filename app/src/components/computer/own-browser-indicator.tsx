@@ -117,7 +117,7 @@ export function OwnBrowserIndicator() {
           size="sm"
           variant="destructive"
         >
-          {stop.isPending ? "Stopping…" : "Stop"}
+          {stop.isPending ? tNow("Stopping…") : tNow("Stop")}
         </Button>
         <Link className="text-muted-foreground underline" to="/admin/audit">
           {t("Activity")}

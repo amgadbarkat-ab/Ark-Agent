@@ -18,7 +18,7 @@ import {
   type ComputerActivity,
   subscribeToActivity,
 } from "@/lib/computers/activity";
-import { useT } from "@/lib/i18n";
+import { dateLocale, useT } from "@/lib/i18n";
 import { CommandOutput } from "./command-output";
 
 const ICONS = {
@@ -37,7 +37,7 @@ const LABELS = {
 } as const;
 
 function timeOf(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, {
+  return new Date(at).toLocaleTimeString(dateLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",

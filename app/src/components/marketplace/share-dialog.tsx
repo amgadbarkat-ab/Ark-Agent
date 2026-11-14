@@ -374,7 +374,11 @@ function ShareForm({
           {t("Cancel")}
         </Button>
         <Button disabled={busy || !complete} size="sm" type="submit">
-          {busy ? "Sending…" : editing ? t("Send for review") : "Share"}
+          {busy
+            ? tNow("Sending…")
+            : editing
+              ? t("Send for review")
+              : tNow("Share")}
         </Button>
       </DialogFooter>
     </form>

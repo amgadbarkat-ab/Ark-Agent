@@ -30,7 +30,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
-import { sentenceNow, tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
 import { trialDaysLeft } from "../../../../../shared/plans";
@@ -68,7 +68,7 @@ function statusLine(
     return tNow("This account does not have an active plan.");
   }
   const until = account.currentPeriodEnd
-    ? new Date(account.currentPeriodEnd).toLocaleDateString()
+    ? new Date(account.currentPeriodEnd).toLocaleDateString(dateLocale())
     : null;
   if (!account.canRun && account.blockedReason)
     return sentenceNow(account.blockedReason);
@@ -90,16 +90,25 @@ function statusLine(
         : tNow("Trial: {days} days left (ends {until})", { days: left, until });
     }
     default:
-      return until ? tNow("Renews on {until}", { until: until }) : "Active";
+      return until
+        ? tNow("Renews on {until}", { until: until })
+        : tNow("Active");
   }
 }
 
 function workingLine(account: AccountOverview["account"]): string {
   const limit =
-    account.maxActiveBots === null ? "no limit" : String(account.maxActiveBots);
+    account.maxActiveBots === null
+      ? tNow("no limit")
+      : String(account.maxActiveBots);
   return account.maxActiveBots === null
-    ? `${account.activeBots} working now, no limit`
-    : `${account.activeBots} of ${limit} working now`;
+    ? tNow("{activeBots} working now, no limit", {
+        activeBots: account.activeBots,
+      })
+    : tNow("{activeBots} of {limit} working now", {
+        activeBots: account.activeBots,
+        limit: limit,
+      });
 }
 
 /**
@@ -371,7 +380,7 @@ function PlanPage() {
                               variant="destructive"
                             >
                               {cancel.isPending
-                                ? "Cancelling…"
+                                ? tNow("Cancelling…")
                                 : t("Cancel plan")}
                             </Button>
                           </>
@@ -432,7 +441,7 @@ function PlanRow({
       ) : null}
       <ItemContent>
         <ItemTitle>
-          {plan.name}
+          {sentenceNow(plan.name)}
           <span className="font-normal text-muted-foreground text-xs">
             {tNow("{price} a month", { price: formatEur(plan.priceEurCents) })}
           </span>

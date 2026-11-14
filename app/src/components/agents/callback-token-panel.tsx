@@ -5,7 +5,7 @@ import {
   issueCallbackTokenMutationOptions,
   revokeCallbackTokenMutationOptions,
 } from "@/lib/agents/mutations";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 /**
  * The credential this coworker presents when it calls a tool back.
@@ -82,7 +82,7 @@ export function CallbackTokenPanel({
             variant="outline"
           >
             {issue.isPending
-              ? "Generating…"
+              ? tNow("Generating…")
               : hasToken
                 ? t("Rotate token")
                 : t("Generate token")}
@@ -94,7 +94,7 @@ export function CallbackTokenPanel({
               size="sm"
               variant="outline"
             >
-              {revoke.isPending ? "Revoking…" : "Revoke"}
+              {revoke.isPending ? tNow("Revoking…") : tNow("Revoke")}
             </Button>
           ) : null}
         </div>

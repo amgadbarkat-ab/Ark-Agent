@@ -266,10 +266,13 @@ function overCap(draft: ComposerDraft): boolean {
 
 /** What the person is told when Send is held shut by the cap, and what to do about it. */
 function tooManyStagedReason(count: number): string {
-  return (
-    `${count} attachments are staged and a message can carry at most ` +
-    `${MAX_ATTACHMENTS_PER_MESSAGE}. Remove ` +
-    `${count - MAX_ATTACHMENTS_PER_MESSAGE} to send the rest.`
+  return tNow(
+    "{count} attachments are staged and a message can carry at most {max}. Remove {extra} to send the rest.",
+    {
+      count,
+      max: MAX_ATTACHMENTS_PER_MESSAGE,
+      extra: count - MAX_ATTACHMENTS_PER_MESSAGE,
+    },
   );
 }
 
@@ -281,12 +284,13 @@ function tooManyStagedReason(count: number): string {
  * would send somebody hunting for a rule they never hit.
  */
 const DROPPED_REASON: Record<DroppedAttachmentCause, string> = {
-  "merged-over-cap":
-    "dropped when queued messages were merged into one: a " +
-    `message can carry at most ${MAX_ATTACHMENTS_PER_MESSAGE} ` +
-    "attachments.",
-  "queued-message-removed":
+  "merged-over-cap": tNow(
+    "dropped when queued messages were merged into one: a message can carry at most {max} attachments.",
+    { max: MAX_ATTACHMENTS_PER_MESSAGE },
+  ),
+  "queued-message-removed": tNow(
     "removed along with the queued message it was attached to.",
+  ),
 };
 
 /**
@@ -314,11 +318,12 @@ const DROPPED_REASON: Record<DroppedAttachmentCause, string> = {
  * second time.
  */
 const UNACCEPTED_DROP_REASON = {
-  "cannot-send":
+  "cannot-send": tNow(
     "was not attached: this conversation can no longer take messages.",
-  "no-conversation":
-    "was not attached: there is no conversation here yet. Send this " +
-    "message first, then attach to the one it opens.",
+  ),
+  "no-conversation": tNow(
+    "was not attached: there is no conversation here yet. Send this message first, then attach to the one it opens.",
+  ),
 } as const;
 
 export function Composer({

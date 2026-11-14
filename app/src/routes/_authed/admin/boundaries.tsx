@@ -13,7 +13,7 @@ import {
   dryRunActionPolicy,
   type PolicyMode,
 } from "@/lib/computers/queries";
-import { tNow, txNow, useT } from "@/lib/i18n";
+import { dateLocale, tNow, txNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -39,7 +39,9 @@ const PRESETS: { label: string; rule: string; cost?: string }[] = [
   {
     label: tNow("Never type into a password field"),
     rule: 'intent == "type" && contains(element.name, "password")',
-    cost: "A password box the page labels something else is not covered, the rule matches the label.",
+    cost: tNow(
+      "A password box the page labels something else is not covered, the rule matches the label.",
+    ),
   },
   {
     label: tNow("Stay off social media"),
@@ -264,7 +266,7 @@ function BoundariesPage() {
             size="sm"
             variant="outline"
           >
-            {testing ? "Testing…" : t("Test first")}
+            {testing ? tNow("Testing…") : t("Test first")}
           </Button>
           <Button
             disabled={saving || draft.trim().length === 0}
@@ -386,7 +388,9 @@ function BoundariesPage() {
         <ul className="mt-2 space-y-1">
           {policy.allow.map((rule) => (
             <li className="font-mono text-xs text-muted-foreground" key={rule}>
-              {rule === "true" ? "true, anything not refused above" : rule}
+              {rule === "true"
+                ? tNow("true, anything not refused above")
+                : rule}
             </li>
           ))}
         </ul>
@@ -471,7 +475,7 @@ function DryRunResult({ report }: { report: DryRunReport }) {
               <p className="mt-0.5 text-muted-foreground text-xs">
                 {change.bot}
                 {change.page ? <> · {change.page}</> : null} ·{" "}
-                {new Date(change.createdAt).toLocaleString()}
+                {new Date(change.createdAt).toLocaleString(dateLocale())}
               </p>
             </li>
           ))}

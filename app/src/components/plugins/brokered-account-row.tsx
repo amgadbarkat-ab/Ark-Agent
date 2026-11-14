@@ -17,7 +17,7 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
-import { tNow, useT } from "@/lib/i18n";
+import { dateLocale, tNow, useT } from "@/lib/i18n";
 import {
   type BrokerField,
   brokeredConnectionFieldsMutationOptions,
@@ -666,7 +666,7 @@ export function useBrokeredAccount(input: {
  * keeps receding, and a relative phrase recomputed on every render reads as a fact about now.
  */
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
+  return new Date(iso).toLocaleDateString(dateLocale());
 }
 
 /**
@@ -708,7 +708,10 @@ function accountSentence(input: {
      * Neither screen's own sentence fits: both are about an account, and there is none to have.
      * Capitalised because this is the one position the name opens a sentence in.
      */
-    return `${title.charAt(0).toUpperCase()}${title.slice(1)} needs no account. A digital employee granted these tools can use it as it is.`;
+    return tNow(
+      "{title} needs no account. A digital employee granted these tools can use it as it is.",
+      { title: `${title.charAt(0).toUpperCase()}${title.slice(1)}` },
+    );
   }
 
   if (account.kind === "fields") {
@@ -743,7 +746,10 @@ function accountSentence(input: {
        * is worth a second press rather than a second connection.
        */
       if (account.probe && !account.verified) {
-        return `A check against ${title} was made with your key and did not come back clean — that may be the key, and it may be ${title} itself. The account still stands at Composio, so press Re-check to try again, or disconnect it here and connect again with a fresh key.`;
+        return tNow(
+          "A check against {title} was made with your key and did not come back clean — that may be the key, and it may be {title2} itself. The account still stands at Composio, so press Re-check to try again, or disconnect it here and connect again with a fresh key.",
+          { title: title, title2: title },
+        );
       }
       /*
        * NOTHING WAS SPENT ON IT, WHICH IS A FACT ABOUT THE CHECK AND ABOUT THE APP AT THE TIME. The
@@ -972,7 +978,7 @@ export function BrokeredAccountRow({
                     type="button"
                     variant="outline"
                   >
-                    {account.rechecking ? "Checking…" : "Re-check"}
+                    {account.rechecking ? tNow("Checking…") : tNow("Re-check")}
                   </Button>
                 ) : null}
                 <Button

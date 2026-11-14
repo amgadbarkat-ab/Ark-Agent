@@ -9,7 +9,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { LiveWaveform } from "@/components/ui/live-waveform";
-import { sentenceNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { useDictation } from "./use-dictation";
@@ -143,7 +143,7 @@ function RecordingControls({
         ) : (
           <div className="flex min-w-0 items-center gap-3">
             <span className="sr-only" role="status">
-              {transcribing ? "Transcribing…" : "Listening"}
+              {transcribing ? tNow("Transcribing…") : tNow("Listening")}
             </span>
             <LiveWaveform
               stream={state.stream}
@@ -177,7 +177,7 @@ function RecordingControls({
               void (state.canRetry ? session.retry() : session.start())
             }
           >
-            {state.canRetry ? "Retry" : t("Record again")}
+            {state.canRetry ? tNow("Retry") : t("Record again")}
           </Button>
         ) : (
           <div className="flex shrink-0 items-center gap-2">

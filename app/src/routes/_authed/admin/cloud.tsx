@@ -88,7 +88,7 @@ const RATE_FIELDS: {
   {
     key: "computeCentsPerHour",
     label: tNow("Running"),
-    unit: "cents per hour",
+    unit: tNow("cents per hour"),
     help: tNow(
       "What one digital employee's cloud capacity costs us for an hour. Measure it: see docs/ark/17-cloud-runtime.md.",
     ),
@@ -96,7 +96,7 @@ const RATE_FIELDS: {
   {
     key: "storageCentsPerGbMonth",
     label: tNow("Storage"),
-    unit: "cents per GB a month",
+    unit: tNow("cents per GB a month"),
     help: tNow(
       "What a gigabyte of a digital employee's saved files costs us for a month. Zero if storage is not charged.",
     ),
@@ -104,7 +104,7 @@ const RATE_FIELDS: {
   {
     key: "egressCentsPerGb",
     label: tNow("Data sent out"),
-    unit: "cents per GB",
+    unit: tNow("cents per GB"),
     help: tNow(
       "Not measured yet, so it is not charged whatever is entered. Leave at zero.",
     ),
@@ -120,7 +120,7 @@ const RATE_FIELDS: {
   {
     key: "paymentFeeFixedCents",
     label: tNow("Payment fee, fixed"),
-    unit: "cents per charge",
+    unit: tNow("cents per charge"),
     help: tNow(
       "What the payment service keeps of each charge whatever its size.",
     ),
@@ -137,7 +137,9 @@ const RATE_FIELDS: {
     key: "minimumChargeCents",
     label: tNow("Smallest charge"),
     unit: "cents",
-    help: "A month that comes to less than this is added to the next month instead of charged.",
+    help: tNow(
+      "A month that comes to less than this is added to the next month instead of charged.",
+    ),
   },
 ];
 
@@ -196,7 +198,16 @@ function CloudCosts() {
                 <ItemTitle>{t("Prices for cloud running")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {rates.data.rates
-                    ? `${formatRate(rates.data.rates.computeCentsPerHour)} an hour, ${rates.data.rates.paymentFeePercent}% payment fee, ${rates.data.rates.marginPercent}% margin.`
+                    ? tNow(
+                        "{formatRate} an hour, {paymentFeePercent}% payment fee, {marginPercent}% margin.",
+                        {
+                          formatRate: formatRate(
+                            rates.data.rates.computeCentsPerHour,
+                          ),
+                          paymentFeePercent: rates.data.rates.paymentFeePercent,
+                          marginPercent: rates.data.rates.marginPercent,
+                        },
+                      )
                     : t(
                         "Not set. Until they are, nothing can be switched on or charged.",
                       )}
@@ -213,7 +224,14 @@ function CloudCosts() {
       <PageSection
         description={
           usage.data
-            ? `${usage.data.totals.hours.toFixed(1)} hours of running cost us ${formatEur(Math.ceil(usage.data.totals.costCents))}. At these prices it is ${formatEur(usage.data.totals.chargeCents)} charged.`
+            ? tNow(
+                "{value1} hours of running cost us {formatEur}. At these prices it is {formatEur3} charged.",
+                {
+                  value1: usage.data.totals.hours.toFixed(1),
+                  formatEur: formatEur(Math.ceil(usage.data.totals.costCents)),
+                  formatEur3: formatEur(usage.data.totals.chargeCents),
+                },
+              )
             : t("What each account used, and what it cost us.")
         }
         title={t("Usage")}
@@ -258,7 +276,9 @@ function CloudCosts() {
                       {account.usageLines.join(" · ") ||
                         `${account.hours.toFixed(2)} hours`}
                       {" · "}
-                      {account.enabled ? "switched on" : "not switched on"}
+                      {account.enabled
+                        ? tNow("switched on")
+                        : tNow("not switched on")}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -329,10 +349,10 @@ function CloudCosts() {
 
 const STATUS_WORDS: Record<AdminCloudCharge["status"], string> = {
   charged: "charged",
-  carried: "carried to the next month",
-  pending: "refused, will be tried again",
-  charging: "sent, no answer recorded",
-  uncertain: "sent, the payment service did not say",
+  carried: tNow("carried to the next month"),
+  pending: tNow("refused, will be tried again"),
+  charging: tNow("sent, no answer recorded"),
+  uncertain: tNow("sent, the payment service did not say"),
   waived: "waived",
 };
 
@@ -412,7 +432,7 @@ function ChargeRow({
                 size="sm"
                 variant={outcome === "waived" ? "destructive" : "default"}
               >
-                {outcome === "charged" ? t("Record as charged") : "Waive"}
+                {outcome === "charged" ? t("Record as charged") : tNow("Waive")}
               </Button>
             </>
           ) : (
@@ -553,7 +573,7 @@ function RatesForm({
           size="sm"
           type="button"
         >
-          {save.isPending ? "Saving…" : t("Save prices")}
+          {save.isPending ? tNow("Saving…") : t("Save prices")}
         </Button>
       </DialogFooter>
     </>

@@ -360,7 +360,7 @@ function CreateAgentWizard({
               type="button"
               variant="outline"
             >
-              {step === 0 ? "Cancel" : "Back"}
+              {step === 0 ? tNow("Cancel") : tNow("Back")}
             </Button>
             <Button
               disabled={createAgent.isPending}
@@ -369,9 +369,9 @@ function CreateAgentWizard({
             >
               {last
                 ? createAgent.isPending
-                  ? "Creating…"
+                  ? tNow("Creating…")
                   : t("Create digital employee")
-                : "Continue"}
+                : tNow("Continue")}
             </Button>
           </div>
         </Questionnaire>
@@ -590,7 +590,7 @@ function KindStep({
                 type="button"
                 variant="outline"
               >
-                {testing ? "Testing…" : "Test"}
+                {testing ? tNow("Testing…") : tNow("Test")}
               </Button>
             </div>
             {endpointError ? (

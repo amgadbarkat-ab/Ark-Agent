@@ -30,7 +30,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import {
   deleteIdentityProviderMutationOptions,
   type IdentityProviderInput,
@@ -319,7 +319,7 @@ function IdentityProvidersPage() {
                 {t("Cancel")}
               </Button>
               <Button disabled={register.isPending} size="sm" type="submit">
-                {register.isPending ? "Adding…" : "Add"}
+                {register.isPending ? tNow("Adding…") : tNow("Add")}
               </Button>
             </DialogFooter>
           </form>

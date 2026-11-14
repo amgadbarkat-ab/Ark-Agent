@@ -212,7 +212,9 @@ export function scan(
           : node.text;
         if (
           isWords(text) &&
-          /\s/.test(text.trim()) &&
+          // A sentence, or one capitalised word ("Continue", "Saving…"): both are read on screen.
+          (/\s/.test(text.trim()) ||
+            /^[A-Z][a-z]{2,}[a-z…!.?]*$/.test(text.trim())) &&
           /^[A-Z“"(]/.test(text.trim())
         ) {
           raw.push({ file, line: at(node), text });

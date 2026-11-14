@@ -15,9 +15,9 @@
 
 import { join, normalize, sep } from "node:path";
 import { file, type ServerWebSocket } from "bun";
-import { listenPort } from "../shared/listen-port";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../shared/dictation";
 import { listenHosts } from "../shared/listen-hosts";
+import { listenPort } from "../shared/listen-port";
 
 const DIST = join(import.meta.dir, "dist");
 const appPort = listenPort(process.env.APP_PORT, 3010);

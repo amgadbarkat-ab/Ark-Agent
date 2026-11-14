@@ -556,7 +556,7 @@ function EditableTextItem({
         ) : null}
         <div className="mt-1 flex gap-2">
           <Button disabled={saving} onClick={() => void submit()} size="sm">
-            {saving ? "Saving…" : "Save"}
+            {saving ? tNow("Saving…") : tNow("Save")}
           </Button>
           <Button disabled={saving} onClick={close} size="sm" variant="outline">
             {t("Cancel")}
@@ -633,7 +633,7 @@ function VisibilityItem({
           </Select>
         ) : (
           <span className="text-sm text-muted-foreground">
-            {value === "private" ? "Private" : "Public"}
+            {value === "private" ? tNow("Private") : tNow("Public")}
           </span>
         )}
       </ItemActions>
@@ -809,7 +809,9 @@ function AccessSection({ agentId }: { agentId: string }) {
               <ItemTitle>{connectorName(key)}</ItemTitle>
               <ItemDescription>
                 {labels.slice(0, 4).join(", ")}
-                {labels.length > 4 ? ` and ${labels.length - 4} more` : ""}
+                {labels.length > 4
+                  ? ` ${tNow("and {count} more", { count: labels.length - 4 })}`
+                  : ""}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -905,7 +907,9 @@ function ManageSection({
       <div className="flex flex-col gap-2">
         <Item variant="muted">
           <ItemContent>
-            <ItemTitle>{profile.hidden ? "Hidden" : "Hide"}</ItemTitle>
+            <ItemTitle>
+              {profile.hidden ? tNow("Hidden") : tNow("Hide")}
+            </ItemTitle>
             <ItemDescription>
               {profile.hidden
                 ? t(
@@ -932,11 +936,11 @@ function ManageSection({
             >
               {setHidden.isPending
                 ? profile.hidden
-                  ? "Unhiding…"
-                  : "Hiding…"
+                  ? tNow("Unhiding…")
+                  : tNow("Hiding…")
                 : profile.hidden
-                  ? "Unhide"
-                  : "Hide"}
+                  ? tNow("Unhide")
+                  : tNow("Hide")}
             </Button>
           </ItemActions>
         </Item>
@@ -958,7 +962,9 @@ function ManageSection({
               size="sm"
               variant="outline"
             >
-              {duplicateAgent.isPending ? "Duplicating…" : "Duplicate"}
+              {duplicateAgent.isPending
+                ? tNow("Duplicating…")
+                : tNow("Duplicate")}
             </Button>
           </ItemActions>
         </Item>
@@ -1054,7 +1060,7 @@ function ManageSection({
               size="sm"
               variant="destructive"
             >
-              {deleteAgent.isPending ? "Deleting…" : "Delete"}
+              {deleteAgent.isPending ? tNow("Deleting…") : tNow("Delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

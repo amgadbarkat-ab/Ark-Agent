@@ -80,7 +80,7 @@ const GROUPS: {
         linkOptions: { to: "/admin/skills" },
       },
       {
-        title: "UI Components",
+        title: tNow("UI Components"),
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },

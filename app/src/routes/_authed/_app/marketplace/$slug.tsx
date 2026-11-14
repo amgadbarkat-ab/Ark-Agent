@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageEmpty, PageShell } from "@/components/layout/page-shell";
 import { ListingView } from "@/components/marketplace/listing-view";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { listingQueryOptions } from "@/lib/marketplace/queries";
 
 export const Route = createFileRoute("/_authed/_app/marketplace/$slug")({
@@ -15,7 +15,7 @@ function ListingPage() {
   const listing = useQuery(listingQueryOptions(slug));
 
   const back = {
-    label: "Digital Team",
+    label: tNow("Digital Team"),
     linkProps: { to: "/agents" } as const,
   };
 

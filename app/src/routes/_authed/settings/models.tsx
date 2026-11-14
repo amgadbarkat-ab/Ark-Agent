@@ -60,10 +60,10 @@ export const Route = createFileRoute("/_authed/settings/models")({
 /** How a provider's tier reads on a row. A model on this computer says whether it is running instead. */
 const TIER_LABEL: Record<ModelProviderTier, string> = {
   local: tNow("On this computer"),
-  free: "Free",
+  free: tNow("Free"),
   paid: tNow("Your own key"),
   custom: tNow("Your own server"),
-  plan: "Subscription",
+  plan: tNow("Subscription"),
 };
 
 /** What the dialog is for right now: nothing, a new model, or one that exists. */
@@ -202,7 +202,7 @@ function ModelsPage() {
                       </ItemMedia>
                       <ItemContent>
                         <ItemTitle>
-                          {provider.name}
+                          {sentenceNow(provider.name)}
                           <span
                             className={`rounded-md px-1.5 py-0.5 font-normal text-xs ${
                               running
@@ -265,7 +265,7 @@ function ModelsPage() {
                           <IconPlus />
                           {isLocal && status && !running
                             ? t("Set address")
-                            : "Add"}
+                            : tNow("Add")}
                         </Button>
                       </ItemActions>
                     </Item>
@@ -419,7 +419,7 @@ function ConnectionRow({
           {connection.label === provider?.name
             ? connection.model
             : `${provider?.name ?? connection.providerId} · ${connection.model}`}
-          {connection.hasKey ? " · key saved" : ""}
+          {connection.hasKey ? ` · ${tNow("key saved")}` : ""}
         </ItemDescription>
       </ItemContent>
       <ItemActions>

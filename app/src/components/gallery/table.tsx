@@ -80,7 +80,7 @@ export function DataTable(props: Record<string, unknown>) {
     >
       <section
         className="overflow-x-auto rounded-lg border border-border focus-visible:outline-2 focus-visible:outline-ring"
-        aria-label={`${title} table, scroll for more columns`}
+        aria-label={tNow("{title} table, scroll for more columns", { title })}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: Overflow regions need keyboard focus to scroll in Safari; the region has an accessible name.
         tabIndex={0}
       >
@@ -203,11 +203,11 @@ export const GALLERY: GalleryComponent[] = [
       caption: tNow(
         "Three teams, one shared launch. Hours available this week.",
       ),
-      columns: ["Team", tNow("Available hours"), "Focus"],
+      columns: [tNow("Team"), tNow("Available hours"), tNow("Focus")],
       rows: [
-        { cells: ["Product", 24, tNow("Customer onboarding")] },
-        { cells: ["Engineering", 72, tNow("Release readiness")] },
-        { cells: ["Design", 18, tNow("Workspace polish")] },
+        { cells: [tNow("Product"), 24, tNow("Customer onboarding")] },
+        { cells: [tNow("Engineering"), 72, tNow("Release readiness")] },
+        { cells: [tNow("Design"), 18, tNow("Workspace polish")] },
       ],
     },
   },

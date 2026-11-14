@@ -5,6 +5,7 @@ import useEmblaCarousel, {
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 // Upstream generates `import { cn } from "cn"`, pulling in a second class-merging package. This app
 // already has one at `@/lib/utils` — which is what `components.json` declares as the `utils` alias —
 // and every other file in this directory imports it from there. Re-point on regeneration.
@@ -178,6 +179,7 @@ function CarouselPrevious({
   size = "icon-sm",
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const t = useT();
   const { orientation, scrollPrev, canScrollPrev } = useCarousel();
 
   return (
@@ -197,7 +199,7 @@ function CarouselPrevious({
       {...props}
     >
       <IconChevronLeft />
-      <span className="sr-only">Previous slide</span>
+      <span className="sr-only">{t("Previous slide")}</span>
     </Button>
   );
 }
@@ -208,6 +210,7 @@ function CarouselNext({
   size = "icon-sm",
   ...props
 }: React.ComponentProps<typeof Button>) {
+  const t = useT();
   const { orientation, scrollNext, canScrollNext } = useCarousel();
 
   return (
@@ -227,7 +230,7 @@ function CarouselNext({
       {...props}
     >
       <IconChevronRight />
-      <span className="sr-only">Next slide</span>
+      <span className="sr-only">{t("Next slide")}</span>
     </Button>
   );
 }

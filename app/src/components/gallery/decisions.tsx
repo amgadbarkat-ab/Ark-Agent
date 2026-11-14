@@ -362,7 +362,7 @@ export const GALLERY: GalleryComponent[] = [
           { label: tNow("Customer"), value: tNow("Northwind Traders") },
           { label: tNow("Order"), value: "2043" },
         ],
-        approveLabel: "Refund",
+        approveLabel: tNow("Refund"),
       },
       respond: async () => {},
     },

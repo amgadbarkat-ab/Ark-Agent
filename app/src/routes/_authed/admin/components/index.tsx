@@ -79,7 +79,7 @@ function RouteComponent() {
                   </h4>
                 </div>
                 <p className="mt-2 line-clamp-2 text-muted-foreground text-xs">
-                  {component.draftDescription}
+                  {sentenceNow(component.draftDescription)}
                 </p>
               </div>
               <div className="relative flex-1">

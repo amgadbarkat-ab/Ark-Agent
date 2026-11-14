@@ -1,5 +1,6 @@
 import { tNow } from "@/lib/i18n";
 import { sentenceNow } from "./i18n";
+import { packageText } from "./package-text";
 
 /**
  * The one place the browser talks to the API server.
@@ -115,5 +116,5 @@ export async function client<T>(
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw failure(options.fallback ?? tNow("That request failed."));
   }
-  return (body as Record<string, T>)[key];
+  return packageText((body as Record<string, T>)[key]);
 }

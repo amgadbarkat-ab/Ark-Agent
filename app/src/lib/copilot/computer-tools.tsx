@@ -6,7 +6,7 @@ import { ComputerView } from "@/components/computer/computer-view";
 import { tryClient } from "@/lib/client";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { type ControlState, readControl } from "@/lib/computers/control";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { useActiveBotHolder } from "./active-bot";
 import { reportComputerActivity } from "./computer-activity";
 
@@ -510,7 +510,7 @@ export function ComputerTools() {
           label={
             outcome.held === true
               ? t("Waiting for your approval to click")
-              : "Clicked"
+              : tNow("Clicked")
           }
           detail={
             // Show refusal reason instead of an internal element ref.
@@ -563,7 +563,7 @@ export function ComputerTools() {
         label={
           outcomeOf(result).held === true
             ? t("Waiting for your approval to press")
-            : "Pressed"
+            : tNow("Pressed")
         }
         detail={typeof args?.key === "string" ? args.key : undefined}
         refused={outcomeOf(result).refused === true}

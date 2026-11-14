@@ -9,7 +9,7 @@ import {
 import { StaggerItem } from "@/components/layout/stagger";
 import { ListingRow } from "@/components/marketplace/listing-row";
 import { Separator } from "@/components/ui/separator";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { publisherQueryOptions } from "@/lib/marketplace/queries";
 
 export const Route = createFileRoute(
@@ -21,7 +21,7 @@ function PublisherPage() {
   const { id } = Route.useParams();
   const page = useQuery(publisherQueryOptions(id));
   const back = {
-    label: "Digital Team",
+    label: tNow("Digital Team"),
     linkProps: { to: "/agents" } as const,
   };
 

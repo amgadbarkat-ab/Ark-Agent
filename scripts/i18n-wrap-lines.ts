@@ -40,7 +40,7 @@ for (const [file, lines] of wanted) {
     ) {
       const text = node.text.trim();
       if (
-        /^[A-Z“"(][a-z]/.test(text) &&
+        (process.env.ANY === "1" || /^[A-Z“"(][a-z]/.test(text)) &&
         (/\s/.test(text) || process.env.SINGLE === "1")
       ) {
         // A JSX attribute value needs braces.
@@ -71,7 +71,7 @@ for (const [file, lines] of wanted) {
         values.push(`${name}: ${expr.getText(source)}`);
         key += `{${name}}${span.literal.text}`;
       }
-      if (/^[A-Z“"(][a-z]/.test(key.trim())) {
+      if (process.env.ANY === "1" || /^[A-Z“"(][a-z]/.test(key.trim())) {
         edits.push({
           start: node.getStart(source),
           end: node.end,

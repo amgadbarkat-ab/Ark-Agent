@@ -198,7 +198,7 @@ function DeleteDialog({
               type="submit"
               variant="destructive"
             >
-              {remove.isPending ? "Deleting…" : t("Delete everything")}
+              {remove.isPending ? tNow("Deleting…") : t("Delete everything")}
             </Button>
           </DialogFooter>
         </form>

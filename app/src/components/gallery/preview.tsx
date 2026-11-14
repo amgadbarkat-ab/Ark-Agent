@@ -1,5 +1,5 @@
 import { GALLERY_COMPONENTS } from "@/lib/copilot/gallery-registry";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 
 /**
  * The answers a Bot can give, drawn rather than described.
@@ -97,7 +97,7 @@ export function GalleryPreview({
 
           <p className="text-muted-foreground text-xs leading-relaxed">
             {firstSentence(
-              granted.get(component.name) || component.description,
+              sentenceNow(granted.get(component.name) || component.description),
             )}
           </p>
         </li>

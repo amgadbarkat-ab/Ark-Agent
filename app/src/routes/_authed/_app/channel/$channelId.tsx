@@ -26,7 +26,7 @@ import {
   channelQueryOptions,
 } from "@/lib/channels/queries";
 import { onComputerActivity } from "@/lib/copilot/computer-activity";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 
 const chatSearchSchema = z.object({
   settings: z.boolean().optional(),
@@ -219,7 +219,7 @@ function RouteComponent() {
                 ease: EASE_OUT,
               }}
             >
-              {channel.data?.name ?? "Channel"}
+              {channel.data?.name ?? tNow("Channel")}
             </motion.span>
           </div>
           <div className="flex flex-row gap-1.5">

@@ -188,7 +188,7 @@ export function HireSection() {
             size="sm"
             variant="outline"
           >
-            {listings.isFetchingNextPage ? "Loading…" : t("Show more")}
+            {listings.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

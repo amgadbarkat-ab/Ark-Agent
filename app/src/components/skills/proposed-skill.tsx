@@ -173,7 +173,7 @@ export function ProposedSkillCard({
           size="sm"
         >
           {sending === "save"
-            ? "Saving…"
+            ? tNow("Saving…")
             : replaces
               ? t("Replace it")
               : t("Create it")}
@@ -195,8 +195,12 @@ function titleFor(
   slug: string | undefined,
   replaces: { title: string } | undefined,
 ): string {
-  const name = slug ? `/${slug}` : "a new skill";
-  return replaces ? `Replace ${name}` : `Create ${name}`;
+  if (!slug)
+    return replaces ? tNow("Replace a new skill") : tNow("Create a new skill");
+  const name = `/${slug}`;
+  return replaces
+    ? tNow("Replace {name}", { name })
+    : tNow("Create {name}", { name });
 }
 
 /** Where the remaining step happens. A skill on no Bot is inert, and saying so beats implying done. */

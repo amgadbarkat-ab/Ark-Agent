@@ -189,7 +189,10 @@ function FormEntry({
       const value = (values.get(field.id) ?? "").trim();
       if (!value) {
         if (field.required)
-          problems.set(field.id, `${field.label} is required.`);
+          problems.set(
+            field.id,
+            tNow("{label} is required.", { label: field.label }),
+          );
         continue;
       }
       if (value.length > 2000)
@@ -203,9 +206,15 @@ function FormEntry({
         if (!Number.isFinite(number))
           problems.set(field.id, tNow("Enter a valid number."));
         else if (field.min !== undefined && number < field.min)
-          problems.set(field.id, `Enter ${field.min} or more.`);
+          problems.set(
+            field.id,
+            tNow("Enter {min} or more.", { min: field.min }),
+          );
         else if (field.max !== undefined && number > field.max)
-          problems.set(field.id, `Enter ${field.max} or less.`);
+          problems.set(
+            field.id,
+            tNow("Enter {max} or less.", { max: field.max }),
+          );
       }
       entries.push([field.id, field.type === "number" ? Number(value) : value]);
     }
@@ -240,7 +249,7 @@ function FormEntry({
       caption={args.description}
       action={
         <Badge tone={finished ? "positive" : "caution"}>
-          {finished ? "Submitted" : t("Waiting on you")}
+          {finished ? tNow("Submitted") : t("Waiting on you")}
         </Badge>
       }
     >
@@ -379,7 +388,9 @@ function FormEntry({
           )}
           <div className="flex justify-end border-t border-border pt-3">
             <Button type="submit" size="sm" disabled={sending || !respond}>
-              {sending ? "Sending…" : (args.submitLabel ?? t("Submit answers"))}
+              {sending
+                ? tNow("Sending…")
+                : (args.submitLabel ?? t("Submit answers"))}
             </Button>
           </div>
         </form>
@@ -401,7 +412,7 @@ export const GALLERY: GalleryComponent[] = [
       status: "executing",
       args: {
         title: tNow("Plan your next project"),
-        description: "A few details to prepare a useful first draft.",
+        description: tNow("A few details to prepare a useful first draft."),
         fields: [
           {
             id: "team",
@@ -419,7 +430,7 @@ export const GALLERY: GalleryComponent[] = [
             id: "priority",
             label: tNow("Priority"),
             type: "select",
-            options: [tNow("This week"), tNow("This month"), "Exploring"],
+            options: [tNow("This week"), tNow("This month"), tNow("Exploring")],
           },
           {
             id: "seats",

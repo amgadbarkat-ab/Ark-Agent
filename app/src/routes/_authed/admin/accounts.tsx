@@ -36,7 +36,7 @@ import {
   type AdminAccount,
   adminAccountsQueryOptions,
 } from "@/lib/account/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/accounts")({
@@ -51,11 +51,29 @@ const PLAN_CHOICES: { id: string; name: string }[] = [
   { id: "internal", name: tNow("Internal") },
 ];
 
+/** The payment service's words for a subscription, as a person reads them. */
+const SUBSCRIPTION_WORDS: Record<string, string> = {
+  active: tNow("active"),
+  trialing: tNow("on trial"),
+  past_due: tNow("payment overdue"),
+  canceled: tNow("cancelled"),
+  unpaid: tNow("unpaid"),
+  incomplete: tNow("incomplete"),
+  none: tNow("no plan"),
+};
+
 function describe(account: AdminAccount): string {
   const status = account.suspended
-    ? `Suspended${account.suspendedReason ? `: ${account.suspendedReason}` : ""}`
-    : account.subscriptionStatus.replace("_", " ");
-  return `${status} · ${account.activeBots} working now · since ${new Date(account.createdAt).toLocaleDateString()}`;
+    ? account.suspendedReason
+      ? tNow("Suspended: {reason}", { reason: account.suspendedReason })
+      : tNow("Suspended")
+    : (SUBSCRIPTION_WORDS[account.subscriptionStatus] ??
+      account.subscriptionStatus.replace("_", " "));
+  return tNow("{status} · {count} working now · since {date}", {
+    status,
+    count: account.activeBots,
+    date: new Date(account.createdAt).toLocaleDateString(dateLocale()),
+  });
 }
 
 function AccountsPage() {
@@ -179,7 +197,7 @@ function AccountsPage() {
                       <SelectContent>
                         {PLAN_CHOICES.map((plan) => (
                           <SelectItem key={plan.id} value={plan.id}>
-                            {plan.name}
+                            {sentenceNow(plan.name)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -250,7 +268,7 @@ function AccountsPage() {
             size="sm"
             variant="outline"
           >
-            {accounts.isFetchingNextPage ? "Loading…" : t("Show more")}
+            {accounts.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

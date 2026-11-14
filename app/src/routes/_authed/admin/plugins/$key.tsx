@@ -94,8 +94,13 @@ function toggled(
 function grantSummary(held: number, total: number): string {
   if (held === 0) return tNow("No digital employees");
   if (held === total)
-    return total === 1 ? "1 digital employee" : tNow("All digital employees");
-  return `${held} of ${total} digital employees`;
+    return total === 1
+      ? tNow("1 digital employee")
+      : tNow("All digital employees");
+  return tNow("{held} of {total} digital employees", {
+    held: held,
+    total: total,
+  });
 }
 
 /**
@@ -108,7 +113,7 @@ function grantSummary(held: number, total: number): string {
 function heldSummary(held: number, total: number): string {
   if (held === 0) return "No tools";
   if (held === total) return total === 1 ? "1 tool" : tNow("Every tool");
-  return `${held} of ${total} tools`;
+  return tNow("{held} of {total} tools", { held: held, total: total });
 }
 
 /**
@@ -601,7 +606,7 @@ function RouteComponent() {
                 </ItemContent>
                 <ItemActions>
                   <span className="text-muted-foreground text-xs">
-                    {server?.hasCredential ? "Held" : t("Not set")}
+                    {server?.hasCredential ? tNow("Held") : t("Not set")}
                   </span>
                   <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                 </ItemActions>
@@ -648,7 +653,9 @@ function RouteComponent() {
                 </ItemContent>
                 <ItemActions>
                   <span className="text-muted-foreground text-xs">
-                    {server?.hasCredential ? "Registered" : t("Not registered")}
+                    {server?.hasCredential
+                      ? tNow("Registered")
+                      : t("Not registered")}
                   </span>
                   <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                 </ItemActions>
@@ -811,7 +818,7 @@ function RouteComponent() {
                   <ItemContent>
                     <ItemTitle>
                       {auth === "builtin"
-                        ? "Documentation"
+                        ? tNow("Documentation")
                         : t("Vendor documentation")}
                     </ItemTitle>
                     <ItemDescription>
@@ -958,7 +965,9 @@ function RouteComponent() {
                             : "text-muted-foreground text-xs"
                         }
                       >
-                        {tool.effect === "write" ? "changes things" : "reads"}
+                        {tool.effect === "write"
+                          ? tNow("changes things")
+                          : tNow("reads")}
                       </span>
                       <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
                     </ItemActions>
@@ -1384,7 +1393,7 @@ function RouteComponent() {
                       value1: Math.min(granting.done + 1, granting.total),
                       total: granting.total,
                     })
-                  : "Grant"}
+                  : tNow("Grant")}
               </Button>
             </DialogFooter>
           </DialogContent>

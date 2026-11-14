@@ -253,7 +253,7 @@ function SignScreen() {
                 variant="outline"
               >
                 {opening === "sso"
-                  ? "Opening…"
+                  ? tNow("Opening…")
                   : t("Continue with your company account")}
               </Button>
             </form>

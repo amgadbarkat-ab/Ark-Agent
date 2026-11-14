@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { formatEur } from "@/lib/account/queries";
-import { sentenceNow, tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   type OverviewAttention,
   type OverviewCheck,
@@ -50,7 +50,7 @@ const SCREENS: Record<string, LinkOptions> = {
 const plural = (n: number, one: string, many: string) =>
   `${n} ${tNow(n === 1 ? one : many)}`;
 
-const number = new Intl.NumberFormat("en");
+const number = new Intl.NumberFormat(dateLocale() ?? "en");
 
 /**
  * The first thing an administrator sees: what needs a decision, how the service is doing right now,
@@ -314,7 +314,7 @@ function CheckRow({ check }: { check: OverviewCheck }) {
           }
         >
           {check.state === "ok"
-            ? "Done"
+            ? tNow("Done")
             : check.state === "todo"
               ? t("To do")
               : t("Your choice")}

@@ -8,6 +8,7 @@ import {
   namesNoFormat,
   unreadableReason,
 } from "@/lib/channels/attachments";
+import { tNow } from "@/lib/i18n";
 import { newId } from "@/lib/new-id";
 import type { RejectedFile } from "./rejected-files";
 
@@ -52,8 +53,13 @@ export function screenPickedFiles(
         reject(
           file,
           mediaType === "image/svg+xml"
-            ? `'${file.name}' is an SVG, which can carry scripts and is not accepted.`
-            : `'${file.name}' is an image format that is not supported.`,
+            ? tNow(
+                "'{name}' is an SVG, which can carry scripts and is not accepted.",
+                { name: file.name },
+              )
+            : tNow("'{name}' is an image format that is not supported.", {
+                name: file.name,
+              }),
         ),
       );
       continue;
@@ -91,7 +97,12 @@ export function screenPickedFiles(
 
     if (kind === "unsupported" && !unnamed) {
       rejected.push(
-        reject(file, `'${file.name}' is not a file type this chat accepts.`),
+        reject(
+          file,
+          tNow("'{name}' is not a file type this chat accepts.", {
+            name: file.name,
+          }),
+        ),
       );
       continue;
     }
@@ -100,7 +111,10 @@ export function screenPickedFiles(
       rejected.push(
         reject(
           file,
-          `'${file.name}' is too large for a Word, Excel or PDF attachment (limit ${formatBytes(MAX_DOCUMENT_BYTES)}).`,
+          tNow(
+            "'{name}' is too large for a Word, Excel or PDF attachment (limit {formatBytes}).",
+            { name: file.name, formatBytes: formatBytes(MAX_DOCUMENT_BYTES) },
+          ),
         ),
       );
       continue;
@@ -110,7 +124,10 @@ export function screenPickedFiles(
       rejected.push(
         reject(
           file,
-          `'${file.name}' is too large for an image attachment (limit ${formatBytes(MAX_IMAGE_BYTES)}).`,
+          tNow(
+            "'{name}' is too large for an image attachment (limit {formatBytes}).",
+            { name: file.name, formatBytes: formatBytes(MAX_IMAGE_BYTES) },
+          ),
         ),
       );
       continue;
@@ -120,7 +137,10 @@ export function screenPickedFiles(
       rejected.push(
         reject(
           file,
-          `'${file.name}' is too large for a text attachment (limit ${formatBytes(MAX_FILE_BYTES)}).`,
+          tNow(
+            "'{name}' is too large for a text attachment (limit {formatBytes}).",
+            { name: file.name, formatBytes: formatBytes(MAX_FILE_BYTES) },
+          ),
         ),
       );
       continue;
@@ -133,7 +153,10 @@ export function screenPickedFiles(
       rejected.push(
         reject(
           file,
-          `'${file.name}' is larger than the ${formatBytes(MAX_IMAGE_BYTES)} limit for an attachment.`,
+          tNow(
+            "'{name}' is larger than the {formatBytes} limit for an attachment.",
+            { name: file.name, formatBytes: formatBytes(MAX_IMAGE_BYTES) },
+          ),
         ),
       );
       continue;
@@ -146,7 +169,13 @@ export function screenPickedFiles(
       rejected.push(
         reject(
           file,
-          `'${file.name}' was not added: a message can carry at most ${MAX_ATTACHMENTS_PER_MESSAGE} attachments.`,
+          tNow(
+            "'{name}' was not added: a message can carry at most {MAX_ATTACHMENTS_PER_MESSAGE} attachments.",
+            {
+              name: file.name,
+              MAX_ATTACHMENTS_PER_MESSAGE: MAX_ATTACHMENTS_PER_MESSAGE,
+            },
+          ),
         ),
       );
       continue;

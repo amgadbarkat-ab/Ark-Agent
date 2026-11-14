@@ -83,7 +83,7 @@ function MarketplaceReview() {
             size="sm"
             variant="outline"
           >
-            {pending.isFetchingNextPage ? "Loading…" : t("Show more")}
+            {pending.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>
@@ -118,7 +118,7 @@ function MarketplaceReview() {
             size="sm"
             variant="outline"
           >
-            {reports.isFetchingNextPage ? "Loading…" : t("Show more")}
+            {reports.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>
@@ -228,7 +228,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
               }
               size="sm"
             >
-              {review.isPending ? "Saving…" : "Approve"}
+              {review.isPending ? tNow("Saving…") : tNow("Approve")}
             </Button>
           </>
         )}

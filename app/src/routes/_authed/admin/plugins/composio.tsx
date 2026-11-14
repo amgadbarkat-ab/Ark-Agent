@@ -226,7 +226,7 @@ function RouteComponent() {
                           size="sm"
                           variant="outline"
                         >
-                          {isAdding ? "Adding…" : "Add"}
+                          {isAdding ? tNow("Adding…") : tNow("Add")}
                         </Button>
                       )}
                     </ItemActions>

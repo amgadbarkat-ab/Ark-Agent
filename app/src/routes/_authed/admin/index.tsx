@@ -160,8 +160,9 @@ const SECTIONS: {
       },
       {
         title: tNow("Identity providers"),
-        description:
+        description: tNow(
           "A company's own SAML or OpenID Connect provider, routed by email domain.",
+        ),
         icon: IconBuildingBank,
         linkOptions: { to: "/admin/identity-providers" },
       },

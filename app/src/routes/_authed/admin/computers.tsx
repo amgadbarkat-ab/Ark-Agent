@@ -43,7 +43,7 @@ import {
   setOwnBrowserEmployeeMutationOptions,
 } from "@/lib/computers/own-browser";
 import { computerFleetQueryOptions } from "@/lib/computers/queries";
-import { tNow, txNow, useT } from "@/lib/i18n";
+import { dateLocale, tNow, txNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
   component: ComputersPage,
@@ -199,7 +199,7 @@ function ComputersPage() {
                         ? t("Browser running since {value1}", {
                             value1: new Date(
                               computer.startedAt ?? "",
-                            ).toLocaleTimeString(),
+                            ).toLocaleTimeString(dateLocale()),
                           })
                         : t(
                             "No browser running. It starts when the digital employee next needs it.",
@@ -221,7 +221,9 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      {busy === computer.botId ? "Working…" : t("Stop browser")}
+                      {busy === computer.botId
+                        ? tNow("Working…")
+                        : t("Stop browser")}
                     </Button>
                     <Button
                       disabled={busy === computer.botId}
@@ -281,7 +283,7 @@ function ComputersPage() {
               size="sm"
               variant="destructive"
             >
-              {busy === confirming ? "Resetting…" : t("Reset it")}
+              {busy === confirming ? tNow("Resetting…") : t("Reset it")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -391,7 +393,7 @@ function OwnBrowserSection({
                       variant="outline"
                     >
                       {busyBotId === botId
-                        ? "Working…"
+                        ? tNow("Working…")
                         : choice
                           ? t("Back to its own browser")
                           : t("Use my browser")}
@@ -504,7 +506,7 @@ function HostFoldersSection({
                     variant="outline"
                   >
                     {requestingBotId === botId
-                      ? "Waiting…"
+                      ? tNow("Waiting…")
                       : t("Choose folder")}
                   </Button>
                 </ItemActions>
@@ -528,7 +530,7 @@ function HostFoldersSection({
             size="sm"
             variant="outline"
           >
-            {stopping ? "Stopping…" : t("Stop folder access")}
+            {stopping ? tNow("Stopping…") : t("Stop folder access")}
           </Button>
           <Link className="underline" to="/admin/audit">
             {t("View audit")}

@@ -17,7 +17,7 @@ import {
 } from "@/lib/audit/outcome";
 import { auditEventsQueryOptions } from "@/lib/audit/queries";
 import { silenceOf } from "@/lib/audit/silence";
-import { sentenceNow, tNow, useT } from "@/lib/i18n";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 
 /**
  * Read surface for policy, computer, component, MCP, and credential audit events.
@@ -223,7 +223,7 @@ function Row({
   return (
     <tr className="border-border border-t align-top">
       <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-        {new Date(event.createdAt).toLocaleTimeString()}
+        {new Date(event.createdAt).toLocaleTimeString(dateLocale())}
       </td>
       <td className="px-4 py-2 font-medium">
         {/* Strip the internal computer tool namespace for display. */}
@@ -250,7 +250,10 @@ function Row({
           <span className="font-mono text-xs">
             {typeof payload.offered === "number" &&
             typeof payload.granted === "number"
-              ? `${payload.offered} of ${payload.granted} tools`
+              ? tNow("{offered} of {granted} tools", {
+                  offered: payload.offered,
+                  granted: payload.granted,
+                })
               : "-"}
           </span>
         ) : /* Named targets and file paths are the audit subject before page elements. */
@@ -314,7 +317,11 @@ function Row({
         >
           {routed ??
             DECISIONS[event.eventType] ??
-            (refused ? "Blocked" : failed ? t("Did not happen") : "Allowed")}
+            (refused
+              ? tNow("Blocked")
+              : failed
+                ? t("Did not happen")
+                : tNow("Allowed"))}
         </span>
         {/* Refusal reasons mirror the conversation-facing reason. */}
         {(event.eventType === "component.refused" ||
@@ -438,19 +445,19 @@ const DECISIONS: Record<string, string> = {
   "agent.stream_stalled": tNow("The digital employee stopped responding"),
   "computer.policy_loaded": tNow("Boundary at start-up"),
   "computer.isolation_loaded": tNow("Isolation at start-up"),
-  "computer.control_taken": "A person took the wheel",
+  "computer.control_taken": tNow("A person took the wheel"),
   "computer.control_released": tNow("The wheel was handed back"),
   "computer.help_requested": tNow("The digital employee asked for help"),
   "computer.secret_requested": tNow("The digital employee asked for a secret"),
-  "computer.secret_supplied": "A person supplied a secret",
+  "computer.secret_supplied": tNow("A person supplied a secret"),
   "computer.reset": tNow("The computer was reset"),
-  "computer.stopped": "A person pressed stop",
+  "computer.stopped": tNow("A person pressed stop"),
   // Not "Blocked": nothing was refused. It waits for a person, and the decision is its own row.
   "computer.action_held": tNow("Waiting for a person's approval"),
   "mcp.call_held": tNow("Waiting for a person's approval"),
-  "approval.requested": "Asked a person",
-  "approval.approved": "A person approved",
-  "approval.rejected": "A person declined",
+  "approval.requested": tNow("Asked a person"),
+  "approval.approved": tNow("A person approved"),
+  "approval.rejected": tNow("A person declined"),
   "approval.failed": tNow("Approved, but it could not be carried out"),
 
   "component.granted": tNow("Granted to this digital employee"),

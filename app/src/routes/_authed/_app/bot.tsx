@@ -13,6 +13,7 @@ import {
 import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
+import { chatLabels } from "@/lib/copilot/chat-labels";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
 import { tNow, useT } from "@/lib/i18n";
 
@@ -227,6 +228,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           <CopilotChat
             agentId={agentId}
             key={`${agentId}:${threadId}`}
+            labels={chatLabels()}
             threadId={threadId}
           />
         ) : null}

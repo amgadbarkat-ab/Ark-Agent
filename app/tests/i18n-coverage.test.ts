@@ -12,9 +12,9 @@ import { scan } from "./support/english-scan";
  * The whole app in Greek when Greek is chosen (MD order, #108). These hold it there: a screen that
  * writes English straight into the page, or a text given to `t()` with no Greek, fails the build.
  */
-const { raw, translated } = scan(join(import.meta.dir, "../src"), (file) =>
-  file.startsWith("components/ui/"),
-);
+// Every file, the shared primitives in components/ui included: their labels ("Close", "Toggle
+// Sidebar") are read on every screen.
+const { raw, translated } = scan(join(import.meta.dir, "../src"));
 
 /** The first keys (`sidebar.search` and the like), translated by their own table in lib/i18n.ts. */
 const KEYED = /^[a-z]+(\.[a-zA-Z]+)+$/;

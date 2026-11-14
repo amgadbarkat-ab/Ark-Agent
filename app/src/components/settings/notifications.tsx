@@ -156,7 +156,7 @@ export function NotificationSettings() {
                     size="sm"
                     variant="outline"
                   >
-                    {test.isPending ? "Sending…" : "Send"}
+                    {test.isPending ? tNow("Sending…") : tNow("Send")}
                   </Button>
                 </ItemActions>
               </Item>

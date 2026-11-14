@@ -3,6 +3,17 @@ import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
 import { tNow } from "@/lib/i18n";
 import { Badge, GalleryFrame, type Tone } from "./frame";
 
+/** The tone as a word on the badge, in the app's language. */
+const TONE_WORDS: Record<
+  "neutral" | "positive" | "caution" | "negative",
+  string
+> = {
+  neutral: tNow("neutral"),
+  positive: tNow("positive"),
+  caution: tNow("caution"),
+  negative: tNow("negative"),
+};
+
 const tone = z
   .enum(["neutral", "positive", "caution", "negative"])
   .describe(
@@ -202,7 +213,7 @@ export function NoticeCard({
     <GalleryFrame
       action={
         noticeTone && noticeTone !== "neutral" ? (
-          <Badge tone={noticeTone}>{noticeTone}</Badge>
+          <Badge tone={noticeTone}>{TONE_WORDS[noticeTone]}</Badge>
         ) : undefined
       }
       title={title}
@@ -237,7 +248,7 @@ export const GALLERY: GalleryComponent[] = [
       status: tNow("Approved"),
       fields: [
         { label: tNow("Amount"), value: "$4,280.00" },
-        { label: tNow("Raised"), value: "12 March" },
+        { label: tNow("Raised"), value: tNow("12 March") },
         { label: tNow("Owner"), value: tNow("Priya Raman") },
       ],
     },
@@ -257,7 +268,7 @@ export const GALLERY: GalleryComponent[] = [
         {
           label: tNow("Revenue"),
           value: "$412k",
-          change: "+12% on last month",
+          change: tNow("+12% on last month"),
           changeTone: "positive",
         },
         { label: tNow("Open deals"), value: "38" },

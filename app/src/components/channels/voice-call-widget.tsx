@@ -65,7 +65,7 @@ export function VoiceCallWidget({
     : connecting
       ? "Connecting…"
       : state.speaking
-        ? `${name} is speaking`
+        ? tNow("{name} is speaking", { name })
         : taskRunning
           ? tNow("Working on your request")
           : state.muted
@@ -152,7 +152,7 @@ export function VoiceCallWidget({
               )}
             </div>
             <div
-              title={state.muted ? t("You · microphone muted") : "You"}
+              title={state.muted ? t("You · microphone muted") : tNow("You")}
               className={cn(
                 "relative flex size-[40px] shrink-0 items-center justify-center rounded-full bg-background ring-2 ring-transparent ring-offset-2 ring-offset-muted transition-shadow motion-reduce:transition-none",
                 state.listening && !state.muted && "ring-primary/40",
@@ -168,7 +168,7 @@ export function VoiceCallWidget({
               ) : (
                 <span
                   role="img"
-                  aria-label={user?.name ? `${user.name} (you)` : "You"}
+                  aria-label={user?.name ? `${user.name} (you)` : tNow("You")}
                   className="text-sm font-medium text-foreground/70"
                 >
                   {initials}

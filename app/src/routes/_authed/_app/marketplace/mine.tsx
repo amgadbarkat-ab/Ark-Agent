@@ -70,7 +70,7 @@ function MinePage() {
         </Button>
       }
       backButton={{
-        label: "Digital Team",
+        label: tNow("Digital Team"),
         linkProps: { to: "/agents" },
       }}
       description={t(
@@ -218,7 +218,7 @@ function PublisherDialog({
               size="sm"
               type="submit"
             >
-              {save.isPending ? "Saving…" : "Save"}
+              {save.isPending ? tNow("Saving…") : tNow("Save")}
             </Button>
           </DialogFooter>
         </form>

@@ -201,7 +201,9 @@ function RouteComponent() {
                     : "text-muted-foreground text-xs"
                 }
               >
-                {tool.effect === "write" ? "changes things" : "reads"}
+                {tool.effect === "write"
+                  ? tNow("changes things")
+                  : tNow("reads")}
               </span>
             </ItemActions>
           </Item>

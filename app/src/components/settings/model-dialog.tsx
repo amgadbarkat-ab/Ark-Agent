@@ -265,7 +265,7 @@ function ModelForm({
             <div className="space-y-1 text-muted-foreground text-sm">
               <p>{sentenceNow(provider.summary)}</p>
               {provider.notes?.map((note) => (
-                <p key={note}>{note}</p>
+                <p key={note}>{sentenceNow(note)}</p>
               ))}
               {provider.keyHelpUrl && !editing ? (
                 <p>
@@ -432,7 +432,7 @@ function ModelForm({
               type="button"
               variant="outline"
             >
-              {testing ? "Testing…" : t("Test connection")}
+              {testing ? tNow("Testing…") : t("Test connection")}
             </Button>
             {probe?.ok ? (
               <p
@@ -441,8 +441,10 @@ function ModelForm({
               >
                 {tNow("Connected.")}{" "}
                 {probe.models.length === 1
-                  ? "1 model found."
-                  : `${probe.models.length} models found.`}
+                  ? tNow("1 model found.")
+                  : tNow("{count} models found.", {
+                      count: probe.models.length,
+                    })}
               </p>
             ) : probe ? (
               <p className="text-destructive text-sm" role="alert">
@@ -486,7 +488,7 @@ function ModelForm({
                 type="button"
                 variant="destructive"
               >
-                {remove.isPending ? "Removing…" : t("Remove for good")}
+                {remove.isPending ? tNow("Removing…") : t("Remove for good")}
               </Button>
             ) : (
               <Button
@@ -512,7 +514,7 @@ function ModelForm({
               size="sm"
               type="submit"
             >
-              {isSubmitting || saving ? "Saving…" : "Save"}
+              {isSubmitting || saving ? tNow("Saving…") : tNow("Save")}
             </Button>
           )}
         </form.Subscribe>

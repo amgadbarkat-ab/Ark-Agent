@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { reportListingMutationOptions } from "@/lib/marketplace/mutations";
 import { LIMITS, REPORT_REASONS } from "@/lib/marketplace/queries";
 
@@ -139,7 +139,7 @@ export function ReportDialog({
                 size="sm"
                 type="submit"
               >
-                {report.isPending ? "Sending…" : t("Send report")}
+                {report.isPending ? tNow("Sending…") : t("Send report")}
               </Button>
             </DialogFooter>
           </form>

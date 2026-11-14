@@ -262,6 +262,14 @@ export function tNow(
   return translateAny(storedLanguage(), text, values);
 }
 
+/**
+ * The locale dates and numbers are written in: Greek ("14/11/2026", "Νοέμβριος 2026") when Greek is
+ * chosen, otherwise the browser's own. Pass it wherever a date is turned into text.
+ */
+export function dateLocale(): string | undefined {
+  return storedLanguage() === "el" ? "el-GR" : undefined;
+}
+
 /** A whole sentence from elsewhere (the server, a runtime), in the language chosen right now. */
 export function sentenceNow<T extends string | null | undefined>(
   sentence: T,

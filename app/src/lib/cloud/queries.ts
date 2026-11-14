@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { dateLocale } from "@/lib/i18n";
 import type { CloudRates, CloudUsage } from "../../../../shared/cloud-pricing";
 
 export type { CloudRates, CloudUsage };
@@ -156,7 +157,7 @@ export function adminCloudChargesQueryOptions(status = "") {
 
 /** "€0.60", "€0.006": a price per unit, which can be a fraction of a cent. */
 export function formatRate(cents: number): string {
-  return new Intl.NumberFormat("en", {
+  return new Intl.NumberFormat(dateLocale() ?? "en", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,
@@ -168,9 +169,12 @@ export function formatRate(cents: number): string {
 export function formatPeriod(period: string): string {
   const [year, month] = period.split("-").map(Number);
   if (!year || !month) return period;
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-GB", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleString(
+    dateLocale() ?? "en-GB",
+    {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    },
+  );
 }

@@ -2,7 +2,7 @@ import { IconFile, IconX } from "@tabler/icons-react";
 import { motion, useReducedMotion } from "motion/react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT } from "@/lib/i18n";
+import { tNow, useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { Collapse } from "./collapse";
 
@@ -102,13 +102,13 @@ export function AttachmentStrip({
                * region, and a paste of eight images would interrupt eight times to say so.
                */
               <Skeleton
-                aria-label={`${image.alt ?? "Attachment"}, uploading`}
+                aria-label={`${image.alt ?? tNow("Attachment")}, uploading`}
                 className="size-20 rounded-xl"
                 role="img"
               />
             ) : (
               <img
-                alt={image.alt ?? "Attachment"}
+                alt={image.alt ?? tNow("Attachment")}
                 className="size-20 rounded-xl border border-border object-cover"
                 src={image.url}
               />
@@ -168,7 +168,9 @@ export function AttachmentStrip({
                   }
                 >
                   {formatBytes(file.size)}
-                  {file.mayTruncate === true ? " · may be cut" : null}
+                  {file.mayTruncate === true
+                    ? ` · ${tNow("may be cut")}`
+                    : null}
                 </p>
               )}
             </div>

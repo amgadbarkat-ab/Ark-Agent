@@ -21,7 +21,7 @@ import {
   agentHandoffQueryOptions,
   agentListQueryOptions,
 } from "@/lib/agents/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 
 /**
  * Which Bots this one may hand work to.
@@ -160,8 +160,10 @@ export function HandoffPanel({ agentId }: { agentId: string }) {
                  */}
                 <ItemDescription>
                   {candidate.hidden
-                    ? `${candidate.title} · hidden from your roster`
-                    : candidate.title}
+                    ? tNow("{title} · hidden from your roster", {
+                        title: sentenceNow(candidate.title),
+                      })
+                    : sentenceNow(candidate.title)}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>

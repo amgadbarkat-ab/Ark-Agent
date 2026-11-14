@@ -200,7 +200,7 @@ export function ProposedBotCard({
           onClick={() => void make()}
           size="sm"
         >
-          {sending === "create" ? "Creating…" : t("Create it")}
+          {sending === "create" ? tNow("Creating…") : t("Create it")}
         </Button>
         <Button
           disabled={Boolean(sending)}
@@ -219,8 +219,14 @@ function titleFor(
   name: string | undefined,
   clashes: { title: string } | undefined,
 ): string {
-  const called = name?.trim() ? name.trim() : "a new digital employee";
-  return clashes ? `Create ${called}, again` : `Create ${called}`;
+  const called = name?.trim();
+  if (!called)
+    return clashes
+      ? tNow("Create a new digital employee, again")
+      : tNow("Create a new digital employee");
+  return clashes
+    ? tNow("Create {called}, again", { called })
+    : tNow("Create {name}", { name: called });
 }
 
 /**
