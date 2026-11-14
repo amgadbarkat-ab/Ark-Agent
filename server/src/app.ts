@@ -132,6 +132,12 @@ import { createRoutingRoutes } from "./routing/routes";
 import { securityHeaders } from "./security-headers";
 import type { PackageStatusReader } from "./tenant-package";
 import {
+  adminTrialRoutes,
+  type TrialRouteDependencies,
+  trialCheckInRoutes,
+  trialRoutes,
+} from "./trial/routes";
+import {
   INSTRUCTIONS_LIMIT,
   InstructionsTooLongError,
   type UserInstructionsStore,
@@ -473,6 +479,11 @@ export function createApp(
    * so absent here means `/api/phone-approval` is not mounted.
    */
   phoneApprovals?: PhoneApprovals,
+  /**
+   * A customer trial on this install (#109). Appended last, for the positional reason above. Absent
+   * leaves `/api/trial` unmounted, and the app reads that as no trial.
+   */
+  trial?: TrialRouteDependencies,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1755,6 +1766,20 @@ export function createApp(
       "/api/channels",
       createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
     );
+  }
+
+  if (trial) {
+    app.route("/api/trial", trialRoutes(requireUser, trial));
+    if (trial.receiver) {
+      app.route(
+        "/api/trial-checkins",
+        trialCheckInRoutes(trial.receiver.database),
+      );
+      app.route(
+        "/api/admin/trials",
+        adminTrialRoutes(requireUser, trial.receiver.database),
+      );
+    }
   }
 
   if (phoneApprovals) {

@@ -22,6 +22,7 @@ import { createDrain } from "../../shared/drain";
 import { listenHosts } from "../../shared/listen-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
+import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
 import { workOwner } from "../../shared/work-owner";
 import { RunGateAgent } from "./accounts/run-gate";
 import { createRunSlots } from "./accounts/run-slots";
@@ -176,6 +177,10 @@ import {
   loadTenantPackage,
   synchronizeTenantPackage,
 } from "./tenant-package";
+import { guardProfiles, withTrialEntitlement } from "./trial/guard";
+import { seedTrialRoster } from "./trial/seed";
+import { createTrialService, trialKeysFrom } from "./trial/service";
+import { appVersion } from "./trial/version";
 import { createUserInstructionsStore } from "./user-instructions";
 import { createUserPreferencesStore } from "./user-preferences";
 import { createVoiceSessionStore } from "./voice/sessions";
@@ -270,17 +275,33 @@ const agentVault = {
   reader: credentialStore,
   encryptionKey: config.keyEncryptionKey,
 };
-const accountStore = createAccountStore(database, {
-  billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
-  // Off unless exactly "true": a new account starting a 7-day trial is a billing decision.
-  freeTrial: process.env.ARK_FREE_TRIAL_ENABLED?.trim() === "true",
+/*
+ * A customer trial on this install (#109): a signed profile, its end, and the block on making more
+ * employees. Built before the stores it changes, because it wraps them. Only the keys built into this
+ * release are trusted on a desktop install; a server may add one in ARK_TRIAL_PUBLIC_KEY.
+ */
+const trial = createTrialService(database, {
+  keys: trialKeysFrom(
+    TRIAL_PUBLIC_KEYS,
+    config.singleUser ? undefined : process.env.ARK_TRIAL_PUBLIC_KEY,
+  ),
+  version: appVersion(),
 });
-const agentProfileStore = createAgentProfileStore(
+const accountStore = withTrialEntitlement(
+  createAccountStore(database, {
+    billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
+    // Off unless exactly "true": a new account starting a 7-day trial is a billing decision.
+    freeTrial: process.env.ARK_FREE_TRIAL_ENABLED?.trim() === "true",
+  }),
+  trial,
+);
+const unguardedProfileStore = createAgentProfileStore(
   database,
   config.managedAgent?.endpoint,
   agentVault,
   accountStore,
 );
+const agentProfileStore = guardProfiles(unguardedProfileStore, trial);
 // Ark's own digital employees, written to the database on every start so the catalogue in code is the
 // catalogue on screen.
 const marketplaceStore = createMarketplaceStore(database, {
@@ -1734,7 +1755,42 @@ const app = createApp(
   handoffDesk,
   // Approving by phone (P2 idea 10); only built when PHONE_APPROVAL_ENABLED is on.
   phoneApprovals,
+  // A customer trial on this install (#109).
+  {
+    service: trial,
+    seedFor: (actor) =>
+      seedTrialRoster(actor, {
+        trial,
+        profiles: agentProfileStore,
+        skills: {
+          install: (input) => pluginStore.installSkill(input),
+          grant: (kind, ref, agentId, by) =>
+            pluginStore.grant(kind, ref, agentId, by),
+        },
+      }),
+    keyConfigured:
+      trialKeysFrom(
+        TRIAL_PUBLIC_KEYS,
+        config.singleUser ? undefined : process.env.ARK_TRIAL_PUBLIC_KEY,
+      ).length > 0,
+    audit: (event) =>
+      recordAuditEvent(bootAuditStore, {
+        eventType: event.eventType,
+        targetType: "trial",
+        targetId: "install",
+        actorUserId: event.actorUserId,
+        payload: event.payload,
+      }).then(
+        () => undefined,
+        () => undefined,
+      ),
+    ...(process.env.ARK_TRIAL_RECEIVER?.trim() === "true"
+      ? { receiver: { database } }
+      : {}),
+  },
 );
+// Once a day, status and days left to the address the profile names; nothing when it names none.
+trial.startCheckIns();
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only
 // when one is configured (docs/ark/13-azure-hosting.md, "What to watch").

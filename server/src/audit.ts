@@ -525,6 +525,8 @@ export const auditEventTypes = [
   "model.default_changed",
   "model.bot_choice_changed",
   "marketplace.listing_installed",
+  "trial.profile_imported",
+  "trial.code_applied",
   "marketplace.report_filed",
   "marketplace.report_dismissed",
 ] as const;

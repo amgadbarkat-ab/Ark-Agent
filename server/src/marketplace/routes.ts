@@ -5,6 +5,7 @@ import type { AuditEventType } from "../audit";
 import { type AppVariables, requireAdmin } from "../auth/guards";
 import { parsePageLimit } from "../paging";
 import { createLimiter } from "../rate-limit";
+import { TrialCreateBlockedError } from "../trial/service";
 import { isSecret } from "./sanitize";
 import { MarketplaceError, type MarketplaceStore } from "./store";
 
@@ -85,6 +86,12 @@ function refusal(
           : {}),
       },
       STATUS[error.code],
+    );
+  }
+  if (error instanceof TrialCreateBlockedError) {
+    return context.json(
+      { error: error.message, code: "trial_create_blocked" },
+      403,
     );
   }
   throw error;
