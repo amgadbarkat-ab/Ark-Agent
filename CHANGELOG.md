@@ -49,8 +49,8 @@ the employees it names, nothing more, until the end it names.
   customer id, a random install id, the version, the trial status, the days left, the end date and
   the number of trial employees. Nothing about conversations, files, mail or people is sent. BlackArk's
   own server receives these with `ARK_TRIAL_RECEIVER=true` and lists them in **Admin → Trials**.
-- **Without the BlackArk key** built in, a build accepts no profile and says so. Nothing about a
-  trial changes on any install that has no profile.
+- **This release trusts BlackArk's trial key** (posted on #109, 14 Nov). A profile or code signed
+  with any other key is refused. Nothing about a trial changes on any install that has no profile.
 
 ## 0.1.36
 
