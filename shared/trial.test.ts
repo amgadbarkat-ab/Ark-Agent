@@ -109,3 +109,15 @@ describe("trial profile", () => {
     expect(trialDaysLeftAt(end, new Date("2026-12-16T00:00:00Z"))).toBe(0);
   });
 });
+
+describe("the key this release trusts (#109)", () => {
+  test("is BlackArk's posted key, and reads as an Ed25519 public key", async () => {
+    const { TRIAL_PUBLIC_KEYS } = await import("./trial-public-key");
+    expect(TRIAL_PUBLIC_KEYS).toEqual([
+      "+sUZUOflN+rBn01lZ1gTFr/Q2hL/OqhJqJ1XizQ9+9o=",
+    ]);
+    for (const key of TRIAL_PUBLIC_KEYS) {
+      expect(publicKeyToBase64(publicKeyFromBase64(key))).toBe(key);
+    }
+  });
+});
