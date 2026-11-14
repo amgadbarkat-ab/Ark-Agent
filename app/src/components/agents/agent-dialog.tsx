@@ -81,6 +81,7 @@ import { isComposing } from "@/lib/composing";
 import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
+import { useCreateBlocked } from "@/lib/trial/use-create-blocked";
 
 /**
  * A coworker, in a dialog with its own sidebar.
@@ -900,6 +901,7 @@ function ManageSection({
   );
   const deleteAgent = useMutation(deleteAgentMutationOptions(queryClient));
   const actionError = setHidden.error ?? duplicateAgent.error;
+  const createBlocked = useCreateBlocked();
 
   return (
     <>
@@ -949,12 +951,13 @@ function ManageSection({
           <ItemContent>
             <ItemTitle>{t("Duplicate")}</ItemTitle>
             <ItemDescription>
-              {t("A copy of your own, with no key and no channels.")}
+              {createBlocked ??
+                t("A copy of your own, with no key and no channels.")}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
             <Button
-              disabled={duplicateAgent.isPending}
+              disabled={duplicateAgent.isPending || createBlocked !== null}
               onClick={async () => {
                 const copy = await duplicateAgent.mutateAsync(agentId);
                 await navigate({ search: { agent: copy.id }, to: "/agents" });

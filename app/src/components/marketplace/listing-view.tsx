@@ -39,6 +39,7 @@ import {
   type ListingDetail,
   type OfficialRole,
 } from "@/lib/marketplace/queries";
+import { useCreateBlocked } from "@/lib/trial/use-create-blocked";
 import { queryClient } from "@/query-client";
 
 const STATUS_WORDS: Record<string, string> = {
@@ -63,6 +64,7 @@ export function ListingView({
   const content = listing.content;
   const official = isOfficialContent(content);
   const install = useMutation(installListingMutationOptions(queryClient));
+  const createBlocked = useCreateBlocked();
   const withdraw = useMutation(withdrawListingMutationOptions(queryClient));
   const [reporting, setReporting] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -74,8 +76,9 @@ export function ListingView({
       action={
         official ? (
           <Button
-            disabled={install.isPending}
+            disabled={install.isPending || createBlocked !== null}
             onClick={() => install.mutate(listing.slug)}
+            title={createBlocked ?? undefined}
             size="sm"
           >
             {install.isPending
@@ -95,6 +98,11 @@ export function ListingView({
       description={sentenceNow(listing.summary)}
       title={sentenceNow(listing.title)}
     >
+      {createBlocked && official ? (
+        <p className="mt-4 text-muted-foreground text-sm" role="status">
+          {createBlocked}
+        </p>
+      ) : null}
       {install.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
           {install.error.message}

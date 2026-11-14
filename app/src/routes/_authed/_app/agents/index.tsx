@@ -19,6 +19,7 @@ import {
   isSharedWithYou,
 } from "@/lib/agents/queries";
 import { useT } from "@/lib/i18n";
+import { useCreateBlocked } from "@/lib/trial/use-create-blocked";
 
 /**
  * Creating and inspecting a digital employee are search-parameter states so the page remains mounted
@@ -63,7 +64,9 @@ function DigitalTeamScreen() {
   const shared = agents?.filter(isSharedWithYou);
 
   // Creating wins if both are somehow set: it is the more recent intent.
-  const showCreate = isCreating === true;
+  // During a trial with a fixed team (#109), nothing is offered that would make another employee.
+  const createBlocked = useCreateBlocked();
+  const showCreate = isCreating === true && !createBlocked;
   const showProfile = !showCreate && selectedAgentId !== undefined;
   const close = () => navigate({ search: {} });
 
@@ -75,16 +78,18 @@ function DigitalTeamScreen() {
             {/* A team needs somebody besides the lead. */}
             {(mine?.length ?? 0) >= 2 ? <OpenTeamChannelButton /> : null}
             {mine && mine.length >= 2 ? <NewGroupButton agents={mine} /> : null}
-            <Button
-              render={(props) => (
-                <Link search={{ new: true }} to="/agents" {...props} />
-              )}
-              size="sm"
-              variant="ghost"
-            >
-              <IconPlus />
-              {t("Create your own")}
-            </Button>
+            {createBlocked ? null : (
+              <Button
+                render={(props) => (
+                  <Link search={{ new: true }} to="/agents" {...props} />
+                )}
+                size="sm"
+                variant="ghost"
+              >
+                <IconPlus />
+                {t("Create your own")}
+              </Button>
+            )}
           </div>
         }
         description={t(
@@ -109,7 +114,13 @@ function DigitalTeamScreen() {
             loading={loading}
           />
         </PageSection>
-        <HireSection />
+        {createBlocked ? (
+          <p className="mt-4 text-muted-foreground text-sm" role="status">
+            {createBlocked}
+          </p>
+        ) : (
+          <HireSection />
+        )}
         <PageSection title={t("Shared with you")}>
           <Roster
             agents={shared}
