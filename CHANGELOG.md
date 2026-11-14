@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.37
+
 ### Customer trials (#109)
 
 A customer trial is now set by one signed file from BlackArk, and ArkAgent keeps to it on its own:
