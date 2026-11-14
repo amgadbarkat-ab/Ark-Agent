@@ -29,6 +29,9 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **What a digital employee is told stays in English** (its instructions, tool descriptions as the
   model reads them, results handed back to it), so its behaviour does not change with the screen's
   language. It answers in the language it is written to.
+- The EN/ΕΛ string sheet is `docs/i18n/en-el-strings.csv`, rebuilt with `bun scripts/i18n-sheet.ts`.
+  A CI test fails when a screen writes English straight into the page or a text has no Greek.
+
 ### Fixes from the DT Lab Windows retest of v0.1.35 (#83)
 
 - **A card still waiting in Requests keeps its buttons in the chat.** A card whose run had ended
@@ -43,9 +46,6 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   "didn&#39;t".
 - **Tool rows in a conversation are in the app's language** and name the product ("Gmail"), not its
   key ("google-gmail").
-
-- The EN/ΕΛ string sheet is `docs/i18n/en-el-strings.csv`, rebuilt with `bun scripts/i18n-sheet.ts`.
-  A CI test fails when a screen writes English straight into the page or a text has no Greek.
 
 ## 0.1.35
 
