@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 import { MAX_DICTATION_SECONDS } from "../../../../shared/dictation";
 import type { Recording } from "./recording";
 
@@ -88,8 +89,12 @@ export class DictationSession {
         phase: "error",
         error:
           error instanceof Error && error.name === "NotAllowedError"
-            ? "Microphone access was denied. Allow it in your browser and try again."
-            : "Could not start recording. Check your microphone and try again.",
+            ? tNow(
+                "Microphone access was denied. Allow it in your browser and try again.",
+              )
+            : tNow(
+                "Could not start recording. Check your microphone and try again.",
+              ),
       });
     }
   };
@@ -113,7 +118,7 @@ export class DictationSession {
       this.update({
         ...idle,
         phase: "error",
-        error: "Could not finish recording. Please record again.",
+        error: tNow("Could not finish recording. Please record again."),
       });
     }
   };
@@ -151,7 +156,7 @@ export class DictationSession {
         error:
           error instanceof Error
             ? error.message
-            : "Transcription failed. Please retry.",
+            : tNow("Transcription failed. Please retry."),
       });
     }
   }

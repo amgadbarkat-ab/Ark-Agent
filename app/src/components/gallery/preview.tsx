@@ -1,4 +1,5 @@
 import { GALLERY_COMPONENTS } from "@/lib/copilot/gallery-registry";
+import { sentenceNow, useT } from "@/lib/i18n";
 
 /**
  * The answers a Bot can give, drawn rather than described.
@@ -46,9 +47,12 @@ export function GalleryPreview({
   available?: readonly { name: string; description: string }[];
   columns?: 1 | 2;
 }) {
+  const t = useT();
   if (!available) {
     return (
-      <p className="text-muted-foreground text-sm">Loading what it can draw…</p>
+      <p className="text-muted-foreground text-sm">
+        {t("Loading what it can draw…")}
+      </p>
     );
   }
 
@@ -62,8 +66,9 @@ export function GalleryPreview({
   if (shown.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        This digital employee has not been granted any components, so it answers
-        in prose.
+        {t(
+          "This digital employee has not been granted any components, so it answers in prose.",
+        )}
       </p>
     );
   }
@@ -92,7 +97,7 @@ export function GalleryPreview({
 
           <p className="text-muted-foreground text-xs leading-relaxed">
             {firstSentence(
-              granted.get(component.name) || component.description,
+              sentenceNow(granted.get(component.name) || component.description),
             )}
           </p>
         </li>
@@ -108,6 +113,7 @@ export function GalleryPreview({
  * one to fit a tile; this draws at natural size, which is what the per-Bot panel below wants.
  */
 function PreviewOf({ name }: { name: string }) {
+  const t = useT();
   const component = GALLERY_COMPONENTS.find((entry) => entry.name === name);
   if (!component) return null;
   if (!component.preview) {
@@ -118,8 +124,9 @@ function PreviewOf({ name }: { name: string }) {
      */
     return (
       <p className="text-muted-foreground text-sm">
-        Draws this deployment's own records, so it has nothing to show until a
-        Digital employee asks for it.
+        {t(
+          "Draws this deployment's own records, so it has nothing to show until a Digital employee asks for it.",
+        )}
       </p>
     );
   }

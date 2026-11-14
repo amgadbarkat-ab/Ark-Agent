@@ -27,15 +27,15 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { setComputerStateMutationOptions } from "@/lib/computers/mutations";
 import {
+  type HostAccessPendingOperation,
+  type HostFolderGrant,
   hostAccessQueryOptions,
   requestHostFolderGrantMutationOptions,
   revokeHostFolderGrantMutationOptions,
   stopHostAccessMutationOptions,
-  type HostFolderGrant,
-  type HostAccessPendingOperation,
 } from "@/lib/computers/host-access";
+import { setComputerStateMutationOptions } from "@/lib/computers/mutations";
 import {
   isDriving,
   type OwnBrowserStatus,
@@ -43,12 +43,14 @@ import {
   setOwnBrowserEmployeeMutationOptions,
 } from "@/lib/computers/own-browser";
 import { computerFleetQueryOptions } from "@/lib/computers/queries";
+import { dateLocale, tNow, txNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/computers")({
   component: ComputersPage,
 });
 
 function ComputersPage() {
+  const t = useT();
   /** Bot id currently running a stop/reset request. */
   const [busy, setBusy] = useState<string | null>(null);
   /** Reset deletes the browser profile, so it requires confirmation. */
@@ -81,7 +83,7 @@ function ComputersPage() {
    * both "this did not work", and the page has one place to say so.
    */
   const problem = fleet.error
-    ? "The computers could not be listed."
+    ? tNow("The computers could not be listed.")
     : setState.error
       ? setState.error.message
       : null;
@@ -103,8 +105,10 @@ function ComputersPage() {
 
   return (
     <PageShell
-      description="Each digital employee's browser and the profile it keeps. A profile is what makes a digital employee still signed in tomorrow, and resetting one signs it out of everything."
-      title="Computers"
+      description={t(
+        "Each digital employee's browser and the profile it keeps. A profile is what makes a digital employee still signed in tomorrow, and resetting one signs it out of everything.",
+      )}
+      title={t("Computers")}
     >
       {problem ? (
         <p
@@ -118,17 +122,18 @@ function ComputersPage() {
       {isolation === "shared" ? (
         <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
           <span className="font-medium">
-            Every digital employee is sharing one computer.
+            {t("Every digital employee is sharing one computer.")}
           </span>{" "}
-          They share its logins, its files and its session, so a digital
-          employee can reach what another signed into. Set{" "}
-          <code>COMPUTER_SUPERVISOR_URL</code> to give each digital employee its
-          own.
+          {txNow(
+            "They share its logins, its files and its session, so a digital employee can reach what another signed into. Set {variable} to give each digital employee its own.",
+            { variable: <code>{t("COMPUTER_SUPERVISOR_URL")}</code> },
+          )}
         </p>
       ) : isolation === "per-bot" ? (
         <p className="mt-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-          Each digital employee has a computer of its own: its own container,
-          its own files and its own browser profile.
+          {t(
+            "Each digital employee has a computer of its own: its own container, its own files and its own browser profile.",
+          )}
         </p>
       ) : null}
 
@@ -171,13 +176,14 @@ function ComputersPage() {
         stopping={stopHostAccess.isPending}
       />
 
-      <PageSection title="Computers in this deployment">
+      <PageSection title={t("Computers in this deployment")}>
         {computers === null && problem ? (
-          <PageEmpty>The list could not be loaded.</PageEmpty>
+          <PageEmpty>{t("The list could not be loaded.")}</PageEmpty>
         ) : computers === null ? null : computers.length === 0 ? (
           <PageEmpty>
-            No computers yet. One appears the first time a digital employee
-            opens a page.
+            {t(
+              "No computers yet. One appears the first time a digital employee opens a page.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -190,14 +196,22 @@ function ComputersPage() {
                     </ItemTitle>
                     <ItemDescription>
                       {computer.running
-                        ? `Browser running since ${new Date(computer.startedAt ?? "").toLocaleTimeString()}`
-                        : "No browser running. It starts when the digital employee next needs it."}
+                        ? t("Browser running since {value1}", {
+                            value1: new Date(
+                              computer.startedAt ?? "",
+                            ).toLocaleTimeString(dateLocale()),
+                          })
+                        : t(
+                            "No browser running. It starts when the digital employee next needs it.",
+                          )}
                       {" · "}
                       {computer.egress === undefined
-                        ? "Egress not reported"
+                        ? t("Egress not reported")
                         : computer.egress === null
-                          ? "Leaves directly"
-                          : `Leaves through ${computer.egress}`}
+                          ? t("Leaves directly")
+                          : t("Leaves through {egress}", {
+                              egress: computer.egress,
+                            })}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -207,7 +221,9 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      {busy === computer.botId ? "Working…" : "Stop browser"}
+                      {busy === computer.botId
+                        ? tNow("Working…")
+                        : t("Stop browser")}
                     </Button>
                     <Button
                       disabled={busy === computer.botId}
@@ -215,7 +231,7 @@ function ComputersPage() {
                       size="sm"
                       variant="outline"
                     >
-                      Reset
+                      {t("Reset")}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -241,12 +257,14 @@ function ComputersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Reset {confirming ? nameFor(confirming) : ""}'s computer?
+              {tNow("Reset {name}'s computer?", {
+                name: confirming ? nameFor(confirming) : "",
+              })}
             </DialogTitle>
             <DialogDescription>
-              Its profile is deleted, so the digital employee is signed out of
-              every service it had logged into and starts clean. This cannot be
-              undone.
+              {t(
+                "Its profile is deleted, so the digital employee is signed out of every service it had logged into and starts clean. This cannot be undone.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -255,7 +273,7 @@ function ComputersPage() {
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={busy === confirming}
@@ -265,21 +283,25 @@ function ComputersPage() {
               size="sm"
               variant="destructive"
             >
-              {busy === confirming ? "Resetting…" : "Reset it"}
+              {busy === confirming ? tNow("Resetting…") : t("Reset it")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <p className="mt-4 text-muted-foreground text-sm">
-        <strong>Stop</strong> closes the browser and keeps its logins: the next
-        thing the Bot does starts it again where it left off.{" "}
-        <strong>Reset</strong> deletes the profile, so the Bot is signed out of
-        everything and starts clean. Both are recorded in{" "}
-        <Link className="underline" to="/admin/audit">
-          Audit
-        </Link>
-        .
+        {txNow(
+          "{stop} closes the browser and keeps its logins: the next thing the digital employee does starts it again where it left off. {reset} deletes the profile, so the digital employee is signed out of everything and starts clean. Both are recorded in {audit}.",
+          {
+            stop: <strong>{t("Stop")}</strong>,
+            reset: <strong>{t("Reset")}</strong>,
+            audit: (
+              <Link className="underline" to="/admin/audit">
+                {t("Audit")}
+              </Link>
+            ),
+          },
+        )}
       </p>
     </PageShell>
   );
@@ -306,6 +328,7 @@ function OwnBrowserSection({
   problem: string | null;
   status: OwnBrowserStatus;
 }) {
+  const t = useT();
   const chosen = new Map(
     status.employees.map((choice) => [choice.botId, choice]),
   );
@@ -314,8 +337,10 @@ function OwnBrowserSection({
   );
   return (
     <PageSection
-      description="Let a digital employee work in your own Chrome or Edge, in a separate ArkAgent profile with none of your saved passwords. Payments, sending, form submissions and deletions wait for your approval, and every action is recorded."
-      title="Your own browser"
+      description={t(
+        "Let a digital employee work in your own Chrome or Edge, in a separate ArkAgent profile with none of your saved passwords. Payments, sending, form submissions and deletions wait for your approval, and every action is recorded.",
+      )}
+      title={t("Your own browser")}
     >
       {problem ? (
         <p
@@ -327,16 +352,20 @@ function OwnBrowserSection({
       ) : null}
       {!status.available ? (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          Switched off. To use it, choose{" "}
-          <span className="font-medium">
-            Let digital employees use my browser
-          </span>{" "}
-          in the ArkAgent menu of the desktop app. Switching it off there, or
-          closing that browser window, ends it at once.
+          {txNow(
+            "Switched off. To use it, choose {option} in the ArkAgent menu of the desktop app. Switching it off there, or closing that browser window, ends it at once.",
+            {
+              option: (
+                <span className="font-medium">
+                  {t("Let digital employees use my browser")}
+                </span>
+              ),
+            },
+          )}
         </p>
       ) : null}
       {sorted.length === 0 ? (
-        <PageEmpty>No digital employees yet.</PageEmpty>
+        <PageEmpty>{t("No digital employees yet.")}</PageEmpty>
       ) : (
         <PageRows>
           {sorted.map((botId, index) => {
@@ -349,9 +378,9 @@ function OwnBrowserSection({
                     <ItemDescription>
                       {choice
                         ? isDriving(choice)
-                          ? "Working in your browser now."
-                          : "Uses your browser."
-                        : "Uses its own browser in a sandbox."}
+                          ? t("Working in your browser now.")
+                          : t("Uses your browser.")
+                        : t("Uses its own browser in a sandbox.")}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -364,10 +393,10 @@ function OwnBrowserSection({
                       variant="outline"
                     >
                       {busyBotId === botId
-                        ? "Working…"
+                        ? tNow("Working…")
                         : choice
-                          ? "Back to its own browser"
-                          : "Use my browser"}
+                          ? t("Back to its own browser")
+                          : t("Use my browser")}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -412,6 +441,7 @@ function HostFoldersSection({
   revokingGrantId,
   stopping,
 }: HostFoldersSectionProps) {
+  const t = useT();
   const botIds = Array.from(
     new Set([
       ...knownBotIds,
@@ -422,8 +452,10 @@ function HostFoldersSection({
 
   return (
     <PageSection
-      description="Choose folders a digital employee can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot."
-      title="Folders on this computer"
+      description={t(
+        "Choose folders a digital employee can read on this computer. The desktop app asks before each edit or command. Access ends when you stop OpenBot.",
+      )}
+      title={t("Folders on this computer")}
     >
       {problem ? (
         <p
@@ -436,15 +468,17 @@ function HostFoldersSection({
 
       {!connected && !loading ? (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-          The desktop app is offline. Folders can only be approved from the
-          desktop app, and command access stays unavailable while it is offline.
+          {t(
+            "The desktop app is offline. Folders can only be approved from the desktop app, and command access stays unavailable while it is offline.",
+          )}
         </p>
       ) : null}
 
       {loading ? null : botIds.length === 0 ? (
         <PageEmpty>
-          No digital employees yet. Create a digital employee before choosing
-          folders.
+          {t(
+            "No digital employees yet. Create a digital employee before choosing folders.",
+          )}
         </PageEmpty>
       ) : (
         <PageRows>
@@ -471,7 +505,9 @@ function HostFoldersSection({
                     size="sm"
                     variant="outline"
                   >
-                    {requestingBotId === botId ? "Waiting…" : "Choose folder"}
+                    {requestingBotId === botId
+                      ? tNow("Waiting…")
+                      : t("Choose folder")}
                   </Button>
                 </ItemActions>
               </Item>
@@ -483,8 +519,9 @@ function HostFoldersSection({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-muted-foreground text-sm">
         <p>
-          Grants are read-only by default. Writes are requested from the native
-          desktop prompt when a digital employee needs them.
+          {t(
+            "Grants are read-only by default. Writes are requested from the native desktop prompt when a digital employee needs them.",
+          )}
         </p>
         <div className="flex items-center gap-3">
           <Button
@@ -493,10 +530,10 @@ function HostFoldersSection({
             size="sm"
             variant="outline"
           >
-            {stopping ? "Stopping…" : "Stop folder access"}
+            {stopping ? tNow("Stopping…") : t("Stop folder access")}
           </Button>
           <Link className="underline" to="/admin/audit">
-            View audit
+            {t("View audit")}
           </Link>
         </div>
       </div>
@@ -534,7 +571,7 @@ function FolderGrantList({
           <div className="min-w-0">
             <p className="truncate font-medium text-sm">{grant.displayName}</p>
             <p className="text-muted-foreground text-xs">
-              {ownerLabel(grant)} · Read-only
+              {ownerLabel(grant)} · {tNow("Read-only")}
             </p>
           </div>
           <Button
@@ -543,7 +580,7 @@ function FolderGrantList({
             size="sm"
             variant="ghost"
           >
-            {revokingGrantId === grant.id ? "Revoking…" : "Revoke"}
+            {revokingGrantId === grant.id ? tNow("Revoking…") : tNow("Revoke")}
           </Button>
         </div>
       ))}
@@ -552,8 +589,16 @@ function FolderGrantList({
           className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
           key={request.operationId}
         >
-          {pendingLabel(request)} from {ownerLabel(request)}
-          {request.displayName ? ` for ${request.displayName}` : ""}.
+          {request.displayName
+            ? tNow("{what} from {who} for {folder}.", {
+                what: pendingLabel(request),
+                who: ownerLabel(request),
+                folder: request.displayName,
+              })
+            : tNow("{what} from {who}.", {
+                what: pendingLabel(request),
+                who: ownerLabel(request),
+              })}
         </div>
       ))}
     </div>
@@ -571,30 +616,38 @@ function summaryFor(
   const waiting = pending.filter((request) => request.botId === botId).length;
   const parts = [];
   if (active > 0)
-    parts.push(`${active} read-only ${active === 1 ? "folder" : "folders"}`);
+    parts.push(
+      active === 1
+        ? tNow("1 read-only folder")
+        : tNow("{count} read-only folders", { count: active }),
+    );
   if (waiting > 0)
-    parts.push(`${waiting} pending ${waiting === 1 ? "request" : "requests"}`);
-  return parts.length > 0 ? parts.join(" · ") : "No folders approved.";
+    parts.push(
+      waiting === 1
+        ? tNow("1 pending request")
+        : tNow("{count} pending requests", { count: waiting }),
+    );
+  return parts.length > 0 ? parts.join(" · ") : tNow("No folders approved.");
 }
 
 function ownerLabel(grant: { ownerName?: string; ownerEmail?: string }) {
-  return grant.ownerName ?? grant.ownerEmail ?? "the desktop owner";
+  return grant.ownerName ?? grant.ownerEmail ?? tNow("the desktop owner");
 }
 
 function pendingLabel(request: HostAccessPendingOperation) {
   switch (request.kind) {
     case "write_file":
-      return "File change awaiting approval or completion";
+      return tNow("File change awaiting approval or completion");
     case "run_command":
-      return "Command awaiting approval or completion";
+      return tNow("Command awaiting approval or completion");
     case "list_files":
-      return "Listing files";
+      return tNow("Listing files");
     case "read_file":
       return "Reading a file";
     case "cancel":
     case "stop":
-      return "Stopping folder work";
+      return tNow("Stopping folder work");
     default:
-      return "Folder access awaiting approval";
+      return tNow("Folder access awaiting approval");
   }
 }

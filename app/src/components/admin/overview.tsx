@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { formatEur } from "@/lib/account/queries";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   type OverviewAttention,
   type OverviewCheck,
@@ -45,10 +46,11 @@ const SCREENS: Record<string, LinkOptions> = {
   "/admin/marketplace": { to: "/admin/marketplace" },
 };
 
+/** "3 accounts", with the noun in the chosen language. */
 const plural = (n: number, one: string, many: string) =>
-  `${n} ${n === 1 ? one : many}`;
+  `${n} ${tNow(n === 1 ? one : many)}`;
 
-const number = new Intl.NumberFormat("en");
+const number = new Intl.NumberFormat(dateLocale() ?? "en");
 
 /**
  * The first thing an administrator sees: what needs a decision, how the service is doing right now,
@@ -58,13 +60,14 @@ const number = new Intl.NumberFormat("en");
  * the server's verdicts, in the order the server gave them.
  */
 export function AdminOverview() {
+  const t = useT();
   const overview = useQuery(overviewQueryOptions());
 
   if (overview.isPending) return null;
   if (overview.error || !overview.data) {
     return (
       <p className="mt-8 text-destructive text-sm" role="alert">
-        Could not load the overview.
+        {t("Could not load the overview.")}
       </p>
     );
   }
@@ -77,11 +80,11 @@ export function AdminOverview() {
   return (
     <>
       <PageSection
-        description="Things only you can settle. Each links to where."
-        title="Needs your attention"
+        description={t("Things only you can settle. Each links to where.")}
+        title={t("Needs your attention")}
       >
         {attention.length === 0 ? (
-          <PageEmpty>Nothing needs you right now.</PageEmpty>
+          <PageEmpty>{t("Nothing needs you right now.")}</PageEmpty>
         ) : (
           <PageRows>
             {attention.map((item, index) => (
@@ -95,8 +98,10 @@ export function AdminOverview() {
       </PageSection>
 
       <PageSection
-        description="Counts from this moment. Revenue is at list price, before tax."
-        title="Right now"
+        description={t(
+          "Counts from this moment. Revenue is at list price, before tax.",
+        )}
+        title={t("Right now")}
       >
         <PageRows>
           <Figure
@@ -105,31 +110,51 @@ export function AdminOverview() {
                 ? customers.byPlan
                     .map((plan) => `${plan.name} ${plan.paying}`)
                     .join(", ")
-                : "No plans are for sale."
+                : t("No plans are for sale.")
             }
             icon={<IconUsers />}
-            title={`Paying customers, of ${plural(customers.accounts, "account", "accounts")}`}
+            title={t("Paying customers, of {accounts}", {
+              accounts: plural(customers.accounts, "account", "accounts"),
+            })}
             value={number.format(customers.paying)}
           />
           <Separator />
           <Figure
-            description="Every account paying now, at the price of its plan."
+            description={t(
+              "Every account paying now, at the price of its plan.",
+            )}
             icon={<IconCash />}
-            title="Monthly recurring revenue"
+            title={t("Monthly recurring revenue")}
             value={formatEur(revenue.monthlyRecurringCents)}
           />
           <Separator />
           <Figure
-            description={`${plural(customers.newLast30Days, "account", "accounts")} in the last 30 days, and ${plural(customers.newPeopleLast7Days, "person", "people")} signed up this week.`}
+            description={t(
+              "{accounts} in the last 30 days, and {people} signed up this week.",
+              {
+                accounts: plural(
+                  customers.newLast30Days,
+                  "account",
+                  "accounts",
+                ),
+                people: plural(
+                  customers.newPeopleLast7Days,
+                  "person",
+                  "people",
+                ),
+              },
+            )}
             icon={<IconUserPlus />}
-            title="New accounts this week"
+            title={t("New accounts this week")}
             value={number.format(customers.newLast7Days)}
           />
           <Separator />
           <Figure
-            description={`${plural(now.queuedWork, "background job", "background jobs")} waiting for a turn.`}
+            description={t("{jobs} waiting for a turn.", {
+              jobs: plural(now.queuedWork, "background job", "background jobs"),
+            })}
             icon={<IconActivity />}
-            title="Working right now"
+            title={t("Working right now")}
             value={`${plural(now.runs, "run", "runs")}, ${plural(now.accounts, "account", "accounts")}`}
           />
           {cloud ? (
@@ -138,11 +163,34 @@ export function AdminOverview() {
               <Figure
                 description={
                   cloud.priced
-                    ? `${cloud.hours.toFixed(1)} hours across ${plural(cloud.accountsUsing, "account", "accounts")}. ${formatEur(cloud.chargeCents)} would be charged if the month ended now.`
-                    : `${cloud.hours.toFixed(1)} hours across ${plural(cloud.accountsUsing, "account", "accounts")}. No prices are set yet, so nothing is charged.`
+                    ? t(
+                        "{hours} hours across {accounts}. {charge} would be charged if the month ended now.",
+                        {
+                          hours: cloud.hours.toFixed(1),
+                          accounts: plural(
+                            cloud.accountsUsing,
+                            "account",
+                            "accounts",
+                          ),
+                          charge: formatEur(cloud.chargeCents),
+                        },
+                      )
+                    : t(
+                        "{hours} hours across {accounts}. No prices are set yet, so nothing is charged.",
+                        {
+                          hours: cloud.hours.toFixed(1),
+                          accounts: plural(
+                            cloud.accountsUsing,
+                            "account",
+                            "accounts",
+                          ),
+                        },
+                      )
                 }
                 icon={<IconCloud />}
-                title={`Cloud running in ${cloud.period}, cost to us`}
+                title={t("Cloud running in {period}, cost to us", {
+                  period: cloud.period,
+                })}
                 value={formatEur(cloud.costCents)}
               />
             </>
@@ -153,10 +201,17 @@ export function AdminOverview() {
       <PageSection
         description={
           outstanding > 0
-            ? `${plural(outstanding, "thing is", "things are")} still to settle before customers can rely on this. Read from how it is set up now.`
-            : "Nothing is outstanding. Read from how it is set up now."
+            ? outstanding === 1
+              ? t(
+                  "1 thing is still to settle before customers can rely on this. Read from how it is set up now.",
+                )
+              : t(
+                  "{count} things are still to settle before customers can rely on this. Read from how it is set up now.",
+                  { count: outstanding },
+                )
+            : t("Nothing is outstanding. Read from how it is set up now.")
         }
-        title="Before customers rely on it"
+        title={t("Before customers rely on it")}
       >
         <PageRows>
           {ordered.map((check, index) => (
@@ -212,9 +267,9 @@ function AttentionRow({ item }: { item: OverviewAttention }) {
         {item.severity === "action" ? <IconAlertTriangle /> : <IconEye />}
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{item.title}</ItemTitle>
+        <ItemTitle>{sentenceNow(item.title)}</ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {item.detail}
+          {sentenceNow(item.detail)}
         </ItemDescription>
       </ItemContent>
     </>
@@ -232,6 +287,7 @@ function AttentionRow({ item }: { item: OverviewAttention }) {
 }
 
 function CheckRow({ check }: { check: OverviewCheck }) {
+  const t = useT();
   return (
     <Item size="sm">
       <ItemMedia variant="icon">
@@ -244,9 +300,9 @@ function CheckRow({ check }: { check: OverviewCheck }) {
         )}
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{check.title}</ItemTitle>
+        <ItemTitle>{sentenceNow(check.title)}</ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {check.detail}
+          {sentenceNow(check.detail)}
         </ItemDescription>
       </ItemContent>
       <ItemActions>
@@ -258,10 +314,10 @@ function CheckRow({ check }: { check: OverviewCheck }) {
           }
         >
           {check.state === "ok"
-            ? "Done"
+            ? tNow("Done")
             : check.state === "todo"
-              ? "To do"
-              : "Your choice"}
+              ? t("To do")
+              : t("Your choice")}
         </span>
       </ItemActions>
     </Item>

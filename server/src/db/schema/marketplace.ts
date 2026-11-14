@@ -8,6 +8,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -17,7 +18,6 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  boolean,
 } from "drizzle-orm/pg-core";
 import { agents, users } from "./core";
 import { tenants } from "./tenants";

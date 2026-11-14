@@ -8,6 +8,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
+import { sentenceNow, tNow } from "@/lib/i18n";
 import type { ListingCard } from "@/lib/marketplace/queries";
 
 /**
@@ -26,7 +27,9 @@ export function ListingRow({
 }) {
   const by = listing.publisher.official
     ? "Ark"
-    : `Shared by ${listing.publisher.displayName}`;
+    : tNow("Shared by {displayName}", {
+        displayName: listing.publisher.displayName,
+      });
   return (
     <Item
       render={<Link params={{ slug: listing.slug }} to="/marketplace/$slug" />}
@@ -36,8 +39,8 @@ export function ListingRow({
         {listing.kind === "official" ? <IconSparkles /> : <IconBook />}
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{listing.title}</ItemTitle>
-        <ItemDescription>{listing.summary}</ItemDescription>
+        <ItemTitle>{sentenceNow(listing.title)}</ItemTitle>
+        <ItemDescription>{sentenceNow(listing.summary)}</ItemDescription>
         <ItemDescription className="line-clamp-none">
           {[by, note].filter(Boolean).join(" · ")}
         </ItemDescription>

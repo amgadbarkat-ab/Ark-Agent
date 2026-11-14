@@ -1,12 +1,12 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   calendarEvents,
   outlookMessages,
 } from "../../shared/connector-results";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { accessFor } from "../src/plugins/access";
 import { catalogueEntry } from "../src/plugins/catalogue";
-import { callTool, listTools } from "../src/plugins/microsoft-graph-rest";
 import { MAX_RESULT_CHARS } from "../src/plugins/mcp";
+import { callTool, listTools } from "../src/plugins/microsoft-graph-rest";
 import { transportFor } from "../src/plugins/transport";
 
 /**

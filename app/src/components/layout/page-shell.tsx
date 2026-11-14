@@ -1,6 +1,7 @@
 import { IconChevronLeft } from "@tabler/icons-react";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import type * as React from "react";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { SidebarToggle, useSidebarToggleVisible } from "./sidebar-toggle";
@@ -156,6 +157,7 @@ export function PageShell({
  * behind the content, so no row's contrast depends on it.
  */
 function PageAura() {
+  const t = useT();
   return (
     <div
       aria-hidden="true"
@@ -167,7 +169,7 @@ function PageAura() {
         role="presentation"
         viewBox="0 0 160 160"
       >
-        <title>BlackArk</title>
+        <title>{t("BlackArk")}</title>
         <rect x="34" y="88" width="26" height="42" rx="6" fill="currentColor" />
         <rect x="67" y="64" width="26" height="66" rx="6" fill="currentColor" />
         <rect

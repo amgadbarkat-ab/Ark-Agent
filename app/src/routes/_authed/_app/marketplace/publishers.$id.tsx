@@ -9,6 +9,7 @@ import {
 import { StaggerItem } from "@/components/layout/stagger";
 import { ListingRow } from "@/components/marketplace/listing-row";
 import { Separator } from "@/components/ui/separator";
+import { tNow, useT } from "@/lib/i18n";
 import { publisherQueryOptions } from "@/lib/marketplace/queries";
 
 export const Route = createFileRoute(
@@ -16,10 +17,11 @@ export const Route = createFileRoute(
 )({ component: PublisherPage });
 
 function PublisherPage() {
+  const t = useT();
   const { id } = Route.useParams();
   const page = useQuery(publisherQueryOptions(id));
   const back = {
-    label: "Digital Team",
+    label: tNow("Digital Team"),
     linkProps: { to: "/agents" } as const,
   };
 
@@ -28,8 +30,8 @@ function PublisherPage() {
   }
   if (page.error || !page.data) {
     return (
-      <PageShell backButton={back} title="Not found">
-        <PageEmpty>That publisher is not here.</PageEmpty>
+      <PageShell backButton={back} title={t("Not found")}>
+        <PageEmpty>{t("That publisher is not here.")}</PageEmpty>
       </PageShell>
     );
   }
@@ -40,14 +42,14 @@ function PublisherPage() {
       description={
         publisher.bio ||
         (publisher.official
-          ? "Digital employees made by the Ark team."
+          ? t("Digital employees made by the Ark team.")
           : undefined)
       }
       title={publisher.displayName}
     >
-      <PageSection title="Published">
+      <PageSection title={t("Published")}>
         {listings.length === 0 ? (
-          <PageEmpty>Nothing published yet.</PageEmpty>
+          <PageEmpty>{t("Nothing published yet.")}</PageEmpty>
         ) : (
           <PageRows>
             {listings.map((listing, index) => (

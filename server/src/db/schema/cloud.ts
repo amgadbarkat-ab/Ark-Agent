@@ -6,6 +6,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -16,7 +17,6 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  boolean,
 } from "drizzle-orm/pg-core";
 import type {
   AgreementSegment,

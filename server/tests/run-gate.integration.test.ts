@@ -9,9 +9,9 @@ import {
 import { eq } from "drizzle-orm";
 import { Observable, type Subscriber } from "rxjs";
 import { RunGateAgent } from "../src/accounts/run-gate";
-import { createRequestAgents } from "../src/copilot";
 import { createRunSlots } from "../src/accounts/run-slots";
 import { createAccountStore } from "../src/accounts/store";
+import { createRequestAgents } from "../src/copilot";
 import { createDatabase } from "../src/db/client";
 import { runSlots, tenantMemberships, tenants, users } from "../src/db/schema";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";

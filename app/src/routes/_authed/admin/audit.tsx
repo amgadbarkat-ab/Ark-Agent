@@ -17,6 +17,7 @@ import {
 } from "@/lib/audit/outcome";
 import { auditEventsQueryOptions } from "@/lib/audit/queries";
 import { silenceOf } from "@/lib/audit/silence";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 
 /**
  * Read surface for policy, computer, component, MCP, and credential audit events.
@@ -48,18 +49,22 @@ type AuditEvent = {
  * answered.
  */
 const FILTERS = [
-  { label: "Everything", search: "" },
-  { label: "Computer actions", search: "?eventType=computer.action_allowed" },
-  { label: "Blocked", search: eventTypeFilter(REFUSED_EVENT_TYPES) },
+  { label: tNow("Everything"), search: "" },
   {
-    label: "Did not happen",
+    label: tNow("Computer actions"),
+    search: "?eventType=computer.action_allowed",
+  },
+  { label: tNow("Blocked"), search: eventTypeFilter(REFUSED_EVENT_TYPES) },
+  {
+    label: tNow("Did not happen"),
     search: eventTypeFilter(DID_NOT_HAPPEN_EVENT_TYPES),
   },
   // Both unattended kinds: the question is whether anybody was watching, not which of the two.
-  { label: "Nobody watching", search: "?initiatorKind=routine,handoff" },
+  { label: tNow("Nobody watching"), search: "?initiatorKind=routine,handoff" },
 ] as const;
 
 function AuditPage() {
+  const t = useT();
   const [search, setSearch] = useState<string>(FILTERS[0].search);
   const events = useQuery(auditEventsQueryOptions(search));
   const rows = (events.data?.events ?? []) as AuditEvent[];
@@ -76,11 +81,13 @@ function AuditPage() {
       action={
         <Button onClick={() => events.refetch()} size="sm" variant="ghost">
           <IconRefresh />
-          Refresh
+          {t("Refresh")}
         </Button>
       }
-      description="Every action a digital employee took, and every one this deployment's policy refused."
-      title="Audit"
+      description={t(
+        "Every action a digital employee took, and every one this deployment's policy refused.",
+      )}
+      title={t("Audit")}
       width="wide"
     >
       <PageSection>
@@ -101,21 +108,21 @@ function AuditPage() {
 
         {events.isPending ? null : events.isError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            The audit trail could not be loaded.
+            {t("The audit trail could not be loaded.")}
           </p>
         ) : rows.length === 0 ? (
-          <PageEmpty>No events match this filter yet.</PageEmpty>
+          <PageEmpty>{t("No events match this filter yet.")}</PageEmpty>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full text-left text-sm">
               <thead className="text-muted-foreground text-xs uppercase">
                 <tr className="border-border border-b">
-                  <th className="px-4 py-2 font-medium">When</th>
-                  <th className="px-4 py-2 font-medium">What</th>
-                  <th className="px-4 py-2 font-medium">On</th>
-                  <th className="px-4 py-2 font-medium">Bot</th>
-                  <th className="px-4 py-2 font-medium">Started by</th>
-                  <th className="px-4 py-2 font-medium">Decision</th>
+                  <th className="px-4 py-2 font-medium">{t("When")}</th>
+                  <th className="px-4 py-2 font-medium">{t("What")}</th>
+                  <th className="px-4 py-2 font-medium">{t("On")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Bot")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Started by")}</th>
+                  <th className="px-4 py-2 font-medium">{t("Decision")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -138,13 +145,14 @@ function StartedBy({
   event: AuditEvent;
   nameFor: (botId: string) => string;
 }) {
+  const t = useT();
   if (event.initiatorKind === "routine") {
     return (
       <span
         className="font-medium text-amber-600 dark:text-amber-500"
         title={event.initiatorId ?? undefined}
       >
-        A routine
+        {t("A routine")}
       </span>
     );
   }
@@ -155,15 +163,17 @@ function StartedBy({
         title={event.initiatorId ?? undefined}
       >
         {event.initiatorId
-          ? `Handed on by ${nameFor(event.initiatorId)}`
-          : "Handed on"}
+          ? t("Handed on by {value1}", { value1: nameFor(event.initiatorId) })
+          : t("Handed on")}
       </span>
     );
   }
   if (event.initiatorKind === "deployment") {
-    return <span className="text-muted-foreground">This deployment</span>;
+    return (
+      <span className="text-muted-foreground">{t("This deployment")}</span>
+    );
   }
-  return <span className="text-muted-foreground">A person</span>;
+  return <span className="text-muted-foreground">{t("A person")}</span>;
 }
 
 function Row({
@@ -173,6 +183,7 @@ function Row({
   event: AuditEvent;
   nameFor: (botId: string) => string;
 }) {
+  const t = useT();
   const payload = event.payload ?? {};
   const decision = (payload.decision ?? {}) as {
     allowed?: boolean;
@@ -198,10 +209,10 @@ function Row({
   const routed =
     event.eventType === "channel.routed"
       ? payload.viaMention === true
-        ? "The person chose this digital employee"
+        ? tNow("The person chose this digital employee")
         : payload.fallback === true
-          ? "Sent to the default digital employee"
-          : "Sent to the digital employee it is for"
+          ? tNow("Sent to the default digital employee")
+          : tNow("Sent to the digital employee it is for")
       : null;
   // Allowed by policy but not carried out. A stalled turn belongs in the same family: the Bot was
   // asked and the answer never arrived. Colour is how this table is read, and a row left in the
@@ -212,7 +223,7 @@ function Row({
   return (
     <tr className="border-border border-t align-top">
       <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-        {new Date(event.createdAt).toLocaleTimeString()}
+        {new Date(event.createdAt).toLocaleTimeString(dateLocale())}
       </td>
       <td className="px-4 py-2 font-medium">
         {/* Strip the internal computer tool namespace for display. */}
@@ -239,7 +250,10 @@ function Row({
           <span className="font-mono text-xs">
             {typeof payload.offered === "number" &&
             typeof payload.granted === "number"
-              ? `${payload.offered} of ${payload.granted} tools`
+              ? tNow("{offered} of {granted} tools", {
+                  offered: payload.offered,
+                  granted: payload.granted,
+                })
               : "-"}
           </span>
         ) : /* Named targets and file paths are the audit subject before page elements. */
@@ -303,7 +317,11 @@ function Row({
         >
           {routed ??
             DECISIONS[event.eventType] ??
-            (refused ? "Blocked" : failed ? "Did not happen" : "Allowed")}
+            (refused
+              ? tNow("Blocked")
+              : failed
+                ? t("Did not happen")
+                : tNow("Allowed"))}
         </span>
         {/* Refusal reasons mirror the conversation-facing reason. */}
         {(event.eventType === "component.refused" ||
@@ -311,7 +329,7 @@ function Row({
           event.eventType === "mcp.call_rejected") &&
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {payload.reason}
+            {sentenceNow(payload.reason)}
           </div>
         ) : null}
         {/*
@@ -349,15 +367,15 @@ function Row({
            * where nobody scrolls to find it.
            */
           <div className="mt-0.5 w-[22rem] break-words text-xs text-muted-foreground">
-            {payload.reason}
+            {sentenceNow(payload.reason)}
           </div>
         ) : null}
         {event.eventType === "bot.declined" &&
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {payload.reason}
+            {sentenceNow(payload.reason)}
             <span className="italic">
-              , reported by the digital employee itself
+              {t(", reported by the digital employee itself")}
             </span>
           </div>
         ) : null}
@@ -384,7 +402,7 @@ function Row({
         decision.allowed === false &&
         decision.carriedOut ? (
           <div className="text-xs text-muted-foreground">
-            dry-run: recorded, not enforced
+            {t("dry-run: recorded, not enforced")}
           </div>
         ) : null}
       </td>
@@ -405,11 +423,11 @@ function Row({
  * and one whose selector could not be reached, and only the last is a fault.
  */
 const DISCOVERY_REASONS: Record<string, string> = {
-  "under-floor": "Few enough tools to offer them all",
-  "nothing-declared": "No skill declares any of these tools",
-  unavailable: "Could not choose, so all were offered",
-  "nothing-chosen": "No skill applied, so all were offered",
-  selected: "Chosen by skill",
+  "under-floor": tNow("Few enough tools to offer them all"),
+  "nothing-declared": tNow("No skill declares any of these tools"),
+  unavailable: tNow("Could not choose, so all were offered"),
+  "nothing-chosen": tNow("No skill applied, so all were offered"),
+  selected: tNow("Chosen by skill"),
 };
 
 const NAMED_TARGETS = new Set([
@@ -421,51 +439,55 @@ const NAMED_TARGETS = new Set([
 ]);
 
 const DECISIONS: Record<string, string> = {
-  "bot.declined": "The digital employee declined",
+  "bot.declined": tNow("The digital employee declined"),
   // Not a refusal, so not the refusal colour: nothing was blocked. The Bot was asked and never
   // answered, which is the same complaint as an action that was allowed and then did not happen.
-  "agent.stream_stalled": "The digital employee stopped responding",
-  "computer.policy_loaded": "Boundary at start-up",
-  "computer.isolation_loaded": "Isolation at start-up",
-  "computer.control_taken": "A person took the wheel",
-  "computer.control_released": "The wheel was handed back",
-  "computer.help_requested": "The digital employee asked for help",
-  "computer.secret_requested": "The digital employee asked for a secret",
-  "computer.secret_supplied": "A person supplied a secret",
-  "computer.reset": "The computer was reset",
-  "computer.stopped": "A person pressed stop",
+  "agent.stream_stalled": tNow("The digital employee stopped responding"),
+  "computer.policy_loaded": tNow("Boundary at start-up"),
+  "computer.isolation_loaded": tNow("Isolation at start-up"),
+  "computer.control_taken": tNow("A person took the wheel"),
+  "computer.control_released": tNow("The wheel was handed back"),
+  "computer.help_requested": tNow("The digital employee asked for help"),
+  "computer.secret_requested": tNow("The digital employee asked for a secret"),
+  "computer.secret_supplied": tNow("A person supplied a secret"),
+  "computer.reset": tNow("The computer was reset"),
+  "computer.stopped": tNow("A person pressed stop"),
   // Not "Blocked": nothing was refused. It waits for a person, and the decision is its own row.
-  "computer.action_held": "Waiting for a person's approval",
-  "mcp.call_held": "Waiting for a person's approval",
-  "approval.requested": "Asked a person",
-  "approval.approved": "A person approved",
-  "approval.rejected": "A person declined",
-  "approval.failed": "Approved, but it could not be carried out",
+  "computer.action_held": tNow("Waiting for a person's approval"),
+  "mcp.call_held": tNow("Waiting for a person's approval"),
+  "approval.requested": tNow("Asked a person"),
+  "approval.approved": tNow("A person approved"),
+  "approval.rejected": tNow("A person declined"),
+  "approval.failed": tNow("Approved, but it could not be carried out"),
 
-  "component.granted": "Granted to this digital employee",
-  "component.revoked": "Taken away from this digital employee",
-  "component.published": "Published, so every digital employee may use it",
-  "component.unpublished": "Unpublished, so no digital employee may use it",
-  "component.draft_saved": "Draft saved, not yet published",
+  "component.granted": tNow("Granted to this digital employee"),
+  "component.revoked": tNow("Taken away from this digital employee"),
+  "component.published": tNow(
+    "Published, so every digital employee may use it",
+  ),
+  "component.unpublished": tNow(
+    "Unpublished, so no digital employee may use it",
+  ),
+  "component.draft_saved": tNow("Draft saved, not yet published"),
   "component.refused": "Refused",
-  "component.function_granted": "May read this",
-  "component.function_revoked": "May no longer read this",
-  "component.function_called": "Read real data",
+  "component.function_granted": tNow("May read this"),
+  "component.function_revoked": tNow("May no longer read this"),
+  "component.function_called": tNow("Read real data"),
   "component.function_refused": "Refused",
   // A function failure is execution failure, not a policy refusal.
-  "component.function_failed": "Could not be read",
+  "component.function_failed": tNow("Could not be read"),
 
   // Not a call and not a decision: the tools this run was allowed to see. Worded so nobody reads it
   // as permission, which it is not — everything named was already granted.
-  "mcp.tools_discovered": "Tools offered for one run",
-  "mcp.call_succeeded": "Called on this digital employee's behalf",
+  "mcp.tools_discovered": tNow("Tools offered for one run"),
+  "mcp.call_succeeded": tNow("Called on this digital employee's behalf"),
   "mcp.call_rejected": "Blocked",
-  "mcp.call_failed": "The server did not answer",
+  "mcp.call_failed": tNow("The server did not answer"),
   // Not "Blocked": nothing about the Bot was judged, because nothing proved which Bot it was.
-  "mcp.callback_refused": "Could not prove which digital employee it was",
+  "mcp.callback_refused": tNow("Could not prove which digital employee it was"),
 
-  "configuration.changed": "Configuration changed",
-  "credential.created": "Credential saved",
+  "configuration.changed": tNow("Configuration changed"),
+  "credential.created": tNow("Credential saved"),
 };
 
 function hostOf(url: string): string {

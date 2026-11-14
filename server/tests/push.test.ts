@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import webpush from "web-push";
 import { loadConfig } from "../src/config";
-import { testEnvironment } from "./support/environment";
 import { isAllowedPushEndpoint } from "../src/push/endpoints";
 import { pushRoutes } from "../src/push/routes";
 import {
@@ -12,10 +11,11 @@ import {
 } from "../src/push/sender";
 import type {
   PushStore,
-  StoredSubscription,
   PushSubscriptionInput,
+  StoredSubscription,
 } from "../src/push/store";
 import { createRoutineRunner } from "../src/routines/runner";
+import { testEnvironment } from "./support/environment";
 
 /**
  * Notifications, without a database or a push service.

@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 import {
   phoneSettingsQueryOptions,
   savePhoneSettingsMutationOptions,
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/_authed/settings/phone-approval")({
  * off for a person until they save this.
  */
 function PhoneApprovalPage() {
+  const t = useT();
   const settings = useQuery(phoneSettingsQueryOptions());
   const agents = useQuery(agentListQueryOptions());
   const save = useMutation(savePhoneSettingsMutationOptions(queryClient));
@@ -41,13 +43,16 @@ function PhoneApprovalPage() {
 
   return (
     <PageShell
-      description="A digital employee waiting for your approval can ring you. You answer with your PIN and the keypad."
-      title="Phone approval"
+      description={t(
+        "A digital employee waiting for your approval can ring you. You answer with your PIN and the keypad.",
+      )}
+      title={t("Phone approval")}
     >
       {settings.isPending ? null : !settings.data ? (
         <p className="text-muted-foreground text-sm">
-          Phone approval is off for this deployment. An administrator turns it
-          on.
+          {t(
+            "Phone approval is off for this deployment. An administrator turns it on.",
+          )}
         </p>
       ) : (
         <form
@@ -69,13 +74,17 @@ function PhoneApprovalPage() {
           <PageSection
             description={
               settings.data.provider === "simulated"
-                ? "Calls ring inside ArkAgent for now, not on your phone: a real phone line needs a separate yes."
+                ? t(
+                    "Calls ring inside ArkAgent for now, not on your phone: a real phone line needs a separate yes.",
+                  )
                 : undefined
             }
-            title="How to reach you"
+            title={t("How to reach you")}
           >
             <Field>
-              <FieldLabel htmlFor="phone-number">Phone number</FieldLabel>
+              <FieldLabel htmlFor="phone-number">
+                {t("Phone number")}
+              </FieldLabel>
               <Input
                 id="phone-number"
                 inputMode="tel"
@@ -87,7 +96,7 @@ function PhoneApprovalPage() {
             <Field>
               <FieldLabel htmlFor="phone-pin">
                 {settings.data.hasPin
-                  ? "New PIN (leave empty to keep it)"
+                  ? t("New PIN (leave empty to keep it)")
                   : "PIN"}
               </FieldLabel>
               <Input
@@ -98,15 +107,17 @@ function PhoneApprovalPage() {
                 onChange={(event) =>
                   setPin(event.target.value.replace(/\D/g, "").slice(0, 8))
                 }
-                placeholder="4 to 8 digits"
+                placeholder={t("4 to 8 digits")}
                 type="password"
                 value={pin}
               />
             </Field>
           </PageSection>
           <PageSection
-            description="Browser and computer actions, and anything that moves money, are never approved by phone, whoever asks."
-            title="Who may ring you"
+            description={t(
+              "Browser and computer actions, and anything that moves money, are never approved by phone, whoever asks.",
+            )}
+            title={t("Who may ring you")}
           >
             <div className="flex flex-col gap-1">
               {mine.map((agent) => (
@@ -136,12 +147,12 @@ function PhoneApprovalPage() {
           ) : null}
           {saved ? (
             <p className="text-muted-foreground text-sm" role="status">
-              Saved.
+              {t("Saved.")}
             </p>
           ) : null}
           <div>
             <Button disabled={save.isPending} size="sm" type="submit">
-              Save
+              {t("Save")}
             </Button>
           </div>
         </form>

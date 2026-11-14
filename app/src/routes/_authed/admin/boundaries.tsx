@@ -13,6 +13,7 @@ import {
   dryRunActionPolicy,
   type PolicyMode,
 } from "@/lib/computers/queries";
+import { dateLocale, tNow, txNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -25,23 +26,29 @@ import { queryClient } from "@/query-client";
  */
 const PRESETS: { label: string; rule: string; cost?: string }[] = [
   {
-    label: "Never submit a form",
+    label: tNow("Never submit a form"),
     // `key` is guarded by tool name so the clause short-circuits before it on actions that have no
     // keypress in them. Both tools that can press Enter are named: `computer_type` takes a `submit`
     // flag that presses it once the text is in, and a rule naming only `computer_key` left that door
     // open.
     rule: '(intent == "activate" && contains(element.name, "submit")) || ((tool.name == "computer_key" || tool.name == "computer_type") && key == "Enter")',
-    cost: "Also stops the digital employee pressing Enter for anything else, because a form submits from Enter in any of its fields.",
+    cost: tNow(
+      "Also stops the digital employee pressing Enter for anything else, because a form submits from Enter in any of its fields.",
+    ),
   },
   {
-    label: "Never type into a password field",
+    label: tNow("Never type into a password field"),
     rule: 'intent == "type" && contains(element.name, "password")',
-    cost: "A password box the page labels something else is not covered, the rule matches the label.",
+    cost: tNow(
+      "A password box the page labels something else is not covered, the rule matches the label.",
+    ),
   },
   {
-    label: "Stay off social media",
+    label: tNow("Stay off social media"),
     rule: 'intent == "navigate" && (contains(page.host, "facebook.com") || contains(page.host, "x.com"))',
-    cost: "Only the two hosts named. A link that redirects there from somewhere else is allowed.",
+    cost: tNow(
+      "Only the two hosts named. A link that redirects there from somewhere else is allowed.",
+    ),
   },
 ];
 
@@ -50,6 +57,7 @@ export const Route = createFileRoute("/_authed/admin/boundaries")({
 });
 
 function BoundariesPage() {
+  const t = useT();
   const [problem, setProblem] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [draft, setDraft] = useState("");
@@ -82,7 +90,7 @@ function BoundariesPage() {
 
   if (problem && !policy) {
     return (
-      <PageShell title="Boundaries">
+      <PageShell title={t("Boundaries")}>
         <p className="mt-4 text-destructive text-sm" role="alert">
           {problem}
         </p>
@@ -92,7 +100,7 @@ function BoundariesPage() {
 
   /* Nothing until the policy is known: a rule list that guesses is worse than a blank. */
   if (!policy) {
-    return <PageShell title="Boundaries">{null}</PageShell>;
+    return <PageShell title={t("Boundaries")}>{null}</PageShell>;
   }
 
   const addRule = (rule: string) => {
@@ -129,22 +137,23 @@ function BoundariesPage() {
 
   return (
     <PageShell
-      description={
-        <>
-          What every digital employee may and may not do with its computer.
-          Rules are checked on every action before it happens, and a refusal is
-          recorded in{" "}
-          <Link className="underline" to="/admin/audit">
-            Audit
-          </Link>{" "}
-          with the rule that refused it.
-        </>
-      }
-      title="Boundaries"
+      description={txNow(
+        "What every digital employee may and may not do with its computer. Rules are checked on every action before it happens, and a refusal is recorded in {audit} with the rule that refused it.",
+        {
+          audit: (
+            <Link className="underline" to="/admin/audit">
+              {t("Audit")}
+            </Link>
+          ),
+        },
+      )}
+      title={t("Boundaries")}
     >
       <PageSection
-        description="Enforce stops the action. Record it and allow it writes the same row and lets the action through, which is how a rule is tried on real traffic before it starts refusing anybody."
-        title="When a rule matches"
+        description={t(
+          "Enforce stops the action. Record it and allow it writes the same row and lets the action through, which is how a rule is tried on real traffic before it starts refusing anybody.",
+        )}
+        title={t("When a rule matches")}
       >
         <div className="mt-2 flex gap-2">
           {(["enforce", "dry-run"] as PolicyMode[]).map((mode) => (
@@ -158,43 +167,48 @@ function BoundariesPage() {
               variant="outline"
             >
               {mode === "enforce"
-                ? "Stop the action"
-                : "Record it and allow it"}
+                ? t("Stop the action")
+                : t("Record it and allow it")}
             </Button>
           ))}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {policy.mode === "enforce"
-            ? "The digital employee is stopped and told which rule refused it."
-            : "Nothing is stopped. Every action a rule matches is recorded as it would have been refused, which is how a rule is tried out before it is switched on."}
+            ? t(
+                "The digital employee is stopped and told which rule refused it.",
+              )
+            : t(
+                "Nothing is stopped. Every action a rule matches is recorded as it would have been refused, which is how a rule is tried out before it is switched on.",
+              )}
         </p>
       </PageSection>
 
       <PageSection
-        description={
-          <>
-            Checked first, and a match ends it: nothing below is consulted and
-            the digital employee is told which rule refused it. Rules are CEL,
-            and can ask about <code>tool.name</code>, <code>intent</code>,{" "}
-            <code>bot.id</code>, <code>actor.id</code>, <code>page.url</code>{" "}
-            and <code>page.host</code>, the element being acted on, the{" "}
-            <code>key</code> being pressed, the file being touched, the{" "}
-            <code>command</code> being run, and <code>mcp.server</code>,{" "}
-            <code>mcp.tool</code> and <code>mcp.effect</code> for a call to
-            somebody else&rsquo;s tools. <code>initiator.kind</code> says what
-            started the run &mdash; <code>person</code>, <code>routine</code> or{" "}
-            <code>handoff</code> &mdash; which <code>actor.id</code> cannot,
-            because a scheduled run carries its owner&rsquo;s authority while
-            nobody is watching. A rule that cannot be evaluated counts as a
-            match, so a mistyped deny refuses rather than quietly permitting
-            what it was meant to forbid.
-          </>
-        }
-        title="It may never"
+        description={txNow(
+          "Checked first, and a match ends it: nothing below is consulted and the digital employee is told which rule refused it. Rules are CEL, and can ask about {toolName}, {intent}, {botId}, {actorId}, {pageUrl} and {pageHost}, the element being acted on, the {key} being pressed, the file being touched, the {command} being run, and {mcpServer}, {mcpTool} and {mcpEffect} for a call to somebody else’s tools. {initiatorKind} says what started the run — {person}, {routine} or {handoff} — which {actorId} cannot, because a scheduled run carries its owner’s authority while nobody is watching. A rule that cannot be evaluated counts as a match, so a mistyped deny refuses rather than quietly permitting what it was meant to forbid.",
+          {
+            toolName: <code>{t("tool.name")}</code>,
+            intent: <code>{t("intent")}</code>,
+            botId: <code>{t("bot.id")}</code>,
+            actorId: <code>{t("actor.id")}</code>,
+            pageUrl: <code>{t("page.url")}</code>,
+            pageHost: <code>{t("page.host")}</code>,
+            key: <code>{t("key")}</code>,
+            command: <code>{t("command")}</code>,
+            mcpServer: <code>{t("mcp.server")}</code>,
+            mcpTool: <code>{t("mcp.tool")}</code>,
+            mcpEffect: <code>{t("mcp.effect")}</code>,
+            initiatorKind: <code>{t("initiator.kind")}</code>,
+            person: <code>{t("person")}</code>,
+            routine: <code>{t("routine")}</code>,
+            handoff: <code>{t("handoff")}</code>,
+          },
+        )}
+        title={t("It may never")}
       >
         {policy.deny.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            No rules. Every action is allowed and recorded.
+            {t("No rules. Every action is allowed and recorded.")}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -217,7 +231,7 @@ function BoundariesPage() {
                   size="sm"
                   variant="ghost"
                 >
-                  Remove
+                  {t("Remove")}
                 </Button>
               </li>
             ))}
@@ -226,7 +240,7 @@ function BoundariesPage() {
 
         <div className="mt-3 flex gap-2">
           <Input
-            aria-label="A rule, written in CEL"
+            aria-label={t("A rule, written in CEL")}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -241,7 +255,9 @@ function BoundariesPage() {
               // rule into the policy in force.
               if (event.key === "Enter" && !isComposing(event)) addRule(draft);
             }}
-            placeholder='tool.name == "computer_click" && contains(element.name, "submit")'
+            placeholder={t(
+              'tool.name == "computer_click" && contains(element.name, "submit")',
+            )}
             value={draft}
           />
           <Button
@@ -250,14 +266,14 @@ function BoundariesPage() {
             size="sm"
             variant="outline"
           >
-            {testing ? "Testing…" : "Test first"}
+            {testing ? tNow("Testing…") : t("Test first")}
           </Button>
           <Button
             disabled={saving || draft.trim().length === 0}
             onClick={() => addRule(draft)}
             size="sm"
           >
-            Add rule
+            {t("Add rule")}
           </Button>
         </div>
 
@@ -293,12 +309,14 @@ function BoundariesPage() {
        * in the meantime is refused and asked again rather than clicked.
        */}
       <PageSection
-        description="Checked after the refusals above and before the floor below. A matching action is not done: it waits in the Requests of the person the digital employee is working for, and is carried out exactly as shown only if they approve. If the page has changed by then, nothing is clicked and the employee asks again."
-        title="Ask a person first"
+        description={t(
+          "Checked after the refusals above and before the floor below. A matching action is not done: it waits in the Requests of the person the digital employee is working for, and is carried out exactly as shown only if they approve. If the page has changed by then, nothing is clicked and the employee asks again.",
+        )}
+        title={t("Ask a person first")}
       >
         {(policy.approve ?? []).length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            No rules. Nothing waits for a person.
+            {t("No rules. Nothing waits for a person.")}
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -323,7 +341,7 @@ function BoundariesPage() {
                   size="sm"
                   variant="ghost"
                 >
-                  Remove
+                  {t("Remove")}
                 </Button>
               </li>
             ))}
@@ -331,7 +349,7 @@ function BoundariesPage() {
         )}
         <div className="mt-3 flex gap-2">
           <Input
-            aria-label="A rule that asks a person first, written in CEL"
+            aria-label={t("A rule that asks a person first, written in CEL")}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -340,7 +358,7 @@ function BoundariesPage() {
               setApproveDraft(event.target.value);
               setSaved(false);
             }}
-            placeholder='intent == "run_command"'
+            placeholder={t('intent == "run_command"')}
             value={approveDraft}
           />
           <Button
@@ -356,19 +374,23 @@ function BoundariesPage() {
             }}
             size="sm"
           >
-            Add rule
+            {t("Add rule")}
           </Button>
         </div>
       </PageSection>
 
       <PageSection
-        description="The floor, applied to anything the lists above did not catch. It is not a formality: an empty list here permits nothing, so a deployment that clears this refuses every action rather than allowing every action."
-        title="Otherwise it may"
+        description={t(
+          "The floor, applied to anything the lists above did not catch. It is not a formality: an empty list here permits nothing, so a deployment that clears this refuses every action rather than allowing every action.",
+        )}
+        title={t("Otherwise it may")}
       >
         <ul className="mt-2 space-y-1">
           {policy.allow.map((rule) => (
             <li className="font-mono text-xs text-muted-foreground" key={rule}>
-              {rule === "true" ? "true, anything not refused above" : rule}
+              {rule === "true"
+                ? tNow("true, anything not refused above")
+                : rule}
             </li>
           ))}
         </ul>
@@ -380,9 +402,11 @@ function BoundariesPage() {
             {problem}
           </span>
         ) : saved ? (
-          "Saved. It applies to the next action any digital employee takes."
+          t("Saved. It applies to the next action any digital employee takes.")
         ) : (
-          "Changes apply to the next action any digital employee takes, and are kept: a restart comes back up enforcing what is here."
+          t(
+            "Changes apply to the next action any digital employee takes, and are kept: a restart comes back up enforcing what is here.",
+          )
         )}
       </p>
     </PageShell>
@@ -396,11 +420,13 @@ function BoundariesPage() {
  * who stops at the rows should not believe the rows are the whole answer.
  */
 function DryRunResult({ report }: { report: DryRunReport }) {
+  const t = useT();
   if (report.scanned === 0) {
     return (
       <p className="mt-2 text-xs text-muted-foreground" role="status">
-        No recorded computer actions to test against yet. The rule is valid;
-        what it matches will only be known once digital employees have acted.
+        {t(
+          "No recorded computer actions to test against yet. The rule is valid; what it matches will only be known once digital employees have acted.",
+        )}
       </p>
     );
   }
@@ -409,8 +435,14 @@ function DryRunResult({ report }: { report: DryRunReport }) {
     <div className="mt-2" role="status">
       <p className="text-xs text-muted-foreground">
         {report.wouldRefuse === 0
-          ? `Tested against the last ${report.scanned} recorded actions: this rule would have refused none of them. It may still match future actions.`
-          : `Tested against the last ${report.scanned} recorded actions: this rule would have refused ${report.wouldRefuse}.`}
+          ? t(
+              "Tested against the last {scanned} recorded actions: this rule would have refused none of them. It may still match future actions.",
+              { scanned: report.scanned },
+            )
+          : t(
+              "Tested against the last {scanned} recorded actions: this rule would have refused {count}.",
+              { scanned: report.scanned, count: report.wouldRefuse },
+            )}
       </p>
       {report.changes.length > 0 ? (
         <ul className="mt-2 divide-y divide-border rounded-md border border-border">
@@ -419,23 +451,31 @@ function DryRunResult({ report }: { report: DryRunReport }) {
               <p className="text-xs">
                 <span className="font-medium">
                   {change.would === "refused"
-                    ? "Would refuse"
-                    : "Would now allow"}
+                    ? t("Would refuse")
+                    : t("Would now allow")}
                 </span>{" "}
                 <code className="font-mono">{change.action}</code>
-                {change.element?.name ? <> on “{change.element.name}”</> : null}
+                {change.element?.name ? (
+                  <> {t("on “{name}”", { name: change.element.name })}</>
+                ) : null}
                 {change.command ? (
                   <>
                     {" "}
-                    running <code className="font-mono">{change.command}</code>
+                    {txNow("running {command}", {
+                      command: (
+                        <code className="font-mono">{change.command}</code>
+                      ),
+                    })}
                   </>
                 ) : null}
-                {change.file ? <> touching {change.file}</> : null}
+                {change.file ? (
+                  <> {t("touching {file}", { file: change.file })}</>
+                ) : null}
               </p>
               <p className="mt-0.5 text-muted-foreground text-xs">
                 {change.bot}
                 {change.page ? <> · {change.page}</> : null} ·{" "}
-                {new Date(change.createdAt).toLocaleString()}
+                {new Date(change.createdAt).toLocaleString(dateLocale())}
               </p>
             </li>
           ))}
@@ -443,8 +483,10 @@ function DryRunResult({ report }: { report: DryRunReport }) {
       ) : null}
       {report.wouldRefuse > report.changes.length ? (
         <p className="mt-1 text-muted-foreground text-xs">
-          Showing the first {report.changes.length}; the count above covers
-          everything scanned.
+          {tNow(
+            "Showing the first {count}; the count above covers everything scanned.",
+            { count: report.changes.length },
+          )}
         </p>
       ) : null}
     </div>

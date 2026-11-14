@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { tNow, useT } from "@/lib/i18n";
 import { savePublisherMutationOptions } from "@/lib/marketplace/mutations";
 import {
   LIMITS,
@@ -46,13 +47,14 @@ export const Route = createFileRoute("/_authed/_app/marketplace/mine")({
 });
 
 const STATUS_WORDS: Record<string, string> = {
-  pending: "Waiting for review",
+  pending: tNow("Waiting for review"),
   published: "Published",
   rejected: "Not approved",
-  removed: "Taken down",
+  removed: tNow("Taken down"),
 };
 
 function MinePage() {
+  const t = useT();
   const mine = useQuery(myListingsQueryOptions());
   const [sharing, setSharing] = useState(false);
   const [naming, setNaming] = useState(false);
@@ -64,20 +66,22 @@ function MinePage() {
       action={
         <Button onClick={() => setSharing(true)} size="sm" variant="ghost">
           <IconPlus />
-          Share a digital employee
+          {t("Share a digital employee")}
         </Button>
       }
       backButton={{
-        label: "Digital Team",
+        label: tNow("Digital Team"),
         linkProps: { to: "/agents" },
       }}
-      description="Digital employees you have shared as guides. Our team reads each one before anyone else can see it."
-      title="Shared by you"
+      description={t(
+        "Digital employees you have shared as guides. Our team reads each one before anyone else can see it.",
+      )}
+      title={t("Shared by you")}
     >
-      <PageSection title="Your name">
+      <PageSection title={t("Your name")}>
         {mine.isPending ? null : mine.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load your shared digital employees.
+            {t("Could not load your shared digital employees.")}
           </p>
         ) : (
           <PageRows>
@@ -90,12 +94,12 @@ function MinePage() {
               </ItemMedia>
               <ItemContent>
                 <ItemTitle>
-                  {publisher?.displayName ?? "Not chosen yet"}
+                  {publisher?.displayName ?? t("Not chosen yet")}
                 </ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {publisher
-                    ? publisher.bio || "Shown on everything you share."
-                    : "Chosen when you share your first digital employee."}
+                    ? publisher.bio || t("Shown on everything you share.")
+                    : t("Chosen when you share your first digital employee.")}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
@@ -106,9 +110,11 @@ function MinePage() {
         )}
       </PageSection>
 
-      <PageSection title="Your listings">
+      <PageSection title={t("Your listings")}>
         {mine.isPending ? null : mine.error ? null : listings.length === 0 ? (
-          <PageEmpty>You have not shared a digital employee yet.</PageEmpty>
+          <PageEmpty>
+            {t("You have not shared a digital employee yet.")}
+          </PageEmpty>
         ) : (
           <PageRows>
             {listings.map((listing, index) => (
@@ -142,6 +148,7 @@ function PublisherDialog({
   onOpenChange: (open: boolean) => void;
   publisher: PublisherProfile | null;
 }) {
+  const t = useT();
   const [displayName, setDisplayName] = useState(publisher?.displayName ?? "");
   const [bio, setBio] = useState(publisher?.bio ?? "");
   const save = useMutation(savePublisherMutationOptions(queryClient));
@@ -160,16 +167,17 @@ function PublisherDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Your name in the marketplace</DialogTitle>
+            <DialogTitle>{t("Your name in the marketplace")}</DialogTitle>
             <DialogDescription>
-              Shown on everything you share. Use a name or a team, not an email
-              address.
+              {t(
+                "Shown on everything you share. Use a name or a team, not an email address.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="mt-4 overflow-y-auto">
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="publisher-name">Name</FieldLabel>
+                <FieldLabel htmlFor="publisher-name">{t("Name")}</FieldLabel>
                 <Input
                   id="publisher-name"
                   maxLength={LIMITS.displayName}
@@ -179,7 +187,7 @@ function PublisherDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="publisher-bio">
-                  About you (optional)
+                  {t("About you (optional)")}
                 </FieldLabel>
                 <Textarea
                   id="publisher-bio"
@@ -203,14 +211,14 @@ function PublisherDialog({
               type="button"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={save.isPending || displayName.trim() === ""}
               size="sm"
               type="submit"
             >
-              {save.isPending ? "Saving…" : "Save"}
+              {save.isPending ? tNow("Saving…") : tNow("Save")}
             </Button>
           </DialogFooter>
         </form>

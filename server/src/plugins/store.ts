@@ -2166,6 +2166,8 @@ export function createPluginStore(options: PluginStoreOptions) {
             account: input.account ?? null,
             // A fresh grant is one the vendor has not refused.
             refusedAt: null,
+            // A reconnect is a new consent: "Connected on" is the day of this one (#109, DT Lab).
+            connectedAt: new Date(),
             updatedAt: new Date(),
           },
         });

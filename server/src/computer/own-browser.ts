@@ -22,7 +22,7 @@
  * from this server; see `withOwnBrowser` below.
  */
 import { randomUUID } from "node:crypto";
-import { ProviderError, type ComputerProvider } from "./provider";
+import { type ComputerProvider, ProviderError } from "./provider";
 import type { ComputerStatus } from "./schema";
 
 /** How long an announcement holds. The desktop repeats it every few seconds. */

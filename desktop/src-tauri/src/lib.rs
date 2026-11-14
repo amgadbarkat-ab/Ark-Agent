@@ -11,6 +11,7 @@ pub mod env;
 pub mod harness;
 pub mod host_access;
 pub mod install;
+pub mod language;
 pub mod llama_runtime;
 pub mod local_model;
 pub mod local_server;

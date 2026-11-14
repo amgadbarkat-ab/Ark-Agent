@@ -1114,7 +1114,10 @@ export function parseChannelInput(input: unknown): ChannelInputParseResult {
     return { ok: false, error: "Agent IDs must be unique." };
   }
 
-  return { ok: true, value: { agentIds: agentIds.sort() } };
+  // In the order the person picked them, which is the order the group runs in: its first pick
+  // answers (DT Lab, Windows retest of v0.1.35). Sorting here put the lead first whenever its id
+  // came first alphabetically. Locks are taken in id order separately, in `makeChannel`.
+  return { ok: true, value: { agentIds } };
 }
 
 function isChannelInputObject(input: unknown): input is ChannelInputObject {

@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
-import { ParticleMark } from "@/components/brand/particle-mark";
 import { ProviderLogo } from "@/components/auth/provider-logo";
+import { ParticleMark } from "@/components/brand/particle-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth/client";
 import { deploymentCapabilitiesQueryOptions } from "@/lib/deployment/queries";
 import { appConfig } from "@/lib/generated/application-config";
+import { tNow, txNow, useT } from "@/lib/i18n";
 import { openSystemBrowser } from "@/lib/native/listener";
 import { beginNativeSignIn, NATIVE_PROVIDERS } from "@/lib/native/sign-in";
 import { isIosApp } from "@/lib/store-app";
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/sign")({
 });
 
 function SignScreen() {
+  const t = useT();
   // Which provider is being opened, rather than whether one is: with three buttons, a single
   // boolean would put "Opening…" on all of them.
   const [opening, setOpening] = useState<AuthProviderId | "sso" | null>(null);
@@ -91,7 +93,7 @@ function SignScreen() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "No identity provider is registered for that address.",
+          : tNow("No identity provider is registered for that address."),
       );
       setOpening(null);
     }
@@ -107,7 +109,7 @@ function SignScreen() {
           !appUrlScheme ||
           !(NATIVE_PROVIDERS as readonly string[]).includes(provider)
         ) {
-          throw new Error("Signing in is not set up in this app yet.");
+          throw new Error(tNow("Signing in is not set up in this app yet."));
         }
         await beginNativeSignIn({
           provider: provider as (typeof NATIVE_PROVIDERS)[number],
@@ -124,7 +126,9 @@ function SignScreen() {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : `Could not start ${providerName(provider)} sign-in.`,
+          : tNow("Could not start {providerName} sign-in.", {
+              providerName: providerName(provider),
+            }),
       );
       setOpening(null);
     }
@@ -163,7 +167,9 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          Sign in to {appConfig.brand.productName}
+          {tNow("Sign in to {product}", {
+            product: appConfig.brand.productName,
+          })}
         </motion.h1>
         <motion.div
           className="mt-8 w-full"
@@ -193,8 +199,12 @@ function SignScreen() {
                   {/* Centred against the button, not against the space left of the mark. */}
                   <span className="flex-1 text-center">
                     {opening === provider
-                      ? `Opening ${providerName(provider)}…`
-                      : `Continue with ${providerName(provider)}`}
+                      ? t("Opening {value1}…", {
+                          value1: providerName(provider),
+                        })
+                      : t("Continue with {value1}", {
+                          value1: providerName(provider),
+                        })}
                   </span>
                   {/* Balances the mark so the label sits in the middle of the button. */}
                   <span aria-hidden="true" className="size-[18px]" />
@@ -204,8 +214,10 @@ function SignScreen() {
           ) : showCompanySignIn ? null : (
             <p className="text-center text-sm text-muted-foreground">
               {inIosApp
-                ? "Signing in with this account type is not available in the app."
-                : "No sign-in provider is configured for this deployment."}
+                ? t(
+                    "Signing in with this account type is not available in the app.",
+                  )
+                : t("No sign-in provider is configured for this deployment.")}
             </p>
           )}
           {/*
@@ -219,7 +231,9 @@ function SignScreen() {
               {providers.length > 0 ? (
                 <div className="mb-3 flex items-center gap-3">
                   <Separator className="flex-1" />
-                  <span className="text-muted-foreground text-xs">or</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t("or")}
+                  </span>
                   <Separator className="flex-1" />
                 </div>
               ) : null}
@@ -239,8 +253,8 @@ function SignScreen() {
                 variant="outline"
               >
                 {opening === "sso"
-                  ? "Opening…"
-                  : "Continue with your company account"}
+                  ? tNow("Opening…")
+                  : t("Continue with your company account")}
               </Button>
             </form>
           ) : null}
@@ -250,7 +264,7 @@ function SignScreen() {
             </p>
           ) : search.native === "failed" ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
-              Signing in did not finish. Please try again.
+              {t("Signing in did not finish. Please try again.")}
             </p>
           ) : null}
         </motion.div>
@@ -263,15 +277,21 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
-          By continuing you will be asked to agree to the{" "}
-          <a className="underline underline-offset-4" href="/terms">
-            terms of service
-          </a>
-          . How we handle your data is in the{" "}
-          <a className="underline underline-offset-4" href="/privacy">
-            privacy notice
-          </a>
-          .
+          {txNow(
+            "By continuing you will be asked to agree to the {terms}. How we handle your data is in the {privacy}.",
+            {
+              terms: (
+                <a className="underline underline-offset-4" href="/terms">
+                  {t("terms of service")}
+                </a>
+              ),
+              privacy: (
+                <a className="underline underline-offset-4" href="/privacy">
+                  {t("privacy notice")}
+                </a>
+              ),
+            },
+          )}
         </motion.p>
       </motion.div>
     </div>

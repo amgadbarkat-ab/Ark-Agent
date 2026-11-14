@@ -4,6 +4,7 @@ import {
   queryOptions,
 } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 
 /**
  * The person's own Chrome or Edge as a digital employee's computer (device control, phase 1).
@@ -61,7 +62,7 @@ export function ownBrowserQueryOptions() {
       const response = await tryClient("/api/own-browser");
       if (response.status === 404) return NOT_HERE;
       if (!response.ok)
-        throw new Error("Your own browser's status could not be read.");
+        throw new Error(tNow("Your own browser's status could not be read."));
       return (await response.json()) as OwnBrowserStatus;
     },
   });

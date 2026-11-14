@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   FREE_MODEL_NOTE,
   isFreeModel,
@@ -52,10 +53,10 @@ import { queryClient } from "@/query-client";
 
 /** The order and wording of the picker: what costs nothing first, then what the person pays for. */
 const TIER_GROUPS: { tier: ModelProviderTier; label: string }[] = [
-  { tier: "local", label: "On this computer" },
-  { tier: "free", label: "Free, hosted (with your own free key)" },
-  { tier: "paid", label: "Your own paid key" },
-  { tier: "custom", label: "Another server" },
+  { tier: "local", label: tNow("On this computer") },
+  { tier: "free", label: tNow("Free, hosted (with your own free key)") },
+  { tier: "paid", label: tNow("Your own paid key") },
+  { tier: "custom", label: tNow("Another server") },
 ];
 
 export function ModelDialog({
@@ -104,6 +105,7 @@ function ModelForm({
   initialProviderId?: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const editing = connection !== undefined;
   const choices = usable(catalogue.providers);
   const first =
@@ -197,10 +199,13 @@ function ModelForm({
       }}
     >
       <DialogHeader>
-        <DialogTitle>{editing ? "Change model" : "Add a model"}</DialogTitle>
+        <DialogTitle>
+          {editing ? t("Change model") : t("Add a model")}
+        </DialogTitle>
         <DialogDescription>
-          Your digital employees think with the model you choose. Keys are held
-          encrypted and are never shown again.
+          {t(
+            "Your digital employees think with the model you choose. Keys are held encrypted and are never shown again.",
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -210,7 +215,7 @@ function ModelForm({
               {(field) => (
                 <Field>
                   <FieldLabel htmlFor={field.name}>
-                    Where it comes from
+                    {t("Where it comes from")}
                   </FieldLabel>
                   <Select
                     onValueChange={(value) => {
@@ -258,9 +263,9 @@ function ModelForm({
 
           {provider ? (
             <div className="space-y-1 text-muted-foreground text-sm">
-              <p>{provider.summary}</p>
+              <p>{sentenceNow(provider.summary)}</p>
               {provider.notes?.map((note) => (
-                <p key={note}>{note}</p>
+                <p key={note}>{sentenceNow(note)}</p>
               ))}
               {provider.keyHelpUrl && !editing ? (
                 <p>
@@ -270,7 +275,7 @@ function ModelForm({
                     rel="noreferrer"
                     target="_blank"
                   >
-                    Get a key
+                    {t("Get a key")}
                   </a>
                 </p>
               ) : null}
@@ -280,13 +285,13 @@ function ModelForm({
           <form.Field name="label">
             {(field) => (
               <Field>
-                <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                <FieldLabel htmlFor={field.name}>{t("Name")}</FieldLabel>
                 <Input
                   id={field.name}
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder={provider?.name ?? "My model"}
+                  placeholder={provider?.name ?? t("My model")}
                   value={field.state.value}
                 />
               </Field>
@@ -297,7 +302,7 @@ function ModelForm({
             <form.Field name="baseUrl">
               {(field) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>Address</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>{t("Address")}</FieldLabel>
                   <Input
                     autoComplete="off"
                     id={field.name}
@@ -320,7 +325,9 @@ function ModelForm({
               {(field) => (
                 <Field>
                   <FieldLabel htmlFor={field.name}>
-                    API key{provider.keyRequired ? "" : " (optional)"}
+                    {provider.keyRequired
+                      ? tNow("API key")
+                      : tNow("API key (optional)")}
                   </FieldLabel>
                   <Input
                     autoComplete="off"
@@ -332,7 +339,7 @@ function ModelForm({
                       setProbe(undefined);
                     }}
                     placeholder={
-                      connection?.hasKey ? "Saved. Type to replace it." : ""
+                      connection?.hasKey ? t("Saved. Type to replace it.") : ""
                     }
                     type="password"
                     value={field.state.value}
@@ -348,7 +355,7 @@ function ModelForm({
                 field.state.meta.isTouched && !field.state.meta.isValid;
               return (
                 <Field data-invalid={invalid}>
-                  <FieldLabel htmlFor={field.name}>Model</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>{t("Model")}</FieldLabel>
                   {suggestions.length > 0 ? (
                     <Select
                       onValueChange={(value) =>
@@ -361,13 +368,17 @@ function ModelForm({
                       }
                     >
                       <SelectTrigger
-                        aria-label={`Choose one of ${suggestions.length} models`}
+                        aria-label={t("Choose one of {length} models", {
+                          length: suggestions.length,
+                        })}
                         className="w-full"
                       >
                         <SelectValue>
                           {suggestions.includes(field.state.value)
                             ? field.state.value
-                            : `Choose from ${suggestions.length} models`}
+                            : t("Choose from {length} models", {
+                                length: suggestions.length,
+                              })}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
@@ -389,14 +400,16 @@ function ModelForm({
                     placeholder={
                       provider?.tier === "local"
                         ? "qwen3:8b"
-                        : "Or type a model name"
+                        : t("Or type a model name")
                     }
                     value={field.state.value}
                   />
                   <FieldDescription>
                     {probe?.ok
-                      ? "Every model this provider offers is in the list above."
-                      : "Press Test to see what this provider offers."}
+                      ? t(
+                          "Every model this provider offers is in the list above.",
+                        )
+                      : t("Press Test to see what this provider offers.")}
                   </FieldDescription>
                   {isFreeModel(field.state.value) ? (
                     <FieldDescription role="note">
@@ -419,21 +432,23 @@ function ModelForm({
               type="button"
               variant="outline"
             >
-              {testing ? "Testing…" : "Test connection"}
+              {testing ? tNow("Testing…") : t("Test connection")}
             </Button>
             {probe?.ok ? (
               <p
                 className="text-sm text-emerald-600 dark:text-emerald-500"
                 role="status"
               >
-                Connected.{" "}
+                {tNow("Connected.")}{" "}
                 {probe.models.length === 1
-                  ? "1 model found."
-                  : `${probe.models.length} models found.`}
+                  ? tNow("1 model found.")
+                  : tNow("{count} models found.", {
+                      count: probe.models.length,
+                    })}
               </p>
             ) : probe ? (
               <p className="text-destructive text-sm" role="alert">
-                {probe.reason}
+                {sentenceNow(probe.reason)}
               </p>
             ) : null}
           </div>
@@ -459,7 +474,7 @@ function ModelForm({
                 type="button"
                 variant="ghost"
               >
-                Make default
+                {t("Make default")}
               </Button>
             )}
             {confirmRemove ? (
@@ -473,7 +488,7 @@ function ModelForm({
                 type="button"
                 variant="destructive"
               >
-                {remove.isPending ? "Removing…" : "Remove for good"}
+                {remove.isPending ? tNow("Removing…") : t("Remove for good")}
               </Button>
             ) : (
               <Button
@@ -482,13 +497,13 @@ function ModelForm({
                 type="button"
                 variant="ghost"
               >
-                Remove
+                {t("Remove")}
               </Button>
             )}
           </div>
         ) : null}
         <Button onClick={onDone} size="sm" type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <form.Subscribe
           selector={(state) => [state.canSubmit, state.isSubmitting]}
@@ -499,7 +514,7 @@ function ModelForm({
               size="sm"
               type="submit"
             >
-              {isSubmitting || saving ? "Saving…" : "Save"}
+              {isSubmitting || saving ? tNow("Saving…") : tNow("Save")}
             </Button>
           )}
         </form.Subscribe>

@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import type { UserPreferences } from "../../../../shared/user-preferences";
 import { settingsKeys } from "./queries";
 
@@ -43,7 +44,7 @@ export function saveUserPreferencesMutationOptions(
     mutationFn: (
       preferences: Partial<UserPreferences>,
     ): Promise<UserPreferences> => {
-      if (!userId) throw new Error("Sign in to save your preferences.");
+      if (!userId) throw new Error(tNow("Sign in to save your preferences."));
       return client("/api/settings/preferences", "preferences", {
         method: "PATCH",
         body: preferences,

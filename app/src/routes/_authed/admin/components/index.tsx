@@ -10,6 +10,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { componentListQueryOptions } from "@/lib/components/queries";
+import { sentenceNow, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,12 +23,15 @@ export const Route = createFileRoute("/_authed/admin/components/")({
 });
 
 function RouteComponent() {
+  const t = useT();
   const components = useQuery(componentListQueryOptions());
 
   return (
     <PageShell
-      description="What each digital employee may answer with. Every published component is available to every digital employee; switch one off here and that digital employee is never told about it. Each change and each refusal is a row in Audit."
-      title="UI Components"
+      description={t(
+        "What each digital employee may answer with. Every published component is available to every digital employee; switch one off here and that digital employee is never told about it. Each change and each refusal is a row in Audit.",
+      )}
+      title={t("UI Components")}
     >
       {/*
        * Pending, error, empty, rows — in that order. Pending draws nothing rather than a
@@ -36,14 +40,14 @@ function RouteComponent() {
        */}
       {components.isPending ? null : components.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Could not load components.
+          {t("Could not load components.")}
         </p>
       ) : components.data?.length === 0 ? (
         <Empty className="mt-12 min-h-[30dvh] border border-dashed">
           <EmptyHeader>
-            <EmptyTitle>No components yet</EmptyTitle>
+            <EmptyTitle>{t("No components yet")}</EmptyTitle>
             <EmptyDescription className="text-pretty">
-              Components that your Agents can use will be shown here.
+              {t("Components that your Agents can use will be shown here.")}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -71,11 +75,11 @@ function RouteComponent() {
                     })}
                   />
                   <h4 className="line-clamp-1 font-medium text-sm">
-                    {component.title}
+                    {sentenceNow(component.title)}
                   </h4>
                 </div>
                 <p className="mt-2 line-clamp-2 text-muted-foreground text-xs">
-                  {component.draftDescription}
+                  {sentenceNow(component.draftDescription)}
                 </p>
               </div>
               <div className="relative flex-1">

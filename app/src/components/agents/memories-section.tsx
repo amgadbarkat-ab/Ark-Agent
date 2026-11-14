@@ -15,6 +15,7 @@ import {
   ItemContent,
   ItemDescription,
 } from "@/components/ui/item";
+import { tNow, useT } from "@/lib/i18n";
 import {
   addMemoryMutationOptions,
   deleteMemoryMutationOptions,
@@ -27,9 +28,9 @@ import {
 import { queryClient } from "@/query-client";
 
 const WHO: Record<MemoryRecord["source"], string> = {
-  agent: "Kept by the digital employee",
-  person: "Written by you",
-  approved: "Changed by a request you approved",
+  agent: tNow("Kept by the digital employee"),
+  person: tNow("Written by you"),
+  approved: tNow("Changed by a request you approved"),
 };
 
 /**
@@ -46,6 +47,7 @@ export function MemoriesSection({
   agentId: string;
   canManage: boolean;
 }) {
+  const t = useT();
   const memories = useQuery(memoriesQueryOptions(agentId));
   const add = useMutation(addMemoryMutationOptions(queryClient));
   const update = useMutation(updateMemoryMutationOptions(queryClient));
@@ -60,9 +62,9 @@ export function MemoriesSection({
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        What this digital employee keeps in mind. It reads all of this at the
-        start of every conversation. Passwords, keys and card numbers are never
-        kept.
+        {t(
+          "What this digital employee keeps in mind. It reads all of this at the start of every conversation. Passwords, keys and card numbers are never kept.",
+        )}
       </p>
 
       {canManage ? (
@@ -76,9 +78,9 @@ export function MemoriesSection({
           }}
         >
           <Input
-            aria-label="New memory"
+            aria-label={t("New memory")}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Something to keep in mind…"
+            placeholder={t("Something to keep in mind…")}
             value={draft}
           />
           <Button
@@ -86,7 +88,7 @@ export function MemoriesSection({
             size="sm"
             type="submit"
           >
-            Add
+            {t("Add")}
           </Button>
         </form>
       ) : null}
@@ -99,17 +101,18 @@ export function MemoriesSection({
 
       {memories.isPending ? null : memories.error ? (
         <p className="text-sm text-destructive" role="alert">
-          Its memories could not be loaded.
+          {t("Its memories could not be loaded.")}
         </p>
       ) : rows.length === 0 ? (
         <Empty className="h-[160px] border border-dashed">
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
-              Nothing kept in mind yet
+              {t("Nothing kept in mind yet")}
             </EmptyTitle>
             <EmptyDescription>
-              Ask it to remember something in a conversation, or add a line
-              above.
+              {t(
+                "Ask it to remember something in a conversation, or add a line above.",
+              )}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -120,7 +123,7 @@ export function MemoriesSection({
               <Item key={row.id} variant="muted">
                 <ItemContent>
                   <Input
-                    aria-label="Edit memory"
+                    aria-label={t("Edit memory")}
                     autoFocus
                     onChange={(event) =>
                       setEditing({ id: row.id, text: event.target.value })
@@ -134,7 +137,7 @@ export function MemoriesSection({
                     size="sm"
                     variant="ghost"
                   >
-                    Cancel
+                    {t("Cancel")}
                   </Button>
                   <Button
                     disabled={update.isPending || !editing.text.trim()}
@@ -146,7 +149,7 @@ export function MemoriesSection({
                     }
                     size="sm"
                   >
-                    Save
+                    {t("Save")}
                   </Button>
                 </ItemActions>
               </Item>
@@ -163,7 +166,7 @@ export function MemoriesSection({
                 {canManage ? (
                   <ItemActions>
                     <Button
-                      aria-label="Edit this memory"
+                      aria-label={t("Edit this memory")}
                       onClick={() =>
                         setEditing({ id: row.id, text: row.content })
                       }
@@ -173,7 +176,7 @@ export function MemoriesSection({
                       <IconPencil />
                     </Button>
                     <Button
-                      aria-label="Delete this memory"
+                      aria-label={t("Delete this memory")}
                       disabled={remove.isPending}
                       onClick={() => remove.mutate({ agentId, id: row.id })}
                       size="icon-sm"

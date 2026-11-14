@@ -8,6 +8,45 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### The whole app in English or Greek (#108)
+
+- **Settings → General → Language: English / Ελληνικά.** Choosing Greek redraws the whole app in
+  Greek: every daily screen, the first-run screens (sign-in, terms, onboarding, setup), Settings and
+  all of Admin, with the terms ψηφιακός υπάλληλος, Αιτήματα, Συνομιλία, Ρουτίνες and Δεξιότητες.
+- **What the server says is Greek too**: error messages, refusals, Admin overview checks, the official
+  digital employees in the marketplace, the built-in tools' descriptions, plan and model-provider
+  descriptions. So are the installed package's digital employees, conversations and skills, the
+  chat box's own labels, push notifications and the offline page. Dates and numbers are written the
+  Greek way.
+- **The setup window has its own EN / ΕΛ switch** on every step, starting from the computer's
+  language. The app then opens in the language chosen there; after that it is changed in Settings.
+  The engine's steps and problems and the tray and window menus follow it (the menus from the next
+  start). The folder-access approval dialogs and the "use my browser" menu item are device control,
+  and stay English until Amgad's separate yes on their translation.
+- **The terms of service and the privacy notice stay in English** until legal counsel supplies the
+  Greek. In Greek the page says so in Greek («Η ελληνική μετάφραση ετοιμάζεται από νομικό σύμβουλο.
+  Μέχρι τότε ισχύει το αγγλικό κείμενο:») and shows the English text.
+- **What a digital employee is told stays in English** (its instructions, tool descriptions as the
+  model reads them, results handed back to it), so its behaviour does not change with the screen's
+  language. It answers in the language it is written to.
+- The EN/ΕΛ string sheet is `docs/i18n/en-el-strings.csv`, rebuilt with `bun scripts/i18n-sheet.ts`.
+  A CI test fails when a screen writes English straight into the page or a text has no Greek.
+
+### Fixes from the DT Lab Windows retest of v0.1.35 (#83)
+
+- **A card still waiting in Requests keeps its buttons in the chat.** A card whose run had ended
+  read "This request was not finished" even while Requests still showed it as pending. It now shows
+  the request with Approve and Decline, which record the answer exactly as Requests does, and says
+  the employee carries it out when asked again.
+- **A group runs on the one you picked first, whatever their names.** The server sorted the members
+  alphabetically, so the lead answered whenever its id came first. The "Leads" mark no longer runs
+  past the dialog's edge.
+- **Gmail and Outlook sign-in works where `localhost` is IPv6** (the server also listens on `::1`),
+  "Connected on" moves to the day of a reconnect, and mail previews read "didn't", not
+  "didn&#39;t".
+- **Tool rows in a conversation are in the app's language** and name the product ("Gmail"), not its
+  key ("google-gmail").
+
 ## 0.1.35
 
 ### Conversations

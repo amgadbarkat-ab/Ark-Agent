@@ -1,8 +1,9 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { accountKeys, type SubscriptionStatus } from "./queries";
 
-const FALLBACK = "Could not change the plan";
+const FALLBACK = tNow("Could not change the plan");
 
 function invalidate(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: accountKeys.all });

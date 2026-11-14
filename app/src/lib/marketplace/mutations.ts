@@ -1,9 +1,10 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { agentKeys } from "@/lib/agents/queries";
 import { client, tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { type ListingDetail, marketplaceKeys } from "./queries";
 
-const FALLBACK = "Could not save the listing";
+const FALLBACK = tNow("Could not save the listing");
 
 function invalidate(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
@@ -55,7 +56,7 @@ async function submit(
   if (response.status === 422) {
     return {
       ok: false,
-      error: refusal.error ?? "This cannot be shared yet.",
+      error: refusal.error ?? tNow("This cannot be shared yet."),
       findings: refusal.findings ?? [],
     };
   }

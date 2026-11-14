@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/item";
 import { ICON_FILE_TYPES, iconFromFile } from "@/lib/agents/icon-image";
 import { setAgentIconMutationOptions } from "@/lib/agents/mutations";
+import { tNow, useT } from "@/lib/i18n";
 
 /** The coworker's picture, with a way to choose another or go back to ArkAgent's own. */
 export function AgentIconItem({
@@ -25,6 +26,7 @@ export function AgentIconItem({
   image: string | null;
   name: string;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const setIcon = useMutation(setAgentIconMutationOptions(queryClient));
   const input = useRef<HTMLInputElement>(null);
@@ -39,7 +41,7 @@ export function AgentIconItem({
       setProblem(
         error instanceof Error
           ? error.message
-          : "That picture could not be used.",
+          : tNow("That picture could not be used."),
       );
     }
   }
@@ -50,11 +52,11 @@ export function AgentIconItem({
         <AbstractAvatar image={image} name={name} size={48} />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>Icon</ItemTitle>
+        <ItemTitle>{t("Icon")}</ItemTitle>
         <ItemDescription>
           {image
-            ? "A picture you chose."
-            : "ArkAgent's icon, until you choose a picture."}
+            ? t("A picture you chose.")
+            : t("ArkAgent's icon, until you choose a picture.")}
         </ItemDescription>
         {problem || setIcon.error ? (
           <ItemDescription className="text-destructive" role="alert">
@@ -66,7 +68,7 @@ export function AgentIconItem({
         <ItemActions>
           <input
             accept={ICON_FILE_TYPES.join(",")}
-            aria-label="Choose an icon picture"
+            aria-label={t("Choose an icon picture")}
             className="hidden"
             onChange={(event) => {
               void choose(event.target.files?.[0]);
@@ -82,7 +84,7 @@ export function AgentIconItem({
             size="sm"
             variant="ghost"
           >
-            {image ? "Change" : "Choose picture"}
+            {image ? tNow("Change") : t("Choose picture")}
           </Button>
           {image ? (
             <Button
@@ -91,7 +93,7 @@ export function AgentIconItem({
               size="sm"
               variant="ghost"
             >
-              Use default
+              {t("Use default")}
             </Button>
           ) : null}
         </ItemActions>

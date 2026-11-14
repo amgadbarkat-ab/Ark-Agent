@@ -1,15 +1,15 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { client } from "@/lib/client";
 
-export {
-  CATEGORIES,
-  LIMITS,
-  REPORT_REASONS,
-} from "../../../../shared/marketplace";
 export type {
   CategoryId,
   ListingKind,
   ListingStatus,
+} from "../../../../shared/marketplace";
+export {
+  CATEGORIES,
+  LIMITS,
+  REPORT_REASONS,
 } from "../../../../shared/marketplace";
 
 import type {

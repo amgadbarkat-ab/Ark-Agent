@@ -1,4 +1,3 @@
-import { useT } from "@/lib/i18n";
 import { IconUsersPlus } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -19,6 +18,7 @@ import {
   createChannelMutationOptions,
   renameChannelMutationOptions,
 } from "@/lib/channels/mutations";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -90,7 +90,9 @@ export function NewGroupForm({
       });
     } catch (error) {
       setProblem(
-        error instanceof Error ? error.message : "Could not start the group.",
+        error instanceof Error
+          ? error.message
+          : tNow("Could not start the group."),
       );
     }
   };
@@ -108,10 +110,10 @@ export function NewGroupForm({
         autoFocus
         maxLength={60}
         onChange={(event) => setName(event.target.value)}
-        placeholder="Test Group 1"
+        placeholder={t("Test Group 1")}
         value={name}
       />
-      <fieldset className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+      <fieldset className="flex max-h-72 min-w-0 flex-col gap-1 overflow-y-auto overflow-x-hidden">
         <legend className="mb-1 text-muted-foreground text-sm">
           {t("group.members")}
         </legend>
@@ -137,12 +139,12 @@ export function NewGroupForm({
                 {agent.title ? (
                   <span className="text-muted-foreground">
                     {" "}
-                    · {agent.title}
+                    · {sentenceNow(agent.title)}
                   </span>
                 ) : null}
               </label>
               {position === 0 ? (
-                <span className="text-muted-foreground text-xs">
+                <span className="shrink-0 pr-2 text-muted-foreground text-xs">
                   {t("group.leads")}
                 </span>
               ) : null}

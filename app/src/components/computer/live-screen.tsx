@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { keyOf } from "@/lib/hotkeys/hotkeys";
+import { tNow, useT } from "@/lib/i18n";
 import { socketUrl } from "@/lib/socket-url";
 import { currentPageVisible } from "./preview-visibility";
 import { pageCoordinates } from "./take-the-wheel";
@@ -62,6 +63,7 @@ type FrameMessage = {
 };
 
 export function LiveScreen({ computerId, driving, onProblem }: Props) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   /** Keydowns handled locally whose matching keyup must not leak to the remote browser. */
@@ -158,7 +160,7 @@ export function LiveScreen({ computerId, driving, onProblem }: Props) {
       };
       if (typeof message.type !== "string") return;
       if (message.type === "error") {
-        onProblem?.(message.error ?? "The screen could not be shown.");
+        onProblem?.(message.error ?? tNow("The screen could not be shown."));
         return;
       }
       if (message.type !== "frame" || !message.data) return;
@@ -202,7 +204,8 @@ export function LiveScreen({ computerId, driving, onProblem }: Props) {
     };
 
     document.addEventListener("visibilitychange", drawLatestFrame);
-    socket.onerror = () => onProblem?.("The live screen could not be reached.");
+    socket.onerror = () =>
+      onProblem?.(tNow("The live screen could not be reached."));
     socket.onclose = () => setConnected(false);
 
     return () => {
@@ -385,8 +388,8 @@ export function LiveScreen({ computerId, driving, onProblem }: Props) {
         : {})}
       aria-label={
         driving
-          ? "The assistant's screen. You have control: click and type here."
-          : "The assistant's screen, live"
+          ? t("The assistant's screen. You have control: click and type here.")
+          : t("The assistant's screen, live")
       }
       data-connected={connected}
     />

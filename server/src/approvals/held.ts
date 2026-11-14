@@ -1,6 +1,6 @@
-import type { AuditInitiator } from "../audit";
-import type { HandoffWork } from "../agents/handoff-runner";
 import { HANDOFF_KIND } from "../agents/handoff";
+import type { HandoffWork } from "../agents/handoff-runner";
+import type { AuditInitiator } from "../audit";
 import type {
   ActionActor,
   ActionRun,

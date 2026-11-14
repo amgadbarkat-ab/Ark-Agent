@@ -1,3 +1,5 @@
+import { useT, useTx } from "./i18n";
+
 // URLs rather than imports: the bundler copies each file and names it here, and a test (which has no
 // bundler) gets a plain address instead of trying to read a picture as code.
 const scene = new URL("./assets/arkagent-scene.jpg", import.meta.url).href;
@@ -43,6 +45,8 @@ const EMBERS = Array.from({ length: 16 }, (_, index) => ({
  * technical, and where to press. Everything else waits for a screen that needs it.
  */
 export function Welcome({ onStart }: { onStart: () => void }) {
+  const t = useT();
+  const tx = useTx();
   return (
     <div className="welcome">
       <div className="welcome-sky" aria-hidden="true">
@@ -64,32 +68,35 @@ export function Welcome({ onStart }: { onStart: () => void }) {
       </div>
       <img className="welcome-figure" src={scene} alt="" aria-hidden="true" />
       <div className="welcome-copy">
-        <p className="eyebrow">BlackArk · ArkAgent</p>
+        <p className="eyebrow">{t("BlackArk · ArkAgent")}</p>
         <h1>
-          Your own AI <em>digital employees</em>, on this computer.
+          {tx("Your own AI {employees}, on this computer.", {
+            employees: <em>{t("digital employees")}</em>,
+          })}
         </h1>
         <p className="lede big">
-          Give a digital employee a role and it knows what that job needs. It
-          plans the work, takes the actions and carries them through, while you
-          keep the final say.
+          {t(
+            "Give a digital employee a role and it knows what that job needs. It plans the work, takes the actions and carries them through, while you keep the final say.",
+          )}
         </p>
-        <ul className="role-strip" aria-label="Some of the roles">
+        <ul className="role-strip" aria-label={t("Some of the roles")}>
           {ROLES.map((role) => (
             <li key={role.name}>
               <img src={role.face} alt="" aria-hidden="true" />
               <span>{role.name}</span>
             </li>
           ))}
-          <li className="more">and more</li>
+          <li className="more">{t("and more")}</li>
         </ul>
         <div className="row">
           <button type="button" className="cta" onClick={onStart}>
-            Set up ArkAgent
+            {t("Set up ArkAgent")}
           </button>
         </div>
         <p className="footnote">
-          Takes a few minutes. ArkAgent installs what it needs first, then asks
-          how you want to connect an AI model.
+          {t(
+            "Takes a few minutes. ArkAgent installs what it needs first, then asks how you want to connect an AI model.",
+          )}
         </p>
       </div>
     </div>

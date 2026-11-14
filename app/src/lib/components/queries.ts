@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 
 /** A component as the Admin surface sees it: its state, its versions and who is held back from it. */
 export type ComponentRecord = {
@@ -141,12 +142,12 @@ export async function callComponentFunction(
     }
     return {
       allowed: false,
-      reason: "This deployment could not be asked for that data.",
+      reason: tNow("This deployment could not be asked for that data."),
     };
   } catch {
     return {
       allowed: false,
-      reason: "This deployment could not be reached to read that data.",
+      reason: tNow("This deployment could not be reached to read that data."),
     };
   }
 }
@@ -170,16 +171,18 @@ export async function decideComponent(
     if (!response.ok) {
       return {
         allowed: false,
-        reason:
+        reason: tNow(
           "This deployment could not be asked whether that component is allowed, so it was not shown.",
+        ),
       };
     }
     return await response.json();
   } catch {
     return {
       allowed: false,
-      reason:
+      reason: tNow(
         "This deployment could not be reached to check whether that component is allowed, so it was not shown.",
+      ),
     };
   }
 }

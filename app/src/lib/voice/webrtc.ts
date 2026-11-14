@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 import type { ConnectVoice, VoiceEvent } from "./types";
 
 /** WebRTC owns audio buffering and interruption truncation; the data channel carries controls. */
@@ -9,7 +10,7 @@ export const connectWebRtc: ConnectVoice = async ({
   onOutput,
 }) => {
   if (typeof RTCPeerConnection === "undefined")
-    throw new Error("This browser does not support WebRTC voice calls.");
+    throw new Error(tNow("This browser does not support WebRTC voice calls."));
   signal.throwIfAborted();
   let stream: MediaStream | undefined;
   let peer: RTCPeerConnection | undefined;
@@ -23,7 +24,7 @@ export const connectWebRtc: ConnectVoice = async ({
     if (closed) return;
     closed = true;
     signal.removeEventListener("abort", abort);
-    ready.reject(new DOMException("Call ended", "AbortError"));
+    ready.reject(new DOMException(tNow("Call ended"), "AbortError"));
     channel?.close();
     peer?.close();
     for (const track of stream?.getTracks() ?? []) track.stop();
@@ -51,7 +52,7 @@ export const connectWebRtc: ConnectVoice = async ({
     // A permission dialog can resolve after hangup; its newly granted tracks still need releasing.
     if (closed || signal.aborted) {
       for (const track of stream.getTracks()) track.stop();
-      throw new DOMException("Call ended", "AbortError");
+      throw new DOMException(tNow("Call ended"), "AbortError");
     }
     peer = new RTCPeerConnection();
     audio = new Audio();
@@ -66,7 +67,9 @@ export const connectWebRtc: ConnectVoice = async ({
         .play()
         .catch(() =>
           fail(
-            "Audio playback was blocked. Allow sound in your browser, then call again.",
+            tNow(
+              "Audio playback was blocked. Allow sound in your browser, then call again.",
+            ),
           ),
         );
     };
@@ -76,20 +79,23 @@ export const connectWebRtc: ConnectVoice = async ({
         peer?.connectionState === "disconnected"
       ) {
         fail(
-          "The voice connection was lost. Your chat is still available. Call again to reconnect.",
+          tNow(
+            "The voice connection was lost. Your chat is still available. Call again to reconnect.",
+          ),
         );
       }
     };
     for (const track of stream.getAudioTracks()) {
       peer.addTrack(track, stream);
       track.onended = () =>
-        fail("The microphone disconnected. Check it and call again.");
+        fail(tNow("The microphone disconnected. Check it and call again."));
     }
     channel = peer.createDataChannel("oai-events");
     channel.onopen = () => ready.resolve();
     channel.onerror = () =>
-      fail("The voice connection failed. Please call again.");
-    channel.onclose = () => fail("The voice call ended. You can call again.");
+      fail(tNow("The voice connection failed. Please call again."));
+    channel.onclose = () =>
+      fail(tNow("The voice call ended. You can call again."));
     channel.onmessage = ({ data }) => {
       if (closed) return;
       try {
@@ -104,7 +110,9 @@ export const connectWebRtc: ConnectVoice = async ({
         }
       } catch {
         fail(
-          "The voice service returned an unreadable event. Please call again.",
+          tNow(
+            "The voice service returned an unreadable event. Please call again.",
+          ),
         );
       }
     };
@@ -125,10 +133,10 @@ export const connectWebRtc: ConnectVoice = async ({
           "error" in body &&
           typeof body.error === "string"
           ? body.error
-          : "Could not connect the voice call. Please try again.",
+          : tNow("Could not connect the voice call. Please try again."),
       );
     }
-    if (closed) throw new DOMException("Call ended", "AbortError");
+    if (closed) throw new DOMException(tNow("Call ended"), "AbortError");
     const answer: unknown = await response.json();
     if (
       !answer ||
@@ -139,7 +147,9 @@ export const connectWebRtc: ConnectVoice = async ({
       typeof answer.sdp !== "string"
     ) {
       throw new Error(
-        "The voice service returned an invalid connection. Please try again.",
+        tNow(
+          "The voice service returned an invalid connection. Please try again.",
+        ),
       );
     }
     await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp });
@@ -151,7 +161,7 @@ export const connectWebRtc: ConnectVoice = async ({
       stream,
       send(event) {
         if (closed || events.readyState !== "open")
-          throw new Error("The voice call is no longer connected.");
+          throw new Error(tNow("The voice call is no longer connected."));
         events.send(JSON.stringify(event));
       },
       mute(muted) {

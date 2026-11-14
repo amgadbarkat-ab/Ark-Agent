@@ -1,9 +1,10 @@
 import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 import { currentSubscription, subscribeDevice } from "@/lib/push/device";
 import { type PushTestResult, pushKeys } from "@/lib/push/queries";
 
-const FALLBACK = "Could not change notifications";
+const FALLBACK = tNow("Could not change notifications");
 
 function invalidate(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: pushKeys.all });

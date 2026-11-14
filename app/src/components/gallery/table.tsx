@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { tNow, useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 export const DataTableProps = z
@@ -35,6 +36,7 @@ export const DataTableProps = z
 
 /** A real table: header buttons sort while the native row/column relationships stay intact. */
 export function DataTable(props: Record<string, unknown>) {
+  const t = useT();
   const [sort, setSort] = useState<{
     column: number;
     ascending: boolean;
@@ -42,9 +44,9 @@ export function DataTable(props: Record<string, unknown>) {
   const parsed = DataTableProps.safeParse(props);
   if (!parsed.success) {
     return (
-      <GalleryFrame title="Table">
+      <GalleryFrame title={t("Table")}>
         <p className="text-sm text-muted-foreground">
-          Waiting for complete table data…
+          {t("Waiting for complete table data…")}
         </p>
       </GalleryFrame>
     );
@@ -70,19 +72,21 @@ export function DataTable(props: Record<string, unknown>) {
       caption={caption}
       action={
         <Badge>
-          {rows.length} {rows.length === 1 ? "row" : "rows"}
+          {rows.length === 1
+            ? tNow("1 row")
+            : tNow("{count} rows", { count: rows.length })}
         </Badge>
       }
     >
       <section
         className="overflow-x-auto rounded-lg border border-border focus-visible:outline-2 focus-visible:outline-ring"
-        aria-label={`${title} table, scroll for more columns`}
+        aria-label={tNow("{title} table, scroll for more columns", { title })}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: Overflow regions need keyboard focus to scroll in Safari; the region has an accessible name.
         tabIndex={0}
       >
         <table className="w-full border-collapse text-left text-sm">
           <caption className="sr-only">
-            {title}. Select a column heading to sort.
+            {tNow("{title}. Select a column heading to sort.", { title })}
           </caption>
           <thead className="bg-muted/50 text-xs text-muted-foreground">
             <tr>
@@ -145,7 +149,7 @@ export function DataTable(props: Record<string, unknown>) {
                         >
                           —
                         </span>
-                        <span className="sr-only">Empty</span>
+                        <span className="sr-only">{t("Empty")}</span>
                       </>
                     ) : (
                       row.cells[index]
@@ -160,7 +164,7 @@ export function DataTable(props: Record<string, unknown>) {
                   colSpan={columns.length}
                   className="px-3 py-8 text-center text-muted-foreground"
                 >
-                  No rows to show.
+                  {t("No rows to show.")}
                 </td>
               </tr>
             )}
@@ -170,8 +174,14 @@ export function DataTable(props: Record<string, unknown>) {
       {rows.length > 1 && (
         <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
           {sort
-            ? `Sorted by ${columns[sort.column]}, ${sort.ascending ? "ascending" : "descending"}.`
-            : "Select a column heading to sort."}
+            ? sort.ascending
+              ? t("Sorted by {column}, ascending.", {
+                  column: columns[sort.column],
+                })
+              : t("Sorted by {column}, descending.", {
+                  column: columns[sort.column],
+                })
+            : t("Select a column heading to sort.")}
         </p>
       )}
     </GalleryFrame>
@@ -181,7 +191,7 @@ export function DataTable(props: Record<string, unknown>) {
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showTable",
-    title: "Data table",
+    title: tNow("Data table"),
     kind: "card",
     description:
       "Show a sortable table to compare records, plans, or other structured facts. Supply up to eight columns and 100 rows, with exactly one cell per column. Use numbers for quantities so sorting is numeric. Show only data you have; do not invent rows.",
@@ -189,13 +199,15 @@ export const GALLERY: GalleryComponent[] = [
     Component: DataTable,
     confirmation: "The sortable table is now on screen for the person.",
     preview: {
-      title: "Team capacity",
-      caption: "Three teams, one shared launch. Hours available this week.",
-      columns: ["Team", "Available hours", "Focus"],
+      title: tNow("Team capacity"),
+      caption: tNow(
+        "Three teams, one shared launch. Hours available this week.",
+      ),
+      columns: [tNow("Team"), tNow("Available hours"), tNow("Focus")],
       rows: [
-        { cells: ["Product", 24, "Customer onboarding"] },
-        { cells: ["Engineering", 72, "Release readiness"] },
-        { cells: ["Design", 18, "Workspace polish"] },
+        { cells: [tNow("Product"), 24, tNow("Customer onboarding")] },
+        { cells: [tNow("Engineering"), 72, tNow("Release readiness")] },
+        { cells: [tNow("Design"), 18, tNow("Workspace polish")] },
       ],
     },
   },

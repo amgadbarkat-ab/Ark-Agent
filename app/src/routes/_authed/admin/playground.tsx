@@ -15,6 +15,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { tNow, useT } from "@/lib/i18n";
 import {
   deleteSandboxedMutationOptions,
   publishSandboxedMutationOptions,
@@ -71,13 +72,22 @@ export function parseJsonObject(raw: string, label: string): JsonObjectResult {
   } catch (thrown) {
     const reason =
       thrown instanceof SyntaxError ? thrown.message : "invalid JSON";
-    return { ok: false, message: `${label} must be valid JSON: ${reason}` };
+    return {
+      ok: false,
+      message: tNow("{label} must be valid JSON: {reason}", {
+        label: label,
+        reason: reason,
+      }),
+    };
   }
 
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {
       ok: false,
-      message: `${label} must be a JSON object, not ${jsonKind(value)}.`,
+      message: tNow("{label} must be a JSON object, not {jsonKind}.", {
+        label: label,
+        jsonKind: jsonKind(value),
+      }),
     };
   }
 
@@ -89,7 +99,10 @@ export function validatePlaygroundDraft(draft: Draft): PlaygroundValidation {
     draft.argumentSchema,
     "Arguments (JSON Schema)",
   );
-  const sample = parseJsonObject(draft.sampleArguments, "Sample arguments");
+  const sample = parseJsonObject(
+    draft.sampleArguments,
+    tNow("Sample arguments"),
+  );
   if (!schema.ok || !sample.ok) {
     return {
       ok: false,
@@ -116,6 +129,7 @@ export function validatePlaygroundDraft(draft: Draft): PlaygroundValidation {
 }
 
 function PlaygroundPage() {
+  const t = useT();
   const [deleting, setDeleting] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { data: components } = useQuery(sandboxedListQueryOptions());
@@ -156,7 +170,7 @@ function PlaygroundPage() {
       setNotice(null);
       setError(
         Object.values(current.fields)[0] ??
-          "Fix the JSON fields before saving.",
+          tNow("Fix the JSON fields before saving."),
       );
       return null;
     }
@@ -168,7 +182,9 @@ function PlaygroundPage() {
     setNotice(null);
     const payload = input();
     if (!payload) return;
-    saveDraft.mutate(payload, { onSuccess: () => setNotice("Draft saved.") });
+    saveDraft.mutate(payload, {
+      onSuccess: () => setNotice(tNow("Draft saved.")),
+    });
   };
 
   const publish = () => {
@@ -205,11 +221,11 @@ function PlaygroundPage() {
         <div className="flex items-start gap-2">
           <SidebarToggle className="-ml-2 shrink-0" />
           <div>
-            <h1 className="font-bold text-2xl">Playground</h1>
+            <h1 className="font-bold text-2xl">{t("Playground")}</h1>
             <p className="mt-1 max-w-prose text-pretty text-muted-foreground text-sm leading-relaxed">
-              Write a component here and publish it without a deployment. What
-              you edit is a draft; a conversation only ever draws what is
-              published.
+              {t(
+                "Write a component here and publish it without a deployment. What you edit is a draft; a conversation only ever draws what is published.",
+              )}
             </p>
           </div>
         </div>
@@ -221,7 +237,7 @@ function PlaygroundPage() {
             type="button"
             variant="outline"
           >
-            Save draft
+            {t("Save draft")}
           </Button>
           <Button
             /* `publish` saves first, since publishing acts on the stored draft, not the editors. */
@@ -230,7 +246,7 @@ function PlaygroundPage() {
             size="sm"
             type="button"
           >
-            Publish
+            {t("Publish")}
           </Button>
         </div>
       </header>
@@ -256,28 +272,28 @@ function PlaygroundPage() {
         <div className="space-y-3">
           <div className="grid gap-2 md:grid-cols-2">
             <TextField
-              label="Name"
+              label={t("Name")}
               onChange={set("slug")}
               placeholder="refund_card"
               value={draft.slug}
             />
             <TextField
-              label="Title"
+              label={t("Title")}
               onChange={set("title")}
-              placeholder="Refund card"
+              placeholder={t("Refund card")}
               value={draft.title}
             />
           </div>
           <TextField
-            label="What the model is told about it"
+            label={t("What the model is told about it")}
             onChange={set("description")}
-            placeholder="Show a refund with its amount, reason and status."
+            placeholder={t("Show a refund with its amount, reason and status.")}
             value={draft.description}
           />
           <CodeField label="HTML" onChange={set("html")} value={draft.html} />
           <CodeField label="CSS" onChange={set("css")} value={draft.css} />
           <CodeField
-            label="JavaScript"
+            label={t("JavaScript")}
             onChange={set("jsFunctions")}
             value={draft.jsFunctions}
           />
@@ -285,7 +301,7 @@ function PlaygroundPage() {
             error={
               !validation.ok ? validation.fields.argumentSchema : undefined
             }
-            label="Arguments (JSON Schema)"
+            label={t("Arguments (JSON Schema)")}
             onChange={set("argumentSchema")}
             value={draft.argumentSchema}
           />
@@ -293,7 +309,7 @@ function PlaygroundPage() {
             error={
               !validation.ok ? validation.fields.sampleArguments : undefined
             }
-            label="Sample arguments"
+            label={t("Sample arguments")}
             onChange={set("sampleArguments")}
             value={draft.sampleArguments}
           />
@@ -301,13 +317,13 @@ function PlaygroundPage() {
 
         <div className="space-y-4">
           <div className="rounded-lg border p-4">
-            <div className="mb-2 text-sm font-medium">Preview</div>
+            <div className="mb-2 text-sm font-medium">{t("Preview")}</div>
             {sample === null ? (
               <p className="text-sm text-destructive">
                 {validation.ok
-                  ? "The sample arguments are not available."
+                  ? t("The sample arguments are not available.")
                   : (validation.fields.sampleArguments ??
-                    "Fix the JSON fields before previewing.")}
+                    t("Fix the JSON fields before previewing."))}
               </p>
             ) : (
               <OpenGenerativeUIActivityRenderer
@@ -331,11 +347,11 @@ function PlaygroundPage() {
 
           <div className="rounded-lg border border-border bg-card">
             <div className="border-border border-b px-4 py-2 font-medium text-sm">
-              Saved here
+              {t("Saved here")}
             </div>
             {(components ?? []).length === 0 ? (
               <p className="px-4 py-3 text-muted-foreground text-sm">
-                Nothing yet.
+                {t("Nothing yet.")}
               </p>
             ) : (
               <ul className="divide-y divide-border">
@@ -348,10 +364,12 @@ function PlaygroundPage() {
                       <div className="font-mono text-xs">{component.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {component.published
-                          ? `published, revision ${component.revision}`
-                          : "draft only, no digital employee can draw it"}
+                          ? tNow("published, revision {revision}", {
+                              revision: component.revision,
+                            })
+                          : tNow("draft only, no digital employee can draw it")}
                         {component.hasUnpublishedChanges
-                          ? " · edited since publishing"
+                          ? ` · ${tNow("edited since publishing")}`
                           : ""}
                       </div>
                     </div>
@@ -362,7 +380,7 @@ function PlaygroundPage() {
                         type="button"
                         variant="outline"
                       >
-                        Open
+                        {t("Open")}
                       </Button>
                       <Button
                         onClick={() => setDeleting(component.name)}
@@ -370,7 +388,7 @@ function PlaygroundPage() {
                         type="button"
                         variant="ghost"
                       >
-                        Delete
+                        {t("Delete")}
                       </Button>
                     </div>
                   </li>
@@ -378,9 +396,9 @@ function PlaygroundPage() {
               </ul>
             )}
             <p className="border-border border-t px-4 py-2 text-muted-foreground text-xs">
-              Publishing makes it available to every digital employee. Switch it
-              off for a particular digital employee on the Components page, the
-              same as for a component this build ships.
+              {t(
+                "Publishing makes it available to every digital employee. Switch it off for a particular digital employee on the Components page, the same as for a component this build ships.",
+              )}
             </p>
           </div>
         </div>
@@ -398,15 +416,18 @@ function PlaygroundPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {deleting}?</DialogTitle>
+            <DialogTitle>
+              {tNow("Delete {name}?", { name: deleting ?? "" })}
+            </DialogTitle>
             <DialogDescription>
-              It is removed from this deployment. Any digital employee that
-              could draw it no longer can, and this cannot be undone.
+              {t(
+                "It is removed from this deployment. Any digital employee that could draw it no longer can, and this cannot be undone.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setDeleting(null)} size="sm" variant="ghost">
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               onClick={() => {
@@ -420,7 +441,7 @@ function PlaygroundPage() {
               size="sm"
               variant="destructive"
             >
-              Delete it
+              {t("Delete it")}
             </Button>
           </DialogFooter>
         </DialogContent>

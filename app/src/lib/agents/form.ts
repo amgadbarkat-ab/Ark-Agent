@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { tNow } from "@/lib/i18n";
 
-const INSTRUCTIONS_TOO_LONG = "Instructions must be 8000 characters or fewer.";
+const INSTRUCTIONS_TOO_LONG = tNow(
+  "Instructions must be 8000 characters or fewer.",
+);
 
 /** The instructions field on its own, for the screen that edits just that. */
 export const instructionsSchema = z.string().max(8000, INSTRUCTIONS_TOO_LONG);
@@ -13,18 +16,18 @@ export const agentFormSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(1, "Name is required.")
-    .max(80, "Name must be 80 characters or fewer."),
+    .min(1, tNow("Name is required."))
+    .max(80, tNow("Name must be 80 characters or fewer.")),
   title: z
     .string()
     .trim()
-    .min(1, "Title is required.")
-    .max(120, "Title must be 120 characters or fewer."),
+    .min(1, tNow("Title is required."))
+    .max(120, tNow("Title must be 120 characters or fewer.")),
   roleDescription: z
     .string()
     .trim()
-    .min(1, "Role description is required.")
-    .max(1000, "Role description must be 1000 characters or fewer."),
+    .min(1, tNow("Role description is required."))
+    .max(1000, tNow("Role description must be 1000 characters or fewer.")),
   /**
    * The full standing instruction. Left out, an edit leaves it alone; empty clears it, which puts the
    * role description back as the whole instruction.
@@ -41,7 +44,7 @@ export const agentFormSchema = z.object({
     .trim()
     .refine(
       (value) => value === "" || /^https?:\/\/\S+$/.test(value),
-      "Enter a web address starting with http:// or https://.",
+      tNow("Enter a web address starting with http:// or https://."),
     ),
   /**
    * A key the agent sits behind. WRITE-ONLY: it is never sent back from the server, so this field is

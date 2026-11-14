@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { sentenceNow, useT } from "@/lib/i18n";
 import {
   type PhoneCall,
   phoneCallActionMutationOptions,
@@ -27,6 +28,7 @@ export function SimulatedPhone() {
 }
 
 function CallPanel({ call }: { call: PhoneCall }) {
+  const t = useT();
   const act = useMutation(phoneCallActionMutationOptions(queryClient));
   const [keys, setKeys] = useState("");
   const [latest, setLatest] = useState<PhoneCall | null>(null);
@@ -40,28 +42,28 @@ function CallPanel({ call }: { call: PhoneCall }) {
 
   return (
     <section
-      aria-label="Simulated phone call"
+      aria-label={t("Simulated phone call")}
       className="fixed right-4 bottom-4 z-50 w-80 rounded-lg border bg-background p-3 shadow-lg"
     >
       <p className="flex items-center gap-2 font-medium text-sm">
         <IconPhone className="size-4" />
         {shown.step === "ringing"
-          ? "ArkAgent is calling (simulated)"
-          : "On a call with ArkAgent (simulated)"}
+          ? t("ArkAgent is calling (simulated)")
+          : t("On a call with ArkAgent (simulated)")}
       </p>
       {shown.said ? (
         <p className="mt-2 text-muted-foreground text-sm" role="status">
-          {shown.said}
+          {sentenceNow(shown.said)}
         </p>
       ) : null}
       {shown.step === "ringing" ? (
         <div className="mt-3 flex gap-2">
           <Button onClick={() => send("answer")} size="sm">
-            Answer
+            {t("Answer")}
           </Button>
           <Button onClick={() => send("hang-up")} size="sm" variant="ghost">
             <IconPhoneOff />
-            Decline call
+            {t("Decline call")}
           </Button>
         </div>
       ) : (
@@ -93,7 +95,7 @@ function CallPanel({ call }: { call: PhoneCall }) {
           </div>
           <div className="flex gap-2">
             <Input
-              aria-label="Keys pressed"
+              aria-label={t("Keys pressed")}
               inputMode="numeric"
               onChange={(event) =>
                 setKeys(event.target.value.replace(/[^0-9#*]/g, "").slice(0, 9))
@@ -102,7 +104,7 @@ function CallPanel({ call }: { call: PhoneCall }) {
               value={keys}
             />
             <Button disabled={!keys || act.isPending} size="sm" type="submit">
-              Send
+              {t("Send")}
             </Button>
           </div>
           <Button
@@ -112,7 +114,7 @@ function CallPanel({ call }: { call: PhoneCall }) {
             variant="ghost"
           >
             <IconPhoneOff />
-            Hang up
+            {t("Hang up")}
           </Button>
         </form>
       )}

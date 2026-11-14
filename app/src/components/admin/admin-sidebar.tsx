@@ -26,6 +26,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { tNow, useT } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 const adminLinkOptions = { to: "/admin" } satisfies LinkOptions;
@@ -46,80 +47,80 @@ const GROUPS: {
   }[];
 }[] = [
   {
-    label: "What digital employees can reach",
+    label: tNow("What digital employees can reach"),
     items: [
       {
-        title: "Credentials",
+        title: tNow("Credentials"),
         icon: IconKey,
         linkOptions: { to: "/admin/credentials" },
       },
       {
-        title: "Boundaries",
+        title: tNow("Boundaries"),
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
       {
-        title: "Computers",
+        title: tNow("Computers"),
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
       },
     ],
   },
   {
-    label: "What digital employees can do",
+    label: tNow("What digital employees can do"),
     items: [
       {
-        title: "Plugins",
+        title: tNow("Plugins"),
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
       {
-        title: "Skills",
+        title: tNow("Skills"),
         icon: IconFileText,
         linkOptions: { to: "/admin/skills" },
       },
       {
-        title: "UI Components",
+        title: tNow("UI Components"),
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
       {
-        title: "Playground",
+        title: tNow("Playground"),
         icon: IconCode,
         linkOptions: { to: "/admin/playground" },
       },
     ],
   },
   {
-    label: "Who can get in",
+    label: tNow("Who can get in"),
     items: [
       {
-        title: "People",
+        title: tNow("People"),
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
       },
       {
-        title: "Accounts",
+        title: tNow("Accounts"),
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
       },
       {
-        title: "Marketplace",
+        title: tNow("Marketplace"),
         icon: IconBuildingStore,
         linkOptions: { to: "/admin/marketplace" },
       },
       {
-        title: "Identity providers",
+        title: tNow("Identity providers"),
         icon: IconBuildingBank,
         linkOptions: { to: "/admin/identity-providers" },
       },
     ],
   },
   {
-    label: "What happened",
+    label: tNow("What happened"),
     items: [
       {
-        title: "Audit",
+        title: tNow("Audit"),
         icon: IconListDetails,
         linkOptions: { to: "/admin/audit" },
       },
@@ -130,6 +131,7 @@ const GROUPS: {
 export function AdminSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const t = useT();
   return (
     <Sidebar {...props}>
       {/*
@@ -148,7 +150,7 @@ export function AdminSidebar({
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
                   <IconArrowLeft className="mr-2 h-4 w-4" />
-                  Back to app
+                  {t("Back to app")}
                 </Link>
               )}
             />
@@ -171,7 +173,7 @@ export function AdminSidebar({
                     activeProps={{ className: "bg-foreground/5" }}
                     {...props}
                   >
-                    Overview
+                    {t("Overview")}
                   </Link>
                 )}
               />

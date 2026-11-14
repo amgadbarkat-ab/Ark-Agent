@@ -9,6 +9,8 @@ import {
 } from "@/lib/auth/mutations";
 import { currentUserQueryOptions, needsTerms } from "@/lib/auth/queries";
 import { appConfig } from "@/lib/generated/application-config";
+import { tNow, useT } from "@/lib/i18n";
+import { EnglishOnlyNote } from "@/lib/legal-markdown";
 import { queryClient } from "@/query-client";
 
 /**
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/_authed/accept-terms")({
 });
 
 function AcceptTerms() {
+  const t = useT();
   const navigate = useNavigate();
   const { data: user } = useQuery(currentUserQueryOptions());
   const [agreed, setAgreed] = useState(false);
@@ -45,13 +48,15 @@ function AcceptTerms() {
       <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
         <ArkAgentPortrait size={56} />
         <h1 className="text-2xl font-medium tracking-tight">
-          Before you start
+          {t("Before you start")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          To use {appConfig.brand.productName} you need to agree to the terms of
-          service. They are short enough to read, and they explain what the
-          digital employees do on your behalf and what we do with your data.
+          {t(
+            "To use {product} you need to agree to the terms of service. They are short enough to read, and they explain what the digital employees do on your behalf and what we do with your data.",
+            { product: appConfig.brand.productName },
+          )}
         </p>
+        <EnglishOnlyNote />
         <p className="text-sm">
           <a
             className="underline underline-offset-4"
@@ -59,7 +64,7 @@ function AcceptTerms() {
             rel="noreferrer"
             target="_blank"
           >
-            Read the terms of service
+            {t("Read the terms of service")}
           </a>
           {" · "}
           <a
@@ -68,7 +73,7 @@ function AcceptTerms() {
             rel="noreferrer"
             target="_blank"
           >
-            Privacy notice
+            {t("Privacy notice")}
           </a>
         </p>
         <label className="flex items-start gap-2 text-left text-sm">
@@ -79,8 +84,12 @@ function AcceptTerms() {
             type="checkbox"
           />
           <span>
-            I have read the terms of service and I agree to them
-            {version ? ` (version ${version})` : ""}.
+            {version
+              ? t(
+                  "I have read the terms of service and I agree to them (version {version}).",
+                  { version },
+                )
+              : t("I have read the terms of service and I agree to them.")}
           </span>
         </label>
         <Button
@@ -99,7 +108,7 @@ function AcceptTerms() {
           }}
           size="lg"
         >
-          {accept.isPending ? "Saving…" : "Agree and continue"}
+          {accept.isPending ? tNow("Saving…") : t("Agree and continue")}
         </Button>
         {accept.error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -115,7 +124,7 @@ function AcceptTerms() {
           }}
           type="button"
         >
-          Not you? Sign out
+          {t("Not you? Sign out")}
         </button>
       </div>
     </div>

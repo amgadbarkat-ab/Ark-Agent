@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 /**
  * The places a person's work lives, as the Connect your Data page lists them.
  *
@@ -34,85 +35,90 @@ export const DATA_SERVICES: readonly DataService[] = [
   {
     id: "microsoft-365",
     name: "Microsoft 365",
-    summary:
+    summary: tNow(
       "Outlook mail, Calendar, Teams chats and SharePoint and OneDrive files. Reads, and sends mail only after you approve each message.",
+    ),
     connector: "microsoft-365",
-    setup:
+    setup: tNow(
       "An app registered in Microsoft Entra, with its client id and secret added by an administrator",
+    ),
     untested: true,
   },
   {
     id: "google-drive",
     name: "Google Drive",
-    summary: "Files in your Drive, including shared drives. Read only.",
+    summary: tNow("Files in your Drive, including shared drives. Read only."),
     connector: "google-drive",
-    setup:
+    setup: tNow(
       "A Google OAuth client, with its client id and secret added by an administrator",
+    ),
   },
   {
     id: "gmail",
     name: "Gmail",
-    summary:
+    summary: tNow(
       "Search and read your mail, and send a message once you approve it. Nothing is deleted or marked read.",
+    ),
     connector: "google-gmail",
-    setup:
+    setup: tNow(
       "A Google OAuth client (the same one Google Drive uses works), with the Gmail API turned on and its client id and secret added by an administrator",
+    ),
     untested: true,
   },
   {
     id: "google-calendar",
     name: "Google Calendar",
-    summary: "Your events and free time.",
+    summary: tNow("Your events and free time."),
   },
   {
     id: "notion",
     name: "Notion",
-    summary: "The pages and databases you choose to share.",
+    summary: tNow("The pages and databases you choose to share."),
     connector: "notion",
   },
   {
     id: "dropbox",
     name: "Dropbox",
-    summary: "Your files.",
+    summary: tNow("Your files."),
   },
   {
     id: "box",
     name: "Box",
-    summary: "Your files.",
+    summary: tNow("Your files."),
   },
   {
     id: "github",
     name: "GitHub",
-    summary: "Repositories, issues and pull requests.",
+    summary: tNow("Repositories, issues and pull requests."),
   },
   {
     id: "linear",
     name: "Linear",
-    summary: "Issues and projects.",
+    summary: tNow("Issues and projects."),
   },
   {
     id: "jira",
-    name: "Jira and Confluence",
-    summary: "Issues, projects and pages.",
+    name: tNow("Jira and Confluence"),
+    summary: tNow("Issues, projects and pages."),
   },
   {
     id: "asana",
     name: "Asana",
-    summary: "Tasks and projects.",
+    summary: tNow("Tasks and projects."),
   },
   {
     id: "slack",
     name: "Slack",
-    summary: "Channels and messages you can see.",
+    summary: tNow("Channels and messages you can see."),
   },
   {
     id: "salesforce",
     name: "Salesforce",
-    summary: "Accounts, contacts and deals.",
+    summary: tNow("Accounts, contacts and deals."),
   },
   {
     id: "hubspot",
     name: "HubSpot",
-    summary: "Contacts, companies and deals.",
+    summary: tNow("Contacts, companies and deals."),
   },
 ];

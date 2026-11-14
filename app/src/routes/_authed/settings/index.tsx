@@ -20,7 +20,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { formatHotkey, HOTKEYS } from "@/lib/hotkeys/hotkeys";
-import { setLanguage, useLanguage, useT } from "@/lib/i18n";
+import { switchLanguage, useLanguage, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/settings/")({
   component: RouteComponent,
@@ -41,28 +41,32 @@ function RouteComponent() {
    */
   return (
     <PageShell
-      description="How ArkAgent looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser."
-      title="Preferences"
+      description={t(
+        "How ArkAgent looks and behaves for you. Message list preferences sync with your account. Theme is saved in this browser.",
+      )}
+      title={t("Preferences")}
     >
-      <PageSection title="General">
+      <PageSection title={t("General")}>
         <PageRows>
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Dark theme</ItemTitle>
+              <ItemTitle>{t("Dark theme")}</ItemTitle>
               <ItemDescription>
-                Dark is the default. Turn it off to use the light appearance.
+                {t(
+                  "Dark is the default. Turn it off to use the light appearance.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
               <Switch
-                aria-label="Dark theme"
+                aria-label={t("Dark theme")}
                 checked={dark}
                 onCheckedChange={setDark}
               />
             </ItemActions>
           </Item>
           <Separator />
-          {/* Per device, like the theme (DT Lab, #83: the app was English only). */}
+          {/* Per device, like the theme. The whole app follows it (#108). */}
           <Item size="sm">
             <ItemContent>
               <ItemTitle>{t("settings.language")}</ItemTitle>
@@ -71,16 +75,16 @@ function RouteComponent() {
             <ItemActions>
               <Button
                 aria-pressed={language === "en"}
-                onClick={() => setLanguage("en")}
+                onClick={() => switchLanguage("en")}
                 size="sm"
                 variant={language === "en" ? "secondary" : "ghost"}
               >
-                English
+                {t("English")}
               </Button>
               <Button
                 aria-pressed={language === "el"}
                 lang="el"
-                onClick={() => setLanguage("el")}
+                onClick={() => switchLanguage("el")}
                 size="sm"
                 variant={language === "el" ? "secondary" : "ghost"}
               >
@@ -103,7 +107,7 @@ function RouteComponent() {
        * actually do rather than what somebody remembered they did. Read-only on purpose: these
        * are not rebindable, and a row with nothing to click says so by having nothing to click.
        */}
-      <PageSection title="Keyboard shortcuts">
+      <PageSection title={t("Keyboard shortcuts")}>
         <PageRows>
           {HOTKEYS.map((hotkey, index) => (
             <React.Fragment key={hotkey.id}>

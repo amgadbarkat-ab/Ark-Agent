@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 /**
  * How a stalled turn reads on the audit page.
  *
@@ -23,7 +24,8 @@ export function silenceOf(payload: Record<string, unknown>): string | null {
   }
 
   const seconds = Math.max(1, Math.round(silentForMs / 1000));
-  const quiet = `Silent for ${seconds}s`;
-  if (chunks === 0) return `${quiet}, having said nothing at all`;
+  const quiet = tNow("Silent for {seconds}s", { seconds: seconds });
+  if (chunks === 0)
+    return tNow("{quiet}, having said nothing at all", { quiet: quiet });
   return `${quiet}, after ${chunks} ${chunks === 1 ? "chunk" : "chunks"}`;
 }

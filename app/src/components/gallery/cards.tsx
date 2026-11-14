@@ -1,6 +1,18 @@
 import { z } from "zod";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { tNow } from "@/lib/i18n";
 import { Badge, GalleryFrame, type Tone } from "./frame";
+
+/** The tone as a word on the badge, in the app's language. */
+const TONE_WORDS: Record<
+  "neutral" | "positive" | "caution" | "negative",
+  string
+> = {
+  neutral: tNow("neutral"),
+  positive: tNow("positive"),
+  caution: tNow("caution"),
+  negative: tNow("negative"),
+};
 
 const tone = z
   .enum(["neutral", "positive", "caution", "negative"])
@@ -141,7 +153,7 @@ export function ChecklistCard({
             done === items.length && items.length > 0 ? "positive" : "neutral"
           }
         >
-          {done} of {items.length}
+          {tNow("{done} of {total}", { done, total: items.length })}
         </Badge>
       }
       caption={caption}
@@ -201,7 +213,7 @@ export function NoticeCard({
     <GalleryFrame
       action={
         noticeTone && noticeTone !== "neutral" ? (
-          <Badge tone={noticeTone}>{noticeTone}</Badge>
+          <Badge tone={noticeTone}>{TONE_WORDS[noticeTone]}</Badge>
         ) : undefined
       }
       title={title}
@@ -224,7 +236,7 @@ export function NoticeCard({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "showRecord",
-    title: "Record",
+    title: tNow("Record"),
     kind: "card",
     description:
       "Show one thing and its fields, an order, a person, a ticket. Use instead of describing a record in prose.",
@@ -233,35 +245,35 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       title: "Invoice 2043",
       subtitle: "Northwind Traders",
-      status: "Approved",
+      status: tNow("Approved"),
       fields: [
-        { label: "Amount", value: "$4,280.00" },
-        { label: "Raised", value: "12 March" },
-        { label: "Owner", value: "Priya Raman" },
+        { label: tNow("Amount"), value: "$4,280.00" },
+        { label: tNow("Raised"), value: tNow("12 March") },
+        { label: tNow("Owner"), value: tNow("Priya Raman") },
       ],
     },
     confirmation: "The record is now on screen for the person.",
   },
   {
     name: "showMetrics",
-    title: "Headline figures",
+    title: tNow("Headline figures"),
     kind: "card",
     description:
       "Show up to six headline figures, each with an optional movement. Use for a summary somebody reads at a glance.",
     parameters: MetricsCardProps,
     Component: MetricsCard as GalleryComponent["Component"],
     preview: {
-      title: "This month",
+      title: tNow("This month"),
       metrics: [
         {
-          label: "Revenue",
+          label: tNow("Revenue"),
           value: "$412k",
-          change: "+12% on last month",
+          change: tNow("+12% on last month"),
           changeTone: "positive",
         },
-        { label: "Open deals", value: "38" },
+        { label: tNow("Open deals"), value: "38" },
         {
-          label: "Churn",
+          label: tNow("Churn"),
           value: "1.4%",
           change: "+0.3pt",
           changeTone: "caution",
@@ -272,35 +284,44 @@ export const GALLERY: GalleryComponent[] = [
   },
   {
     name: "showChecklist",
-    title: "Checklist",
+    title: tNow("Checklist"),
     kind: "card",
     description:
       "Show a list of things and which are done. Reporting only, the person cannot tick these, so do not use it to ask for anything.",
     parameters: ChecklistCardProps,
     Component: ChecklistCard as GalleryComponent["Component"],
     preview: {
-      title: "Before the release",
+      title: tNow("Before the release"),
       items: [
-        { text: "Migrations applied", done: true },
-        { text: "Changelog written", done: true },
-        { text: "Load test", done: false, note: "Waiting on staging" },
+        { text: tNow("Migrations applied"), done: true },
+        { text: tNow("Changelog written"), done: true },
+        {
+          text: tNow("Load test"),
+          done: false,
+          note: tNow("Waiting on staging"),
+        },
       ],
     },
     confirmation: "The checklist is now on screen for the person.",
   },
   {
     name: "showNotice",
-    title: "Notice",
+    title: tNow("Notice"),
     kind: "card",
     description:
       "Show a headline, a short explanation and optional supporting points. Use instead of writing several paragraphs of prose.",
     parameters: NoticeCardProps,
     Component: NoticeCard as GalleryComponent["Component"],
     preview: {
-      title: "Certificate expires in 30 days",
-      body: "The checkout certificate has an owner now, and this is the first of the new alerts.",
+      title: tNow("Certificate expires in 30 days"),
+      body: tNow(
+        "The checkout certificate has an owner now, and this is the first of the new alerts.",
+      ),
       tone: "caution",
-      points: ["Owner: Platform", "Renews automatically once approved"],
+      points: [
+        tNow("Owner: Platform"),
+        tNow("Renews automatically once approved"),
+      ],
     },
     confirmation: "The notice is now on screen for the person.",
   },

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/item";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { DATA_SERVICES, type DataService } from "@/lib/data-services";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -114,13 +115,17 @@ export function dataServiceState(
   const entry = deployment.catalogue.find((item) => item.key === key);
   if (!entry) return { kind: "not-available" };
   if (deployment.connected.has(key)) return { kind: "connected" };
+  const lowerFirst = (text: string) =>
+    text.charAt(0).toLowerCase() + text.slice(1);
   const server = deployment.servers.find((candidate) => candidate.id === key);
   if (!server) {
     return {
       kind: "needs-setup",
       reason: service.setup
-        ? `Not turned on yet. It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
-        : "Not turned on yet. An administrator turns it on.",
+        ? tNow("Not turned on yet. It needs {setup}.", {
+            setup: lowerFirst(service.setup),
+          })
+        : tNow("Not turned on yet. An administrator turns it on."),
     };
   }
   if (
@@ -131,14 +136,15 @@ export function dataServiceState(
     return {
       kind: "needs-setup",
       reason: service.setup
-        ? `It needs ${service.setup.charAt(0).toLowerCase()}${service.setup.slice(1)}.`
-        : "An administrator has to add the app's client id and secret.",
+        ? tNow("It needs {setup}.", { setup: lowerFirst(service.setup) })
+        : tNow("An administrator has to add the app's client id and secret."),
     };
   }
   return { kind: "ready" };
 }
 
 function RouteComponent() {
+  const t = useT();
   const { connected: outcome } = Route.useSearch();
   const [search, setSearch] = React.useState("");
   const plugins = useQuery(pluginsPageQueryOptions());
@@ -186,23 +192,27 @@ function RouteComponent() {
     rows: typeof services;
   }> = [
     {
-      title: "Connected",
+      title: tNow("Connected"),
       rows: services.filter(({ state }) => state.kind === "connected"),
     },
     {
-      title: "Ready to connect",
+      title: tNow("Ready to connect"),
       rows: services.filter(({ state }) => state.kind === "ready"),
     },
     {
-      title: "Needs setup",
+      title: tNow("Needs setup"),
       note: isAdmin
-        ? "You run this deployment, so you can set these up."
-        : "An administrator sets these up once, and then you can connect.",
+        ? tNow("You run this deployment, so you can set these up.")
+        : tNow(
+            "An administrator sets these up once, and then you can connect.",
+          ),
       rows: services.filter(({ state }) => state.kind === "needs-setup"),
     },
     {
-      title: "Not available yet",
-      note: "On the list because people ask for them. They are not built, so there is nothing to connect.",
+      title: tNow("Not available yet"),
+      note: tNow(
+        "On the list because people ask for them. They are not built, so there is nothing to connect.",
+      ),
       rows: services.filter(({ state }) => state.kind === "not-available"),
     },
   ];
@@ -213,8 +223,10 @@ function RouteComponent() {
   return (
     <PageShell
       className="max-w-4xl @container"
-      description="Connect the places your work lives, so your digital employees can read them as you. They only ever see what your own account can see."
-      title="Connect your Data"
+      description={t(
+        "Connect the places your work lives, so your digital employees can read them as you. They only ever see what your own account can see.",
+      )}
+      title={t("Connect your Data")}
     >
       {/*
        * Only the failure is worth saying. A success needs no sentence: the row it came back to now
@@ -222,7 +234,9 @@ function RouteComponent() {
        */}
       {outcome === "failed" ? (
         <p className="text-destructive text-sm" role="alert">
-          That account could not be connected. Nothing was saved — try again.
+          {t(
+            "That account could not be connected. Nothing was saved — try again.",
+          )}
         </p>
       ) : null}
       {/*
@@ -234,29 +248,32 @@ function RouteComponent() {
       {plugins.isPending || connections.isPending ? null : plugins.error ||
         connections.error ? (
         <p className="mt-12 text-destructive text-sm" role="alert">
-          Your connections could not be loaded, so nothing is listed here rather
-          than a list that may be wrong. Reload the page, and tell an
-          administrator if it persists.
+          {t(
+            "Your connections could not be loaded, so nothing is listed here rather than a list that may be wrong. Reload the page, and tell an administrator if it persists.",
+          )}
         </p>
       ) : (
         <>
           <p className="mt-5 text-xs text-muted-foreground">
-            {connectedCount} connected · {DATA_SERVICES.length} on the list
+            {tNow("{connected} connected · {total} on the list", {
+              connected: connectedCount,
+              total: DATA_SERVICES.length,
+            })}
           </p>
           <InputGroup className="mt-3 h-9 border-transparent bg-muted/60 shadow-none dark:bg-muted/60">
             <InputGroupAddon>
               <IconSearch aria-hidden="true" className="size-4" />
             </InputGroupAddon>
             <InputGroupInput
-              aria-label="Search services"
-              placeholder="Search services"
+              aria-label={t("Search services")}
+              placeholder={t("Search services")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
           {services.length === 0 && brokeredMatching.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground" role="status">
-              No services match “{search.trim()}”.
+              {tNow("No services match “{search}”.", { search: search.trim() })}
             </p>
           ) : (
             <>
@@ -291,9 +308,9 @@ function RouteComponent() {
                   </section>
                 ))}
               {brokeredMatching.length > 0 ? (
-                <section className="mt-8" aria-label="More apps">
+                <section className="mt-8" aria-label={t("More apps")}>
                   <h2 className="mb-3 px-2 text-xs font-medium text-muted-foreground">
-                    More apps
+                    {t("More apps")}
                   </h2>
                   <div className="grid grid-cols-1 gap-x-6 gap-y-2 @min-[36rem]:grid-cols-2">
                     {brokeredMatching.map((server) => (
@@ -304,7 +321,9 @@ function RouteComponent() {
                         mark={<PluginLogo logo={server.logo} />}
                         summary={
                           server.summary ||
-                          `Connect your ${server.title} account.`
+                          t("Connect your {title} account.", {
+                            title: server.title,
+                          })
                         }
                         title={server.title}
                       />
@@ -331,6 +350,7 @@ function ServiceRow({
   service: DataService;
   state: DataServiceState;
 }) {
+  const t = useT();
   const Mark = service.connector
     ? (MARKS[service.connector] ?? IconPlug)
     : IconPlug;
@@ -342,7 +362,7 @@ function ServiceRow({
         id={service.connector as string}
         mark={mark}
         note={service.untested ? UNTESTED : undefined}
-        summary={service.summary}
+        summary={sentenceNow(service.summary)}
         title={service.name}
       />
     );
@@ -354,21 +374,21 @@ function ServiceRow({
         <ItemTitle className="block w-auto truncate">{service.name}</ItemTitle>
         <ItemDescription
           className="line-clamp-2 text-xs"
-          title={service.summary}
+          title={sentenceNow(service.summary)}
         >
-          {service.summary}
-          {state.kind === "needs-setup" ? ` ${state.reason}` : ""}
+          {sentenceNow(service.summary)}
+          {state.kind === "needs-setup" ? ` ${sentenceNow(state.reason)}` : ""}
           {service.untested ? ` ${UNTESTED}` : ""}
         </ItemDescription>
       </ItemContent>
       <ItemActions className="shrink-0">
         {state.kind === "needs-setup" ? (
           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
-            {isAdmin ? "Set up" : "Needs setup"}
+            {isAdmin ? t("Set up") : t("Needs setup")}
           </span>
         ) : (
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Not yet
+            {t("Not yet")}
           </span>
         )}
       </ItemActions>
@@ -397,7 +417,7 @@ function ServiceRow({
 }
 
 /** Said on a connector that has been written but never tried against a real account. */
-const UNTESTED = "Built, but not yet tried with a real account.";
+const UNTESTED = tNow("Built, but not yet tried with a real account.");
 
 function AccountLink({
   connected,
@@ -414,6 +434,7 @@ function AccountLink({
   summary: string;
   title: string;
 }) {
+  const t = useT();
   return (
     <Item
       className="min-w-0 flex-nowrap gap-3 px-2 py-3"
@@ -441,11 +462,11 @@ function AccountLink({
               aria-hidden="true"
               className="size-3.5 text-emerald-600 dark:text-emerald-400"
             />
-            Connected
+            {t("Connected")}
           </span>
         ) : (
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-            Connect
+            {t("Connect")}
           </span>
         )}
       </ItemActions>
@@ -455,10 +476,11 @@ function AccountLink({
 
 /** Where a tool that speaks MCP is added. It is an administrator's decision, so it says whose. */
 function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
+  const t = useT();
   return (
-    <section className="mt-8" aria-label="Your own tools">
+    <section className="mt-8" aria-label={t("Your own tools")}>
       <h2 className="mb-3 px-2 text-xs font-medium text-muted-foreground">
-        Your own tools
+        {t("Your own tools")}
       </h2>
       <Item
         className="min-w-0 flex-nowrap gap-3 px-2 py-3"
@@ -471,20 +493,21 @@ function YourOwnTools({ isAdmin }: { isAdmin: boolean }) {
         </RowMark>
         <ItemContent className="min-w-0 gap-0.5">
           <ItemTitle className="block w-auto truncate">
-            Add your own MCP server
+            {t("Add your own MCP server")}
           </ItemTitle>
           <ItemDescription className="line-clamp-2 text-xs">
-            Anything that speaks MCP can be connected, so your digital employees
-            can use a tool nobody on this list has built.
+            {tNow(
+              "Anything that speaks MCP can be connected, so your digital employees can use a tool nobody on this list has built.",
+            )}
             {isAdmin
               ? ""
-              : " An administrator adds it, and decides who may use it."}
+              : ` ${tNow("An administrator adds it, and decides who may use it.")}`}
           </ItemDescription>
         </ItemContent>
         {isAdmin ? (
           <ItemActions className="shrink-0">
             <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
-              Add
+              {t("Add")}
             </span>
           </ItemActions>
         ) : null}

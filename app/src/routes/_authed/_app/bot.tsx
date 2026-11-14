@@ -13,7 +13,9 @@ import {
 import { tryClient } from "@/lib/client";
 import { useActiveBot } from "@/lib/copilot/active-bot";
 import { useBotThread } from "@/lib/copilot/bot-thread";
+import { chatLabels } from "@/lib/copilot/chat-labels";
 import { useStoppedTurn } from "@/lib/copilot/stopped-turn";
+import { tNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/_app/bot")({
   component: RouteComponent,
@@ -54,15 +56,17 @@ async function loadExplicitBot(agentId: string): Promise<BotDetailLookup> {
     `/api/agents/${encodeURIComponent(agentId)}`,
   );
   if (response.status === 404) return { status: "missing" };
-  if (!response.ok) throw new Error("Digital employee couldn't be loaded.");
+  if (!response.ok)
+    throw new Error(tNow("Digital employee couldn't be loaded."));
 
   const body: unknown = await response.json().catch(() => null);
   if (!isAgentEnvelope(body))
-    throw new Error("Digital employee couldn't be loaded.");
+    throw new Error(tNow("Digital employee couldn't be loaded."));
   return { bot: body.agent, status: "found" };
 }
 
 function RouteComponent() {
+  const t = useT();
   const search = Route.useSearch();
   const agent = search.agent === "" ? undefined : search.agent;
   const {
@@ -94,7 +98,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Digital employees couldn't be loaded.
+          {t("Digital employees couldn't be loaded.")}
         </p>
       </div>
     );
@@ -103,7 +107,7 @@ function RouteComponent() {
     return (
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-destructive text-sm" role="alert">
-          Digital employee couldn't be loaded.
+          {t("Digital employee couldn't be loaded.")}
         </p>
       </div>
     );
@@ -113,8 +117,10 @@ function RouteComponent() {
       <div className="flex h-screen items-center justify-center p-6">
         <p className="text-muted-foreground text-sm">
           {agent
-            ? `This deployment has no digital employee called "${agent}".`
-            : "This deployment has no digital employees yet."}
+            ? t('This deployment has no digital employee called "{agent}".', {
+                agent: agent,
+              })
+            : t("This deployment has no digital employees yet.")}
         </p>
       </div>
     );
@@ -128,6 +134,7 @@ function RouteComponent() {
 }
 
 function BotChat({ agentId, name }: { agentId: string; name: string }) {
+  const t = useT();
   // Tool calls here act on this Bot's own computer.
   useActiveBot(agentId);
   /*
@@ -167,11 +174,11 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
            */}
           <Button onClick={startNew} size="sm" variant="ghost">
             <IconPlus />
-            New chat
+            {t("New chat")}
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Ask it to open a page and watch it work.
+          {t("Ask it to open a page and watch it work.")}
         </p>
       </header>
       {/*
@@ -185,8 +192,9 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           data-testid="bot-chat-history-unavailable"
           role="alert"
         >
-          Earlier messages in this conversation could not be loaded, and the
-          digital employee is answering without them.
+          {t(
+            "Earlier messages in this conversation could not be loaded, and the digital employee is answering without them.",
+          )}
         </p>
       ) : null}
       {/*
@@ -220,6 +228,7 @@ function BotChat({ agentId, name }: { agentId: string; name: string }) {
           <CopilotChat
             agentId={agentId}
             key={`${agentId}:${threadId}`}
+            labels={chatLabels()}
             threadId={threadId}
           />
         ) : null}

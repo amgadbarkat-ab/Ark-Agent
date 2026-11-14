@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 /**
  * Finishing a sign-in from the address the browser ended on, for when the browser cannot reach this
  * app (DT Lab, #83: the browser ran on another network, so `http://localhost:…/api/plugins/oauth/
@@ -17,7 +18,10 @@ export type PastedCallback =
 export function pastedCallback(pasted: string): PastedCallback {
   const text = pasted.trim();
   if (!text) {
-    return { ok: false, message: "Paste the whole address from your browser." };
+    return {
+      ok: false,
+      message: tNow("Paste the whole address from your browser."),
+    };
   }
   let address: URL;
   try {
@@ -25,14 +29,18 @@ export function pastedCallback(pasted: string): PastedCallback {
   } catch {
     return {
       ok: false,
-      message:
+      message: tNow(
         "That is not a web address. Copy the whole address from your browser's address bar.",
+      ),
     };
   }
   if (!address.pathname.endsWith(CALLBACK_PATH)) {
     return {
       ok: false,
-      message: `That is not the address sign-in ends on. It ends in ${CALLBACK_PATH}?code=…`,
+      message: tNow(
+        "That is not the address sign-in ends on. It ends in {CALLBACK_PATH}?code=…",
+        { CALLBACK_PATH: CALLBACK_PATH },
+      ),
     };
   }
   const error = address.searchParams.get("error");
@@ -41,8 +49,12 @@ export function pastedCallback(pasted: string): PastedCallback {
       ok: false,
       message:
         error === "access_denied"
-          ? "The sign-in was declined in the browser, so nothing was connected. Press Connect to try again."
-          : "The sign-in did not finish in the browser, so nothing was connected. Press Connect to try again.",
+          ? tNow(
+              "The sign-in was declined in the browser, so nothing was connected. Press Connect to try again.",
+            )
+          : tNow(
+              "The sign-in did not finish in the browser, so nothing was connected. Press Connect to try again.",
+            ),
     };
   }
   const code = address.searchParams.get("code");
@@ -50,8 +62,9 @@ export function pastedCallback(pasted: string): PastedCallback {
   if (!code || !state) {
     return {
       ok: false,
-      message:
+      message: tNow(
         "That address is missing part of the sign-in. Copy the whole address, including everything after the question mark.",
+      ),
     };
   }
   const query = new URLSearchParams({ code, state });

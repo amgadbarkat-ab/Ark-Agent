@@ -20,6 +20,7 @@ import {
   reduceQueue,
 } from "@/components/channels/composer";
 import { attachmentUrl } from "@/lib/channels/attachments";
+import { useT } from "@/lib/i18n";
 import { newId } from "../../lib/new-id";
 
 export function ConversationView({
@@ -102,6 +103,7 @@ export function ConversationView({
   onStop?: () => void;
   voiceCall?: { active: boolean; supported: boolean; onStart(): void };
 }) {
+  const t = useT();
   /*
    * THE QUEUE LIVES HERE BECAUSE BOTH HALVES OF IT DO.
    *
@@ -433,11 +435,12 @@ export function ConversationView({
               <ArkAgentPortrait size={72} />
             </span>
             <p className="font-semibold text-lg tracking-tight">
-              What should we work on?
+              {t("What should we work on?")}
             </p>
             <p className="max-w-sm text-muted-foreground text-sm">
-              Say what you need. Your digital employee plans the work, takes the
-              steps and checks with you before anything important.
+              {t(
+                "Say what you need. Your digital employee plans the work, takes the steps and checks with you before anything important.",
+              )}
             </p>
           </div>
         ) : null}

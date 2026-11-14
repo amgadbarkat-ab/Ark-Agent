@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
 
 export type AgentVisibility = "public" | "private";
 
@@ -189,9 +190,9 @@ export async function testAgentConnection(
       ok: false,
       reason:
         (body as { error?: string } | null)?.error ??
-        "The connection could not be tested.",
+        tNow("The connection could not be tested."),
     };
   } catch {
-    return { ok: false, reason: "The connection could not be tested." };
+    return { ok: false, reason: tNow("The connection could not be tested.") };
   }
 }

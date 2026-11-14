@@ -2,9 +2,9 @@ import * as builtinRoutines from "./builtin-routines";
 import * as composio from "./composio";
 import * as gmailRest from "./gmail-rest";
 import * as driveRest from "./google-drive-rest";
-import * as graphRest from "./microsoft-graph-rest";
 import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
+import * as graphRest from "./microsoft-graph-rest";
 
 /**
  * How this deployment reaches one vendor: which protocol, from the kind `./access` resolved.

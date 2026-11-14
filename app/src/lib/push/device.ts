@@ -1,3 +1,4 @@
+import { tNow } from "@/lib/i18n";
 /**
  * This browser's side of notifications: whether it can show them, whether it has been allowed to, and
  * whether it is subscribed. Nothing here talks to the server; `mutations.ts` does that with what this
@@ -117,7 +118,7 @@ function recordOf(subscription: PushSubscription): SubscriptionRecord {
   const auth = json.keys?.auth;
   if (!json.endpoint || !p256dh || !auth) {
     throw new Error(
-      "This browser gave notification details that are not usable",
+      tNow("This browser gave notification details that are not usable"),
     );
   }
   return { endpoint: json.endpoint, keys: { p256dh, auth } };
@@ -134,8 +135,10 @@ export async function subscribeDevice(
   if (permission !== "granted") {
     throw new Error(
       permission === "denied"
-        ? "Notifications are blocked for this site. Allow them in the browser's settings and try again."
-        : "Notifications were not allowed.",
+        ? tNow(
+            "Notifications are blocked for this site. Allow them in the browser's settings and try again.",
+          )
+        : tNow("Notifications were not allowed."),
     );
   }
   const registration =
@@ -152,7 +155,9 @@ export async function subscribeDevice(
     // The browser's own sentence ("Registration failed - push service error") says nothing a person
     // can act on, and differs between browsers.
     throw new Error(
-      "This browser could not register with its notification service. Check your connection and the browser's notification settings, then try again.",
+      tNow(
+        "This browser could not register with its notification service. Check your connection and the browser's notification settings, then try again.",
+      ),
     );
   }
   return {

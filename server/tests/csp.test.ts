@@ -4,8 +4,8 @@ import { createApp } from "../src/app";
 import { loadConfig } from "../src/config";
 import {
   appPolicy,
-  checkoutPolicy,
   CSP_REPORT_PATH,
+  checkoutPolicy,
   cspReportRoutes,
   parseCspMode,
   readReports,

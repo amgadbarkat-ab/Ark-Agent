@@ -36,6 +36,7 @@ import {
   type AdminAccount,
   adminAccountsQueryOptions,
 } from "@/lib/account/queries";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/accounts")({
@@ -47,17 +48,36 @@ const PLAN_CHOICES: { id: string; name: string }[] = [
   { id: "agent", name: "ArkAgent" },
   { id: "team", name: "Ark Team" },
   { id: "enterprise", name: "Ark Team Enterprise" },
-  { id: "internal", name: "Internal" },
+  { id: "internal", name: tNow("Internal") },
 ];
+
+/** The payment service's words for a subscription, as a person reads them. */
+const SUBSCRIPTION_WORDS: Record<string, string> = {
+  active: tNow("active"),
+  trialing: tNow("on trial"),
+  past_due: tNow("payment overdue"),
+  canceled: tNow("cancelled"),
+  unpaid: tNow("unpaid"),
+  incomplete: tNow("incomplete"),
+  none: tNow("no plan"),
+};
 
 function describe(account: AdminAccount): string {
   const status = account.suspended
-    ? `Suspended${account.suspendedReason ? `: ${account.suspendedReason}` : ""}`
-    : account.subscriptionStatus.replace("_", " ");
-  return `${status} · ${account.activeBots} working now · since ${new Date(account.createdAt).toLocaleDateString()}`;
+    ? account.suspendedReason
+      ? tNow("Suspended: {reason}", { reason: account.suspendedReason })
+      : tNow("Suspended")
+    : (SUBSCRIPTION_WORDS[account.subscriptionStatus] ??
+      account.subscriptionStatus.replace("_", " "));
+  return tNow("{status} · {count} working now · since {date}", {
+    status,
+    count: account.activeBots,
+    date: new Date(account.createdAt).toLocaleDateString(dateLocale()),
+  });
 }
 
 function AccountsPage() {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -81,12 +101,16 @@ function AccountsPage() {
 
   return (
     <PageShell
-      description="Every customer account: what it has bought, how much is in use, and whether it is allowed to run."
-      title="Accounts"
+      description={t(
+        "Every customer account: what it has bought, how much is in use, and whether it is allowed to run.",
+      )}
+      title={t("Accounts")}
     >
       <PageSection
-        description="Changing a plan here sets it by hand and does not charge anyone. Suspending stops every digital employee on the account at its next run and shows the customer the reason."
-        title="Who is paying"
+        description={t(
+          "Changing a plan here sets it by hand and does not charge anyone. Suspending stops every digital employee on the account at its next run and shows the customer the reason.",
+        )}
+        title={t("Who is paying")}
       >
         {failure ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -94,22 +118,22 @@ function AccountsPage() {
           </p>
         ) : null}
         <Input
-          aria-label="Search accounts"
+          aria-label={t("Search accounts")}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or address"
+          placeholder={t("Search by name or address")}
           value={search}
         />
 
         {accounts.isPending ? null : accounts.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load accounts.
+            {t("Could not load accounts.")}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
             {query
-              ? `No account matches "${query}".`
-              : "No accounts yet. They appear when people sign up."}
+              ? t('No account matches "{query}".', { query: query })
+              : t("No accounts yet. They appear when people sign up.")}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -132,7 +156,9 @@ function AccountsPage() {
                     </ItemDescription>
                     {suspending?.tenantId === account.tenantId ? (
                       <Input
-                        aria-label={`Reason for suspending ${account.ownerEmail ?? account.name}`}
+                        aria-label={t("Reason for suspending {value1}", {
+                          value1: account.ownerEmail ?? account.name,
+                        })}
                         autoFocus
                         className="mt-2"
                         onChange={(event) =>
@@ -141,7 +167,7 @@ function AccountsPage() {
                             reason: event.target.value,
                           })
                         }
-                        placeholder="Why? The customer is shown this."
+                        placeholder={t("Why? The customer is shown this.")}
                         value={suspending.reason}
                       />
                     ) : null}
@@ -158,7 +184,9 @@ function AccountsPage() {
                       value={account.planId}
                     >
                       <SelectTrigger
-                        aria-label={`Plan for ${account.ownerEmail ?? account.name}`}
+                        aria-label={t("Plan for {value1}", {
+                          value1: account.ownerEmail ?? account.name,
+                        })}
                         size="sm"
                       >
                         <SelectValue>
@@ -169,7 +197,7 @@ function AccountsPage() {
                       <SelectContent>
                         {PLAN_CHOICES.map((plan) => (
                           <SelectItem key={plan.id} value={plan.id}>
-                            {plan.name}
+                            {sentenceNow(plan.name)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -181,7 +209,7 @@ function AccountsPage() {
                         size="sm"
                         variant="outline"
                       >
-                        Restore
+                        {t("Restore")}
                       </Button>
                     ) : suspending?.tenantId === account.tenantId ? (
                       <>
@@ -190,7 +218,7 @@ function AccountsPage() {
                           size="sm"
                           variant="ghost"
                         >
-                          Cancel
+                          {t("Cancel")}
                         </Button>
                         <Button
                           disabled={busy || !suspending.reason.trim()}
@@ -206,7 +234,7 @@ function AccountsPage() {
                           size="sm"
                           variant="destructive"
                         >
-                          Suspend
+                          {t("Suspend")}
                         </Button>
                       </>
                     ) : (
@@ -221,7 +249,7 @@ function AccountsPage() {
                         size="sm"
                         variant="outline"
                       >
-                        Suspend
+                        {t("Suspend")}
                       </Button>
                     )}
                   </ItemActions>
@@ -240,7 +268,7 @@ function AccountsPage() {
             size="sm"
             variant="outline"
           >
-            {accounts.isFetchingNextPage ? "Loading…" : "Show more"}
+            {accounts.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

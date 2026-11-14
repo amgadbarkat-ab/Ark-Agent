@@ -18,6 +18,7 @@ import {
   type ComputerActivity,
   subscribeToActivity,
 } from "@/lib/computers/activity";
+import { dateLocale, useT } from "@/lib/i18n";
 import { CommandOutput } from "./command-output";
 
 const ICONS = {
@@ -36,7 +37,7 @@ const LABELS = {
 } as const;
 
 function timeOf(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, {
+  return new Date(at).toLocaleTimeString(dateLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -44,6 +45,7 @@ function timeOf(at: number): string {
 }
 
 function Entry({ entry }: { entry: ComputerActivity }) {
+  const t = useT();
   const Icon = ICONS[entry.kind];
   const failed =
     entry.refused === true ||
@@ -76,7 +78,7 @@ function Entry({ entry }: { entry: ComputerActivity }) {
 
       {entry.refused === true ? (
         <p className="mt-1 pl-5 text-destructive text-xs">
-          {entry.output || "A boundary refused it."}
+          {entry.output || t("A boundary refused it.")}
         </p>
       ) : (
         <div className="mt-1 max-h-64 overflow-auto pl-5">
@@ -95,6 +97,7 @@ function Entry({ entry }: { entry: ComputerActivity }) {
 }
 
 export function ActivityLog({ computerId }: { computerId: string }) {
+  const t = useT();
   const entries = useSyncExternalStore(
     subscribeToActivity,
     () => activityFor(computerId),
@@ -106,8 +109,9 @@ export function ActivityLog({ computerId }: { computerId: string }) {
       <Empty className="h-[180px] border border-dashed">
         <EmptyHeader>
           <EmptyTitle className="text-muted-foreground">
-            Nothing yet. Commands the digital employee runs, and files it reads,
-            appear here as they happen.
+            {t(
+              "Nothing yet. Commands the digital employee runs, and files it reads, appear here as they happen.",
+            )}
           </EmptyTitle>
         </EmptyHeader>
       </Empty>

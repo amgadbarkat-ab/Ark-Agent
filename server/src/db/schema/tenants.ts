@@ -9,6 +9,7 @@
  * add rows and rules, not a migration of every table that points at a user.
  */
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -19,7 +20,6 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
-  boolean,
 } from "drizzle-orm/pg-core";
 import { users } from "./core";
 

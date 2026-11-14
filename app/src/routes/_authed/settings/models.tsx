@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   clearDefaultModelMutationOptions,
   setBotModelMutationOptions,
@@ -58,11 +59,11 @@ export const Route = createFileRoute("/_authed/settings/models")({
 
 /** How a provider's tier reads on a row. A model on this computer says whether it is running instead. */
 const TIER_LABEL: Record<ModelProviderTier, string> = {
-  local: "On this computer",
-  free: "Free",
-  paid: "Your own key",
-  custom: "Your own server",
-  plan: "Subscription",
+  local: tNow("On this computer"),
+  free: tNow("Free"),
+  paid: tNow("Your own key"),
+  custom: tNow("Your own server"),
+  plan: tNow("Subscription"),
 };
 
 /** What the dialog is for right now: nothing, a new model, or one that exists. */
@@ -72,6 +73,7 @@ type Editing =
   | { kind: "edit"; id: string };
 
 function ModelsPage() {
+  const t = useT();
   const catalogue = useQuery(modelCatalogueQueryOptions());
   const connections = useQuery(modelConnectionsQueryOptions());
   const coworkers = useQuery(agentListQueryOptions());
@@ -107,11 +109,13 @@ function ModelsPage() {
           variant="ghost"
         >
           <IconPlus />
-          Add model
+          {t("Add model")}
         </Button>
       }
-      description="Choose the model your digital employees think with. Models on your computer and free models cost nothing. If you use your own key, your provider bills you directly."
-      title="Models"
+      description={t(
+        "Choose the model your digital employees think with. Models on your computer and free models cost nothing. If you use your own key, your provider bills you directly.",
+      )}
+      title={t("Models")}
     >
       {catalogue.data ? (
         <ModelDialog
@@ -132,17 +136,20 @@ function ModelsPage() {
       ) : null}
 
       <PageSection
-        description="Your default is used for every conversation unless a digital employee says otherwise."
-        title="Your models"
+        description={t(
+          "Your default is used for every conversation unless a digital employee says otherwise.",
+        )}
+        title={t("Your models")}
       >
         {connections.isPending ? null : connections.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load your models.
+            {t("Could not load your models.")}
           </p>
         ) : connections.data?.length === 0 && !offline ? (
           <PageEmpty>
-            No model is connected. Your digital employees use this deployment's
-            own model, if it has one. Add one to choose for yourself.
+            {t(
+              "No model is connected. Your digital employees use this deployment's own model, if it has one. Add one to choose for yourself.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -170,8 +177,10 @@ function ModelsPage() {
       </PageSection>
 
       <PageSection
-        description="Models you can add right now. A model on this computer appears here only while it is running, and this page notices when one starts."
-        title="Available models"
+        description={t(
+          "Models you can add right now. A model on this computer appears here only while it is running, and this page notices when one starts.",
+        )}
+        title={t("Available models")}
       >
         {catalogue.data ? (
           <PageRows>
@@ -193,7 +202,7 @@ function ModelsPage() {
                       </ItemMedia>
                       <ItemContent>
                         <ItemTitle>
-                          {provider.name}
+                          {sentenceNow(provider.name)}
                           <span
                             className={`rounded-md px-1.5 py-0.5 font-normal text-xs ${
                               running
@@ -203,21 +212,45 @@ function ModelsPage() {
                           >
                             {isLocal
                               ? running
-                                ? "Running on this computer"
+                                ? t("Running on this computer")
                                 : status
-                                  ? "Not running"
-                                  : "On this computer"
+                                  ? t("Not running")
+                                  : t("On this computer")
                               : TIER_LABEL[provider.tier]}
                           </span>
                         </ItemTitle>
                         <ItemDescription className="line-clamp-none">
-                          {provider.summary}
+                          {sentenceNow(provider.summary)}
                           {running && status?.models?.length
-                            ? ` Found ${status.models.slice(0, 3).join(", ")}${status.models.length > 3 ? ` and ${status.models.length - 3} more` : ""}.`
+                            ? ` ${
+                                status.models.length > 3
+                                  ? t("Found {models} and {more} more.", {
+                                      models: status.models
+                                        .slice(0, 3)
+                                        .join(", "),
+                                      more: status.models.length - 3,
+                                    })
+                                  : t("Found {models}.", {
+                                      models: status.models
+                                        .slice(0, 3)
+                                        .join(", "),
+                                    })
+                              }`
                             : isLocal && status
-                              ? ` Nothing answered at ${provider.baseUrl}. Install and start ${provider.name}, or add it with a different address.`
+                              ? " " +
+                                t(
+                                  "Nothing answered at {baseUrl}. Install and start {name}, or add it with a different address.",
+                                  {
+                                    baseUrl: provider.baseUrl,
+                                    name: provider.name,
+                                  },
+                                )
                               : provider.suggestedModels.length > 0
-                                ? ` Such as ${provider.suggestedModels.slice(0, 3).join(", ")}.`
+                                ? ` ${t("Such as {models}.", {
+                                    models: provider.suggestedModels
+                                      .slice(0, 3)
+                                      .join(", "),
+                                  })}`
                                 : ""}
                         </ItemDescription>
                       </ItemContent>
@@ -231,8 +264,8 @@ function ModelsPage() {
                         >
                           <IconPlus />
                           {isLocal && status && !running
-                            ? "Set address"
-                            : "Add"}
+                            ? t("Set address")
+                            : tNow("Add")}
                         </Button>
                       </ItemActions>
                     </Item>
@@ -249,8 +282,10 @@ function ModelsPage() {
       (coworkers.data?.length ?? 0) > 0 &&
       choices.data ? (
         <PageSection
-          description="Each digital employee uses your default model unless you choose another for it."
-          title="Digital employees"
+          description={t(
+            "Each digital employee uses your default model unless you choose another for it.",
+          )}
+          title={t("Digital employees")}
         >
           <PageRows>
             {coworkers.data?.map((coworker, index) => (
@@ -287,6 +322,7 @@ function OfflineModelRow({
   /** The person's own connection that is their default instead, if one is. */
   otherDefault: ModelConnection | undefined;
 }) {
+  const t = useT();
   const running = offline.state === "running";
   const makeDefault = useMutation(
     clearDefaultModelMutationOptions(queryClient),
@@ -298,10 +334,10 @@ function OfflineModelRow({
       </ItemMedia>
       <ItemContent>
         <ItemTitle>
-          ArkAgent offline model · {offline.label}
+          {tNow("ArkAgent offline model · {name}", { name: offline.label })}
           {otherDefault ? null : (
             <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
-              Default
+              {t("Default")}
             </span>
           )}
           <span
@@ -311,15 +347,22 @@ function OfflineModelRow({
                 : "bg-muted text-muted-foreground"
             }`}
           >
-            {running ? "Running on this computer" : "Not running"}
+            {running ? t("Running on this computer") : t("Not running")}
           </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
           {running
             ? otherDefault
-              ? `Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your default is ${otherDefault.label} now; make this the default to use it again.`
-              : "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model."
-            : "It is installed, but it is not answering right now. Open ArkAgent from its window to start it again."}
+              ? t(
+                  "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your default is {label} now; make this the default to use it again.",
+                  { label: otherDefault.label },
+                )
+              : t(
+                  "Works without internet and keeps everything on this computer, with the same tools and browser as any other model. Your digital employees use it unless you choose another model.",
+                )
+            : t(
+                "It is installed, but it is not answering right now. Open ArkAgent from its window to start it again.",
+              )}
         </ItemDescription>
         {makeDefault.error ? (
           <ItemDescription className="text-destructive" role="alert">
@@ -336,7 +379,7 @@ function OfflineModelRow({
             type="button"
             variant="outline"
           >
-            Make default
+            {t("Make default")}
           </Button>
         </ItemActions>
       ) : null}
@@ -353,6 +396,7 @@ function ConnectionRow({
   connection: ModelConnection;
   onOpen: () => void;
 }) {
+  const t = useT();
   const provider = catalogue?.providers.find(
     (p) => p.id === connection.providerId,
   );
@@ -366,7 +410,7 @@ function ConnectionRow({
           {connection.label}
           {connection.isDefault ? (
             <span className="rounded-md bg-muted px-1.5 py-0.5 font-normal text-muted-foreground text-xs">
-              Default
+              {t("Default")}
             </span>
           ) : null}
         </ItemTitle>
@@ -375,7 +419,7 @@ function ConnectionRow({
           {connection.label === provider?.name
             ? connection.model
             : `${provider?.name ?? connection.providerId} · ${connection.model}`}
-          {connection.hasKey ? " · key saved" : ""}
+          {connection.hasKey ? ` · ${tNow("key saved")}` : ""}
         </ItemDescription>
       </ItemContent>
       <ItemActions>
@@ -395,6 +439,7 @@ function CoworkerRow({
   connections: ModelConnection[];
   coworker: AgentProfile;
 }) {
+  const t = useT();
   const setModel = useMutation(setBotModelMutationOptions(queryClient));
   const chosen = connections.find((c) => c.id === choice);
   const fallback = connections.find((c) => c.isDefault);
@@ -422,16 +467,23 @@ function CoworkerRow({
           }
           value={chosen?.id ?? DEFAULT_MODEL}
         >
-          <SelectTrigger aria-label={`Model for ${coworker.name}`} size="sm">
+          <SelectTrigger
+            aria-label={t("Model for {name}", { name: coworker.name })}
+            size="sm"
+          >
             <SelectValue>
               {chosen
                 ? chosen.label
-                : `Default${fallback ? ` (${fallback.label})` : ""}`}
+                : fallback
+                  ? tNow("Default ({name})", { name: fallback.label })
+                  : tNow("Default")}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={DEFAULT_MODEL}>
-              Default{fallback ? ` (${fallback.label})` : ""}
+              {fallback
+                ? tNow("Default ({name})", { name: fallback.label })
+                : tNow("Default")}
             </SelectItem>
             {connections.map((c) => (
               <SelectItem key={c.id} value={c.id}>

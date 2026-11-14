@@ -52,6 +52,7 @@ import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { readColleagueAnswer } from "@/lib/copilot/markers";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { markdownComponents } from "@/lib/markdown";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -149,9 +150,10 @@ const RESTORING_ANSWER_LINES = [
 ] as const;
 
 function RestoringTranscript() {
+  const t = useT();
   return (
     // One announcement, with every bar hidden from it: nine empty shapes read aloud is worse.
-    <div aria-label="Loading this conversation" role="status">
+    <div aria-label={t("Loading this conversation")} role="status">
       <div aria-hidden="true" className="flex justify-end pb-7">
         <Skeleton className="h-10 w-64 rounded-xl bg-muted/40 motion-reduce:animate-none" />
       </div>
@@ -179,6 +181,7 @@ function RestoringTranscript() {
  * work is a tool call or a model that has not spoken yet.
  */
 function Thinking() {
+  const t = useT();
   return (
     <p
       className="tool-line-running text-muted-foreground text-sm"
@@ -186,7 +189,7 @@ function Thinking() {
       // is doing. The text says it, so a screen reader is told the same thing the shimmer implies.
       role="status"
     >
-      Thinking
+      {t("Thinking")}
     </p>
   );
 }
@@ -211,7 +214,7 @@ function Stopped({ reason }: { reason: string }) {
       data-testid="transcript-stopped"
       role="alert"
     >
-      {reason}
+      {sentenceNow(reason)}
     </p>
   );
 }
@@ -315,6 +318,7 @@ function Queued({
   text: string;
   onRemove?: (() => void) | undefined;
 }) {
+  const t = useT();
   /*
    * THE FILES COME WITH IT, and until they did they were on NO SURFACE IN THE APP AT ALL. Parking
    * consumes the draft, so the composer's strip empties in the same beat this line appears; drawing
@@ -348,7 +352,7 @@ function Queued({
            * `status` rather than `alert`, matching the thinking line: a person who has just chosen
            * to queue something is not being interrupted by the news that it is queued.
            */}
-          <span role="status">Queued</span>
+          <span role="status">{t("Queued")}</span>
           {onRemove ? (
             <button
               /*
@@ -361,12 +365,14 @@ function Queued({
                * `describeParked`. An attachment-only message named the label after an empty string
                * and read as "Remove queued message:", which is the same nothing three times over.
                */
-              aria-label={`Remove queued message: ${describeParked(text, files)}`}
+              aria-label={t("Remove queued message: {value1}", {
+                value1: describeParked(text, files),
+              })}
               className="ml-2 underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               onClick={onRemove}
               type="button"
             >
-              Remove
+              {t("Remove")}
             </button>
           ) : null}
         </MessageFooter>
@@ -584,11 +590,12 @@ function Arriving({
  * the part a person wrote and the only part addressed to them.
  */
 function RoutineFiring({ instruction }: { instruction: string }) {
+  const t = useT();
   return (
     <div className="flex min-w-0 items-baseline gap-2 text-muted-foreground text-sm">
       <IconClock aria-hidden className="size-4 shrink-0 translate-y-0.5" />
       <span className="min-w-0">
-        <span className="font-medium">Routine ran.</span>{" "}
+        <span className="font-medium">{t("Routine ran.")}</span>{" "}
         <span className="whitespace-pre-wrap">{instruction}</span>
       </span>
     </div>
@@ -622,12 +629,13 @@ function PacedMarkdown({ text }: { text: string }) {
  * speaking and the person should be able to read exactly what it said.
  */
 function ColleagueAnswer({ name, answer }: { name: string; answer: string }) {
+  const t = useT();
   return (
     <div className="w-full">
       <div className="mb-1 flex items-center gap-2 text-muted-foreground text-xs">
         <IconUsersGroup aria-hidden className="size-4 shrink-0" />
         <span className="font-medium">{name}</span>
-        <span>answered</span>
+        <span>{t("answered")}</span>
       </div>
       <Bubble align="start" variant="ghost" className="w-full">
         <BubbleContent className="w-full">
@@ -1035,6 +1043,7 @@ function useDocumentIsGone(url: string, ask: boolean): boolean {
 }
 
 function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
+  const t = useT();
   const [failedToLoad, setFailedToLoad] = useState(false);
   const { filename, modality, url } = attachment;
   /*
@@ -1095,9 +1104,9 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
         <div className="min-w-0">
           {/* `title` because the tile is fixed-width and a long name is cut, not wrapped. */}
           <p className="truncate font-medium text-sm" title={filename}>
-            {filename ?? "Untitled file"}
+            {filename ?? t("Untitled file")}
           </p>
-          <p className="text-muted-foreground text-xs">Attachment</p>
+          <p className="text-muted-foreground text-xs">{t("Attachment")}</p>
         </div>
       </div>
     );
@@ -1106,7 +1115,11 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
   return (
     <AttachmentLightbox filename={filename} url={url}>
       <img
-        alt={filename ? `Attachment: ${filename}` : "Attachment"}
+        alt={
+          filename
+            ? t("Attachment: {filename}", { filename: filename })
+            : tNow("Attachment")
+        }
         className="size-32 rounded-xl object-cover"
         onError={() => setFailedToLoad(true)}
         src={url}
@@ -1127,8 +1140,8 @@ function SentAttachmentTile({ attachment }: { attachment: SentAttachment }) {
  */
 function unavailableSentence(filename?: string): string {
   return filename
-    ? `${filename} is unavailable.`
-    : "This attachment is unavailable.";
+    ? tNow("{filename} is unavailable.", { filename })
+    : tNow("This attachment is unavailable.");
 }
 
 /**
@@ -1188,7 +1201,7 @@ export function LightboxPicture({
 
   return (
     <img
-      alt={filename ?? "Attachment"}
+      alt={filename ?? tNow("Attachment")}
       className="max-h-[88svh] max-w-[92vw] rounded-lg object-contain"
       onError={() => setFailedToLoad(true)}
       src={url}
@@ -1222,6 +1235,7 @@ function AttachmentLightbox({
   filename?: string;
   url: string;
 }) {
+  const t = useT();
   const label = filename ?? "Attachment";
   /*
    * Controlled only so that clicking the dark space around the picture closes it, the way every
@@ -1237,7 +1251,12 @@ function AttachmentLightbox({
         // tab to a raw image file is not the promise this makes. `block` so the tile is not sitting
         // on a text baseline with a stray gap under it.
         className="block cursor-zoom-in overflow-hidden rounded-xl"
-        render={<button aria-label={`Open ${label}`} type="button" />}
+        render={
+          <button
+            aria-label={t("Open {label}", { label: label })}
+            type="button"
+          />
+        }
       >
         {children}
       </DialogTrigger>
@@ -1267,7 +1286,7 @@ function AttachmentLightbox({
         <DialogClose
           render={
             <button
-              aria-label="Close"
+              aria-label={t("Close")}
               className="absolute top-4 right-4 grid size-9 place-items-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               type="button"
             />
@@ -1289,7 +1308,7 @@ function AttachmentLightbox({
  */
 function activityName(activityType: string): string {
   return activityType === "open-generative-ui"
-    ? "This digital employee's generated interface"
+    ? tNow("This digital employee's generated interface")
     : activityType;
 }
 
@@ -1402,6 +1421,15 @@ const TranscriptToolCall = memo(function TranscriptToolCall({
  * Named from the reader's side: what was done, against which server, with the server's own words
  * behind a disclosure. The identifier the model was offered never reaches the screen.
  */
+/** The catalogue's own servers by name, so a tool line names the product, not its key. */
+const SERVER_NAMES: Record<string, string> = {
+  "google-gmail": "Gmail",
+  "google-drive": "Google Drive",
+  "microsoft-365": "Microsoft 365",
+  notion: "Notion",
+  routines: tNow("Routines"),
+};
+
 /** The card for an `mcp__<server>__<tool>` call's result, or null. */
 function cardFor(name: string, answer: string) {
   const [prefix, server, ...rest] = name.split("__");
@@ -1418,7 +1446,14 @@ function ServerToolLine({
   args: string;
   result?: string;
 }) {
-  const { label, detail } = readToolName(name);
+  const read = readToolName(name);
+  // In the person's language (#108): the built-in connectors' actions have Greek, and a server key
+  // reads as the product it is ("Gmail", not "google-gmail"). Anything else stays as it came.
+  const label = sentenceNow(read.label);
+  const detail =
+    read.detail === undefined
+      ? undefined
+      : (SERVER_NAMES[read.detail] ?? read.detail);
   /*
    * A refusal is not a result, and must not read like one.
    *

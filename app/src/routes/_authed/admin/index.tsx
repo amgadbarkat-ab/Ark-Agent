@@ -1,10 +1,10 @@
 import {
   IconBuildingBank,
   IconBuildingStore,
-  IconCloud,
-  IconCreditCard,
   IconChevronRight,
+  IconCloud,
   IconCode,
+  IconCreditCard,
   IconDeviceDesktop,
   IconFileText,
   IconKey,
@@ -19,12 +19,12 @@ import {
   Link,
   type LinkOptions,
 } from "@tanstack/react-router";
+import { AdminOverview } from "@/components/admin/overview";
 import {
   PageRows,
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
-import { AdminOverview } from "@/components/admin/overview";
 import { StaggerItem } from "@/components/layout/stagger";
 import {
   Item,
@@ -34,6 +34,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { tNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/admin/")({
   component: RouteComponent,
@@ -56,111 +57,126 @@ const SECTIONS: {
   }[];
 }[] = [
   {
-    title: "What digital employees can reach",
-    description:
+    title: tNow("What digital employees can reach"),
+    description: tNow(
       "Everything a digital employee can touch outside this app, and the limits on it.",
+    ),
     items: [
       {
-        title: "Credentials",
-        description: "Keys and tokens held for this deployment.",
+        title: tNow("Credentials"),
+        description: tNow("Keys and tokens held for this deployment."),
         icon: IconKey,
         linkOptions: { to: "/admin/credentials" },
       },
       {
-        title: "Boundaries",
-        description: "Rules that decide what a digital employee may never do.",
+        title: tNow("Boundaries"),
+        description: tNow(
+          "Rules that decide what a digital employee may never do.",
+        ),
         icon: IconShieldCheck,
         linkOptions: { to: "/admin/boundaries" },
       },
       {
-        title: "Computers",
-        description: "The machines digital employees run their tools on.",
+        title: tNow("Computers"),
+        description: tNow("The machines digital employees run their tools on."),
         icon: IconDeviceDesktop,
         linkOptions: { to: "/admin/computers" },
       },
     ],
   },
   {
-    title: "What digital employees can do",
-    description:
+    title: tNow("What digital employees can do"),
+    description: tNow(
       "Capabilities and interface pieces available across digital employees.",
+    ),
     items: [
       {
-        title: "Plugins",
-        description:
+        title: tNow("Plugins"),
+        description: tNow(
           "The services this deployment can reach, and which digital employees may.",
+        ),
         icon: IconPuzzle,
         linkOptions: { to: "/admin/plugins" },
       },
       {
-        title: "Skills",
-        description: "Named instructions anybody can invoke with a slash.",
+        title: tNow("Skills"),
+        description: tNow(
+          "Named instructions anybody can invoke with a slash.",
+        ),
         icon: IconFileText,
         linkOptions: { to: "/admin/skills" },
       },
       {
         title: "UI Components",
-        description:
+        description: tNow(
           "Custom pieces a digital employee can draw in a conversation.",
+        ),
         icon: IconLayoutGrid,
         linkOptions: { to: "/admin/components" },
       },
       {
-        title: "Playground",
-        description: "Write a component and watch it render as you type.",
+        title: tNow("Playground"),
+        description: tNow("Write a component and watch it render as you type."),
         icon: IconCode,
         linkOptions: { to: "/admin/playground" },
       },
     ],
   },
   {
-    title: "Who can get in",
+    title: tNow("Who can get in"),
     description: "",
     items: [
       {
-        title: "People",
-        description:
+        title: tNow("People"),
+        description: tNow(
           "Everybody who has signed in, who administers this deployment, and whose access has been removed.",
+        ),
         icon: IconUsers,
         linkOptions: { to: "/admin/people" },
       },
       {
-        title: "Accounts",
-        description:
+        title: tNow("Accounts"),
+        description: tNow(
           "Every customer account: its plan, how much is in use, and whether it may run.",
+        ),
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
       },
       {
-        title: "Cloud costs",
-        description:
+        title: tNow("Cloud costs"),
+        description: tNow(
           "What running in Ark's cloud costs us, what it is priced at, and what was charged.",
+        ),
         icon: IconCloud,
         linkOptions: { to: "/admin/cloud" },
       },
       {
-        title: "Marketplace",
-        description:
+        title: tNow("Marketplace"),
+        description: tNow(
           "Shared digital employees waiting for review, and the ones people have reported.",
+        ),
         icon: IconBuildingStore,
         linkOptions: { to: "/admin/marketplace" },
       },
       {
-        title: "Identity providers",
-        description:
+        title: tNow("Identity providers"),
+        description: tNow(
           "A company's own SAML or OpenID Connect provider, routed by email domain.",
+        ),
         icon: IconBuildingBank,
         linkOptions: { to: "/admin/identity-providers" },
       },
     ],
   },
   {
-    title: "What happened",
+    title: tNow("What happened"),
     description: "",
     items: [
       {
-        title: "Audit",
-        description: "Every action taken in this deployment, and by whom.",
+        title: tNow("Audit"),
+        description: tNow(
+          "Every action taken in this deployment, and by whom.",
+        ),
         icon: IconListDetails,
         linkOptions: { to: "/admin/audit" },
       },
@@ -169,10 +185,13 @@ const SECTIONS: {
 ];
 
 function RouteComponent() {
+  const t = useT();
   return (
     <PageShell
-      description="What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every digital employee, which is what separates it from your own preferences."
-      title="Admin"
+      description={t(
+        "What needs you, how the service is doing, and the settings that apply to everybody in this deployment. Anything here affects every person and every digital employee, which is what separates it from your own preferences.",
+      )}
+      title={t("Admin")}
     >
       <AdminOverview />
       {SECTIONS.map((section) => (

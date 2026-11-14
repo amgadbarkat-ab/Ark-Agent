@@ -1,10 +1,10 @@
-import { useT } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { decideApprovalMutationOptions } from "@/lib/approvals/mutations";
 import {
   type ApprovalRecord,
   approvalsQueryOptions,
 } from "@/lib/approvals/queries";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 import { ApprovalItem } from "./approvals-list";
 

@@ -27,6 +27,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
+import { tNow, useT } from "@/lib/i18n";
 import { relativeTime } from "@/lib/relative-time";
 import {
   deleteRoutineMutationOptions,
@@ -56,7 +57,7 @@ function lastRunLabel(lastRun: RoutineRecord["lastRun"]): {
 } {
   if (lastRun === null) {
     return {
-      text: "Never run yet",
+      text: tNow("Never run yet"),
       className: "text-muted-foreground",
       dot: "bg-muted-foreground/40",
     };
@@ -139,6 +140,7 @@ export function RoutinesList({
   /** Inside a dialog, where the page section's own top margin is somebody else's spacing. */
   embedded?: boolean;
 } = {}) {
+  const t = useT();
   const routines = useQuery(routinesQueryOptions());
   const setEnabled = useMutation(setRoutineEnabledMutationOptions(queryClient));
   const deleteRoutine = useMutation(deleteRoutineMutationOptions(queryClient));
@@ -167,12 +169,17 @@ export function RoutinesList({
         >
           <ItemContent>
             <ItemTitle className="text-amber-600 dark:text-amber-500">
-              Nothing is running these
+              {t("Nothing is running these")}
             </ItemTitle>
             <ItemDescription>
               {sweep?.lastSweptAt
-                ? `The routines worker last checked ${relativeTime(sweep.lastSweptAt)}. Until it is running again, none of these will fire.`
-                : "No routines worker has ever checked in, so none of these will fire. A deployment needs one running to carry them out."}
+                ? t(
+                    "The routines worker last checked {value1}. Until it is running again, none of these will fire.",
+                    { value1: relativeTime(sweep.lastSweptAt) },
+                  )
+                : t(
+                    "No routines worker has ever checked in, so none of these will fire. A deployment needs one running to carry them out.",
+                  )}
             </ItemDescription>
           </ItemContent>
         </Item>
@@ -181,20 +188,24 @@ export function RoutinesList({
       {/* Pending renders nothing: the empty-state sentence would otherwise flash for the fetch. */}
       {routines.isPending ? null : routines.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Your routines could not be loaded.
+          {t("Your routines could not be loaded.")}
         </p>
       ) : rows.length === 0 ? (
         <Empty className="h-[180px] border border-dashed">
           <EmptyHeader>
             <EmptyTitle className="text-muted-foreground">
               {agentId
-                ? "Nothing scheduled for this digital employee"
-                : "Nothing scheduled"}
+                ? t("Nothing scheduled for this digital employee")
+                : t("Nothing scheduled")}
             </EmptyTitle>
             <EmptyDescription>
               {agentId
-                ? 'Ask it in a channel — "every weekday at 9, …" — and it will appear here.'
-                : 'Ask a digital employee — "every weekday at 9, …" — and it will appear here.'}
+                ? t(
+                    'Ask it in a channel — "every weekday at 9, …" — and it will appear here.',
+                  )
+                : t(
+                    'Ask a digital employee — "every weekday at 9, …" — and it will appear here.',
+                  )}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -220,7 +231,7 @@ export function RoutinesList({
                     <div className="flex flex-wrap items-center gap-1.5">
                       {routine.channel.gone ? (
                         <Chip className="border-destructive/40 text-destructive">
-                          This channel is gone
+                          {t("This channel is gone")}
                         </Chip>
                       ) : (
                         // Where it posts is a place, so the chip goes there.
@@ -229,7 +240,7 @@ export function RoutinesList({
                           to="/channel/$channelId"
                         >
                           <Chip className="text-muted-foreground transition-colors hover:text-foreground">
-                            {routine.channel.name ?? "Unnamed channel"}
+                            {routine.channel.name ?? t("Unnamed channel")}
                           </Chip>
                         </Link>
                       )}
@@ -246,7 +257,9 @@ export function RoutinesList({
                        * takes its place, so the switch's state has a word as well as a position.
                        */}
                       {!routine.enabled ? (
-                        <Chip className="text-muted-foreground">Paused</Chip>
+                        <Chip className="text-muted-foreground">
+                          {t("Paused")}
+                        </Chip>
                       ) : new Date(routine.nextRunAt).getTime() <=
                         Date.now() ? (
                         /*
@@ -255,11 +268,13 @@ export function RoutinesList({
                          */
                         <Chip className="text-amber-600 dark:text-amber-500">
                           <span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
-                          Due
+                          {t("Due")}
                         </Chip>
                       ) : (
                         <Chip className="text-muted-foreground">
-                          Next {relativeTime(routine.nextRunAt)}
+                          {tNow("Next {when}", {
+                            when: relativeTime(routine.nextRunAt),
+                          })}
                         </Chip>
                       )}
                     </div>
@@ -273,7 +288,9 @@ export function RoutinesList({
                    * page uses for its per-Bot grant switches.
                    */}
                   <Switch
-                    aria-label={`Enable the routine scheduled ${routine.schedule}`}
+                    aria-label={t("Enable the routine scheduled {schedule}", {
+                      schedule: routine.schedule,
+                    })}
                     checked={routine.enabled}
                     disabled={
                       setEnabled.isPending &&
@@ -284,7 +301,9 @@ export function RoutinesList({
                     }
                   />
                   <Button
-                    aria-label={`Delete the routine scheduled ${routine.schedule}`}
+                    aria-label={t("Delete the routine scheduled {schedule}", {
+                      schedule: routine.schedule,
+                    })}
                     onClick={() => {
                       deleteRoutine.reset();
                       setConfirmingId(routine.id);
@@ -318,10 +337,15 @@ export function RoutinesList({
             UI would otherwise render a nested dialog with no backdrop at all. */}
         <DialogContent overlayClassName="bg-black/20 supports-backdrop-filter:backdrop-blur-sm">
           <DialogHeader>
-            <DialogTitle>Delete "{confirming?.schedule}"?</DialogTitle>
+            <DialogTitle>
+              {tNow("Delete {name}?", {
+                name: `«${confirming?.schedule ?? ""}»`,
+              })}
+            </DialogTitle>
             <DialogDescription>
-              This standing instruction stops for good. Nothing further runs on
-              this schedule, and there is no undo.
+              {t(
+                "This standing instruction stops for good. Nothing further runs on this schedule, and there is no undo.",
+              )}
             </DialogDescription>
           </DialogHeader>
           {deleteRoutine.error ? (
@@ -335,7 +359,7 @@ export function RoutinesList({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={deleteRoutine.isPending}
@@ -348,7 +372,7 @@ export function RoutinesList({
               size="sm"
               variant="destructive"
             >
-              {deleteRoutine.isPending ? "Deleting…" : "Delete"}
+              {deleteRoutine.isPending ? tNow("Deleting…") : tNow("Delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

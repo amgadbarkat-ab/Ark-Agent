@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { RoutinesList } from "@/components/routines/routines-list";
+import { useT } from "@/lib/i18n";
 
 /**
  * A person's own standing instructions: what runs on a schedule, and a switch to stop one.
@@ -19,10 +20,13 @@ export const Route = createFileRoute("/_authed/_app/routines")({
 });
 
 function RoutinesPage() {
+  const t = useT();
   return (
     <PageShell
-      description="What a digital employee does on a schedule, without being asked each time. Made and changed by talking to a digital employee — this page only shows what is standing, and lets you stop one."
-      title="Routines"
+      description={t(
+        "What a digital employee does on a schedule, without being asked each time. Made and changed by talking to a digital employee — this page only shows what is standing, and lets you stop one.",
+      )}
+      title={t("Routines")}
     >
       <RoutinesList />
     </PageShell>

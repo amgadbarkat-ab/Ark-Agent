@@ -30,6 +30,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
 import { trialDaysLeft } from "../../../../../shared/plans";
@@ -55,7 +56,7 @@ function statusLine(
   waiting: boolean,
   purchasesAllowed: boolean,
 ): string {
-  if (waiting) return "Waiting for confirmation";
+  if (waiting) return tNow("Waiting for confirmation");
   // The server's wording for an account with no plan tells the person to choose one, which inside a
   // store app is an invitation to buy and may not be made there (docs/ark/19-mobile.md).
   if (
@@ -64,34 +65,50 @@ function statusLine(
       account.blockedCode === "canceled" ||
       account.blockedCode === "trial_ended")
   ) {
-    return "This account does not have an active plan.";
+    return tNow("This account does not have an active plan.");
   }
   const until = account.currentPeriodEnd
-    ? new Date(account.currentPeriodEnd).toLocaleDateString()
+    ? new Date(account.currentPeriodEnd).toLocaleDateString(dateLocale())
     : null;
-  if (!account.canRun && account.blockedReason) return account.blockedReason;
+  if (!account.canRun && account.blockedReason)
+    return sentenceNow(account.blockedReason);
   if (account.cancelAtPeriodEnd) {
-    return until ? `Ends on ${until}` : "Ends at the end of this period";
+    return until
+      ? tNow("Ends on {until}", { until: until })
+      : tNow("Ends at the end of this period");
   }
   switch (account.subscriptionStatus) {
     case "past_due":
-      return "The last payment did not go through. Update your card to keep it.";
+      return tNow(
+        "The last payment did not go through. Update your card to keep it.",
+      );
     case "trialing": {
-      if (!account.currentPeriodEnd || !until) return "On a trial";
+      if (!account.currentPeriodEnd || !until) return tNow("On a trial");
       const left = trialDaysLeft(new Date(account.currentPeriodEnd));
-      return `Trial: ${left === 1 ? "1 day" : `${left} days`} left (ends ${until})`;
+      return left === 1
+        ? tNow("Trial: 1 day left (ends {until})", { until })
+        : tNow("Trial: {days} days left (ends {until})", { days: left, until });
     }
     default:
-      return until ? `Renews on ${until}` : "Active";
+      return until
+        ? tNow("Renews on {until}", { until: until })
+        : tNow("Active");
   }
 }
 
 function workingLine(account: AccountOverview["account"]): string {
   const limit =
-    account.maxActiveBots === null ? "no limit" : String(account.maxActiveBots);
+    account.maxActiveBots === null
+      ? tNow("no limit")
+      : String(account.maxActiveBots);
   return account.maxActiveBots === null
-    ? `${account.activeBots} working now, no limit`
-    : `${account.activeBots} of ${limit} working now`;
+    ? tNow("{activeBots} working now, no limit", {
+        activeBots: account.activeBots,
+      })
+    : tNow("{activeBots} of {limit} working now", {
+        activeBots: account.activeBots,
+        limit: limit,
+      });
 }
 
 /**
@@ -119,6 +136,7 @@ function isWaiting(
 }
 
 function PlanPage() {
+  const t = useT();
   const { paid } = useSearch({ strict: false }) as { paid?: unknown };
   /** A plan the customer asked to move to, until the account shows it. */
   const [requested, setRequested] = useState<string | null>(null);
@@ -163,24 +181,32 @@ function PlanPage() {
     <PageShell
       description={
         purchasesAllowed
-          ? "What you have, how much of it is in use, and how to change it. A digital employee counts only while it is working."
-          : "What you have and how much of it is in use. A digital employee counts only while it is working."
+          ? t(
+              "What you have, how much of it is in use, and how to change it. A digital employee counts only while it is working.",
+            )
+          : t(
+              "What you have and how much of it is in use. A digital employee counts only while it is working.",
+            )
       }
-      title="Plan"
+      title={t("Plan")}
     >
       {overview.isPending ? null : overview.error || !data ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Could not load your plan.
+          {t("Could not load your plan.")}
         </p>
       ) : (
         <>
           {waiting ? (
             <p className="mt-4 text-sm" role="status">
               {gaveUp
-                ? "This is taking longer than usual. If your plan does not appear soon, contact us and we will sort it out."
+                ? t(
+                    "This is taking longer than usual. If your plan does not appear soon, contact us and we will sort it out.",
+                  )
                 : requested !== null
-                  ? "Changing your plan. This page updates by itself."
-                  : "Thank you. We are confirming your payment. This page updates by itself."}
+                  ? t("Changing your plan. This page updates by itself.")
+                  : t(
+                      "Thank you. We are confirming your payment. This page updates by itself.",
+                    )}
             </p>
           ) : null}
           {!waiting && !data.account.canRun && data.account.blockedReason ? (
@@ -189,9 +215,9 @@ function PlanPage() {
               (data.account.blockedCode === "no_plan" ||
                 data.account.blockedCode === "canceled" ||
                 data.account.blockedCode === "trial_ended")
-                ? "This account does not have an active plan."
+                ? t("This account does not have an active plan.")
                 : data.account.blockedCode === "no_plan"
-                  ? "Choose a plan to start your digital employees."
+                  ? t("Choose a plan to start your digital employees.")
                   : data.account.blockedReason}
             </p>
           ) : null}
@@ -204,10 +230,12 @@ function PlanPage() {
           <PageSection
             description={
               data.billing.mode === "internal"
-                ? "This deployment is run by your company: nobody pays and there is no limit."
+                ? t(
+                    "This deployment is run by your company: nobody pays and there is no limit.",
+                  )
                 : undefined
             }
-            title="Your plan"
+            title={t("Your plan")}
           >
             <PageRows>
               <Item size="sm">
@@ -227,7 +255,7 @@ function PlanPage() {
                   <IconRobot />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle>Digital employees</ItemTitle>
+                  <ItemTitle>{t("Digital employees")}</ItemTitle>
                   <ItemDescription>{workingLine(data.account)}</ItemDescription>
                 </ItemContent>
               </Item>
@@ -236,11 +264,13 @@ function PlanPage() {
 
           {purchasesAllowed && data.billing.mode === "subscriptions" ? (
             <PageSection
-              description="Every plan is for one person. Switch any time; your digital employees keep their work."
-              title="Plans"
+              description={t(
+                "Every plan is for one person. Switch any time; your digital employees keep their work.",
+              )}
+              title={t("Plans")}
             >
               {data.plans.length === 0 ? (
-                <PageEmpty>No plans are on offer right now.</PageEmpty>
+                <PageEmpty>{t("No plans are on offer right now.")}</PageEmpty>
               ) : (
                 <PageRows>
                   {data.plans.map((plan, index) => (
@@ -271,8 +301,9 @@ function PlanPage() {
               )}
               {!data.billing.selfService ? (
                 <p className="mt-4 text-muted-foreground text-sm">
-                  Online payment is not available yet. Contact us to start or
-                  change a plan.
+                  {t(
+                    "Online payment is not available yet. Contact us to start or change a plan.",
+                  )}
                 </p>
               ) : null}
             </PageSection>
@@ -287,16 +318,16 @@ function PlanPage() {
           {purchasesAllowed &&
           data.billing.mode === "subscriptions" &&
           data.billing.selfService ? (
-            <PageSection title="Billing">
+            <PageSection title={t("Billing")}>
               <PageRows>
                 <Item size="sm">
                   <ItemMedia variant="icon">
                     <IconCreditCard />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>Cards and invoices</ItemTitle>
+                    <ItemTitle>{t("Cards and invoices")}</ItemTitle>
                     <ItemDescription>
-                      Update your card, or download an invoice.
+                      {t("Update your card, or download an invoice.")}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -310,7 +341,7 @@ function PlanPage() {
                       size="sm"
                       variant="outline"
                     >
-                      Manage billing
+                      {t("Manage billing")}
                     </Button>
                   </ItemActions>
                 </Item>
@@ -319,11 +350,13 @@ function PlanPage() {
                     <Separator />
                     <Item size="sm">
                       <ItemContent>
-                        <ItemTitle>Cancel</ItemTitle>
+                        <ItemTitle>{t("Cancel")}</ItemTitle>
                         <ItemDescription>
                           {confirmCancel
-                            ? "Your digital employees keep working until the end of the period you have paid for. Cancel now?"
-                            : "Stop renewing at the end of this period."}
+                            ? t(
+                                "Your digital employees keep working until the end of the period you have paid for. Cancel now?",
+                              )
+                            : t("Stop renewing at the end of this period.")}
                         </ItemDescription>
                       </ItemContent>
                       <ItemActions>
@@ -334,7 +367,7 @@ function PlanPage() {
                               size="sm"
                               variant="ghost"
                             >
-                              Keep my plan
+                              {t("Keep my plan")}
                             </Button>
                             <Button
                               disabled={cancel.isPending}
@@ -346,7 +379,9 @@ function PlanPage() {
                               size="sm"
                               variant="destructive"
                             >
-                              {cancel.isPending ? "Cancelling…" : "Cancel plan"}
+                              {cancel.isPending
+                                ? tNow("Cancelling…")
+                                : t("Cancel plan")}
                             </Button>
                           </>
                         ) : (
@@ -355,7 +390,7 @@ function PlanPage() {
                             size="sm"
                             variant="outline"
                           >
-                            Cancel plan
+                            {t("Cancel plan")}
                           </Button>
                         )}
                       </ItemActions>
@@ -395,6 +430,7 @@ function PlanRow({
   plan: PlanOffer;
   selfService: boolean;
 }) {
+  const t = useT();
   const picture = PLAN_PICTURE[plan.id];
   return (
     <Item size="sm">
@@ -405,27 +441,29 @@ function PlanRow({
       ) : null}
       <ItemContent>
         <ItemTitle>
-          {plan.name}
+          {sentenceNow(plan.name)}
           <span className="font-normal text-muted-foreground text-xs">
-            {formatEur(plan.priceEurCents)} a month
+            {tNow("{price} a month", { price: formatEur(plan.priceEurCents) })}
           </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {plan.summary}
+          {sentenceNow(plan.summary)}
         </ItemDescription>
       </ItemContent>
       <ItemActions>
         {current ? (
-          <span className="text-muted-foreground text-sm">Your plan</span>
+          <span className="text-muted-foreground text-sm">
+            {t("Your plan")}
+          </span>
         ) : (
           <Button
-            aria-label={`Choose ${plan.name}`}
+            aria-label={t("Choose {name}", { name: plan.name })}
             disabled={busy || !selfService}
             onClick={onChoose}
             size="sm"
             variant="outline"
           >
-            Choose
+            {t("Choose")}
           </Button>
         )}
       </ItemActions>

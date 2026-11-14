@@ -494,3 +494,13 @@ describe("sending a message (desk #83, the Wine24 email scene)", () => {
     expect(result.text).toContain("Connect Gmail again");
   });
 });
+
+describe("a snippet is shown as its characters (#109)", () => {
+  test("Gmail's escaped preview reads as text, and an escaped ampersand stays escaped once", async () => {
+    const { unescapeHtml } = await import("../src/plugins/gmail-rest");
+    expect(
+      unescapeHtml("I didn&#39;t get it &amp; neither did &quot;she&quot;"),
+    ).toBe('I didn\'t get it & neither did "she"');
+    expect(unescapeHtml("a &amp;lt; b &#x27;x&#x27;")).toBe("a &lt; b 'x'");
+  });
+});

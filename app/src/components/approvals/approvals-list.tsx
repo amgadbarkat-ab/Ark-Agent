@@ -1,4 +1,3 @@
-import { type MessageKey, useT } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -22,6 +21,7 @@ import {
   type ApprovalRecord,
   approvalsQueryOptions,
 } from "@/lib/approvals/queries";
+import { type MessageKey, sentenceNow, useT } from "@/lib/i18n";
 import { relativeTime } from "@/lib/relative-time";
 import { queryClient } from "@/query-client";
 
@@ -69,7 +69,7 @@ export function ApprovalsList() {
 
       {approvals.isPending ? null : approvals.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
-          Your requests could not be loaded.
+          {t("Your requests could not be loaded.")}
         </p>
       ) : rows.length === 0 ? (
         <Empty className="h-[180px] border border-dashed">
@@ -78,14 +78,14 @@ export function ApprovalsList() {
               {t("requests.nothing")}
             </EmptyTitle>
             <EmptyDescription>
-              When a digital employee needs your approval — to send, pay, delete
-              or change something, or to change a colleague's work — it asks
-              here first.
+              {t(
+                "When a digital employee needs your approval — to send, pay, delete or change something, or to change a colleague's work — it asks here first.",
+              )}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        <ul aria-label="Requests" className="flex flex-col gap-2">
+        <ul aria-label={t("Requests")} className="flex flex-col gap-2">
           {rows.map((row) => (
             <li key={row.id}>
               <ApprovalItem
@@ -131,14 +131,14 @@ export function ApprovalItem({
     <Item variant="muted">
       <ItemContent>
         <ItemTitle>
-          {row.requestedBy.name ?? "A digital employee"}
+          {row.requestedBy.name ?? t("A digital employee")}
           {row.target?.name ? ` · for ${row.target.name}` : ""}
         </ItemTitle>
         <ItemDescription className="text-xs">
           {t(kindWords(row.kind))}
         </ItemDescription>
         <ItemDescription className="line-clamp-none whitespace-pre-wrap">
-          {row.summary}
+          {sentenceNow(row.summary)}
         </ItemDescription>
         {row.details?.length ? (
           <dl className="mt-1 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-4 gap-y-1 text-sm">
@@ -148,7 +148,7 @@ export function ApprovalItem({
                 key={`${detail.label}-${index.toString()}`}
               >
                 <dt className="truncate text-muted-foreground">
-                  {detail.label}
+                  {sentenceNow(detail.label)}
                 </dt>
                 <dd className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs leading-5">
                   {detail.value}

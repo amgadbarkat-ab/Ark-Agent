@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { Button } from "@/components/ui/button";
 import type { AgentProfile } from "@/lib/agents/queries";
+import { sentenceNow, useT } from "@/lib/i18n";
 
 export function AgentCard({
   agent,
@@ -11,6 +12,7 @@ export function AgentCard({
   agent: AgentProfile;
   appearance?: "compact" | "artwork";
 }) {
+  const t = useT();
   if (appearance === "artwork") {
     return (
       <div className="relative h-[180px] w-[144px] overflow-hidden rounded-2xl bg-foreground/10">
@@ -28,7 +30,7 @@ export function AgentCard({
         <div className="absolute top-0 left-0 flex h-full w-full flex-col justify-end gap-2 p-3">
           <span className="line-clamp-1 text-sm font-medium">{agent.name}</span>
           <span className="line-clamp-3 text-xs text-foreground dark:text-foreground/80">
-            {agent.roleDescription}
+            {sentenceNow(agent.roleDescription)}
           </span>
         </div>
       </div>
@@ -48,12 +50,12 @@ export function AgentCard({
           {agent.name}
           {agent.primary ? (
             <span className="ml-1.5 rounded-full border border-border px-1.5 py-px align-middle text-[10px] font-normal text-muted-foreground">
-              Primary
+              {t("Primary")}
             </span>
           ) : null}
         </span>
         <span className="line-clamp-2 break-words text-xs leading-4 text-muted-foreground">
-          {agent.roleDescription}
+          {sentenceNow(agent.roleDescription)}
         </span>
       </div>
       <div className="mt-auto flex shrink-0 items-center justify-between pt-2">
@@ -61,11 +63,11 @@ export function AgentCard({
         <Button
           variant="ghost"
           size="xs"
-          aria-label={`View details for ${agent.name}`}
+          aria-label={t("View details for {name}", { name: agent.name })}
           className="-ml-2 text-muted-foreground after:absolute after:inset-0"
           render={<Link to="/agents" search={{ agent: agent.id }} />}
         >
-          Details
+          {t("Details")}
         </Button>
         <IconArrowRight
           aria-hidden="true"

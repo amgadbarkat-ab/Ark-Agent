@@ -1,3 +1,4 @@
+import { tNow, useT } from "@/lib/i18n";
 import type { VisibleChatItem } from "./chat-messages";
 import { ToolLine } from "./tool-line";
 
@@ -10,13 +11,13 @@ export type BrowserGroup = {
 export type TranscriptItem = VisibleChatItem | BrowserGroup;
 
 const labels: Record<string, string> = {
-  computer_navigate: "Opened page",
-  computer_read: "Read page",
-  computer_snapshot: "Inspected page",
-  computer_click: "Clicked on page",
-  computer_type: "Filled in field",
-  computer_key: "Pressed key",
-  computer_scroll: "Scrolled page",
+  computer_navigate: tNow("Opened page"),
+  computer_read: tNow("Read page"),
+  computer_snapshot: tNow("Inspected page"),
+  computer_click: tNow("Clicked on page"),
+  computer_type: tNow("Filled in field"),
+  computer_key: tNow("Pressed key"),
+  computer_scroll: tNow("Scrolled page"),
 };
 
 /** Group adjacent browsing steps without moving messages or hiding requests for human help. */
@@ -90,6 +91,7 @@ export function BrowserActivity({
   group: BrowserGroup;
   active: boolean;
 }) {
+  const t = useT();
   const steps = group.steps.map((step) => ({
     id: step.id,
     ...browserStepDetails(step),
@@ -101,13 +103,19 @@ export function BrowserActivity({
     <ToolLine
       label={
         running
-          ? "Browsing…"
+          ? t("Browsing…")
           : pages
-            ? `Browsed ${pages} ${pages === 1 ? "page" : "pages"}`
-            : "Browser activity"
+            ? pages === 1
+              ? t("Browsed 1 page")
+              : t("Browsed {pages} pages", { pages })
+            : t("Browser activity")
       }
       detail={
-        issues ? `${issues} ${issues === 1 ? "issue" : "issues"}` : undefined
+        issues
+          ? issues === 1
+            ? t("1 issue")
+            : t("{count} issues", { count: issues })
+          : undefined
       }
       running={running}
     >
@@ -130,13 +138,13 @@ export function BrowserActivity({
               ) : null}
               {step.pending && (
                 <span className="text-muted-foreground">
-                  {active ? "In progress" : "Not completed"}
+                  {active ? t("In progress") : t("Not completed")}
                 </span>
               )}
             </div>
             {step.failed && (
               <p className="mt-0.5 text-destructive">
-                {step.reason ?? "This step could not be completed."}
+                {step.reason ?? t("This step could not be completed.")}
               </p>
             )}
           </li>

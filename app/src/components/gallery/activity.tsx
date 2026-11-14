@@ -5,6 +5,7 @@ import { callComponentFunction } from "@/lib/components/queries";
 import { useActiveBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { GalleryFrame } from "./frame";
 import { seriesColour } from "./palette";
 
@@ -57,6 +58,7 @@ export function ActivityReportCard({
   title,
   days,
 }: Partial<ActivityArgs>) {
+  const t = useT();
   const botId = useActiveBotId();
   const conversation = useConversation();
   const [state, setState] = useState<State>({ status: "reading" });
@@ -81,7 +83,9 @@ export function ActivityReportCard({
           : {
               status: "refused",
               reason:
-                result.reason ?? result.error ?? "That data could not be read.",
+                result.reason ??
+                result.error ??
+                tNow("That data could not be read."),
             },
       );
     });
@@ -93,8 +97,10 @@ export function ActivityReportCard({
 
   if (!report) {
     return (
-      <GalleryFrame title="Report">
-        <p className="text-sm text-muted-foreground">Choosing a report…</p>
+      <GalleryFrame title={t("Report")}>
+        <p className="text-sm text-muted-foreground">
+          {t("Choosing a report…")}
+        </p>
       </GalleryFrame>
     );
   }
@@ -102,19 +108,21 @@ export function ActivityReportCard({
   if (state.status === "reading") {
     return (
       <GalleryFrame
-        caption="Reading from this deployment"
-        title={title ?? "Report"}
+        caption={t("Reading from this deployment")}
+        title={title ?? tNow("Report")}
       >
-        <p className="text-sm text-muted-foreground">Reading…</p>
+        <p className="text-sm text-muted-foreground">{t("Reading…")}</p>
       </GalleryFrame>
     );
   }
 
   if (state.status === "refused") {
     return (
-      <GalleryFrame title={title ?? "Report"}>
-        <p className="text-sm text-destructive">Not shown</p>
-        <p className="mt-1 text-sm text-foreground/80">{state.reason}</p>
+      <GalleryFrame title={title ?? tNow("Report")}>
+        <p className="text-sm text-destructive">{t("Not shown")}</p>
+        <p className="mt-1 text-sm text-foreground/80">
+          {sentenceNow(state.reason)}
+        </p>
       </GalleryFrame>
     );
   }
@@ -143,12 +151,16 @@ function ActivityChart({
   title?: string;
   ask?: (text: string) => void;
 }) {
+  const t = useT();
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Digital employee activity"}>
+      <GalleryFrame title={title ?? t("Digital employee activity")}>
         <p className="text-sm text-muted-foreground">
-          No Bot has done anything in the last {data?.days ?? 7} days.
+          {tNow(
+            "No digital employee has done anything in the last {days} days.",
+            { days: data?.days ?? 7 },
+          )}
         </p>
       </GalleryFrame>
     );
@@ -164,18 +176,24 @@ function ActivityChart({
           <Button
             onClick={() =>
               ask(
-                `What has ${busiest.bot} actually been doing? Look at the audit trail and summarise it.`,
+                tNow(
+                  "What has {bot} actually been doing? Look at the audit trail and summarise it.",
+                  { bot: busiest.bot },
+                ),
               )
             }
             size="sm"
             variant="outline"
           >
-            Ask about the busiest
+            {t("Ask about the busiest")}
           </Button>
         ) : undefined
       }
-      caption={`Counted from this deployment's audit trail, last ${data.days} days`}
-      title={title ?? "Digital employee activity"}
+      caption={t(
+        "Counted from this deployment's audit trail, last {days} days",
+        { days: data.days },
+      )}
+      title={title ?? t("Digital employee activity")}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row, index) => (
@@ -212,12 +230,13 @@ function RefusalList({
   title?: string;
   ask?: (text: string) => void;
 }) {
+  const t = useT();
   const rows = data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <GalleryFrame title={title ?? "Recent refusals"}>
+      <GalleryFrame title={title ?? t("Recent refusals")}>
         <p className="text-sm text-muted-foreground">
-          This deployment has refused nothing.
+          {t("This deployment has refused nothing.")}
         </p>
       </GalleryFrame>
     );
@@ -230,18 +249,20 @@ function RefusalList({
           <Button
             onClick={() =>
               ask(
-                "Explain the most recent refusal in that list, and what would have to change for it to be allowed.",
+                tNow(
+                  "Explain the most recent refusal in that list, and what would have to change for it to be allowed.",
+                ),
               )
             }
             size="sm"
             variant="outline"
           >
-            Explain the latest
+            {t("Explain the latest")}
           </Button>
         ) : undefined
       }
-      caption="Read from this deployment's audit trail"
-      title={title ?? "Recent refusals"}
+      caption={t("Read from this deployment's audit trail")}
+      title={title ?? t("Recent refusals")}
     >
       <ul className="flex flex-col gap-2">
         {rows.map((row) => (
@@ -252,11 +273,13 @@ function RefusalList({
                 <span className="text-xs text-muted-foreground">{row.bot}</span>
               ) : null}
               <span className="ml-auto text-xs text-muted-foreground">
-                {new Date(row.at).toLocaleString()}
+                {new Date(row.at).toLocaleString(dateLocale())}
               </span>
             </div>
             {row.reason ? (
-              <p className="text-xs text-muted-foreground">{row.reason}</p>
+              <p className="text-xs text-muted-foreground">
+                {sentenceNow(row.reason)}
+              </p>
             ) : null}
           </li>
         ))}
@@ -274,7 +297,7 @@ export const GALLERY: GalleryComponent[] = [
      * only means to show what the component looks like. Admin draws it as unpreviewable instead.
      */
     name: "showActivityReport",
-    title: "Activity report",
+    title: tNow("Activity report"),
     kind: "card",
     description:
       "Show what this deployment has actually been doing, read from its own records rather than from anything you know. Use for 'what have the digital employees been up to' and 'what has been refused'. You choose the report and the period; the figures are read for you and you will not see them.",

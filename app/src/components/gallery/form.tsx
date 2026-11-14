@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
+import { tNow, useT } from "@/lib/i18n";
 import { Badge, GalleryFrame } from "./frame";
 
 const Field = z
@@ -75,12 +76,13 @@ function readAnswer(result: unknown): FormAnswer | null {
 
 /** Decision render props remain wrapped, just like askApproval and askChoice. */
 export function FormCard(props: Record<string, unknown>) {
+  const t = useT();
   const parsed = FormCardArgs.safeParse(props.args);
   if (props.status === "inProgress") {
     return (
-      <GalleryFrame title="Preparing your form…">
+      <GalleryFrame title={t("Preparing your form…")}>
         <p className="text-sm text-muted-foreground">
-          The assistant is putting the questions together.
+          {t("The assistant is putting the questions together.")}
         </p>
       </GalleryFrame>
     );
@@ -111,6 +113,7 @@ function InvalidForm({
   complete: boolean;
   respond?: Respond;
 }) {
+  const t = useT();
   const attempted = useRef(false);
   const [failed, setFailed] = useState(false);
   const [returned, setReturned] = useState(complete);
@@ -134,15 +137,17 @@ function InvalidForm({
     void returnToBot();
   }, [returnToBot]);
   return (
-    <GalleryFrame title="Form unavailable">
+    <GalleryFrame title={t("Form unavailable")}>
       <p role="alert" className="text-sm text-muted-foreground">
         {returned
-          ? "The form had invalid questions. The digital employee can send a corrected form."
-          : "The form has invalid questions and could not be displayed."}
+          ? t(
+              "The form had invalid questions. The digital employee can send a corrected form.",
+            )
+          : t("The form has invalid questions and could not be displayed.")}
       </p>
       {failed && (
         <Button className="mt-3" size="sm" onClick={() => void returnToBot()}>
-          Return to the digital employee
+          {t("Return to the digital employee")}
         </Button>
       )}
     </GalleryFrame>
@@ -160,6 +165,7 @@ function FormEntry({
   result: FormAnswer | null;
   respond?: Respond;
 }) {
+  const t = useT();
   const prefix = useId();
   const [values, setValues] = useState(new Map<string, string>());
   const [errors, setErrors] = useState(new Map<string, string>());
@@ -177,29 +183,38 @@ function FormEntry({
     for (const field of args.fields) {
       const control = form.elements.namedItem(field.id);
       if (control instanceof HTMLInputElement && control.validity.badInput) {
-        problems.set(field.id, "Enter a valid number.");
+        problems.set(field.id, tNow("Enter a valid number."));
         continue;
       }
       const value = (values.get(field.id) ?? "").trim();
       if (!value) {
         if (field.required)
-          problems.set(field.id, `${field.label} is required.`);
+          problems.set(
+            field.id,
+            tNow("{label} is required.", { label: field.label }),
+          );
         continue;
       }
       if (value.length > 2000)
-        problems.set(field.id, "Use 2,000 characters or fewer.");
+        problems.set(field.id, tNow("Use 2,000 characters or fewer."));
       else if (field.type === "email" && !z.email().safeParse(value).success)
-        problems.set(field.id, "Enter a valid email address.");
+        problems.set(field.id, tNow("Enter a valid email address."));
       else if (field.type === "select" && !field.options?.includes(value))
-        problems.set(field.id, "Choose one of the listed options.");
+        problems.set(field.id, tNow("Choose one of the listed options."));
       else if (field.type === "number") {
         const number = Number(value);
         if (!Number.isFinite(number))
-          problems.set(field.id, "Enter a valid number.");
+          problems.set(field.id, tNow("Enter a valid number."));
         else if (field.min !== undefined && number < field.min)
-          problems.set(field.id, `Enter ${field.min} or more.`);
+          problems.set(
+            field.id,
+            tNow("Enter {min} or more.", { min: field.min }),
+          );
         else if (field.max !== undefined && number > field.max)
-          problems.set(field.id, `Enter ${field.max} or less.`);
+          problems.set(
+            field.id,
+            tNow("Enter {max} or less.", { max: field.max }),
+          );
       }
       entries.push([field.id, field.type === "number" ? Number(value) : value]);
     }
@@ -234,7 +249,7 @@ function FormEntry({
       caption={args.description}
       action={
         <Badge tone={finished ? "positive" : "caution"}>
-          {finished ? "Submitted" : "Waiting on you"}
+          {finished ? tNow("Submitted") : t("Waiting on you")}
         </Badge>
       }
     >
@@ -251,14 +266,16 @@ function FormEntry({
                   <dd className="whitespace-pre-wrap break-words font-medium">
                     {Object.hasOwn(answer.values, field.id)
                       ? answer.values[field.id]
-                      : "Not provided"}
+                      : t("Not provided")}
                   </dd>
                 </div>
               ))}
             </dl>
           ) : (
             <p className="text-sm text-muted-foreground">
-              This form has been completed. Its saved answers are unavailable.
+              {t(
+                "This form has been completed. Its saved answers are unavailable.",
+              )}
             </p>
           )}
         </div>
@@ -273,8 +290,9 @@ function FormEntry({
           className="space-y-4"
         >
           <p className="text-xs text-muted-foreground">
-            Fields marked * are required. Your answers will be shared with the
-            Bot.
+            {t(
+              "Fields marked * are required. Your answers will be shared with the Bot.",
+            )}
           </p>
           {args.fields.map((field) => {
             const id = `${prefix}-${field.id}`;
@@ -325,7 +343,7 @@ function FormEntry({
                     className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
                     onChange={(event) => change(event.target.value)}
                   >
-                    <option value="">Choose an option</option>
+                    <option value="">{t("Choose an option")}</option>
                     {field.options?.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -365,12 +383,14 @@ function FormEntry({
           })}
           {failure && (
             <p role="alert" className="text-sm text-destructive">
-              Your answers could not be sent. Try again.
+              {t("Your answers could not be sent. Try again.")}
             </p>
           )}
           <div className="flex justify-end border-t border-border pt-3">
             <Button type="submit" size="sm" disabled={sending || !respond}>
-              {sending ? "Sending…" : (args.submitLabel ?? "Submit answers")}
+              {sending
+                ? tNow("Sending…")
+                : (args.submitLabel ?? t("Submit answers"))}
             </Button>
           </div>
         </form>
@@ -382,7 +402,7 @@ function FormEntry({
 export const GALLERY: GalleryComponent[] = [
   {
     name: "askForm",
-    title: "Form",
+    title: tNow("Form"),
     kind: "decision",
     description:
       "Ask the person to fill in a short form and WAIT for their answers. Use when several related details are needed together. Provide up to eight labeled text, email, number, select, or textarea fields with unique IDs. Mark required fields and give options for selects. Never request passwords or secrets. The result has status submitted and values keyed by field ID; numbers are returned as numbers and blank optional fields are omitted.",
@@ -391,25 +411,40 @@ export const GALLERY: GalleryComponent[] = [
     preview: {
       status: "executing",
       args: {
-        title: "Plan your next project",
-        description: "A few details to prepare a useful first draft.",
+        title: tNow("Plan your next project"),
+        description: tNow("A few details to prepare a useful first draft."),
         fields: [
-          { id: "team", label: "Team name", type: "text", required: true },
-          { id: "email", label: "Work email", type: "email", required: true },
+          {
+            id: "team",
+            label: tNow("Team name"),
+            type: "text",
+            required: true,
+          },
+          {
+            id: "email",
+            label: tNow("Work email"),
+            type: "email",
+            required: true,
+          },
           {
             id: "priority",
-            label: "Priority",
+            label: tNow("Priority"),
             type: "select",
-            options: ["This week", "This month", "Exploring"],
+            options: [tNow("This week"), tNow("This month"), tNow("Exploring")],
           },
-          { id: "seats", label: "People involved", type: "number", min: 1 },
+          {
+            id: "seats",
+            label: tNow("People involved"),
+            type: "number",
+            min: 1,
+          },
           {
             id: "notes",
-            label: "What would a good outcome look like?",
+            label: tNow("What would a good outcome look like?"),
             type: "textarea",
           },
         ],
-        submitLabel: "Prepare my brief",
+        submitLabel: tNow("Prepare my brief"),
       },
       respond: async () => {},
     },

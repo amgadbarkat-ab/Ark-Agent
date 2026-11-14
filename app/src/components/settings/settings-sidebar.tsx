@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { tNow, useT } from "@/lib/i18n";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 
@@ -36,7 +37,7 @@ const ITEMS: {
   title: string;
 }[] = [
   {
-    title: "General",
+    title: tNow("General"),
     icon: IconSettings,
     /* `/settings` prefixes every other route here, and would otherwise light up on all of them. */
     exact: true,
@@ -44,19 +45,19 @@ const ITEMS: {
   },
   {
     /* Where the model behind every coworker comes from: on this computer, free, or your own key. */
-    title: "Models",
+    title: tNow("Models"),
     icon: IconCpu,
     linkOptions: { to: "/settings/models" },
   },
   {
     /* What is bought, and how many coworkers it lets work at once. */
-    title: "Plan",
+    title: tNow("Plan"),
     icon: IconCreditCard,
     linkOptions: { to: "/settings/plan" },
   },
   {
     /* A copy of what is held about you, and a way to have it removed. */
-    title: "Your data",
+    title: tNow("Your data"),
     icon: IconShieldLock,
     linkOptions: { to: "/settings/privacy" },
   },
@@ -65,19 +66,19 @@ const ITEMS: {
      * The same subject as Admin's Plugins, from the other side: there an administrator decides what
      * this deployment may reach at all, here you decide what it may reach as you.
      */
-    title: "Connect your Data",
+    title: tNow("Connect your Data"),
     icon: IconPlug,
     linkOptions: { to: "/settings/connected-accounts" },
   },
   {
     /* Being rung about a request that waits for you (P2 idea 10); off unless a deployment offers it. */
-    title: "Phone approval",
+    title: tNow("Phone approval"),
     icon: IconPhone,
     linkOptions: { to: "/settings/phone-approval" },
   },
   {
     /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */
-    title: "Components gallery",
+    title: tNow("Components gallery"),
     icon: IconLayoutGrid,
     linkOptions: { to: "/settings/components-gallery" },
   },
@@ -86,6 +87,7 @@ const ITEMS: {
 export function SettingsSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const t = useT();
   return (
     <Sidebar {...props}>
       {/* Matched to the app sidebar's header, as Admin's is. See admin-sidebar.tsx. */}
@@ -96,7 +98,7 @@ export function SettingsSidebar({
               render={(props) => (
                 <Link {...appLinkOptions} {...props}>
                   <IconArrowLeft className="mr-2 h-4 w-4" />
-                  Back to app
+                  {t("Back to app")}
                 </Link>
               )}
             />

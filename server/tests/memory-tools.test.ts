@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MemoryRefusedError, type Memory } from "../src/memories/store";
+import { type Memory, MemoryRefusedError } from "../src/memories/store";
 import { memoryTools } from "../src/memories/tools";
 
 const memory = (id: string, content = "x"): Memory => ({

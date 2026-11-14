@@ -19,6 +19,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   enableComposioAppMutationOptions,
   invalidatePlugins,
@@ -62,6 +63,7 @@ export function matchingApps(apps: ComposioApp[]): ComposioApp[] {
 }
 
 function RouteComponent() {
+  const t = useT();
   const [search, setSearch] = React.useState("");
   /*
    * Debounced, as on People, and for a stronger reason: every distinct term is a cache key of its
@@ -128,13 +130,20 @@ function RouteComponent() {
 
   return (
     <PageShell
-      backButton={{ label: "Plugins", linkProps: { to: "/admin/plugins" } }}
-      description="Composio's own directory. Adding an app makes its tools available to grant; each person still connects their own account before any of them reads anything."
-      title="Browse Composio"
+      backButton={{
+        label: tNow("Plugins"),
+        linkProps: { to: "/admin/plugins" },
+      }}
+      description={t(
+        "Composio's own directory. Adding an app makes its tools available to grant; each person still connects their own account before any of them reads anything.",
+      )}
+      title={t("Browse Composio")}
     >
       <PageSection
-        description="Search by name. The directory is too long to read, and nothing here has been reviewed by this deployment."
-        title="Apps"
+        description={t(
+          "Search by name. The directory is too long to read, and nothing here has been reviewed by this deployment.",
+        )}
+        title={t("Apps")}
       >
         {enableError ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -143,10 +152,10 @@ function RouteComponent() {
         ) : null}
 
         <Input
-          aria-label="Search Composio apps"
+          aria-label={t("Search Composio apps")}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by app name"
+          placeholder={t("Search by app name")}
           value={search}
         />
 
@@ -160,13 +169,15 @@ function RouteComponent() {
              * the fallback for a failure that arrived carrying no message of its own.
              */}
             {apps.error.message ||
-              "Composio's app directory could not be read."}
+              t("Composio's app directory could not be read.")}
           </p>
         ) : listed.length === 0 ? (
           <PageEmpty>
             {query
-              ? `Nothing in Composio's directory matches "${query}".`
-              : "Composio returned no apps."}
+              ? t('Nothing in Composio\'s directory matches "{query}".', {
+                  query: query,
+                })
+              : t("Composio returned no apps.")}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -189,13 +200,15 @@ function RouteComponent() {
                     </ItemMedia>
                     <ItemContent>
                       <ItemTitle>{entry.name}</ItemTitle>
-                      <ItemDescription>{entry.description}</ItemDescription>
+                      <ItemDescription>
+                        {sentenceNow(entry.description)}
+                      </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       {/* The size of the decision, stated before it is made: an app is not one
                           tool, and "167 actions" is what says so. */}
                       <span className="text-muted-foreground text-xs">
-                        {entry.actionCount} actions
+                        {tNow("{count} actions", { count: entry.actionCount })}
                       </span>
                       {/*
                        * An app this deployment already has says so rather than offering Add again.
@@ -204,7 +217,7 @@ function RouteComponent() {
                        */}
                       {entry.enabled ? (
                         <span className="text-muted-foreground text-xs">
-                          Added
+                          {t("Added")}
                         </span>
                       ) : (
                         <Button
@@ -213,7 +226,7 @@ function RouteComponent() {
                           size="sm"
                           variant="outline"
                         >
-                          {isAdding ? "Adding…" : "Add"}
+                          {isAdding ? tNow("Adding…") : tNow("Add")}
                         </Button>
                       )}
                     </ItemActions>

@@ -1,10 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { termsVersionOf } from "../shared/terms";
 import {
   createApplicationConfiguration,
   loadTenantPackage,
 } from "../server/src/tenant-package";
+import { termsVersionOf } from "../shared/terms";
 
 const projectRoot = resolve(import.meta.dir, "..");
 const configuredTenantPackageDirectory = process.env.TENANT_PACKAGE_DIR;

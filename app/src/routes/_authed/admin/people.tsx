@@ -22,15 +22,16 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { dateLocale, tNow, useT } from "@/lib/i18n";
 import {
   setPersonAccessMutationOptions,
   setPersonRoleMutationOptions,
 } from "@/lib/people/mutations";
+import { type Person, peopleListQueryOptions } from "@/lib/people/queries";
 import {
   erasePersonMutationOptions,
   personExportPath,
 } from "@/lib/privacy/mutations";
-import { type Person, peopleListQueryOptions } from "@/lib/people/queries";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/admin/people")({
@@ -55,18 +56,24 @@ function describe(person: Person): string {
     .map((provider) => PROVIDER_NAMES[provider] ?? provider)
     .join(", ");
   const when = person.lastSignedInAt
-    ? `last signed in ${new Date(person.lastSignedInAt).toLocaleDateString()}`
-    : "never signed in";
+    ? tNow("last signed in {date}", {
+        date: new Date(person.lastSignedInAt).toLocaleDateString(dateLocale()),
+      })
+    : tNow("never signed in");
 
   if (person.revoked)
-    return `Access removed · ${providers || "no provider"} · ${when}`;
+    return tNow("Access removed · {value1} · {when}", {
+      value1: providers || "no provider",
+      when: when,
+    });
   if (person.configuredAdmin) {
-    return `Administrator by configuration · ${when}`;
+    return tNow("Administrator by configuration · {when}", { when: when });
   }
   return `${providers || "no provider"} · ${when}`;
 }
 
 function PeoplePage() {
+  const t = useT();
   const [search, setSearch] = useState("");
   /*
    * Debounced, so typing a name is one request rather than one per keystroke against an aggregate
@@ -96,12 +103,16 @@ function PeoplePage() {
 
   return (
     <PageShell
-      description="Everybody who has signed in. Administrators reach these screens; everybody else talks to digital employees."
-      title="People"
+      description={t(
+        "Everybody who has signed in. Administrators reach these screens; everybody else talks to digital employees.",
+      )}
+      title={t("People")}
     >
       <PageSection
-        description="An address named in INITIAL_ADMIN_EMAILS is an administrator whatever this screen says, so it cannot be changed here."
-        title="Who is here"
+        description={t(
+          "An address named in INITIAL_ADMIN_EMAILS is an administrator whatever this screen says, so it cannot be changed here.",
+        )}
+        title={t("Who is here")}
       >
         {failure ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
@@ -113,22 +124,22 @@ function PeoplePage() {
           is the opposite of what somebody looking for a colleague needs.
         */}
         <Input
-          aria-label="Search people"
+          aria-label={t("Search people")}
           className="mt-4"
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name or address"
+          placeholder={t("Search by name or address")}
           value={search}
         />
 
         {people.isPending ? null : people.error ? (
           <p className="mt-4 text-destructive text-sm" role="alert">
-            Could not load people.
+            {t("Could not load people.")}
           </p>
         ) : rows.length === 0 ? (
           <PageEmpty>
             {query
-              ? `Nobody here matches "${query}".`
-              : "Nobody has signed in yet. People appear here once they do."}
+              ? t('Nobody here matches "{query}".', { query: query })
+              : t("Nobody has signed in yet. People appear here once they do.")}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -157,7 +168,10 @@ function PeoplePage() {
                       </ItemDescription>
                       {erasing?.userId === person.id ? (
                         <Input
-                          aria-label={`Type ${person.email} to confirm removing their data`}
+                          aria-label={t(
+                            "Type {email} to confirm removing their data",
+                            { email: person.email },
+                          )}
                           autoFocus
                           className="mt-2"
                           onChange={(event) =>
@@ -166,7 +180,10 @@ function PeoplePage() {
                               typed: event.target.value,
                             })
                           }
-                          placeholder={`Type ${person.email} to confirm. This cannot be undone.`}
+                          placeholder={t(
+                            "Type {email} to confirm. This cannot be undone.",
+                            { email: person.email },
+                          )}
                           value={erasing.typed}
                         />
                       ) : null}
@@ -184,7 +201,7 @@ function PeoplePage() {
                             size="sm"
                             variant="ghost"
                           >
-                            Cancel
+                            {t("Cancel")}
                           </Button>
                           <Button
                             disabled={
@@ -204,7 +221,7 @@ function PeoplePage() {
                             size="sm"
                             variant="destructive"
                           >
-                            Erase data
+                            {t("Erase data")}
                           </Button>
                         </>
                       ) : (
@@ -217,7 +234,7 @@ function PeoplePage() {
                             download
                             href={personExportPath(person.id)}
                           >
-                            Export
+                            {t("Export")}
                           </a>
                           <Button
                             disabled={busy || isSelf}
@@ -227,7 +244,7 @@ function PeoplePage() {
                             size="sm"
                             variant="outline"
                           >
-                            Erase…
+                            {t("Erase…")}
                           </Button>
                         </>
                       )}
@@ -247,10 +264,12 @@ function PeoplePage() {
                         size="sm"
                         variant={person.revoked ? "outline" : "destructive"}
                       >
-                        {person.revoked ? "Restore" : "Remove"}
+                        {person.revoked ? tNow("Restore") : tNow("Remove")}
                       </Button>
                       <Switch
-                        aria-label={`Administrator: ${person.email}`}
+                        aria-label={t("Administrator: {email}", {
+                          email: person.email,
+                        })}
                         checked={person.role === "admin"}
                         disabled={busy || person.configuredAdmin || isSelf}
                         onCheckedChange={(checked) =>
@@ -281,7 +300,7 @@ function PeoplePage() {
             size="sm"
             variant="outline"
           >
-            {people.isFetchingNextPage ? "Loading…" : "Show more"}
+            {people.isFetchingNextPage ? tNow("Loading…") : t("Show more")}
           </Button>
         ) : null}
       </PageSection>

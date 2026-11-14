@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { openTeamChannelMutationOptions } from "@/lib/channels/mutations";
+import { useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -10,6 +11,7 @@ import { queryClient } from "@/query-client";
  * theirs. The same channel every time, with whoever is on the team now.
  */
 export function OpenTeamChannelButton() {
+  const t = useT();
   const navigate = useNavigate();
   const open = useMutation({
     ...openTeamChannelMutationOptions(queryClient),
@@ -30,7 +32,7 @@ export function OpenTeamChannelButton() {
         variant="ghost"
       >
         <IconUsersGroup />
-        Team channel
+        {t("Team channel")}
       </Button>
       {open.error ? (
         <p className="text-destructive text-xs" role="alert">

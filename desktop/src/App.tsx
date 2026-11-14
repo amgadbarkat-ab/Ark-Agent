@@ -12,6 +12,7 @@ import {
   needsAnthropicKey,
 } from "./HarnessPicker";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
+import { languageForApp, sentenceNow, tNow, useT } from "./i18n";
 import { asProblem, Failure, type Problem } from "./Problem";
 import {
   type HeldConfiguration,
@@ -92,6 +93,7 @@ function installationKeyFor(root: string, harness: HarnessChoice | null) {
 const SUGGESTED_QUESTION = "What is 17 times 23?";
 
 export function App() {
+  const t = useT();
   // The engine is looked at so the window knows it is answering; nothing on screen reads the answer now.
   const [, setEngine] = useState<EngineStatus | null>(null);
   const [blocker, setBlocker] = useState<Blocker | null>(null);
@@ -273,7 +275,7 @@ export function App() {
           )
         ) {
           // Already up from a previous window: show it, rather than a screen about it.
-          await invoke("show_openbot");
+          await invoke("show_openbot", { language: languageForApp() });
           setRunning(true);
           return;
         }
@@ -296,7 +298,7 @@ export function App() {
           setSteps((current) => settleProgress(current));
           setRunning(true);
           setRecoveryFailure(null);
-          await invoke("show_openbot");
+          await invoke("show_openbot", { language: languageForApp() });
         } catch (error) {
           if (active) {
             if (updateNeeded(asProblem(error))) updateOwed.current = true;
@@ -453,7 +455,7 @@ export function App() {
       // Changing the AI connection does not turn an existing installation into a first run.
       if (savedLaunch.current === installationKeyFor(root, nextHarness)) {
         setStep("home");
-        await invoke("show_openbot");
+        await invoke("show_openbot", { language: languageForApp() });
         return;
       }
       /*
@@ -589,7 +591,7 @@ export function App() {
   if (blockerFailure) {
     return (
       <main>
-        <h1>ArkAgent could not check Windows setup</h1>
+        <h1>{t("ArkAgent could not check Windows setup")}</h1>
         <Failure problem={blockerFailure} />
       </main>
     );
@@ -598,7 +600,7 @@ export function App() {
   if (blocker) {
     return (
       <main>
-        <h1>ArkAgent needs one thing first</h1>
+        <h1>{t("ArkAgent needs one thing first")}</h1>
         <div className="blocker">
           <h2>{titleFor(blocker)}</h2>
           <p>{instruction}</p>
@@ -610,11 +612,11 @@ export function App() {
   if (resuming || checkingResume) {
     return (
       <main>
-        <h1>{resuming ? "Starting ArkAgent" : "Opening ArkAgent"}</h1>
+        <h1>{resuming ? t("Starting ArkAgent") : t("Opening ArkAgent")}</h1>
         <p role="status">
           {resuming
-            ? "Opening your saved setup…"
-            : "Checking your saved setup…"}
+            ? t("Opening your saved setup…")
+            : t("Checking your saved setup…")}
         </p>
         <SetupProgress steps={steps} />
       </main>
@@ -646,20 +648,26 @@ export function App() {
     return (
       <main>
         <div className="sheet">
-          <p className="steps-of">Step 2 of 2</p>
+          <p className="steps-of">{t("Step 2 of 2")}</p>
           <h1>
             {displayedFailure
-              ? "ArkAgent is not ready yet"
+              ? t("ArkAgent is not ready yet")
               : installationReady
-                ? "Starting ArkAgent"
-                : "Installing ArkAgent"}
+                ? t("Starting ArkAgent")
+                : t("Installing ArkAgent")}
           </h1>
           <p className="lede">
             {displayedFailure
-              ? "Nothing you chose is lost. Try again, or go back and change the AI."
+              ? t(
+                  "Nothing you chose is lost. Try again, or go back and change the AI.",
+                )
               : model?.provider === "local"
-                ? "ArkAgent is installing what it needs and downloading the model beside it. It starts by itself when both are done."
-                : "ArkAgent is installing what it needs. It starts by itself when that is done."}
+                ? t(
+                    "ArkAgent is installing what it needs and downloading the model beside it. It starts by itself when both are done.",
+                  )
+                : t(
+                    "ArkAgent is installing what it needs. It starts by itself when that is done.",
+                  )}
           </p>
           <SetupProgress steps={steps} />
           {displayedFailure && <Failure problem={displayedFailure} />}
@@ -678,7 +686,7 @@ export function App() {
               disabled={busy}
               onClick={() => setStep("model")}
             >
-              Change the AI
+              {t("Change the AI")}
             </button>
             {/* Not while a first attempt is simply in progress, and still there, held, while a recovery
                 is: it is the button that carries on once the recovery is done. */}
@@ -688,7 +696,7 @@ export function App() {
                 disabled={busy}
                 onClick={() => void retry(model)}
               >
-                Try again
+                {t("Try again")}
               </button>
             )}
           </div>
@@ -712,7 +720,9 @@ export function App() {
           }
           onOpen={() => {
             savedLaunch.current = installationKey;
-            invoke("show_openbot").catch((error) => recoverFromStart(error));
+            invoke("show_openbot", { language: languageForApp() }).catch(
+              (error) => recoverFromStart(error),
+            );
           }}
           onBack={changeModelAfterAskFailure}
         />
@@ -776,9 +786,9 @@ export function App() {
                 }}
               />
               <details>
-                <summary>Where ArkAgent is installed</summary>
+                <summary>{t("Where ArkAgent is installed")}</summary>
                 <div className="field" style={{ marginTop: "0.6rem" }}>
-                  <label htmlFor="root">Installation folder</label>
+                  <label htmlFor="root">{t("Installation folder")}</label>
                   <input
                     id="root"
                     disabled={busy}
@@ -816,9 +826,9 @@ export function App() {
   if (!running) {
     return (
       <main>
-        <h1>ArkAgent is stopped</h1>
+        <h1>{t("ArkAgent is stopped")}</h1>
         <p className="lede">
-          Your installation and saved connections are ready to reopen.
+          {t("Your installation and saved connections are ready to reopen.")}
         </p>
         <SetupProgress steps={steps} />
         {displayedFailure?.database_reset && (
@@ -840,8 +850,8 @@ export function App() {
           {busy
             ? "Starting…"
             : updating
-              ? "Update and start"
-              : "Start ArkAgent"}
+              ? t("Update and start")
+              : t("Start ArkAgent")}
         </button>
         <button
           type="button"
@@ -849,7 +859,7 @@ export function App() {
           disabled={busy}
           onClick={() => setStep("model")}
         >
-          Change AI connection
+          {t("Change AI connection")}
         </button>
         {displayedFailure && (
           <button
@@ -858,11 +868,11 @@ export function App() {
             disabled={busy}
             onClick={() => void repair()}
           >
-            Repair installation
+            {t("Repair installation")}
           </button>
         )}
         <details>
-          <summary>Installation options</summary>
+          <summary>{t("Installation options")}</summary>
           <button
             type="button"
             className="quiet"
@@ -875,7 +885,7 @@ export function App() {
               setStep("model");
             }}
           >
-            Change installation
+            {t("Change installation")}
           </button>
         </details>
       </main>
@@ -890,13 +900,14 @@ export function App() {
           names the process that stopped is a screen arguing with itself. */}
         <h1>
           {displayedFailure
-            ? "ArkAgent needs attention"
-            : "ArkAgent is running"}
+            ? t("ArkAgent needs attention")
+            : t("ArkAgent is running")}
         </h1>
         {!displayedFailure && (
           <p className="lede">
-            The stack is up. ArkAgent is in this window; the menu bar has it
-            too, and stops it.
+            {t(
+              "The stack is up. ArkAgent is in this window; the menu bar has it too, and stops it.",
+            )}
           </p>
         )}
 
@@ -917,10 +928,12 @@ export function App() {
              * window threw it away. The Ask screen's copy of this call always showed it.
              */
             onClick={() =>
-              invoke("show_openbot").catch((error) => recoverFromStart(error))
+              invoke("show_openbot", { language: languageForApp() }).catch(
+                (error) => recoverFromStart(error),
+              )
             }
           >
-            Show ArkAgent
+            {t("Show ArkAgent")}
           </button>
           <button
             type="button"
@@ -928,7 +941,7 @@ export function App() {
             onClick={stop}
             disabled={busy}
           >
-            Stop ArkAgent
+            {t("Stop ArkAgent")}
           </button>
         </div>
       </div>
@@ -950,9 +963,10 @@ function settleProgress(steps: Progress[], problem?: Problem): Progress[] {
 }
 
 function SetupProgress({ steps }: { steps: Progress[] }) {
+  const t = useT();
   if (steps.length === 0) return null;
   return (
-    <ol className="steps" aria-label="Setup progress" aria-live="polite">
+    <ol className="steps" aria-label={t("Setup progress")} aria-live="polite">
       {steps.map((step) => (
         <SetupProgressRow key={step.step} step={step} />
       ))}
@@ -961,6 +975,7 @@ function SetupProgress({ steps }: { steps: Progress[] }) {
 }
 
 function SetupProgressRow({ step }: { step: Progress }) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(0);
   const running = step.running ?? false;
   // The first byte count this download reported, to measure a speed from. Cleared when the step stops.
@@ -987,28 +1002,30 @@ function SetupProgressRow({ step }: { step: Progress }) {
     return () => clearInterval(timer);
   }, [running]);
   return (
-    <li className="step" aria-label={label(step.step)}>
+    <li className="step" aria-label={sentenceNow(label(step.step))}>
       <span
         className={`mark ${running ? "active" : step.ok ? "good" : "bad"}`}
         aria-hidden="true"
       >
         {running ? <span className="step-spinner" /> : step.ok ? "✓" : "✗"}
       </span>
-      <span className="step-label">{label(step.step)}</span>
+      <span className="step-label">{sentenceNow(label(step.step))}</span>
       <span className="step-status">
-        {running ? "In progress" : step.ok ? "Complete" : "Failed"}
+        {running ? t("In progress") : step.ok ? t("Complete") : t("Failed")}
         {running && (
           <span className="step-elapsed" aria-hidden="true" aria-live="off">
             {" · "}
             {elapsed < 60
-              ? `${elapsed}s`
-              : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`}{" "}
-            elapsed
+              ? t("{seconds}s elapsed", { seconds: elapsed })
+              : t("{minutes}m {seconds}s elapsed", {
+                  minutes: Math.floor(elapsed / 60),
+                  seconds: elapsed % 60,
+                })}
           </span>
         )}
       </span>
       <span className="detail">
-        {step.detail}
+        {sentenceNow(step.detail)}
         {step.downloadBytes != null &&
           step.downloadTotal == null &&
           ` ${formatBytes(step.downloadBytes)} downloaded.`}
@@ -1027,15 +1044,15 @@ function SetupProgressRow({ step }: { step: Progress }) {
 function titleFor(blocker: Blocker): string {
   switch (blocker) {
     case "wsl-absent":
-      return "Windows Subsystem for Linux is not installed";
+      return tNow("Windows Subsystem for Linux is not installed");
     case "wsl-one":
-      return "Windows Subsystem for Linux is at version 1";
+      return tNow("Windows Subsystem for Linux is at version 1");
     case "virtual-machine-platform-disabled":
-      return "Virtual Machine Platform is switched off";
+      return tNow("Virtual Machine Platform is switched off");
     case "virtualization-disabled":
-      return "Virtualization is off in this machine's firmware";
+      return tNow("Virtualization is off in this machine's firmware");
     case "not-administrator":
-      return "This account cannot install Windows components";
+      return tNow("This account cannot install Windows components");
   }
 }
 
@@ -1043,33 +1060,33 @@ function label(step: string): string {
   switch (step) {
     case "engine":
     case "install-engine":
-      return "Container engine";
+      return tNow("Container engine");
     case "create-machine":
-      return "Engine machine";
+      return tNow("Engine machine");
     case "start-machine":
-      return "Starting the machine";
+      return tNow("Starting the machine");
     case "health-gate":
-      return "Engine answering";
+      return tNow("Engine answering");
     case "deployment":
-      return "Deployment";
+      return tNow("Deployment");
     case "env":
-      return "Settings";
+      return tNow("Settings");
     case "ports":
-      return "Ports";
+      return tNow("Ports");
     case "dependencies":
-      return "Dependencies";
+      return tNow("Dependencies");
     case "images":
-      return "Local software";
+      return tNow("Local software");
     case "installation":
-      return "Installation";
+      return tNow("Installation");
     case "answering":
-      return "Answering";
+      return tNow("Answering");
     case "services":
-      return "Containers";
+      return tNow("Containers");
     case "migrate":
-      return "Database";
+      return tNow("Database");
     case "model":
-      return "Model on this computer";
+      return tNow("Model on this computer");
     default:
       return step;
   }

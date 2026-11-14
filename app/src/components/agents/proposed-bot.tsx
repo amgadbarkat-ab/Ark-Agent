@@ -10,6 +10,7 @@ import {
   type ProposedBot,
   wasCreated,
 } from "@/lib/agents/proposal";
+import { tNow, useT } from "@/lib/i18n";
 
 /**
  * The coworker a Bot has written, put in front of the person before it exists.
@@ -63,6 +64,7 @@ export function ProposedBotCard({
   result,
   create,
 }: ProposedBotCardProps) {
+  const t = useT();
   const [sending, setSending] = useState<"create" | "decline" | null>(null);
   /**
    * A refusal from the server, kept on the card rather than answered with.
@@ -83,7 +85,7 @@ export function ProposedBotCard({
     const madeId = wasCreated(result) ? createdBotIdIn(result) : null;
     return (
       <GalleryFrame
-        action={<Badge tone="neutral">Done</Badge>}
+        action={<Badge tone="neutral">{t("Done")}</Badge>}
         title={titleFor(args.name, clashes)}
       >
         <p className="text-sm">{result}</p>
@@ -96,7 +98,7 @@ export function ProposedBotCard({
     return (
       <GalleryFrame title={titleFor(args.name, clashes)}>
         <p className="text-muted-foreground text-sm">
-          Writing the digital employee…
+          {t("Writing the digital employee…")}
         </p>
       </GalleryFrame>
     );
@@ -120,7 +122,7 @@ export function ProposedBotCard({
       setRefusal(
         cause instanceof Error
           ? cause.message
-          : "The digital employee was not created.",
+          : tNow("The digital employee was not created."),
       );
       return;
     }
@@ -138,33 +140,38 @@ export function ProposedBotCard({
 
   return (
     <GalleryFrame
-      action={<Badge tone="caution">Waiting on you</Badge>}
+      action={<Badge tone="caution">{t("Waiting on you")}</Badge>}
       caption={
         clashes
-          ? `There is already a ${clashes.title} here, which is ${clashes.ownership}. Names do not have to be unique, but two with the same name are hard to tell apart in a channel list.`
-          : "Nothing is created until you press the button."
+          ? t(
+              "There is already a {title} here, which is {ownership}. Names do not have to be unique, but two with the same name are hard to tell apart in a channel list.",
+              { title: clashes.title, ownership: clashes.ownership },
+            )
+          : t("Nothing is created until you press the button.")
       }
       title={titleFor(values.name, clashes)}
     >
       <dl className="grid grid-cols-[minmax(0,7rem)_1fr] gap-x-4 gap-y-1.5 text-sm">
-        <dt className="truncate text-muted-foreground">Name</dt>
+        <dt className="truncate text-muted-foreground">{t("Name")}</dt>
         <dd className="min-w-0 break-words font-medium">{values.name}</dd>
-        <dt className="truncate text-muted-foreground">Job</dt>
+        <dt className="truncate text-muted-foreground">{t("Job")}</dt>
         <dd className="min-w-0 break-words">{values.title}</dd>
-        <dt className="truncate text-muted-foreground">Skills</dt>
+        <dt className="truncate text-muted-foreground">{t("Skills")}</dt>
         <dd className="min-w-0 break-words">
           {skills.length > 0 ? (
             <span className="font-mono text-xs">
               {skills.map((slug) => `/${slug}`).join(", ")}
             </span>
           ) : (
-            <span className="text-muted-foreground">None</span>
+            <span className="text-muted-foreground">{t("None")}</span>
           )}
         </dd>
       </dl>
 
       <p className="mt-3 text-muted-foreground text-xs">
-        Its standing instructions. This text is given to a model on every turn.
+        {t(
+          "Its standing instructions. This text is given to a model on every turn.",
+        )}
       </p>
       {/*
        * Scrolled rather than clamped, and the distinction is the whole point of the card. A clamp
@@ -176,8 +183,9 @@ export function ProposedBotCard({
       </p>
 
       <p className="mt-2 text-muted-foreground text-xs">
-        It arrives private, with no address, no connector and no tool. Anything
-        it needs to reach is granted on its profile afterwards.
+        {t(
+          "It arrives private, with no address, no connector and no tool. Anything it needs to reach is granted on its profile afterwards.",
+        )}
       </p>
 
       {refusal ? (
@@ -192,7 +200,7 @@ export function ProposedBotCard({
           onClick={() => void make()}
           size="sm"
         >
-          {sending === "create" ? "Creating…" : "Create it"}
+          {sending === "create" ? tNow("Creating…") : t("Create it")}
         </Button>
         <Button
           disabled={Boolean(sending)}
@@ -200,7 +208,7 @@ export function ProposedBotCard({
           size="sm"
           variant="outline"
         >
-          {sending === "decline" ? "…" : "Don't create"}
+          {sending === "decline" ? "…" : t("Don't create")}
         </Button>
       </div>
     </GalleryFrame>
@@ -211,8 +219,14 @@ function titleFor(
   name: string | undefined,
   clashes: { title: string } | undefined,
 ): string {
-  const called = name?.trim() ? name.trim() : "a new digital employee";
-  return clashes ? `Create ${called}, again` : `Create ${called}`;
+  const called = name?.trim();
+  if (!called)
+    return clashes
+      ? tNow("Create a new digital employee, again")
+      : tNow("Create a new digital employee");
+  return clashes
+    ? tNow("Create {called}, again", { called })
+    : tNow("Create {name}", { name: called });
 }
 
 /**
@@ -235,7 +249,9 @@ function TalkToIt({
       search={{ agent: agentId }}
       to="/agents"
     >
-      Open {name?.trim() || "the digital employee"}
+      {name?.trim()
+        ? tNow("Open {name}", { name: name.trim() })
+        : tNow("Open the digital employee")}
     </Link>
   );
 }
@@ -254,6 +270,7 @@ function Unwritable({
   problems: string[];
   respond: (result: unknown) => Promise<void>;
 }) {
+  const t = useT();
   /**
    * Answered once, guarded by a ref rather than by the dependency list.
    *
@@ -270,12 +287,13 @@ function Unwritable({
 
   return (
     <GalleryFrame
-      action={<Badge tone="neutral">Not created</Badge>}
-      title="Create a digital employee"
+      action={<Badge tone="neutral">{t("Not created")}</Badge>}
+      title={t("Create a digital employee")}
     >
       <p className="text-sm">
-        The digital employee could not be created as written, so nothing was
-        asked of you. It is being redrafted.
+        {t(
+          "The digital employee could not be created as written, so nothing was asked of you. It is being redrafted.",
+        )}
       </p>
     </GalleryFrame>
   );

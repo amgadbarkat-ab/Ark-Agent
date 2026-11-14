@@ -19,12 +19,14 @@ import { agentListQueryOptions, isSharedWithYou } from "@/lib/agents/queries";
 import { routeMessage } from "@/lib/channels/route";
 import { useStartChannel } from "@/lib/channels/start";
 import { appConfig } from "@/lib/generated/application-config";
+import { tNow, txNow, useT } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authed/_app/")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
+  const t = useT();
   const {
     data: agents,
     isPending: loading,
@@ -57,7 +59,7 @@ function RouteComponent() {
             {appConfig.brand.productName}
           </h2>
           <h1 className="text-2xl font-bold tracking-tight mt-1.5 text-center">
-            Start a new channel
+            {t("Start a new channel")}
           </h1>
         </div>
         <div className="mt-8 w-full flex flex-col items-center">
@@ -93,7 +95,7 @@ function RouteComponent() {
                 setError(
                   caught instanceof Error
                     ? caught.message
-                    : "Could not start the conversation.",
+                    : tNow("Could not start the conversation."),
                 );
                 throw caught;
               }
@@ -105,9 +107,14 @@ function RouteComponent() {
             // kind of surprise that costs trust the first time it happens.
             <p className="mt-2 w-full max-w-2xl text-xs text-muted-foreground text-center">
               {fallback.primary && fallback.mine
-                ? `Sent to ${fallback.name}, who leads your team and passes work to the right colleague.`
-                : "Sent to the digital employee it is for."}{" "}
-              Type <code>@</code> to choose one yourself.
+                ? tNow(
+                    "Sent to {name}, who leads your team and passes work to the right colleague.",
+                    { name: fallback.name },
+                  )
+                : tNow("Sent to the digital employee it is for.")}{" "}
+              {txNow("Type {at} to choose one yourself.", {
+                at: <code>@</code>,
+              })}
             </p>
           ) : null}
           {error ? (
@@ -129,8 +136,9 @@ function RouteComponent() {
               className="mt-2 w-full max-w-2xl text-sm text-destructive"
               role="alert"
             >
-              Your digital employees couldn't be loaded, so there's no one to
-              send this to yet.
+              {t(
+                "Your digital employees couldn't be loaded, so there's no one to send this to yet.",
+              )}
             </p>
           ) : null}
         </div>
@@ -156,7 +164,7 @@ function RouteComponent() {
            */}
           {loading ? (
             <>
-              <h2 className="font-bold text-lg">Explore agents</h2>
+              <h2 className="font-bold text-lg">{t("Explore agents")}</h2>
               <Skeleton className="mt-4 h-[180px]" />
             </>
           ) : explore?.length ? (
@@ -165,7 +173,7 @@ function RouteComponent() {
             // nothing to explore, which would be false while this list is still populated.
             <Carousel opts={{ align: "start" }}>
               <div className="flex flex-row items-center justify-between gap-4">
-                <h2 className="font-bold text-lg">Explore agents</h2>
+                <h2 className="font-bold text-lg">{t("Explore agents")}</h2>
                 {/*
                  * `static` undoes the primitive's own absolute placement, which parks these either
                  * side of the row and off the edge of a prose-width column. They belong on the
@@ -198,11 +206,11 @@ function RouteComponent() {
             // card there would say the opposite of what a populated composer beside it (still
             // working off that same, successfully loaded `agents`) proves.
             <>
-              <h2 className="font-bold text-lg">Explore agents</h2>
+              <h2 className="font-bold text-lg">{t("Explore agents")}</h2>
               <Empty className="mt-4 h-[180px] border border-dashed border-destructive">
                 <EmptyHeader>
                   <EmptyTitle className="text-destructive">
-                    Agents shared with you couldn't be loaded.
+                    {t("Agents shared with you couldn't be loaded.")}
                   </EmptyTitle>
                 </EmptyHeader>
               </Empty>
@@ -212,11 +220,11 @@ function RouteComponent() {
             // when it failed but `agents` is defined — a loaded, empty slice either way. Same
             // plain copy for both: an empty roster is a fact, not an error.
             <>
-              <h2 className="font-bold text-lg">Explore agents</h2>
+              <h2 className="font-bold text-lg">{t("Explore agents")}</h2>
               <Empty className="mt-4 h-[180px] border border-dashed">
                 <EmptyHeader>
                   <EmptyTitle className="text-muted-foreground">
-                    Nobody has shared an agent with you yet.
+                    {t("Nobody has shared an agent with you yet.")}
                   </EmptyTitle>
                 </EmptyHeader>
               </Empty>

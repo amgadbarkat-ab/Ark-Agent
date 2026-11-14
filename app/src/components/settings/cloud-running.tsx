@@ -48,13 +48,16 @@ import {
   formatPeriod,
   formatRate,
 } from "@/lib/cloud/queries";
+import { tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 const CHARGE_WORDS: Record<CloudChargeView["status"], string> = {
-  charged: "Charged to your plan's payment method.",
-  carried: "Too small to charge by itself, so it is added to the next month.",
-  pending: "Waiting to be charged.",
-  checking: "Being confirmed with the payment service.",
+  charged: tNow("Charged to your plan's payment method."),
+  carried: tNow(
+    "Too small to charge by itself, so it is added to the next month.",
+  ),
+  pending: tNow("Waiting to be charged."),
+  checking: tNow("Being confirmed with the payment service."),
   waived: "Not charged.",
 };
 
@@ -67,6 +70,7 @@ const CHARGE_WORDS: Record<CloudChargeView["status"], string> = {
  * The server's verdicts (`addOn`, `priced`, `enabled`, `atCap`) are shown as given.
  */
 export function CloudRunningSection() {
+  const t = useT();
   const overview = useQuery(cloudQueryOptions());
   const [open, setOpen] = useState(false);
 
@@ -74,7 +78,7 @@ export function CloudRunningSection() {
   if (overview.error || !overview.data) {
     return (
       <p className="mt-4 text-destructive text-sm" role="alert">
-        Could not load cloud running.
+        {t("Could not load cloud running.")}
       </p>
     );
   }
@@ -83,8 +87,10 @@ export function CloudRunningSection() {
 
   return (
     <PageSection
-      description="Your digital employees can run on your own computer at no charge. Letting them run on Ark's computers is optional: you pay what it costs us, for the time they are working, and never more than the limit you set."
-      title="Cloud running"
+      description={t(
+        "Your digital employees can run on your own computer at no charge. Letting them run on Ark's computers is optional: you pay what it costs us, for the time they are working, and never more than the limit you set.",
+      )}
+      title={t("Cloud running")}
     >
       <PageRows>
         <Item
@@ -95,7 +101,7 @@ export function CloudRunningSection() {
             <IconCloud />
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>Run in Ark's cloud</ItemTitle>
+            <ItemTitle>{t("Run in Ark's cloud")}</ItemTitle>
             <ItemDescription className="line-clamp-none">
               {summary(cloud)}
             </ItemDescription>
@@ -115,18 +121,22 @@ export function CloudRunningSection() {
                 <ItemTitle>{formatPeriod(cloud.period)}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
                   {cloud.atCap
-                    ? "The limit is reached, so no more cloud runs start this month. Raise it or wait for next month."
+                    ? t(
+                        "The limit is reached, so no more cloud runs start this month. Raise it or wait for next month.",
+                      )
                     : cloud.nearCap
-                      ? "Close to the limit."
+                      ? t("Close to the limit.")
                       : cloud.usageLines.length > 0
                         ? cloud.usageLines.join(" · ")
-                        : "Nothing used yet."}
+                        : t("Nothing used yet.")}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <span className="text-muted-foreground text-sm">
-                  {formatEur(cloud.chargeSoFarCents)} of{" "}
-                  {formatEur(cloud.monthlyCapCents)}
+                  {tNow("{spent} of {limit}", {
+                    spent: formatEur(cloud.chargeSoFarCents),
+                    limit: formatEur(cloud.monthlyCapCents),
+                  })}
                 </span>
               </ItemActions>
             </Item>
@@ -170,38 +180,47 @@ export function CloudRunningSection() {
 /** The current answer, not the field's name. */
 function summary(cloud: CloudOverview["cloud"]): string {
   if (!cloud.priced || !cloud.rates) {
-    return "Not available yet. For now, run your digital employees on your own computer.";
+    return tNow(
+      "Not available yet. For now, run your digital employees on your own computer.",
+    );
   }
   if (cloud.enabled && cloud.ratesChanged) {
-    return "The prices changed. Cloud runs are paused until you agree to the new ones.";
+    return tNow(
+      "The prices changed. Cloud runs are paused until you agree to the new ones.",
+    );
   }
   if (cloud.enabled) {
-    return `On. Up to ${formatEur(cloud.monthlyCapCents)} a month, charged once a month.`;
+    return tNow("On. Up to {formatEur} a month, charged once a month.", {
+      formatEur: formatEur(cloud.monthlyCapCents),
+    });
   }
-  return `Off. ${formatRate(cloud.rates.computeCentsPerHour)} for each hour a digital employee is working, plus the payment fee.`;
+  return tNow(
+    "Off. {formatRate} for each hour a digital employee is working, plus the payment fee.",
+    { formatRate: formatRate(cloud.rates.computeCentsPerHour) },
+  );
 }
 
 function priceLines(rates: CloudRates): { label: string; value: string }[] {
   const lines = [
     {
-      label: "An hour of a digital employee working",
+      label: tNow("An hour of a digital employee working"),
       value: formatRate(rates.computeCentsPerHour),
     },
   ];
   if (rates.storageCentsPerGbMonth > 0) {
     lines.push({
-      label: "A gigabyte of storage for a month",
+      label: tNow("A gigabyte of storage for a month"),
       value: formatRate(rates.storageCentsPerGbMonth),
     });
   }
   if (rates.egressCentsPerGb > 0) {
     lines.push({
-      label: "A gigabyte sent out",
+      label: tNow("A gigabyte sent out"),
       value: formatRate(rates.egressCentsPerGb),
     });
   }
   lines.push({
-    label: "Payment fee, added so the fee is not ours to carry",
+    label: tNow("Payment fee, added so the fee is not ours to carry"),
     value:
       rates.paymentFeeFixedCents > 0
         ? `${rates.paymentFeePercent}% + ${formatRate(rates.paymentFeeFixedCents)}`
@@ -209,7 +228,7 @@ function priceLines(rates: CloudRates): { label: string; value: string }[] {
   });
   if (rates.marginPercent > 0) {
     lines.push({
-      label: "Added on top of the cost",
+      label: tNow("Added on top of the cost"),
       value: `${rates.marginPercent}%`,
     });
   }
@@ -265,6 +284,7 @@ function CloudForm({
   limits: CloudOverview["limits"];
   onDone: () => void;
 }) {
+  const t = useT();
   const [typed, setTyped] = useState(
     String(
       (cloud.enabled ? cloud.monthlyCapCents : cloud.defaultCapCents) / 100,
@@ -298,14 +318,14 @@ function CloudForm({
         <DialogTitle>
           {cloud.enabled
             ? cloud.ratesChanged
-              ? "The prices changed"
-              : "Cloud running"
-            : "Switch on cloud running"}
+              ? t("The prices changed")
+              : t("Cloud running")
+            : t("Switch on cloud running")}
         </DialogTitle>
         <DialogDescription>
-          You pay what it costs us to run your digital employees for you, and
-          nothing for the ones that run on your own computer. It is charged once
-          a month to your plan's payment method, with tax where it applies.
+          {t(
+            "You pay what it costs us to run your digital employees for you, and nothing for the ones that run on your own computer. It is charged once a month to your plan's payment method, with tax where it applies.",
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="mt-4 overflow-y-auto">
@@ -324,13 +344,13 @@ function CloudForm({
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">
-            Cloud running has not been priced yet.
+            {t("Cloud running has not been priced yet.")}
           </p>
         )}
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="cloud-cap">
-              Most to spend in a month (€)
+              {t("Most to spend in a month (€)")}
             </FieldLabel>
             <Input
               id="cloud-cap"
@@ -339,9 +359,13 @@ function CloudForm({
               value={typed}
             />
             <FieldDescription>
-              When this month's charge reaches it, new runs in the cloud stop
-              starting until next month or until you raise it. Between{" "}
-              {formatEur(limits.minCents)} and {formatEur(limits.maxCents)}.
+              {tNow(
+                "When this month's charge reaches it, new runs in the cloud stop starting until next month or until you raise it. Between {min} and {max}.",
+                {
+                  min: formatEur(limits.minCents),
+                  max: formatEur(limits.maxCents),
+                },
+              )}
             </FieldDescription>
           </Field>
           {needsAgreement ? (
@@ -354,16 +378,19 @@ function CloudForm({
                 }
               />
               <label htmlFor="cloud-agree">
-                I have read these prices and agree to be charged them for the
-                time my digital employees run in Ark's cloud.
+                {t(
+                  "I have read these prices and agree to be charged them for the time my digital employees run in Ark's cloud.",
+                )}
               </label>
             </div>
           ) : null}
         </FieldGroup>
         {typed.trim() !== "" && cents === null ? (
           <p className="mt-3 text-destructive text-sm" role="alert">
-            The limit is a number of euros between {formatEur(limits.minCents)}{" "}
-            and {formatEur(limits.maxCents)}.
+            {tNow("The limit is a number of euros between {min} and {max}.", {
+              min: formatEur(limits.minCents),
+              max: formatEur(limits.maxCents),
+            })}
           </p>
         ) : null}
         {failure ? (
@@ -374,7 +401,7 @@ function CloudForm({
       </DialogBody>
       <DialogFooter className="mt-4">
         <Button onClick={onDone} size="sm" type="button" variant="ghost">
-          Close
+          {t("Close")}
         </Button>
         {cloud.enabled ? (
           <Button
@@ -384,7 +411,7 @@ function CloudForm({
             type="button"
             variant="outline"
           >
-            {disable.isPending ? "Switching off…" : "Switch off"}
+            {disable.isPending ? t("Switching off…") : t("Switch off")}
           </Button>
         ) : null}
         {cloud.enabled && !cloud.ratesChanged ? (
@@ -396,7 +423,7 @@ function CloudForm({
             size="sm"
             type="button"
           >
-            {setCap.isPending ? "Saving…" : "Save limit"}
+            {setCap.isPending ? tNow("Saving…") : t("Save limit")}
           </Button>
         ) : (
           <Button
@@ -413,10 +440,10 @@ function CloudForm({
             type="button"
           >
             {enable.isPending
-              ? "Saving…"
+              ? tNow("Saving…")
               : cloud.enabled
-                ? "Agree to the new prices"
-                : "Switch on"}
+                ? t("Agree to the new prices")
+                : t("Switch on")}
           </Button>
         )}
       </DialogFooter>

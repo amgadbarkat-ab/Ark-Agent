@@ -24,6 +24,7 @@ import {
   agentQueryOptions,
 } from "@/lib/agents/queries";
 import { useStartChannel } from "@/lib/channels/start";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import { newId } from "../../../../lib/new-id";
 
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/_authed/_app/channel/new")({
 });
 
 function RouteComponent() {
+  const t = useT();
   const { agent } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { startChosen, pending } = useStartChannel();
@@ -76,9 +78,9 @@ function RouteComponent() {
   const urlAgentDetailFailed = needsUrlAgentDetail && detailError && !fetched;
   const loadError =
     rosterError && profiles === undefined
-      ? "Digital employees couldn't be loaded."
+      ? tNow("Digital employees couldn't be loaded.")
       : urlAgentDetailFailed
-        ? "Digital employee couldn't be loaded."
+        ? tNow("Digital employee couldn't be loaded.")
         : null;
   const recipients: Recipient[] = chosen
     ? [{ id: chosen.id, name: chosen.name }]
@@ -91,7 +93,7 @@ function RouteComponent() {
     <div className="flex h-full flex-col">
       <div className="h-12 border-b border-border sticky top-0 flex flex-row px-2 items-center">
         <SidebarToggle className="mr-1" />
-        <span className="text-sm text-muted-foreground">To:</span>
+        <span className="text-sm text-muted-foreground">{t("To:")}</span>
         <Combobox
           // Do not auto-open when the recipient came from the URL; the field is already answered.
           defaultOpen={!chosen && !loadError && !waitingForUrlAgent}
@@ -116,20 +118,20 @@ function RouteComponent() {
             // the caret starts here whenever the recipient question is still open. Same condition
             // as `defaultOpen` — a recipient from the URL means the composer takes focus instead.
             autoFocus={!chosen}
-            placeholder="Choose a digital employee…"
+            placeholder={t("Choose a digital employee…")}
             // InputGroup owns focus rings via `has-[…:focus-visible]`; disable that wrapper ring here.
             className="border-none w-full bg-transparent! text-sm has-[[data-slot=input-group-control]:focus-visible]:ring-0"
           />
           {/* Allow max-w to constrain the popup even though its anchor is full-width. */}
           <ComboboxContent className="min-w-0 max-w-lg" sideOffset={12}>
-            <ComboboxEmpty>No agents found.</ComboboxEmpty>
+            <ComboboxEmpty>{t("No agents found.")}</ComboboxEmpty>
             <ComboboxList>
               {(item: AgentProfile) => (
                 <ComboboxItem key={item.id} value={item} className="h-10">
                   <ChannelAvatar participantIds={[item.id]} size={24} />
                   {item.name}
                   <span className="truncate text-muted-foreground ml-1">
-                    {item.title}
+                    {sentenceNow(item.title)}
                   </span>
                 </ComboboxItem>
               )}
@@ -186,7 +188,7 @@ function RouteComponent() {
             setError(
               caught instanceof Error
                 ? caught.message
-                : "Could not start the conversation.",
+                : tNow("Could not start the conversation."),
             );
             throw caught;
           }

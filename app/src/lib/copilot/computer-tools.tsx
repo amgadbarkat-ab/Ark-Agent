@@ -6,6 +6,7 @@ import { ComputerView } from "@/components/computer/computer-view";
 import { tryClient } from "@/lib/client";
 import { noteBrowsed, recordActivity } from "@/lib/computers/activity";
 import { type ControlState, readControl } from "@/lib/computers/control";
+import { tNow, useT } from "@/lib/i18n";
 import { useActiveBotHolder } from "./active-bot";
 import { reportComputerActivity } from "./computer-activity";
 
@@ -277,6 +278,7 @@ function didNotWork(outcome: ComputerOutcome): boolean {
 }
 
 export function ComputerTools() {
+  const t = useT();
   const bot = useActiveBotHolder();
 
   useFrontendTool({
@@ -407,7 +409,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Read the page"
+          label={t("Read the page")}
           detail={
             elements.length
               ? `${elements.length} thing${elements.length === 1 ? "" : "s"} it can act on`
@@ -459,8 +461,8 @@ export function ComputerTools() {
         running={status !== "complete"}
         label={
           outcomeOf(result).held === true
-            ? "Waiting for your approval to fill in"
-            : "Filled in"
+            ? t("Waiting for your approval to fill in")
+            : t("Filled in")
         }
         detail={
           // Never show typed values; identify only the target field.
@@ -507,8 +509,8 @@ export function ComputerTools() {
           running={status !== "complete"}
           label={
             outcome.held === true
-              ? "Waiting for your approval to click"
-              : "Clicked"
+              ? t("Waiting for your approval to click")
+              : tNow("Clicked")
           }
           detail={
             // Show refusal reason instead of an internal element ref.
@@ -560,8 +562,8 @@ export function ComputerTools() {
         running={status !== "complete"}
         label={
           outcomeOf(result).held === true
-            ? "Waiting for your approval to press"
-            : "Pressed"
+            ? t("Waiting for your approval to press")
+            : tNow("Pressed")
         }
         detail={typeof args?.key === "string" ? args.key : undefined}
         refused={outcomeOf(result).refused === true}
@@ -751,7 +753,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Listed files"
+          label={t("Listed files")}
           detail={
             outcome.refused === true || didNotWork(outcome)
               ? String(outcome.reason ?? "")
@@ -796,7 +798,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label="Read file"
+          label={t("Read file")}
           detail={
             outcome.refused === true
               ? String(outcome.reason ?? "")
@@ -873,7 +875,7 @@ export function ComputerTools() {
       return (
         <ToolLine
           running={status !== "complete"}
-          label="Ran a command"
+          label={t("Ran a command")}
           detail={
             outcome.refused === true
               ? String(outcome.reason ?? "")
@@ -954,7 +956,7 @@ export function ComputerTools() {
       return (
         <ActionLine
           running={status !== "complete"}
-          label={args?.append === true ? "Added to file" : "Saved file"}
+          label={args?.append === true ? t("Added to file") : t("Saved file")}
           // Show the path, never file contents.
           detail={
             outcome.refused === true
@@ -997,7 +999,7 @@ export function ComputerTools() {
     render: ({ result, status }) => (
       <ActionLine
         running={status !== "complete"}
-        label="Scrolled"
+        label={t("Scrolled")}
         refused={outcomeOf(result).refused === true}
         failed={didNotWork(outcomeOf(result))}
       />

@@ -1,7 +1,7 @@
 import {
   type BillingProvider,
-  BillingUnavailableError,
   BillingSignatureError,
+  BillingUnavailableError,
 } from "./provider";
 
 /**

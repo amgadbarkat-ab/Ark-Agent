@@ -1,5 +1,9 @@
-import { createHmac } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import { createHmac } from "node:crypto";
+import {
+  BillingSignatureError,
+  BillingUnavailableError,
+} from "../src/billing/provider";
 import { billingFromEnvironment } from "../src/billing/select";
 import {
   formEncode,
@@ -9,10 +13,6 @@ import {
   stripeBilling,
   stripeConfigProblems,
 } from "../src/billing/stripe";
-import {
-  BillingSignatureError,
-  BillingUnavailableError,
-} from "../src/billing/provider";
 import { setupStripe, tryStripeCheckout } from "../src/billing/stripe-setup";
 
 /**

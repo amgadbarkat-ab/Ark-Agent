@@ -11,8 +11,8 @@
  * unreachable is exercised too.
  */
 import dns from "node:dns";
-import net from "node:net";
 import { appendFileSync } from "node:fs";
+import net from "node:net";
 
 const FORBIDDEN = /(^|\.)copilotkit\.(ai|com|dev|app)$/i;
 const log = process.env.ARK_TRIPWIRE_LOG;

@@ -7,6 +7,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import {
   Item,
   ItemActions,
@@ -14,11 +15,11 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   setPluginGrantMutationOptions,
   setToolCallOutcomeMutationOptions,
@@ -37,20 +38,23 @@ const ON_CALL: {
   {
     value: "allow",
     title: "Run it",
-    description:
+    description: tNow(
       "The call goes out as soon as a digital employee makes it, after the boundaries are checked.",
+    ),
   },
   {
     value: "ask",
-    title: "Ask a person first",
-    description:
+    title: tNow("Ask a person first"),
+    description: tNow(
       "The call waits in the person's Requests with its exact arguments, and runs as shown only if they approve.",
+    ),
   },
   {
     value: "refuse",
-    title: "Never",
-    description:
+    title: tNow("Never"),
+    description: tNow(
       "Refused every time, whoever asks. The employee is told an administrator switched it off.",
+    ),
   },
 ];
 
@@ -71,6 +75,7 @@ export const Route = createFileRoute(
 )({ component: RouteComponent });
 
 function RouteComponent() {
+  const t = useT();
   const { key, tool: toolName } = useParams({
     from: "/_authed/admin/plugins/$key_/tools/$tool",
   });
@@ -114,14 +119,16 @@ function RouteComponent() {
 
   /* Nothing rather than a placeholder, so no sentence asserts anything while the fetch is open. */
   if (plugins.isPending) {
-    return <PageShell title="Tool">{null}</PageShell>;
+    return <PageShell title={t("Tool")}>{null}</PageShell>;
   }
 
   if (!tool) {
     return (
       <PageShell
         backButton={back}
-        description="This connector does not advertise a tool by that name."
+        description={t(
+          "This connector does not advertise a tool by that name.",
+        )}
         title={toolName}
       >
         {/*
@@ -130,8 +137,10 @@ function RouteComponent() {
          */}
         <PageEmpty>
           {server
-            ? "It may have been withdrawn since the tool list was last refreshed."
-            : "This deployment has not enabled that connector."}
+            ? t(
+                "It may have been withdrawn since the tool list was last refreshed.",
+              )
+            : t("This deployment has not enabled that connector.")}
         </PageEmpty>
       </PageShell>
     );
@@ -145,7 +154,10 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={tool.description || "This tool came with no description."}
+      description={
+        sentenceNow(tool.description) ||
+        t("This tool came with no description.")
+      }
       title={toolName}
     >
       {error ? (
@@ -157,10 +169,14 @@ function RouteComponent() {
       <PageSection
         description={
           tool.effect === "write"
-            ? "This tool changes something at the vendor. A boundary written about writes applies to it, and unless an administrator says otherwise below, a person approves each call first."
-            : "This tool only reads. A boundary written about writes does not apply to it."
+            ? t(
+                "This tool changes something at the vendor. A boundary written about writes applies to it, and unless an administrator says otherwise below, a person approves each call first.",
+              )
+            : t(
+                "This tool only reads. A boundary written about writes does not apply to it.",
+              )
         }
-        title="What it does"
+        title={t("What it does")}
       >
         <PageRows>
           {/*
@@ -170,10 +186,11 @@ function RouteComponent() {
            */}
           <Item size="sm">
             <ItemContent>
-              <ItemTitle>Effect</ItemTitle>
+              <ItemTitle>{t("Effect")}</ItemTitle>
               <ItemDescription>
-                Decided by the connector, not by the tool's name. Anything
-                unrecognised counts as a write.
+                {t(
+                  "Decided by the connector, not by the tool's name. Anything unrecognised counts as a write.",
+                )}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -184,7 +201,9 @@ function RouteComponent() {
                     : "text-muted-foreground text-xs"
                 }
               >
-                {tool.effect === "write" ? "changes things" : "reads"}
+                {tool.effect === "write"
+                  ? tNow("changes things")
+                  : tNow("reads")}
               </span>
             </ItemActions>
           </Item>
@@ -199,15 +218,24 @@ function RouteComponent() {
       <PageSection
         description={
           tool.onCallSet
-            ? "Set by an administrator for every digital employee that holds this tool."
+            ? t(
+                "Set by an administrator for every digital employee that holds this tool.",
+              )
             : tool.effect === "write"
-              ? "Not set, so the default applies: a tool that changes things asks a person first."
-              : "Not set, so the default applies: a tool that only reads runs."
+              ? t(
+                  "Not set, so the default applies: a tool that changes things asks a person first.",
+                )
+              : t(
+                  "Not set, so the default applies: a tool that only reads runs.",
+                )
         }
-        title="When a digital employee calls it"
+        title={t("When a digital employee calls it")}
       >
         <PageRows>
-          <div aria-label="When a digital employee calls it" role="radiogroup">
+          <div
+            aria-label={t("When a digital employee calls it")}
+            role="radiogroup"
+          >
             {ON_CALL.map((option, index) => {
               /*
                * The choice being saved, while it is saved: the radio would otherwise snap back to
@@ -222,8 +250,10 @@ function RouteComponent() {
                 <div key={option.value}>
                   <Item size="sm">
                     <ItemContent>
-                      <ItemTitle>{option.title}</ItemTitle>
-                      <ItemDescription>{option.description}</ItemDescription>
+                      <ItemTitle>{sentenceNow(option.title)}</ItemTitle>
+                      <ItemDescription>
+                        {sentenceNow(option.description)}
+                      </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       <input
@@ -265,20 +295,23 @@ function RouteComponent() {
               size="sm"
               variant="ghost"
             >
-              Use the default
+              {t("Use the default")}
             </Button>
           </div>
         ) : null}
       </PageSection>
 
       <PageSection
-        description="A digital employee may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between."
-        title="Bots"
+        description={t(
+          "A digital employee may call this tool only while its switch is on. Turning one off takes effect on the next call, with nothing cached in between.",
+        )}
+        title={t("Bots")}
       >
         {bots.length === 0 ? (
           <PageEmpty>
-            This deployment has no digital employees yet, so there is nobody to
-            grant this to.
+            {t(
+              "This deployment has no digital employees yet, so there is nobody to grant this to.",
+            )}
           </PageEmpty>
         ) : (
           <PageRows>
@@ -292,9 +325,15 @@ function RouteComponent() {
                       <ItemDescription>
                         {held
                           ? canCallBack(bot)
-                            ? "May call this tool. Every call is still checked against the boundaries and written to the audit trail."
-                            : "Granted, but this digital employee has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment."
-                          : "Cannot call this tool. It is not offered to the model at all, so it has nothing to refuse."}
+                            ? t(
+                                "May call this tool. Every call is still checked against the boundaries and written to the audit trail.",
+                              )
+                            : t(
+                                "Granted, but this digital employee has no credential for calling tools back, so every call is refused before it reaches the boundary. Issue one on its own page, or set AGENT_TOOL_TOKEN for the deployment.",
+                              )
+                          : t(
+                              "Cannot call this tool. It is not offered to the model at all, so it has nothing to refuse.",
+                            )}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -304,7 +343,10 @@ function RouteComponent() {
                        * flight, so switching one Bot does not freeze the rest of the list.
                        */}
                       <Switch
-                        aria-label={`Let ${bot.name} call ${toolName}`}
+                        aria-label={t("Let {name} call {toolName}", {
+                          name: bot.name,
+                          toolName: toolName,
+                        })}
                         checked={held}
                         disabled={
                           setGrant.isPending &&

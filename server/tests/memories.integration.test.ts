@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
 import type { AuditStore } from "../src/audit";
+import { createDatabase } from "../src/db/client";
+import { agents, users } from "../src/db/schema";
 import {
   createMemoryStore,
   MAX_MEMORIES_PER_AGENT,
@@ -13,8 +15,6 @@ import {
   MemoryRefusedError,
   memoryGuidance,
 } from "../src/memories/store";
-import { createDatabase } from "../src/db/client";
-import { agents, users } from "../src/db/schema";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const database = createDatabase(testDatabaseUrl(), TEST_POOL);

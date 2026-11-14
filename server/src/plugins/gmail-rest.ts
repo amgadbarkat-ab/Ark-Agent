@@ -298,6 +298,27 @@ function attachmentNames(message: Message): string[] {
     .filter((name): name is string => Boolean(name));
 }
 
+/**
+ * Gmail sends a message's snippet HTML-escaped ("didn&#39;t"), and the card that shows it and the
+ * model that reads it both want the characters (#109, DT Lab). `&amp;` last, so "&amp;lt;" stays
+ * the text "&lt;" rather than becoming "<".
+ */
+export function unescapeHtml(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_whole, code: string) =>
+      String.fromCodePoint(Number(code)),
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_whole, code: string) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    )
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+}
+
 /** One line per message in a listing. */
 function messageLine(message: Message): string {
   const parts = [
@@ -306,7 +327,7 @@ function messageLine(message: Message): string {
     `"${header(message, "Subject") ?? "(no subject)"}"`,
   ].filter(Boolean);
   const unread = message.labelIds?.includes("UNREAD") ? " (unread)" : "";
-  const preview = message.snippet ? ` — ${message.snippet}` : "";
+  const preview = message.snippet ? ` — ${unescapeHtml(message.snippet)}` : "";
   return `- ${parts.join(" · ")}${unread}${preview} · id: ${message.id}`;
 }
 

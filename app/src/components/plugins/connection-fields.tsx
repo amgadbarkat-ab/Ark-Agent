@@ -7,6 +7,7 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
+import { sentenceNow, tNow } from "@/lib/i18n";
 import type { BrokerField } from "@/lib/plugins/mutations";
 
 /**
@@ -111,7 +112,9 @@ export function ConnectionFields({
         <Item key={field.name} variant="muted">
           <ItemContent>
             <ItemTitle>
-              <label htmlFor={`${form}-${field.name}`}>{field.label}</label>
+              <label htmlFor={`${form}-${field.name}`}>
+                {sentenceNow(field.label)}
+              </label>
             </ItemTitle>
             {/* Unclamped: the app's own instructions are the point of the row, not a hint under it. */}
             {field.help ? (
@@ -134,7 +137,7 @@ export function ConnectionFields({
         </Item>
       ))}
       <Button className="self-end" disabled={busy} size="sm" type="submit">
-        {busy ? "Connecting…" : "Connect"}
+        {busy ? tNow("Connecting…") : tNow("Connect")}
       </Button>
     </form>
   );

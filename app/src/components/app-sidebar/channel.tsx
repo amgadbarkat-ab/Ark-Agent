@@ -28,6 +28,7 @@ import {
   renameChannelMutationOptions,
   setChannelPinnedMutationOptions,
 } from "@/lib/channels/mutations";
+import { tNow, useT } from "@/lib/i18n";
 import type { MessageListEmphasis } from "@/lib/settings/message-list";
 import { useTypedReveal } from "@/lib/typed-reveal";
 import { ChannelItemContent } from "./channel-item-content";
@@ -64,6 +65,7 @@ export const Channel = memo(function Channel({
   busy: boolean;
   emphasis: MessageListEmphasis;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   // Whether this row's channel is the one on screen, as a boolean, so navigating between
@@ -129,7 +131,7 @@ export const Channel = memo(function Channel({
             <ChannelItemContent
               participantIds={participantIds}
               name={name}
-              title={summary || lastMessage || "New conversation"}
+              title={summary || lastMessage || t("New conversation")}
               displayedTitle={threadTitle}
               lastMessageAt={lastMessageAt}
               emphasis={emphasis}
@@ -151,13 +153,13 @@ export const Channel = memo(function Channel({
             }}
           >
             {pinned ? <IconPinnedOff /> : <IconPin />}
-            {pinned ? "Unpin channel" : "Pin channel"}
+            {pinned ? t("Unpin channel") : t("Pin channel")}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => setRenaming(summary || lastMessage || "")}
           >
             <IconPencil />
-            Rename…
+            {t("Rename…")}
           </ContextMenuItem>
           <ContextMenuItem
             variant="destructive"
@@ -168,7 +170,7 @@ export const Channel = memo(function Channel({
             }}
           >
             <IconTrash />
-            Delete channel…
+            {t("Delete channel…")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -192,9 +194,9 @@ export const Channel = memo(function Channel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {name}?</DialogTitle>
+            <DialogTitle>{t("Delete {name}?", { name })}</DialogTitle>
             <DialogDescription>
-              The conversation will no longer appear for anyone in it.
+              {t("The conversation will no longer appear for anyone in it.")}
             </DialogDescription>
           </DialogHeader>
           {deleteChannel.error ? (
@@ -208,7 +210,7 @@ export const Channel = memo(function Channel({
               size="sm"
               variant="ghost"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               disabled={deleteChannel.isPending}
@@ -218,7 +220,7 @@ export const Channel = memo(function Channel({
               size="sm"
               variant="destructive"
             >
-              {deleteChannel.isPending ? "Deleting…" : "Delete"}
+              {deleteChannel.isPending ? tNow("Deleting…") : tNow("Delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -236,6 +238,7 @@ export function RenameChannelDialog(props: {
   current: string;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <Dialog
       onOpenChange={(open) => {
@@ -245,9 +248,9 @@ export function RenameChannelDialog(props: {
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rename conversation</DialogTitle>
+          <DialogTitle>{t("Rename conversation")}</DialogTitle>
           <DialogDescription>
-            Everyone in the conversation sees the new name.
+            {t("Everyone in the conversation sees the new name.")}
           </DialogDescription>
         </DialogHeader>
         <RenameChannelForm {...props} />
@@ -266,6 +269,7 @@ export function RenameChannelForm({
   current: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const rename = useMutation(renameChannelMutationOptions(queryClient));
   const [title, setTitle] = useState(current);
@@ -291,7 +295,7 @@ export function RenameChannelForm({
       }}
     >
       <Input
-        aria-label="Conversation name"
+        aria-label={t("Conversation name")}
         autoFocus
         maxLength={60}
         onChange={(event) => setTitle(event.target.value)}
@@ -304,14 +308,14 @@ export function RenameChannelForm({
       ) : null}
       <DialogFooter>
         <Button onClick={onClose} size="sm" type="button" variant="ghost">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           disabled={rename.isPending || !title.trim()}
           size="sm"
           type="submit"
         >
-          {rename.isPending ? "Saving…" : "Save"}
+          {rename.isPending ? tNow("Saving…") : tNow("Save")}
         </Button>
       </DialogFooter>
     </form>

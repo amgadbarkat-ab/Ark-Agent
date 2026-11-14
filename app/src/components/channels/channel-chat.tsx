@@ -38,11 +38,13 @@ import {
 } from "@/lib/channels/queries";
 import { useStartChannel } from "@/lib/channels/start";
 import { useActiveBot } from "@/lib/copilot/active-bot";
+import { chatLabels } from "@/lib/copilot/chat-labels";
 import { ConversationProvider } from "@/lib/copilot/conversation";
 import { afterMs, joinWithin } from "@/lib/copilot/join-thread";
 import { repairUnansweredToolCalls } from "@/lib/copilot/repair-history";
 import { stoppedReason } from "@/lib/copilot/stopped-turn";
 import { readThreadMessages } from "@/lib/copilot/thread-messages";
+import { tNow, useT } from "@/lib/i18n";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import {
   askChannelAgent,
@@ -114,13 +116,20 @@ export function channelHistoryNotice({
     historyAvailability === "unavailable" &&
     (historyReadFailed || (messageCount === 0 && lastMessageAt !== null))
   ) {
-    return "Earlier messages are temporarily unavailable. You can keep using this conversation.";
+    return tNow(
+      "Earlier messages are temporarily unavailable. You can keep using this conversation.",
+    );
   }
 
   if (unreadable > 0) {
     return unreadable === 1
-      ? "One earlier message could not be read and is not shown. The rest of this conversation is complete."
-      : `${unreadable} earlier messages could not be read and are not shown. The rest of this conversation is complete.`;
+      ? tNow(
+          "One earlier message could not be read and is not shown. The rest of this conversation is complete.",
+        )
+      : tNow(
+          "{unreadable} earlier messages could not be read and are not shown. The rest of this conversation is complete.",
+          { unreadable },
+        );
   }
 
   return null;
@@ -238,7 +247,9 @@ export function toMessageContent(
 function describeAttachments(attachments: readonly Attachment[]): string {
   if (attachments.length === 1) {
     const { filename } = uploadedAttachment(attachments[0]);
-    return filename ? `Sent ${filename}` : "Sent an attachment";
+    return filename
+      ? tNow("Sent {filename}", { filename: filename })
+      : tNow("Sent an attachment");
   }
   return `Sent ${attachments.length} attachments`;
 }
@@ -256,6 +267,7 @@ export function ChannelChat({
   channel: AgentChannel;
   runtimeAgentId: string;
 }) {
+  const t = useT();
   // The core attaches the frontend tool registry; direct agent runs do not.
   const { copilotkit } = useCopilotKit();
   // The `@` menu lists every digital employee; who is inside the channel is decided at send time.
@@ -669,14 +681,16 @@ export function ChannelChat({
       loadVoiceArchive(channel.id),
       new Promise<never>((_resolve, reject) => {
         voiceHistoryTimer = setTimeout(
-          () => reject(new Error("Voice history timed out")),
+          () => reject(new Error(tNow("Voice history timed out"))),
           2000,
         );
       }),
     ])
       .catch(() => {
         setVoiceContextNotice(
-          "Earlier voice context wasn’t available for this message. The agent may need you to repeat details from the call.",
+          tNow(
+            "Earlier voice context wasn’t available for this message. The agent may need you to repeat details from the call.",
+          ),
         );
         return cachedVoiceArchive(channel.id);
       })
@@ -804,7 +818,9 @@ export function ChannelChat({
     // Voice and typed requests share this turn boundary, including gaps between frontend tools.
     if (turnsRef.current > 0 || agentRef.current.isRunning) {
       throw new Error(
-        "The agent is still working on another request. Please wait or stop that task first.",
+        tNow(
+          "The agent is still working on another request. Please wait or stop that task first.",
+        ),
       );
     }
 
@@ -933,6 +949,7 @@ export function ChannelChat({
     // channel instance so an action continues this thread instead of looking for a default agent.
     <CopilotChatConfigurationProvider
       agentId={channelAgentId}
+      labels={chatLabels()}
       threadId={channel.threadId}
     >
       <ConversationProvider
@@ -1009,7 +1026,7 @@ export function ChannelChat({
                 <ConversationRequests channelId={channel.id} />
                 {voiceArchive.error && (
                   <p className="pb-2 text-sm text-destructive" role="alert">
-                    Voice chats couldn’t be loaded. Refresh to try again.
+                    {t("Voice chats couldn’t be loaded. Refresh to try again.")}
                   </p>
                 )}
                 {voiceContextNotice && (
@@ -1033,8 +1050,9 @@ export function ChannelChat({
                     className="pb-2 text-sm text-muted-foreground"
                     role="status"
                   >
-                    This digital employee has been deleted. The conversation
-                    stays readable, but it can no longer reply.
+                    {t(
+                      "This digital employee has been deleted. The conversation stays readable, but it can no longer reply.",
+                    )}
                   </p>
                 )}
               </>

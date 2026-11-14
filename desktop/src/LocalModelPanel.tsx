@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
+import { sentenceNow, tNow, useT } from "./i18n";
 import { asProblem, InlineFailure, type Problem } from "./Problem";
 
 /** One model this computer can run. Mirrors `local_setup::PlanModel`. */
@@ -49,14 +50,16 @@ export function gigabytes(bytes: number): string {
 function purpose(model: LocalModelOption): string {
   // Before "e4b", which its name also contains.
   if (model.id.includes("bolt")) {
-    return "Gemma 4 E4B tuned by NVIDIA for tool use, only if you choose it";
+    return tNow(
+      "Gemma 4 E4B tuned by NVIDIA for tool use, only if you choose it",
+    );
   }
   if (model.id.includes("26b")) {
-    return "Best for agents: plans and uses tools well";
+    return tNow("Best for agents: plans and uses tools well");
   }
-  if (model.id.includes("12b")) return "Strong at tools and long tasks";
-  if (model.id.includes("e4b")) return "Everyday writing and replies";
-  return "Smallest and quickest";
+  if (model.id.includes("12b")) return tNow("Strong at tools and long tasks");
+  if (model.id.includes("e4b")) return tNow("Everyday writing and replies");
+  return tNow("Smallest and quickest");
 }
 
 /**
@@ -79,6 +82,7 @@ export function LocalModelPanel({
   /** Whether there is a model to run: false on a computer too small for any. */
   onReady: (ready: boolean) => void;
 }) {
+  const t = useT();
   const [plan, setPlan] = useState<LocalModelPlan | null>(null);
   const [failure, setFailure] = useState<Problem | null>(null);
   const onReadyRef = useRef(onReady);
@@ -114,14 +118,14 @@ export function LocalModelPanel({
     return failure ? (
       <InlineFailure problem={failure} />
     ) : (
-      <p role="status">Looking at this computer…</p>
+      <p role="status">{t("Looking at this computer…")}</p>
     );
   }
 
   if (plan.recommendation.kind === "tooSmall") {
     return (
       <p className="caution" role="alert">
-        {plan.recommendation.said}
+        {sentenceNow(plan.recommendation.said)}
       </p>
     );
   }
@@ -131,12 +135,20 @@ export function LocalModelPanel({
   return (
     <div className="local-model">
       <p className="lede">
-        This computer has about {Math.round(plan.ramGib)} GB of memory
-        {plan.gpu ? " and a graphics card" : ""}. Choose the model ArkAgent
-        should run here.
+        {plan.gpu
+          ? t(
+              "This computer has about {ram} GB of memory and a graphics card. Choose the model ArkAgent should run here.",
+              { ram: Math.round(plan.ramGib) },
+            )
+          : t(
+              "This computer has about {ram} GB of memory. Choose the model ArkAgent should run here.",
+              { ram: Math.round(plan.ramGib) },
+            )}
       </p>
       <fieldset className="picker">
-        <legend className="sr-only">Model to run on this computer</legend>
+        <legend className="sr-only">
+          {t("Model to run on this computer")}
+        </legend>
         {plan.models.map((model) => (
           <label
             key={model.id}
@@ -156,27 +168,38 @@ export function LocalModelPanel({
             <span className="tile-name">{model.label}</span>
             <span className="tile-summary">
               {purpose(model)}
-              {model.licence ? ` · ${model.licence} licence` : ""} ·{" "}
-              {gigabytes(model.sizeBytes)}
+              {model.licence
+                ? ` · ${t("{licence} licence", { licence: model.licence })}`
+                : ""}{" "}
+              · {gigabytes(model.sizeBytes)}
             </span>
             {model.recommended && (
-              <span className="tile-note">Recommended for this computer</span>
+              <span className="tile-note">
+                {t("Recommended for this computer")}
+              </span>
             )}
             {model.ready && (
-              <span className="tile-note">Already on this computer</span>
+              <span className="tile-note">{t("Already on this computer")}</span>
             )}
           </label>
         ))}
       </fieldset>
       <p className="footnote">
         {selected?.ready && plan.ready
-          ? "It is already on this computer, so there is nothing to download."
-          : `ArkAgent downloads ${gigabytes(plan.toDownloadBytes)} while it installs, once, and then it works without internet.`}{" "}
-        It runs only on this computer, so what you write stays here, and it uses
-        the same tools and browser as any other AI. Bigger models plan and
-        follow long tasks much better; smaller ones download sooner.
-        {plan.gpu ? " Your graphics card is used to make it faster." : ""} You
-        can switch to your own key at any time.
+          ? t(
+              "It is already on this computer, so there is nothing to download.",
+            )
+          : t(
+              "ArkAgent downloads {value1} while it installs, once, and then it works without internet.",
+              { value1: gigabytes(plan.toDownloadBytes) },
+            )}{" "}
+        {t(
+          "It runs only on this computer, so what you write stays here, and it uses the same tools and browser as any other AI. Bigger models plan and follow long tasks much better; smaller ones download sooner.",
+        )}
+        {plan.gpu
+          ? ` ${t("Your graphics card is used to make it faster.")}`
+          : ""}{" "}
+        {t("You can switch to your own key at any time.")}
       </p>
       {failure && <InlineFailure problem={failure} />}
     </div>

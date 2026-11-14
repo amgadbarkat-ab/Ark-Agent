@@ -1,5 +1,6 @@
 import type { TriggerConfig, TriggerSuggestion } from "prompt-area/helpers";
 import { commandTrigger, mentionTrigger } from "prompt-area/helpers";
+import { tNow } from "@/lib/i18n";
 import { AGENT_TRIGGER, COMMAND_TRIGGER, type CommandOption } from "./draft";
 
 /**
@@ -58,7 +59,7 @@ export function agentTrigger(agents: readonly AgentOption[]): TriggerConfig {
     reopenOnChipClick: true,
     // The roster is every digital employee, not the channel's members (an `@` for somebody outside
     // the conversation starts one with them), so an empty menu means nobody matched what was typed.
-    emptyMessage: "No matching digital employees",
+    emptyMessage: tNow("No matching digital employees"),
     onSearch: (query): TriggerSuggestion[] =>
       agents
         .filter((agent) => matches(query, agent.name, agent.description))
@@ -83,7 +84,7 @@ export function slashCommandTrigger(
     char: COMMAND_TRIGGER,
     position: "start",
     accessibilityLabel: "command",
-    emptyMessage: "No matching commands",
+    emptyMessage: tNow("No matching commands"),
     onSearch: (query): TriggerSuggestion[] =>
       commands
         .filter((command) => matches(query, command.name, command.description))

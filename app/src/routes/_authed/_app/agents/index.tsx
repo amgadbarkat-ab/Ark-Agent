@@ -18,6 +18,7 @@ import {
   agentListQueryOptions,
   isSharedWithYou,
 } from "@/lib/agents/queries";
+import { useT } from "@/lib/i18n";
 
 /**
  * Creating and inspecting a digital employee are search-parameter states so the page remains mounted
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/_authed/_app/agents/")({
  * same place: the team at the top.
  */
 function DigitalTeamScreen() {
+  const t = useT();
   const { new: isCreating, agent: selectedAgentId } = Route.useSearch();
   const navigate = Route.useNavigate();
   /*
@@ -81,33 +83,41 @@ function DigitalTeamScreen() {
               variant="ghost"
             >
               <IconPlus />
-              Create your own
+              {t("Create your own")}
             </Button>
           </div>
         }
-        description="Everyone who works for you. Look after your team, hire a ready-made digital employee for a role, create your own, or share one with others."
-        title="Digital Team"
+        description={t(
+          "Everyone who works for you. Look after your team, hire a ready-made digital employee for a role, create your own, or share one with others.",
+        )}
+        title={t("Digital Team")}
       >
-        <PageSection title="Your digital team">
+        <PageSection title={t("Your digital team")}>
           <Roster
             agents={mine}
             emptyText={
               (shared?.length ?? 0) > 0
-                ? "You don't have digital employees of your own yet. The ones on the home page are shared with everybody here, and are listed under Shared with you below. Hire one, or create your own, to build a team that works for you."
-                : "You don't have any digital employees yet. Hire one below, or create your own."
+                ? t(
+                    "You don't have digital employees of your own yet. The ones on the home page are shared with everybody here, and are listed under Shared with you below. Hire one, or create your own, to build a team that works for you.",
+                  )
+                : t(
+                    "You don't have any digital employees yet. Hire one below, or create your own.",
+                  )
             }
             failed={failed}
-            failedText="Your digital team couldn't be loaded."
+            failedText={t("Your digital team couldn't be loaded.")}
             loading={loading}
           />
         </PageSection>
         <HireSection />
-        <PageSection title="Shared with you">
+        <PageSection title={t("Shared with you")}>
           <Roster
             agents={shared}
-            emptyText="Nobody has shared a digital employee with you yet."
+            emptyText={t("Nobody has shared a digital employee with you yet.")}
             failed={failed}
-            failedText="Digital employees shared with you couldn't be loaded."
+            failedText={t(
+              "Digital employees shared with you couldn't be loaded.",
+            )}
             loading={loading}
           />
         </PageSection>

@@ -5,13 +5,13 @@ import { Hono } from "hono";
 import { accountRoutes, adminAccountRoutes } from "../src/accounts/routes";
 import { createAccountStore } from "../src/accounts/store";
 import { manualBilling } from "../src/billing/manual";
-import { billingFromEnvironment } from "../src/billing/select";
 import {
   SANDBOX_SIGNATURE_HEADER,
   sandboxBilling,
   signSandboxBody,
 } from "../src/billing/sandbox";
 import { sandboxCheckoutRoutes } from "../src/billing/sandbox-routes";
+import { billingFromEnvironment } from "../src/billing/select";
 import { createBillingWebhook } from "../src/billing/webhook";
 import { createDatabase } from "../src/db/client";
 import {

@@ -9,6 +9,7 @@ import {
   ownBrowserQueryOptions,
   stopOwnBrowserMutationOptions,
 } from "@/lib/computers/own-browser";
+import { tNow, txNow, useT } from "@/lib/i18n";
 
 /**
  * The band that says a digital employee may be working in the person's own browser (desk #27).
@@ -24,6 +25,7 @@ import {
  * again. The desktop switch, in the desktop app's menu, turns the whole thing off.
  */
 export function OwnBrowserIndicator() {
+  const t = useT();
   const queryClient = useQueryClient();
   const nameFor = useBotNames();
   const status = useQuery(ownBrowserQueryOptions());
@@ -45,7 +47,7 @@ export function OwnBrowserIndicator() {
     const results = await Promise.all(ids.map((botId) => takeControl(botId)));
     if (results.some((state) => state === null)) {
       setProblem(
-        "Not every digital employee could be paused. Use Stop to end it.",
+        tNow("Not every digital employee could be paused. Use Stop to end it."),
       );
     }
     setHeldBy(ids);
@@ -73,21 +75,24 @@ export function OwnBrowserIndicator() {
         {heldBy ? (
           <>
             <span className="font-medium">
-              You have taken over your browser.
+              {t("You have taken over your browser.")}
             </span>{" "}
-            {names} will wait until you hand it back.
+            {tNow("{names} will wait until you hand it back.", { names })}
           </>
         ) : driving.length > 0 ? (
-          <>
-            <span className="font-medium">{names}</span>{" "}
-            {driving.length === 1 ? "is" : "are"} working in your browser now.
-            Payments, sending, submitting and deleting wait for your approval.
-          </>
+          txNow(
+            driving.length === 1
+              ? "{names} is working in your browser now. Payments, sending, submitting and deleting wait for your approval."
+              : "{names} are working in your browser now. Payments, sending, submitting and deleting wait for your approval.",
+            { names: <span className="font-medium">{names}</span> },
+          )
         ) : (
-          <>
-            <span className="font-medium">{names}</span>{" "}
-            {employees.length === 1 ? "can" : "can each"} use your browser.
-          </>
+          txNow(
+            employees.length === 1
+              ? "{names} can use your browser."
+              : "{names} can each use your browser.",
+            { names: <span className="font-medium">{names}</span> },
+          )
         )}
         {problem ? (
           <span className="ml-2 text-destructive">{problem}</span>
@@ -96,11 +101,11 @@ export function OwnBrowserIndicator() {
       <div className="flex items-center gap-2">
         {heldBy ? (
           <Button onClick={() => void handBack()} size="sm" variant="outline">
-            Hand back
+            {t("Hand back")}
           </Button>
         ) : (
           <Button onClick={() => void takeOver()} size="sm" variant="outline">
-            Take over
+            {t("Take over")}
           </Button>
         )}
         <Button
@@ -112,10 +117,10 @@ export function OwnBrowserIndicator() {
           size="sm"
           variant="destructive"
         >
-          {stop.isPending ? "Stopping…" : "Stop"}
+          {stop.isPending ? tNow("Stopping…") : tNow("Stop")}
         </Button>
         <Link className="text-muted-foreground underline" to="/admin/audit">
-          Activity
+          {t("Activity")}
         </Link>
       </div>
     </div>

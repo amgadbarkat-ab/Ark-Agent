@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Streamdown } from "streamdown";
 import { privacyNotice } from "@/lib/generated/privacy-notice";
-import { legalComponents } from "@/lib/legal-markdown";
+import { EnglishOnlyNote, legalComponents } from "@/lib/legal-markdown";
 
 /**
  * The privacy notice, public: a customer reads it before they sign up, and Google's sign-in consent
@@ -18,7 +18,8 @@ export const Route = createFileRoute("/privacy")({
 function PrivacyNotice() {
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-12">
-      <article className="text-sm">
+      <EnglishOnlyNote />
+      <article className="text-sm" lang="en">
         <Streamdown components={legalComponents}>{privacyNotice}</Streamdown>
       </article>
     </main>

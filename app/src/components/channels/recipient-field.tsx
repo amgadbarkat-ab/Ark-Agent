@@ -14,6 +14,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { agentListQueryOptions } from "@/lib/agents/queries";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 
 /**
  * Who a conversation that does not exist yet is with.
@@ -28,6 +29,7 @@ export function RecipientField({
   recipients: readonly Recipient[];
   onChange: (next: Recipient[]) => void;
 }) {
+  const t = useT();
   const { data: profiles } = useQuery(agentListQueryOptions());
   const [search, setSearch] = useState("");
 
@@ -42,7 +44,7 @@ export function RecipientField({
   return (
     <div className="border-b border-border px-4 py-2">
       <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center gap-1.5">
-        <span className="text-sm text-muted-foreground">To:</span>
+        <span className="text-sm text-muted-foreground">{t("To:")}</span>
 
         {recipients.map((recipient) => (
           <Button
@@ -54,16 +56,18 @@ export function RecipientField({
             <ChannelAvatar participantIds={[recipient.id]} size={16} />
             {recipient.name}
             <span aria-hidden>×</span>
-            <span className="sr-only">Remove {recipient.name}</span>
+            <span className="sr-only">
+              {tNow("Remove {name}", { name: recipient.name })}
+            </span>
           </Button>
         ))}
 
         {isFull ? null : (
           <InputGroup className="h-8 w-56 border-none bg-transparent">
             <InputGroupInput
-              aria-label="Choose a digital employee"
+              aria-label={t("Choose a digital employee")}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Choose a digital employee…"
+              placeholder={t("Choose a digital employee…")}
               value={search}
             />
             <InputGroupAddon />
@@ -90,13 +94,15 @@ export function RecipientField({
               >
                 <ChannelAvatar participantIds={[profile.id]} size={18} />
                 <span>{profile.name}</span>
-                <span className="text-muted-foreground">{profile.title}</span>
+                <span className="text-muted-foreground">
+                  {sentenceNow(profile.title)}
+                </span>
               </button>
             </li>
           ))}
           {matches.length === 0 ? (
             <li className="px-2 py-1.5 text-sm text-muted-foreground">
-              No digital employee by that name.
+              {t("No digital employee by that name.")}
             </li>
           ) : null}
         </ul>

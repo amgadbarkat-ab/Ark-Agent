@@ -6,7 +6,7 @@ import { type AppVariables, requireAdmin } from "../auth/guards";
 import type { Database } from "../db/client";
 import { users } from "../db/schema";
 import { createLimiter } from "../rate-limit";
-import { ErasureRefused, type ErasureDependencies, erasePerson } from "./erase";
+import { type ErasureDependencies, ErasureRefused, erasePerson } from "./erase";
 import { exportPerson } from "./export";
 
 type Middleware = MiddlewareHandler<{ Variables: AppVariables }>;

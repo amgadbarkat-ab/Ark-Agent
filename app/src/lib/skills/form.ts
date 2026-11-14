@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tNow } from "@/lib/i18n";
 
 /**
  * The four things a person decides about a skill.
@@ -15,27 +16,29 @@ export const skillFormSchema = z.object({
   slug: z
     .string()
     .trim()
-    .min(1, "A command is required.")
+    .min(1, tNow("A command is required."))
     .regex(
       /^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$/,
-      "Lower-case letters, numbers and hyphens, 2 to 40 characters.",
+      tNow("Lower-case letters, numbers and hyphens, 2 to 40 characters."),
     ),
   title: z
     .string()
     .trim()
-    .min(1, "A title is required.")
-    .max(120, "Title must be 120 characters or fewer."),
+    .min(1, tNow("A title is required."))
+    .max(120, tNow("Title must be 120 characters or fewer.")),
   /** Optional on the server too, which is why there is no minimum here. */
   summary: z
     .string()
     .trim()
-    .max(200, "The one-liner must be 200 characters or fewer."),
+    .max(200, tNow("The one-liner must be 200 characters or fewer.")),
   instructions: z
     .string()
     .trim()
     .min(
       1,
-      "Instructions are required — this is what the digital employee follows.",
+      tNow(
+        "Instructions are required — this is what the digital employee follows.",
+      ),
     ),
   /**
    * The tools this skill says it needs, as `<serverId>/<toolName>` refs.

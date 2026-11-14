@@ -1,13 +1,14 @@
 import type { ActivityMessage, Message } from "@ag-ui/core";
 import { queryOptions, useQuery } from "@tanstack/react-query";
+import { channelKeys } from "@/lib/channels/queries";
+import { client } from "@/lib/client";
+import { tNow } from "@/lib/i18n";
+import { queryClient } from "@/query-client";
 import type {
   SaveVoiceSessionInput,
   VoiceSessionPage,
   VoiceSessionRecord,
 } from "../../../../shared/voice-session";
-import { client } from "@/lib/client";
-import { channelKeys } from "@/lib/channels/queries";
-import { queryClient } from "@/query-client";
 import {
   forgetVoiceCall,
   recoverVoiceCalls,
@@ -99,7 +100,7 @@ export function saveVoiceSession(
       });
       const body = await response.json();
       if (!response.ok && !body.session)
-        throw new Error(body.error ?? "Could not save this voice chat.");
+        throw new Error(body.error ?? tNow("Could not save this voice chat."));
       const session: VoiceSessionRecord = body.session;
       forgetVoiceCall(session, ownerId);
       queryClient.setQueryData<VoiceSessionRecord[]>(
@@ -115,10 +116,12 @@ export function saveVoiceSession(
         saveError:
           (error instanceof Error
             ? error.message
-            : "Could not save this voice chat.") +
+            : tNow("Could not save this voice chat.")) +
           (recoverable
             ? ""
-            : " Keep this page open to retry; browser recovery is unavailable."),
+            : tNow(
+                " Keep this page open to retry; browser recovery is unavailable.",
+              )),
       });
     }
   })();
@@ -142,7 +145,7 @@ export function useVoiceArchive(channelId: string) {
           summary: null,
           summaryStatus: "failed",
           saveState: "unsaved",
-          saveError: "The page closed before saving was confirmed.",
+          saveError: tNow("The page closed before saving was confirmed."),
         })),
       enabled: false,
       gcTime: Infinity,
@@ -224,7 +227,12 @@ export function voiceArchiveContext(calls: readonly VoiceChatEntry[]): string {
     .slice(-6)
     .map(
       (call) =>
-        `Voice chat (${call.startedAt}):\n${call.summary ?? call.transcript.map((entry) => `${entry.role}: ${entry.text}`).join("\n")}`,
+        `Voice chat (${call.startedAt}):\n${
+          call.summary ??
+          call.transcript
+            .map((entry) => `${entry.role}: ${entry.text}`)
+            .join("\n")
+        }`,
     )
     .join("\n\n")
     .slice(-12000);

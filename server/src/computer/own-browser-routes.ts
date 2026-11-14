@@ -13,8 +13,8 @@
  */
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
-import { type AuditStore, recordAuditEvent } from "../audit";
 import type { BotAccessCheck } from "../agents/profile-policy";
+import { type AuditStore, recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
 import { desktopAuthorized } from "../host-access/routes";
 import {

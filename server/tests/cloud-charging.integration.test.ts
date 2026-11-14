@@ -1,7 +1,7 @@
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { chargeCents, type CloudRates } from "../../shared/cloud-pricing";
+import { type CloudRates, chargeCents } from "../../shared/cloud-pricing";
 import { createAccountStore } from "../src/accounts/store";
 import {
   BillingChargeUncertain,
