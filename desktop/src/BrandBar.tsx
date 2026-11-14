@@ -1,3 +1,5 @@
+import { useT } from "./i18n";
+
 const scene = new URL("./assets/arkagent-scene.jpg", import.meta.url).href;
 
 /**
@@ -10,6 +12,7 @@ const scene = new URL("./assets/arkagent-scene.jpg", import.meta.url).href;
  * throughout, so none of it is announced.
  */
 export function BrandBar() {
+  const t = useT();
   return (
     <aside className="brandside" aria-hidden="true">
       <div className="brandside-top">
@@ -24,9 +27,9 @@ export function BrandBar() {
       <span className="brandside-glow" />
       <img className="brandside-figure" src={scene} alt="" />
       <ul className="brandside-lines">
-        <li>Runs a written routine</li>
-        <li>A person keeps judgment</li>
-        <li>Hands off outside the procedure</li>
+        <li>{t("Runs a written routine")}</li>
+        <li>{t("A person keeps judgment")}</li>
+        <li>{t("Hands off outside the procedure")}</li>
       </ul>
     </aside>
   );

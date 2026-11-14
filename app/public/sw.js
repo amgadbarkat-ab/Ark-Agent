@@ -11,7 +11,14 @@
  * to the network untouched, so a signed-out phone shows nothing of whoever used it before.
  */
 const VERSION = "ark-shell-v1";
-const SHELL = ["/offline.html", "/offline.css", "/icons/icon-192.png"];
+/** Kept across versions: the language the page chose, for notifications and the offline page. */
+const SETTINGS = "ark-settings";
+const SHELL = [
+  "/offline.html",
+  "/offline-el.html",
+  "/offline.css",
+  "/icons/icon-192.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,7 +36,7 @@ self.addEventListener("activate", (event) => {
       .then((names) =>
         Promise.all(
           names
-            .filter((name) => name !== VERSION)
+            .filter((name) => name !== VERSION && name !== SETTINGS)
             .map((name) => caches.delete(name)),
         ),
       )
@@ -69,9 +76,13 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match("/offline.html").then((page) => page || Response.error()),
-      ),
+      fetch(request).catch(async () => {
+        const page =
+          (await chosenLanguage()) === "el"
+            ? "/offline-el.html"
+            : "/offline.html";
+        return (await caches.match(page)) || Response.error();
+      }),
     );
     return;
   }
@@ -105,6 +116,52 @@ function placeIn(address) {
   return "/";
 }
 
+/**
+ * The notifications the server sends, in Greek. The page writes the language it was set to into
+ * Cache Storage (src/lib/i18n.ts, `shareLanguage`), since a worker cannot read `localStorage`.
+ * Keep in step with server/src/routines/runner.ts and server/src/push/routes.ts.
+ */
+const NOTIFICATIONS_EL = {
+  "Notifications are on": "Οι ειδοποιήσεις είναι ενεργές",
+  "This is how Ark will tell you when your digital employees finish something.":
+    "Έτσι θα σας ενημερώνει το Ark όταν οι ψηφιακοί σας υπάλληλοι ολοκληρώνουν κάτι.",
+  "A routine failed": "Μια ρουτίνα απέτυχε",
+  "Open Ark to see what went wrong.":
+    "Ανοίξτε το Ark για να δείτε τι πήγε στραβά.",
+  "A routine was switched off": "Μια ρουτίνα απενεργοποιήθηκε",
+  "It failed ten times in a row. Open Ark to see why.":
+    "Απέτυχε δέκα φορές στη σειρά. Ανοίξτε το Ark για να δείτε γιατί.",
+  "A routine finished": "Μια ρουτίνα ολοκληρώθηκε",
+  "Open Ark to see what it did.": "Ανοίξτε το Ark για να δείτε τι έκανε.",
+};
+
+async function chosenLanguage() {
+  try {
+    const cache = await caches.open(SETTINGS);
+    const stored = await cache.match("/__ark/language");
+    return stored && (await stored.text()) === "el" ? "el" : "en";
+  } catch {
+    return "en";
+  }
+}
+
+async function showPush(message) {
+  const greek = (await chosenLanguage()) === "el";
+  const say = (text) => (greek && NOTIFICATIONS_EL[text]) || text;
+  const title =
+    typeof message.title === "string" && message.title
+      ? say(message.title)
+      : "ArkAgent";
+  const options = {
+    body: typeof message.body === "string" ? say(message.body) : "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    tag: typeof message.tag === "string" ? message.tag : undefined,
+    data: { url: placeIn(message.url) },
+  };
+  await self.registration.showNotification(title, options);
+}
+
 self.addEventListener("push", (event) => {
   let message = {};
   try {
@@ -112,18 +169,7 @@ self.addEventListener("push", (event) => {
   } catch {
     message = {};
   }
-  const title =
-    typeof message.title === "string" && message.title
-      ? message.title
-      : "ArkAgent";
-  const options = {
-    body: typeof message.body === "string" ? message.body : "",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    tag: typeof message.tag === "string" ? message.tag : undefined,
-    data: { url: placeIn(message.url) },
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(showPush(message));
 });
 
 self.addEventListener("notificationclick", (event) => {

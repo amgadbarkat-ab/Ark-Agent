@@ -7,6 +7,7 @@ import { EL_ADMIN2 } from "./admin2";
 import { EL_COMMON } from "./common";
 import { EL_COMPONENTS } from "./components";
 import { EL_DAILY } from "./daily";
+import { EL_DESKTOP } from "./desktop";
 import { EL_MESSAGES } from "./messages";
 import { EL_MORE } from "./more";
 import { EL_SCREENS } from "./screens";
@@ -28,4 +29,5 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_SERVER,
   ...EL_SERVER_COUNTS,
   ...EL_SERVER_LABELS,
+  ...EL_DESKTOP,
 };

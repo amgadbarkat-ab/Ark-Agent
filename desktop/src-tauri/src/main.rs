@@ -2757,10 +2757,16 @@ where
 /// and naming one guesses wrong half the time. Never the word `localhost`: it does not resolve the
 /// same way on every operating system, which is the whole reason both are asked.
 #[tauri::command]
-async fn show_openbot<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), Problem> {
+async fn show_openbot<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    language: Option<String>,
+) -> Result<(), Problem> {
     tauri::async_runtime::spawn_blocking(move || {
+        if let (Some(code), Ok(config)) = (language.as_deref(), app.path().app_config_dir()) {
+            openbot_desktop_lib::language::save(&config, code);
+        }
         let ports = ports_for_shell(&app)?;
-        show_openbot_on(app, &ports)
+        show_openbot_on(app, &ports, language.as_deref())
     })
     .await
     .map_err(|error| Problem::with("ArkAgent could not open its window.", error.to_string()))?
@@ -2781,6 +2787,7 @@ fn ports_for_shell<R: tauri::Runtime>(
 fn show_openbot_on<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     ports: &openbot_env::Ports,
+    language: Option<&str>,
 ) -> Result<(), Problem> {
     let port = ports.app;
     // Where it answered, not where it was asked to listen. A dev server binds whichever loopback
@@ -2802,6 +2809,7 @@ fn show_openbot_on<R: tauri::Runtime>(
     let window = app
         .get_webview_window("main")
         .ok_or("the ArkAgent window is not there to show it in")?;
+    let destination = with_language(destination, language);
     let outcome = window
         .navigate(
             destination
@@ -2811,6 +2819,19 @@ fn show_openbot_on<R: tauri::Runtime>(
         .map_err(|_| Problem::plain("ArkAgent could not navigate to its app."));
     eprintln!("[show] navigate returned {outcome:?}");
     outcome
+}
+
+/// The app's address with the language chosen in this window, so the app opens in it (#108). Only
+/// the two languages there are; anything else is left off and the app keeps its own choice. The app
+/// takes it only when it has none stored, so a later switch in its Settings is not undone here.
+fn with_language(destination: String, language: Option<&str>) -> String {
+    match language {
+        Some(code @ ("en" | "el")) => {
+            let joint = if destination.contains('?') { '&' } else { '?' };
+            format!("{destination}{joint}lang={code}")
+        }
+        _ => destination,
+    }
 }
 
 /// Resolve the configured setup page before WebView2's first navigation completes.
@@ -4004,13 +4025,26 @@ fn main() {
             remember_setup_url(app.handle())?;
 
             // The status menu lets somebody open the window, stop the stack, or quit the app.
+            use openbot_desktop_lib::language::pick;
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::TrayIconBuilder;
+            // In the language chosen the last time setup opened the app (#108).
+            if let Ok(config) = app.path().app_config_dir() {
+                openbot_desktop_lib::language::load(&config);
+            }
+            let open_label = pick("Open ArkAgent", "Άνοιγμα ArkAgent");
+            let stop_label = pick("Stop ArkAgent", "Διακοπή ArkAgent");
+            let quit_label = pick("Quit", "Έξοδος");
+            let about_label = pick(about::TITLE, "Σχετικά με το ArkAgent");
+            let own_browser_label = pick(
+                "Let digital employees use my browser",
+                "Οι ψηφιακοί υπάλληλοι μπορούν να χρησιμοποιούν τον περιηγητή μου",
+            );
 
-            let open = MenuItem::with_id(app, "open", "Open ArkAgent", true, None::<&str>)?;
-            let stop = MenuItem::with_id(app, "stop", "Stop ArkAgent", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
-            let tray_about = MenuItem::with_id(app, "about", about::TITLE, true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", open_label, true, None::<&str>)?;
+            let stop = MenuItem::with_id(app, "stop", stop_label, true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", quit_label, true, quit_menu_accelerator())?;
+            let tray_about = MenuItem::with_id(app, "about", about_label, true, None::<&str>)?;
             /*
              * THE PERSON'S OWN BROWSER, SWITCHED HERE AND ONLY HERE (device control, phase 1).
              *
@@ -4025,7 +4059,7 @@ fn main() {
             let own_browser_item = tauri::menu::CheckMenuItem::with_id(
                 app,
                 "own_browser",
-                "Let digital employees use my browser",
+                own_browser_label,
                 true,
                 own_browser_on,
                 None::<&str>,
@@ -4033,7 +4067,7 @@ fn main() {
             let window_own_browser_item = tauri::menu::CheckMenuItem::with_id(
                 app,
                 "own_browser",
-                "Let digital employees use my browser",
+                own_browser_label,
                 true,
                 own_browser_on,
                 None::<&str>,
@@ -4059,10 +4093,10 @@ fn main() {
             // Its own items, not the tray's: a menu item belongs to one menu, and the two menus
             // outlive each other. The ids match so both arrive at the same function.
             use tauri::menu::Submenu;
-            let window_open = MenuItem::with_id(app, "open", "Open ArkAgent", true, None::<&str>)?;
-            let window_stop = MenuItem::with_id(app, "stop", "Stop ArkAgent", true, None::<&str>)?;
+            let window_open = MenuItem::with_id(app, "open", open_label, true, None::<&str>)?;
+            let window_stop = MenuItem::with_id(app, "stop", stop_label, true, None::<&str>)?;
             let window_quit =
-                MenuItem::with_id(app, "quit", "Quit", true, quit_menu_accelerator())?;
+                MenuItem::with_id(app, "quit", quit_label, true, quit_menu_accelerator())?;
             // A submenu, because a top-level entry in a menu bar has to be one to open at all.
             let openbot = Submenu::with_items(
                 app,
@@ -4091,7 +4125,7 @@ fn main() {
             use tauri::menu::PredefinedMenuItem;
             let edit = Submenu::with_items(
                 app,
-                "Edit",
+                pick("Edit", "Επεξεργασία"),
                 true,
                 &[
                     &PredefinedMenuItem::undo(app, None)?,
@@ -4106,12 +4140,12 @@ fn main() {
             // Help → About ArkAgent, where a person looks for which version they have (desk #73).
             let help = Submenu::with_items(
                 app,
-                "Help",
+                pick("Help", "Βοήθεια"),
                 true,
                 &[&MenuItem::with_id(
                     app,
                     "about",
-                    about::TITLE,
+                    about_label,
                     true,
                     None::<&str>,
                 )?],
@@ -4186,6 +4220,26 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_app_opens_in_the_language_chosen_in_setup() {
+        assert_eq!(
+            super::with_language("http://127.0.0.1:3010/".into(), Some("el")),
+            "http://127.0.0.1:3010/?lang=el"
+        );
+        assert_eq!(
+            super::with_language("http://127.0.0.1:3010/?a=1".into(), Some("en")),
+            "http://127.0.0.1:3010/?a=1&lang=en"
+        );
+        assert_eq!(
+            super::with_language("http://127.0.0.1:3010/".into(), Some("fr")),
+            "http://127.0.0.1:3010/"
+        );
+        assert_eq!(
+            super::with_language("http://127.0.0.1:3010/".into(), None),
+            "http://127.0.0.1:3010/"
+        );
+    }
+
     #[test]
     fn focus_handed_to_the_page_at_most_once_a_second() {
         let start = std::time::Instant::now();
@@ -9224,7 +9278,7 @@ fn main() {
             owned_app_url(&f.owned, &f.ports).is_some(),
             "survivors must still answer"
         );
-        assert!(show_openbot_on(app.handle().clone(), &f.ports).is_err());
+        assert!(show_openbot_on(app.handle().clone(), &f.ports, None).is_err());
         restore_window_on(app.handle(), &f.ports);
         assert_eq!(window.url().unwrap().as_str(), setup);
         // Reclaim may advance the active generation before a later Start failure. It still
@@ -10477,7 +10531,7 @@ fn main() {
             app.handle().clone(),
             f.owned.to_string_lossy().into_owned()
         ));
-        tauri::async_runtime::block_on(show_openbot(app.handle().clone())).unwrap();
+        tauri::async_runtime::block_on(show_openbot(app.handle().clone(), None)).unwrap();
         assert_eq!(
             app.get_webview_window("main")
                 .unwrap()
@@ -10491,7 +10545,9 @@ fn main() {
             other.handle().clone(),
             f.selected.to_string_lossy().into_owned()
         ));
-        assert!(tauri::async_runtime::block_on(show_openbot(other.handle().clone())).is_err());
+        assert!(
+            tauri::async_runtime::block_on(show_openbot(other.handle().clone(), None)).is_err()
+        );
     }
 
     #[test]
@@ -10528,7 +10584,7 @@ fn main() {
         )
         .unwrap();
         let app = f.app(&f.owned, "tauri://localhost/");
-        show_openbot_on(app.handle().clone(), &f.ports).unwrap();
+        show_openbot_on(app.handle().clone(), &f.ports, None).unwrap();
         assert_eq!(
             app.get_webview_window("main")
                 .unwrap()
@@ -10620,7 +10676,7 @@ fn main() {
         assert!(stack::app_url(f.ports.app).is_some());
         let initial_adoption = already_running_at(&f.owned, &f.ports);
         let app = f.app(&f.owned, "tauri://localhost/");
-        let shown = show_openbot_on(app.handle().clone(), &f.ports);
+        let shown = show_openbot_on(app.handle().clone(), &f.ports, None);
         restore_window_on(app.handle(), &f.ports);
         let destination = app.get_webview_window("main").unwrap().url().unwrap();
         assert!(!initial_adoption && shown.is_err() && destination.as_str() == "tauri://localhost/",
@@ -10650,7 +10706,7 @@ fn main() {
             }
             assert!(already_running_at(&f.owned, &f.ports));
             let app = f.app(&f.owned, "tauri://localhost/");
-            show_openbot_on(app.handle().clone(), &f.ports).unwrap();
+            show_openbot_on(app.handle().clone(), &f.ports, None).unwrap();
             restore_window_on(app.handle(), &f.ports);
             assert_eq!(
                 app.get_webview_window("main")

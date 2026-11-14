@@ -1,3 +1,4 @@
+import { useT } from "./i18n";
 /** 5,154,941,280 as "5.2 GB": the unit a download is quoted in everywhere in the window. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1000) return `${bytes} B`;
@@ -43,6 +44,7 @@ export function DownloadBar({
   /** The first byte count seen and when, so a rate can be measured from the start of this download. */
   measured: { at: number; bytes: number } | null;
 }) {
+  const t = useT();
   const percent = Math.min(100, Math.floor((100 * downloaded) / total));
   const seconds = measured ? (Date.now() - measured.at) / 1000 : 0;
   const rate =
@@ -54,11 +56,14 @@ export function DownloadBar({
         className="download-progress"
         max={100}
         value={percent}
-        aria-label="Download progress"
+        aria-label={t("Download progress")}
       />
       <span className="download-words">
-        {formatBytes(downloaded)} of {formatBytes(total)} · {percent}%
-        {left ? ` · ${left}` : ""}
+        {t("{downloaded} of {total}", {
+          downloaded: formatBytes(downloaded),
+          total: formatBytes(total),
+        })}{" "}
+        · {percent}%{left ? ` · ${left}` : ""}
       </span>
     </span>
   );

@@ -612,7 +612,10 @@ test.each([false, true])(
     expect(view.queryByRole("button", { name: "Set up ArkAgent" })).toBeNull();
     await act(async () => launch.resolve());
     await waitFor(() =>
-      expect(invokeCalls).toContainEqual({ command: "show_openbot" }),
+      expect(invokeCalls).toContainEqual({
+        command: "show_openbot",
+        args: { language: "en" },
+      }),
     );
     expect(getStartStackPayload()).toEqual({
       root,
@@ -755,7 +758,10 @@ test("menu Stop retains the installed root for explicit Start without the wizard
     root,
     harness: { id: "mastra" },
   });
-  expect(invokeCalls).toContainEqual({ command: "show_openbot" });
+  expect(invokeCalls).toContainEqual({
+    command: "show_openbot",
+    args: { language: "en" },
+  });
   expect(installationCalls()).toHaveLength(0);
   expect(view.queryByRole("button", { name: "Ask" })).toBeNull();
 });
@@ -844,7 +850,10 @@ test("an unavailable saved model connection opens only its refresh screen and re
     harness: { id: "mastra" },
     model: { apiKey: "refreshed-provider-key" },
   });
-  expect(invokeCalls).toContainEqual({ command: "show_openbot" });
+  expect(invokeCalls).toContainEqual({
+    command: "show_openbot",
+    args: { language: "en" },
+  });
   expect(installationCalls()).toHaveLength(0);
   expect(view.queryByRole("button", { name: "Ask" })).toBeNull();
 });
@@ -921,7 +930,10 @@ test("an interrupted shutdown restores saved setup for explicit recovery", async
     ),
   ).toBe(false);
   expect(view.queryByText(notice)).toBeNull();
-  expect(invokeCalls).toContainEqual({ command: "show_openbot" });
+  expect(invokeCalls).toContainEqual({
+    command: "show_openbot",
+    args: { language: "en" },
+  });
   expect(view.queryByRole("button", { name: "Ask" }) !== null).toBe(false);
 });
 
@@ -1665,7 +1677,10 @@ test("mount navigates to ArkAgent only when the selected root is already owned a
 
   await renderApp();
   await waitFor(() =>
-    expect(invokeCalls).toContainEqual({ command: "show_openbot" }),
+    expect(invokeCalls).toContainEqual({
+      command: "show_openbot",
+      args: { language: "en" },
+    }),
   );
 });
 

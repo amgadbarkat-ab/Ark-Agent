@@ -3,6 +3,7 @@ use openbot_desktop_lib::host_access::{
     ApprovedFolder, ChooseFolderPrompt, CommandPrompt, HostAccessError, HostAccessResult,
     HostApprovalUi, WritePrompt,
 };
+use openbot_desktop_lib::language::{greek, pick};
 use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
@@ -46,8 +47,8 @@ impl<R: tauri::Runtime> NativeApproval<R> {
             .title(title)
             .kind(MessageDialogKind::Warning)
             .buttons(MessageDialogButtons::OkCancelCustom(
-                "Allow once".into(),
-                "Deny".into(),
+                pick("Allow once", "Να επιτραπεί μία φορά").into(),
+                pick("Deny", "Άρνηση").into(),
             ))
             .parent(&window)
             .blocking_show();
@@ -74,41 +75,91 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
             .0
             .dialog()
             .file()
-            .set_title(format!("Choose a folder for {bot} to read"))
+            .set_title(if greek() {
+                format!("Επιλέξτε φάκελο για ανάγνωση από: {bot}")
+            } else {
+                format!("Choose a folder for {bot} to read")
+            })
             .set_parent(&window)
             .blocking_pick_folder()
             .ok_or_else(|| refused("No folder was approved."))?;
         let root = picked
             .into_path()
             .map_err(|error| refused(error.to_string()))?;
-        self.confirm("Allow folder access?", format!(
-            "Digital employee: {bot}\nRequested by: {}\n\nFolder: {}\n\nAllow this digital employee to read this folder for this ArkAgent session? Each edit and command asks separately. You can revoke access in Computers.",
-            request.actor_id, root.display()
-        ))?;
+        let message = if greek() {
+            format!(
+                "Ψηφιακός υπάλληλος: {bot}\nΤο ζήτησε: {}\n\nΦάκελος: {}\n\nΝα μπορεί αυτός ο ψηφιακός υπάλληλος να διαβάζει αυτόν τον φάκελο σε αυτή τη συνεδρία του ArkAgent; Κάθε αλλαγή και εντολή ρωτά ξεχωριστά. Μπορείτε να ανακαλέσετε την πρόσβαση στους Υπολογιστές.",
+                request.actor_id, root.display()
+            )
+        } else {
+            format!(
+                "Digital employee: {bot}\nRequested by: {}\n\nFolder: {}\n\nAllow this digital employee to read this folder for this ArkAgent session? Each edit and command asks separately. You can revoke access in Computers.",
+                request.actor_id, root.display()
+            )
+        };
+        self.confirm(
+            pick(
+                "Allow folder access?",
+                "Να επιτραπεί η πρόσβαση στον φάκελο;",
+            ),
+            message,
+        )?;
         Ok(ApprovedFolder { root })
     }
 
     fn confirm_write(&self, request: &WritePrompt) -> HostAccessResult<()> {
         reviewable(&request.content)?;
         let bot = bot_label(request.bot_name.as_deref(), &request.bot_id);
-        self.confirm("Allow this file change?", format!(
-            "Digital employee: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
-            request.root.display(), request.relative_path, request.content
-        ))
+        let message = if greek() {
+            format!(
+                "Ψηφιακός υπάλληλος: {bot}\nΦάκελος: {}\nΑρχείο: {}\n\nΝέο περιεχόμενο:\n{}\n\nΝα επιτραπεί αυτή ακριβώς η αλλαγή μία φορά; Το ArkAgent κρατά το προηγούμενο περιεχόμενο όταν αντικαθιστά ένα αρχείο.",
+                request.root.display(), request.relative_path, request.content
+            )
+        } else {
+            format!(
+                "Digital employee: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
+                request.root.display(), request.relative_path, request.content
+            )
+        };
+        self.confirm(
+            pick(
+                "Allow this file change?",
+                "Να επιτραπεί αυτή η αλλαγή αρχείου;",
+            ),
+            message,
+        )
     }
 
     fn confirm_command(&self, request: &CommandPrompt) -> HostAccessResult<()> {
         reviewable(&request.command)?;
         let bot = bot_label(request.bot_name.as_deref(), &request.bot_id);
         let access = if request.writable {
-            "This command may edit or delete files in the approved folder. Commands cannot be undone automatically."
+            pick(
+                "This command may edit or delete files in the approved folder. Commands cannot be undone automatically.",
+                "Αυτή η εντολή μπορεί να αλλάξει ή να διαγράψει αρχεία στον εγκεκριμένο φάκελο. Οι εντολές δεν αναιρούνται αυτόματα.",
+            )
         } else {
-            "The approved folder stays read-only. The command can write only to its temporary workspace."
+            pick(
+                "The approved folder stays read-only. The command can write only to its temporary workspace.",
+                "Ο εγκεκριμένος φάκελος μένει μόνο για ανάγνωση. Η εντολή μπορεί να γράψει μόνο στον προσωρινό χώρο εργασίας της.",
+            )
         };
-        self.confirm("Allow this command?", format!(
-            "Digital employee: {bot}\nFolder: {}\nWorking folder: {}\n\nCommand:\n{}\n\n{access}\nNetwork access is disabled. Allow this command once?",
-            request.root.display(), request.working_directory.as_deref().unwrap_or("/workspace"), request.command
-        ))
+        let working = request.working_directory.as_deref().unwrap_or("/workspace");
+        let message = if greek() {
+            format!(
+                "Ψηφιακός υπάλληλος: {bot}\nΦάκελος: {}\nΦάκελος εργασίας: {}\n\nΕντολή:\n{}\n\n{access}\nΗ πρόσβαση στο δίκτυο είναι απενεργοποιημένη. Να επιτραπεί αυτή η εντολή μία φορά;",
+                request.root.display(), working, request.command
+            )
+        } else {
+            format!(
+                "Digital employee: {bot}\nFolder: {}\nWorking folder: {}\n\nCommand:\n{}\n\n{access}\nNetwork access is disabled. Allow this command once?",
+                request.root.display(), working, request.command
+            )
+        };
+        self.confirm(
+            pick("Allow this command?", "Να επιτραπεί αυτή η εντολή;"),
+            message,
+        )
     }
 }
 

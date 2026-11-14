@@ -335,8 +335,8 @@ export const EL_SERVER: Record<string, string> = {
   "Give the conversation a name.": "Δώστε όνομα στη συνομιλία.",
   "This channel is defined by the deployment package, so it cannot be deleted here.":
     "Αυτή η συνομιλία ορίζεται από το πακέτο της εγκατάστασης, οπότε δεν μπορεί να διαγραφεί από εδώ.",
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the sentence quotes a ${NAME} reference as written
   "{filename} refers to ${{name}}, which is not set in this environment.":
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the sentence quotes a ${NAME} reference as written
     "Το {filename} αναφέρεται στο ${{name}}, το οποίο δεν έχει οριστεί σε αυτό το περιβάλλον.",
   "The request does not say which tool to call.":
     "Το αίτημα δεν λέει ποιο εργαλείο να καλέσει.",

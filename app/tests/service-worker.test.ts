@@ -275,6 +275,43 @@ describe("notifications", () => {
     });
   });
 
+  test("in Greek when the page was set to Greek, and the choice outlives a new version (#108)", async () => {
+    const worker = loadWorker();
+    worker.stores.set(
+      "ark-settings",
+      new Map([[`${ORIGIN}/__ark/language`, new Response("el")]]),
+    );
+    await worker.dispatch("install", {}).settled();
+    await worker.dispatch("activate", {}).settled();
+    expect(worker.stores.has("ark-settings")).toBe(true);
+    await push(worker, {
+      title: "A routine finished",
+      body: "Open Ark to see what it did.",
+    }).settled();
+    expect(worker.shown[0]?.title).toBe("Μια ρουτίνα ολοκληρώθηκε");
+    expect(worker.shown[0]?.options).toMatchObject({
+      body: "Ανοίξτε το Ark για να δείτε τι έκανε.",
+    });
+    // A sentence it has no Greek for is shown as sent.
+    await push(worker, { title: "Weekly report ready" }).settled();
+    expect(worker.shown[1]?.title).toBe("Weekly report ready");
+  });
+
+  test("the offline page is the Greek one when the page was set to Greek (#108)", async () => {
+    const worker = loadWorker({
+      network: async () => {
+        throw new TypeError("offline");
+      },
+    });
+    await worker.dispatch("install", {}).settled();
+    worker.stores.set(
+      "ark-settings",
+      new Map([[`${ORIGIN}/__ark/language`, new Response("el")]]),
+    );
+    const page = worker.fetchEvent("/routines", { mode: "navigate" });
+    expect(await (await page.responded)?.text()).toContain("/offline-el.html");
+  });
+
   test("a message that cannot be read still shows something, and never a foreign address", async () => {
     const worker = loadWorker();
     await push(worker, "{not json").settled();

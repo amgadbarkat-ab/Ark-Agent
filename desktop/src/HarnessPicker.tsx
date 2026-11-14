@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
+import { useT } from "./i18n";
 import { Mark } from "./Mark";
 
 export type Harness = {
@@ -57,6 +58,7 @@ export function FrameworkChoice({
   /** Whether the AI chosen above is Anthropic, by API key. */
   anthropicKey: boolean;
 }) {
+  const t = useT();
   const [rows, setRows] = useState<Harness[]>([]);
   const [failure, setFailure] = useState("");
   // Open when the person has already chosen something other than the default, so coming back does not
@@ -82,7 +84,7 @@ export function FrameworkChoice({
   if (failure) {
     return (
       <div className="blocker" role="alert">
-        <h2>The list of agent frameworks could not be read</h2>
+        <h2>{t("The list of agent frameworks could not be read")}</h2>
         <p>{failure}</p>
       </div>
     );
@@ -92,16 +94,16 @@ export function FrameworkChoice({
     <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
         {picked && picked.id !== DEFAULT_HARNESS
-          ? `Agent framework: ${picked.name}`
-          : "Agent framework: ArkAgent chooses (advanced)"}
+          ? t("Agent framework: {name}", { name: picked.name })
+          : t("Agent framework: ArkAgent chooses (advanced)")}
       </summary>
       <p className="footnote" style={{ margin: "0.6rem 0 0" }}>
-        ArkAgent uses LangGraph, which works with every AI, including the one on
-        this computer. Change this only if you write code and need another
-        framework.
+        {t(
+          "ArkAgent uses LangGraph, which works with every AI, including the one on this computer. Change this only if you write code and need another framework.",
+        )}
       </p>
       <fieldset className="picker">
-        <legend className="sr-only">Agent framework</legend>
+        <legend className="sr-only">{t("Agent framework")}</legend>
         {rows.map((row) => {
           const blocked = row.credential === "anthropic" && !anthropicKey;
           return (
@@ -130,17 +132,17 @@ export function FrameworkChoice({
               <span className="tile-name">{row.name}</span>
               <span className="tile-summary">{row.summary}</span>
               {row.id === DEFAULT_HARNESS && (
-                <span className="tile-note">Recommended</span>
+                <span className="tile-note">{t("Recommended")}</span>
               )}
               {row.credential === "anthropic" && (
                 <span className="tile-note">
                   {blocked
-                    ? "Needs Anthropic chosen above, with an API key"
-                    : "Uses your Anthropic API key"}
+                    ? t("Needs Anthropic chosen above, with an API key")
+                    : t("Uses your Anthropic API key")}
                 </span>
               )}
               {row.credential === "their-endpoint" && (
-                <span className="tile-note">For developers</span>
+                <span className="tile-note">{t("For developers")}</span>
               )}
             </label>
           );
@@ -148,7 +150,7 @@ export function FrameworkChoice({
       </fieldset>
       {chosenId === "byo-url" && (
         <div className="field" style={{ marginTop: "0.75rem" }}>
-          <label htmlFor="agent-url">AG-UI endpoint</label>
+          <label htmlFor="agent-url">{t("AG-UI endpoint")}</label>
           <input
             id="agent-url"
             value={byoAgentUrl}

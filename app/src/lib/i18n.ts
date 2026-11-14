@@ -137,12 +137,56 @@ export function storedLanguage(): Language {
   }
 }
 
+/**
+ * Where the service worker reads the language, because it cannot read `localStorage`: a push
+ * notification arrives with no page open, and is shown in the language chosen here (public/sw.js).
+ */
+const SHARED_LANGUAGE = "/__ark/language";
+
+function shareLanguage(language: Language) {
+  try {
+    void globalThis.caches
+      ?.open("ark-settings")
+      .then((cache) => cache.put(SHARED_LANGUAGE, new Response(language)))
+      .catch(() => {});
+  } catch {
+    // No Cache Storage (a private window, a test): notifications stay in English.
+  }
+}
+
+/**
+ * The desktop setup window asks for a language before the app exists, and opens the app with
+ * `?lang=el` (desktop/src-tauri `with_language`). Taken only when nothing is stored yet, so a
+ * later switch in Settings is not undone by the next start; then removed from the address.
+ */
+function languageFromAddress() {
+  try {
+    const url = new URL(globalThis.location?.href ?? "");
+    const asked = url.searchParams.get("lang");
+    if (asked !== "el" && asked !== "en") return;
+    if (globalThis.localStorage?.getItem(STORAGE_KEY) === null) {
+      globalThis.localStorage?.setItem(STORAGE_KEY, asked);
+    }
+    url.searchParams.delete("lang");
+    globalThis.history?.replaceState(globalThis.history.state, "", url.href);
+  } catch {
+    // No address (a test) or no storage: the stored choice, or English, stands.
+  }
+}
+
+languageFromAddress();
+shareLanguage(storedLanguage());
+// Screen readers and hyphenation read the page language from here.
+if (typeof document !== "undefined")
+  document.documentElement.lang = storedLanguage();
+
 export function setLanguage(language: Language) {
   try {
     globalThis.localStorage?.setItem(STORAGE_KEY, language);
   } catch {
     // A browser that keeps nothing still changes for this session.
   }
+  shareLanguage(language);
   globalThis.dispatchEvent?.(new Event(CHANGED));
   if (typeof document !== "undefined") document.documentElement.lang = language;
 }
@@ -221,9 +265,10 @@ export function tNow(
 /** A whole sentence from elsewhere (the server, a runtime), in the language chosen right now. */
 export function sentenceNow<T extends string | null | undefined>(
   sentence: T,
-): T {
-  if (typeof sentence !== "string") return sentence;
-  return translateSentence(storedLanguage(), sentence) as T;
+): T extends string ? string : T {
+  type Out = T extends string ? string : T;
+  if (typeof sentence !== "string") return sentence as Out;
+  return translateSentence(storedLanguage(), sentence) as Out;
 }
 
 /** The same, redrawing when the language changes. */

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ExternalLink } from "./ExternalLink";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
+import { useT } from "./i18n";
 import { LocalModelPanel } from "./LocalModelPanel";
 import { Mark } from "./Mark";
 import { asProblem, InlineFailure, type Problem } from "./Problem";
@@ -167,6 +168,7 @@ export function ProviderPicker({
   /** False while something on this page, outside the AI choice, is not filled in yet. */
   canContinue?: boolean;
 }) {
+  const t = useT();
   const initialChoice = chosen ?? recordedModel(held);
   const [reuse, setReuse] = useState(
     initialChoice?.saved
@@ -378,16 +380,18 @@ export function ProviderPicker({
 
   return (
     <div className="sheet">
-      {!returning && <p className="steps-of">Step 1 of 2</p>}
-      <h1>{returning ? "Refresh your AI connection" : "Connect your AI"}</h1>
+      {!returning && <p className="steps-of">{t("Step 1 of 2")}</p>}
+      <h1>
+        {returning ? t("Refresh your AI connection") : t("Connect your AI")}
+      </h1>
       <p className="lede">
-        Everything about the AI is on this page: where it comes from (a free
-        model on this computer, ArkAgent's server, or your own key), and, under
-        Advanced, which agent framework runs it.
+        {t(
+          "Everything about the AI is on this page: where it comes from (a free model on this computer, ArkAgent's server, or your own key), and, under Advanced, which agent framework runs it.",
+        )}
       </p>
 
       <fieldset className="picker providers">
-        <legend className="sr-only">Model provider</legend>
+        <legend className="sr-only">{t("Model provider")}</legend>
         {rows.map((r) => (
           <label
             key={r.id}
@@ -466,7 +470,7 @@ export function ProviderPicker({
                     setLogin(option);
                   }}
                 >
-                  {option === "oauth" ? "Sign in" : "Use an API key"}
+                  {option === "oauth" ? t("Sign in") : t("Use an API key")}
                 </button>
               ))}
             </div>
@@ -485,38 +489,47 @@ export function ProviderPicker({
             <>
               <p className="footnote">
                 {row.id === "google"
-                  ? "Authorize Gemini API access using the configured Google Cloud project and its API quota."
-                  : "Authorize ArkAgent to use models available to your xAI account."}
+                  ? t(
+                      "Authorize Gemini API access using the configured Google Cloud project and its API quota.",
+                    )
+                  : t(
+                      "Authorize ArkAgent to use models available to your xAI account.",
+                    )}
               </p>
               {oauthSignedIn === row.id ? (
-                <p className="lede">Signed in to {row.name}.</p>
+                <p className="lede">
+                  {t("Signed in to {name}.", { name: row.name })}
+                </p>
               ) : signInUrl ? (
                 <>
                   <p role="status">
-                    Waiting for you to approve sign-in in your browser.
+                    {t("Waiting for you to approve sign-in in your browser.")}
                   </p>
                   {oauthCode && (
                     <p>
-                      Verification code: <strong>{oauthCode}</strong>
+                      {t("Verification code:")} <strong>{oauthCode}</strong>
                     </p>
                   )}
                   <ExternalLink href={signInUrl}>
-                    Open sign-in page
+                    {t("Open sign-in page")}
                   </ExternalLink>
                   <button type="button" className="quiet" onClick={cancelOAuth}>
-                    Cancel sign-in
+                    {t("Cancel sign-in")}
                   </button>
                 </>
               ) : null}
               {!busy && (
                 <button type="button" onClick={beginOAuth}>
-                  Sign in {oauthSignedIn === row.id ? "again " : ""}with{" "}
-                  {row.name}
+                  {oauthSignedIn === row.id
+                    ? t("Sign in again with {name}", { name: row.name })
+                    : t("Sign in with {name}", { name: row.name })}
                 </button>
               )}
-              {busy && !signInUrl && <p role="status">Preparing sign-in…</p>}
+              {busy && !signInUrl && (
+                <p role="status">{t("Preparing sign-in…")}</p>
+              )}
               <div className="field">
-                <label htmlFor="oauth-model">Model name</label>
+                <label htmlFor="oauth-model">{t("Model name")}</label>
                 <input
                   id="oauth-model"
                   value={model}
@@ -530,7 +543,11 @@ export function ProviderPicker({
           {login === "api-key" && (
             <>
               {savedApiKey && !apiKey ? (
-                <p className="lede">A saved {row.name} API key will be used.</p>
+                <p className="lede">
+                  {t("A saved {name} API key will be used.", {
+                    name: row.name,
+                  })}
+                </p>
               ) : null}
               {!savedApiKey &&
                 (row.id === "openai" || row.id === "anthropic") &&
@@ -543,11 +560,13 @@ export function ProviderPicker({
                       setReuse({ provider: row.id, login: "api-key" });
                     }}
                   >
-                    Use a saved {row.name} API key
+                    {t("Use a saved {name} API key", { name: row.name })}
                   </button>
                 )}
               <div className="field">
-                <label htmlFor="key">{row.name} API key</label>
+                <label htmlFor="key">
+                  {t("{name} API key", { name: row.name })}
+                </label>
                 <input
                   id="key"
                   type="password"
@@ -564,14 +583,14 @@ export function ProviderPicker({
             <>
               {savedEndpointKey && !apiKey && (
                 <p className="lede">
-                  A saved API key for this endpoint will be used.{" "}
+                  {t("A saved API key for this endpoint will be used.")}{" "}
                   {!preset && (
                     <button
                       type="button"
                       className="quiet"
                       onClick={() => setReuseEndpointKey(false)}
                     >
-                      Continue without the saved key
+                      {t("Continue without the saved key")}
                     </button>
                   )}
                 </p>
@@ -579,7 +598,7 @@ export function ProviderPicker({
               {!preset && (
                 <>
                   <div className="field">
-                    <label htmlFor="base">Base URL</label>
+                    <label htmlFor="base">{t("Base URL")}</label>
                     <input
                       id="base"
                       value={baseUrl}
@@ -600,9 +619,11 @@ export function ProviderPicker({
                     />
                   </div>
                   <details className="field">
-                    <summary>Advanced compatible endpoint options</summary>
+                    <summary>
+                      {t("Advanced compatible endpoint options")}
+                    </summary>
                     <label htmlFor="container-base">
-                      Container Base URL, if different
+                      {t("Container Base URL, if different")}
                     </label>
                     <input
                       id="container-base"
@@ -612,20 +633,20 @@ export function ProviderPicker({
                       spellCheck={false}
                     />
                     <p className="footnote">
-                      Leave this empty unless containers need a different
-                      address for a locally hosted model. Remote endpoints
-                      usually use the same Base URL.
+                      {t(
+                        "Leave this empty unless containers need a different address for a locally hosted model. Remote endpoints usually use the same Base URL.",
+                      )}
                     </p>
                   </details>
                 </>
               )}
               <div className="field">
-                <label htmlFor="model">Model name</label>
+                <label htmlFor="model">{t("Model name")}</label>
                 <input
                   id="model"
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  placeholder="the name the endpoint knows it by"
+                  placeholder={t("the name the endpoint knows it by")}
                   spellCheck={false}
                 />
               </div>
@@ -633,7 +654,7 @@ export function ProviderPicker({
                 <label htmlFor="ekey">
                   {preset
                     ? `${row.name} API key`
-                    : "API key, if the endpoint needs one"}
+                    : t("API key, if the endpoint needs one")}
                 </label>
                 <input
                   id="ekey"
@@ -647,7 +668,7 @@ export function ProviderPicker({
               {preset && (
                 <p className="footnote">
                   <ExternalLink key={preset.keyUrl} href={preset.keyUrl}>
-                    Get a {row.name} API key
+                    {t("Get a {name} API key", { name: row.name })}
                   </ExternalLink>
                 </p>
               )}
@@ -665,7 +686,7 @@ export function ProviderPicker({
                 target="_blank"
                 rel="noreferrer"
               >
-                What this means
+                {t("What this means")}
               </a>
             </p>
           )}
@@ -681,14 +702,14 @@ export function ProviderPicker({
           onClick={onBack}
           disabled={starting}
         >
-          Back
+          {t("Back")}
         </button>
         <button
           type="button"
           disabled={starting || !row || !login || !ready || !canContinue}
           onClick={continueWithChoice}
         >
-          Continue
+          {t("Continue")}
         </button>
       </div>
     </div>

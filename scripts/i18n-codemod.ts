@@ -22,6 +22,13 @@ void TECHNICAL_PROPS_PATH;
 
 type Edit = { start: number; end: number; text: string };
 
+/** Where `useT`/`tNow` come from: the app's by default, `./i18n` for the desktop setup window. */
+const I18N_IMPORT = process.env.I18N_IMPORT ?? "@/lib/i18n";
+
+function escapeForRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function componentOf(node: ts.Node): ts.FunctionLikeDeclaration | null {
   let current: ts.Node | undefined = node.parent;
   while (current) {
@@ -483,7 +490,9 @@ function convert(path: string) {
   const names = [usedT ? "useT" : null, usedNow ? "tNow" : null].filter(
     Boolean,
   ) as string[];
-  const existing = text.match(/import \{([^}]*)\} from "@\/lib\/i18n";/);
+  const existing = text.match(
+    new RegExp(`import \\{([^}]*)\\} from "${escapeForRegExp(I18N_IMPORT)}";`),
+  );
   if (existing) {
     const have = new Set(
       existing[1]
@@ -494,7 +503,7 @@ function convert(path: string) {
     for (const n of names) have.add(n);
     text = text.replace(
       existing[0],
-      `import { ${[...have].sort().join(", ")} } from "@/lib/i18n";`,
+      `import { ${[...have].sort().join(", ")} } from "${I18N_IMPORT}";`,
     );
   } else if (names.length) {
     // After the last import.
@@ -502,7 +511,7 @@ function convert(path: string) {
       ...text.matchAll(/^import [\s\S]*?from "[^"]+";\n/gm),
     ].pop();
     const at = lastImport ? (lastImport.index ?? 0) + lastImport[0].length : 0;
-    text = `${text.slice(0, at)}import { ${names.sort().join(", ")} } from "@/lib/i18n";\n${text.slice(at)}`;
+    text = `${text.slice(0, at)}import { ${names.sort().join(", ")} } from "${I18N_IMPORT}";\n${text.slice(at)}`;
   }
   writeFileSync(path, text);
   return { wrapped, left };
