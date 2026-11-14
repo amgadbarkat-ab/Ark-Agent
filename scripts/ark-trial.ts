@@ -21,7 +21,7 @@
  * The private key is never committed, never sent anywhere and never put in an app. Anyone who has
  * it can make trials and codes for any customer: keep the file, and a backup of it, offline.
  */
-import { randomBytes } from "node:crypto";
+import { generateKeyPairSync, randomBytes } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -31,7 +31,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { generateKeyPairSync } from "node:crypto";
+import { ROLES } from "../server/src/marketplace/official-roles";
 import {
   CODE_PREFIX,
   encodeBase64Url,
@@ -114,6 +114,14 @@ function signProfile(args: string[]) {
   >;
   draft.issuedAt ??= new Date().toISOString();
   const profile = readProfile(draft);
+  const roles = new Set(ROLES.map((role) => role.slug));
+  for (const entry of profile.roster) {
+    if (entry.basedOn && !roles.has(entry.basedOn)) {
+      fail(
+        `${entry.key}: basedOn "${entry.basedOn}" is not an official role. Use one of: ${[...roles].join(", ")}`,
+      );
+    }
+  }
   const encoded = encodeBase64Url(JSON.stringify(profile));
   const file = {
     format: PROFILE_FORMAT,
