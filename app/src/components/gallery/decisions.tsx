@@ -1,7 +1,10 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { useApprovalCardSync } from "@/lib/approvals/card-sync";
+import { decideApprovalMutationOptions } from "@/lib/approvals/mutations";
+import { approvalsQueryOptions } from "@/lib/approvals/queries";
 import { useDeclaredBotId } from "@/lib/copilot/active-bot";
 import { useConversation } from "@/lib/copilot/conversation";
 import type { GalleryComponent } from "@/lib/copilot/gallery-registry";
@@ -70,6 +73,9 @@ const CARD_WORDS = {
     unfinished: tNow(
       "This request was not finished, so there is nothing to approve. Ask again if it is still needed.",
     ),
+    leftOver: tNow(
+      "Still waiting for you. The run that asked has ended, so your answer is recorded in Requests; ask again here to have it carried out.",
+    ),
   },
   el: {
     reason: "Αιτιολογία, αν θέλετε να δώσετε",
@@ -82,6 +88,8 @@ const CARD_WORDS = {
     preparing: "Προετοιμασία του αιτήματος…",
     unfinished:
       "Αυτό το αίτημα δεν ολοκληρώθηκε, οπότε δεν υπάρχει κάτι για έγκριση. Ζητήστε το ξανά αν χρειάζεται ακόμη.",
+    leftOver:
+      "Περιμένει ακόμη εσάς. Η εκτέλεση που το ζήτησε έχει τελειώσει, οπότε η απάντησή σας καταγράφεται στα Αιτήματα· ζητήστε το ξανά εδώ για να εκτελεστεί.",
   },
 } as const;
 
@@ -93,6 +101,106 @@ export function cardWords(
   )
     ? CARD_WORDS.el
     : CARD_WORDS.en;
+}
+
+/**
+ * A card whose run ended before it could be answered, while its request still waits in Requests.
+ *
+ * The chat has nothing left to resume, so the buttons decide the request itself, exactly as the
+ * Requests page would, and say so: the answer is recorded, and the digital employee carries it out
+ * only when asked again. A request that is no longer pending (decided, lapsed) or was never
+ * listed reads as before: not finished.
+ */
+function LeftOverCard({
+  toolCallId,
+  fallbackTitle,
+  words,
+}: {
+  toolCallId: string;
+  fallbackTitle: string | undefined;
+  words: ReturnType<typeof cardWords>;
+}) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const pending = useQuery(approvalsQueryOptions("pending"));
+  const decide = useMutation(decideApprovalMutationOptions(queryClient));
+  const [decided, setDecided] = useState<"approved" | "declined" | null>(null);
+  const row = pending.data?.approvals.find(
+    (approval) => approval.toolCallId === toolCallId,
+  );
+
+  if (!row && !decided) {
+    return (
+      <GalleryFrame title={fallbackTitle ?? t("Waiting for the assistant…")}>
+        <p className="text-sm text-muted-foreground">
+          {pending.isPending ? words.preparing : words.unfinished}
+        </p>
+      </GalleryFrame>
+    );
+  }
+
+  const answer = (decision: "approved" | "declined") => {
+    if (!row) return;
+    setDecided(decision);
+    decide.mutate({
+      id: row.id,
+      decision: decision === "approved" ? "approve" : "reject",
+    });
+  };
+
+  return (
+    <GalleryFrame
+      action={
+        decided ? (
+          <Badge tone={decided === "approved" ? "positive" : "negative"}>
+            {decided === "approved" ? words.approved : words.declined}
+          </Badge>
+        ) : (
+          <Badge tone="caution">{words.waiting}</Badge>
+        )
+      }
+      title={fallbackTitle ?? row?.summary ?? ""}
+    >
+      {row?.summary ? <p className="text-sm">{row.summary}</p> : null}
+      {row?.details?.length ? (
+        <dl className="mt-3 grid grid-cols-[minmax(0,11rem)_1fr] gap-x-4 gap-y-1.5 text-sm">
+          {row.details.map((detail) => (
+            <div className="contents" key={detail.label}>
+              <dt className="break-words text-muted-foreground">
+                {detail.label}
+              </dt>
+              <dd className="min-w-0 break-words">{detail.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      <p
+        className="mt-3 text-muted-foreground text-xs"
+        data-testid="card-left-over"
+      >
+        {words.leftOver}
+      </p>
+      {decided ? null : (
+        <div className="mt-3 flex gap-2">
+          <Button
+            disabled={decide.isPending}
+            onClick={() => answer("approved")}
+            size="sm"
+          >
+            {words.approve}
+          </Button>
+          <Button
+            disabled={decide.isPending}
+            onClick={() => answer("declined")}
+            size="sm"
+            variant="outline"
+          >
+            {words.decline}
+          </Button>
+        </div>
+      )}
+    </GalleryFrame>
+  );
 }
 
 export function ApprovalCard(
@@ -139,8 +247,18 @@ export function ApprovalCard(
 
   if (status === "inProgress") {
     // Nothing is running, so the rest of this card is never coming: a run that was cut off part-way
-    // (DT Lab, #83: a v0.1.33 card stayed on "Preparing the request…" with no buttons).
+    // (DT Lab, #83: a v0.1.33 card stayed on "Preparing the request…" with no buttons). Unless the
+    // card had already reached Requests and is still waiting there: then it is live, and drawn as
+    // the request it is (DT Lab, Windows retest of v0.1.35).
     const unfinished = conversation?.busy === false;
+    if (unfinished && props.toolCallId)
+      return (
+        <LeftOverCard
+          fallbackTitle={args.title}
+          toolCallId={props.toolCallId}
+          words={words}
+        />
+      );
     return (
       <GalleryFrame title={args.title ?? t("Waiting for the assistant…")}>
         <p className="text-sm text-muted-foreground">

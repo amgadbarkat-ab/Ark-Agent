@@ -1421,6 +1421,15 @@ const TranscriptToolCall = memo(function TranscriptToolCall({
  * Named from the reader's side: what was done, against which server, with the server's own words
  * behind a disclosure. The identifier the model was offered never reaches the screen.
  */
+/** The catalogue's own servers by name, so a tool line names the product, not its key. */
+const SERVER_NAMES: Record<string, string> = {
+  "google-gmail": "Gmail",
+  "google-drive": "Google Drive",
+  "microsoft-365": "Microsoft 365",
+  notion: "Notion",
+  routines: tNow("Routines"),
+};
+
 /** The card for an `mcp__<server>__<tool>` call's result, or null. */
 function cardFor(name: string, answer: string) {
   const [prefix, server, ...rest] = name.split("__");
@@ -1437,7 +1446,14 @@ function ServerToolLine({
   args: string;
   result?: string;
 }) {
-  const { label, detail } = readToolName(name);
+  const read = readToolName(name);
+  // In the person's language (#108): the built-in connectors' actions have Greek, and a server key
+  // reads as the product it is ("Gmail", not "google-gmail"). Anything else stays as it came.
+  const label = sentenceNow(read.label);
+  const detail =
+    read.detail === undefined
+      ? undefined
+      : (SERVER_NAMES[read.detail] ?? read.detail);
   /*
    * A refusal is not a result, and must not read like one.
    *

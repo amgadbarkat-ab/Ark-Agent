@@ -113,7 +113,7 @@ export function NewGroupForm({
         placeholder={t("Test Group 1")}
         value={name}
       />
-      <fieldset className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+      <fieldset className="flex max-h-72 min-w-0 flex-col gap-1 overflow-y-auto overflow-x-hidden">
         <legend className="mb-1 text-muted-foreground text-sm">
           {t("group.members")}
         </legend>
@@ -144,7 +144,7 @@ export function NewGroupForm({
                 ) : null}
               </label>
               {position === 0 ? (
-                <span className="text-muted-foreground text-xs">
+                <span className="shrink-0 pr-2 text-muted-foreground text-xs">
                   {t("group.leads")}
                 </span>
               ) : null}

@@ -149,7 +149,7 @@ describe("channel input parser", () => {
     expect(parseChannelInput({ agentIds })).toEqual({ ok: false, error });
   });
 
-  test("trims, sorts, and whitelists channel input", () => {
+  test("trims, keeps the order they were picked in, and whitelists channel input", () => {
     expect(
       parseChannelInput({
         agentIds: [" agent-2 ", "agent-1"],
@@ -158,7 +158,7 @@ describe("channel input parser", () => {
         threadId: "forged-thread",
         active: false,
       }),
-    ).toEqual({ ok: true, value: { agentIds: ["agent-1", "agent-2"] } });
+    ).toEqual({ ok: true, value: { agentIds: ["agent-2", "agent-1"] } });
   });
 });
 
@@ -237,7 +237,7 @@ describe("channel routes", () => {
     expect(store.calls).toEqual([]);
   });
 
-  test("uses the authenticated context actor and canonical agent IDs", async () => {
+  test("uses the authenticated context actor, and the agents in the order they were picked", async () => {
     const store = fakeStore();
     const app = appFor(store);
 
@@ -251,7 +251,8 @@ describe("channel routes", () => {
     expect(created.status).toBe(201);
     expect(fetched.status).toBe(200);
     expect(store.calls).toEqual([
-      ["create", actor, ["agent-1", "agent-2"]],
+      // Picked second-first: the group runs on agent-2 (DT Lab, Windows retest of v0.1.35).
+      ["create", actor, ["agent-2", "agent-1"]],
       ["get", actor, "channel-1"],
     ]);
   });
