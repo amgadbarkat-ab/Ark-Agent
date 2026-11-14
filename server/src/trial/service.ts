@@ -392,8 +392,20 @@ export function createTrialService(
         }
         return made;
       };
+      /*
+       * One at a time across processes too: a transaction holds an advisory lock while the roster
+       * is set up, so a second replica waits and then finds every key already done. The employees
+       * themselves are made on other connections, which never ask for this lock.
+       */
+      const locked = () =>
+        database.transaction(async (transaction) => {
+          await transaction.execute(
+            sql`select pg_advisory_xact_lock(hashtext('trial-roster-seed'))`,
+          );
+          return run();
+        });
       const previous = seedRun ?? Promise.resolve(0);
-      const next = previous.catch(() => 0).then(run);
+      const next = previous.catch(() => 0).then(locked);
       seedRun = next;
       return next;
     },
