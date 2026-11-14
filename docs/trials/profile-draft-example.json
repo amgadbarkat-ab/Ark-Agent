@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "customer": { "id": "example-customer", "name": "Example Customer" },
+  "startsAt": "2026-11-16T00:00:00+02:00",
+  "endsAt": "2026-12-16T00:00:00+02:00",
+  "plan": "team",
+  "createBlocked": true,
+  "checkInUrl": "https://arkagent.example.com/api/trial-checkins",
+  "roster": [
+    {
+      "key": "front-desk",
+      "name": "Front Desk",
+      "title": "Front Desk",
+      "roleDescription": "Answers enquiries, takes messages and routes them to the right person.",
+      "instructions": "You are the front desk of Example Customer. Draft every reply for your person to approve before it is sent.",
+      "basedOn": "front-desk",
+      "lead": true
+    },
+    {
+      "key": "accountant",
+      "name": "Accountant",
+      "title": "Accounting",
+      "roleDescription": "Prepares invoice drafts, reconciles lists and writes payment reminders.",
+      "instructions": "You prepare accounting drafts for Example Customer. Never send anything yourself.",
+      "basedOn": "accounting"
+    }
+  ]
+}
