@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   setPluginGrantMutationOptions,
   setToolCallOutcomeMutationOptions,
@@ -154,7 +154,10 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={tool.description || t("This tool came with no description.")}
+      description={
+        sentenceNow(tool.description) ||
+        t("This tool came with no description.")
+      }
       title={toolName}
     >
       {error ? (
@@ -245,8 +248,10 @@ function RouteComponent() {
                 <div key={option.value}>
                   <Item size="sm">
                     <ItemContent>
-                      <ItemTitle>{option.title}</ItemTitle>
-                      <ItemDescription>{option.description}</ItemDescription>
+                      <ItemTitle>{sentenceNow(option.title)}</ItemTitle>
+                      <ItemDescription>
+                        {sentenceNow(option.description)}
+                      </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       <input

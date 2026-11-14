@@ -60,7 +60,7 @@ import {
   dataFunctionsQueryOptions,
 } from "@/lib/components/queries";
 import { RENDERABLE_NAMES } from "@/lib/copilot/gallery-registry";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -299,7 +299,7 @@ function ComponentDetail({
         component.publishedDescription ??
         t("Nothing is published, so no digital employee is told about this.")
       }
-      title={component.title}
+      title={sentenceNow(component.title)}
     >
       {/*
        * The render at the top of the page. Bordered and rounded rather than bleeding to the edges:
@@ -554,7 +554,9 @@ function ComponentDetail({
                       <Item size="sm">
                         <ItemContent>
                           <ItemTitle>{fn.name}</ItemTitle>
-                          <ItemDescription>{fn.description}</ItemDescription>
+                          <ItemDescription>
+                            {sentenceNow(fn.description)}
+                          </ItemDescription>
                         </ItemContent>
                         <ItemActions>
                           <Switch

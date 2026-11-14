@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { sentenceNow } from "@/lib/i18n";
 
 /**
  * One line for one thing a Bot did.
@@ -45,7 +46,9 @@ export function ToolLine({
       <span className="shrink-0">
         {refused ? "Blocked" : failed ? `${label}, didn't work` : label}
       </span>
-      {detail ? <span className="truncate opacity-70">{detail}</span> : null}
+      {detail ? (
+        <span className="truncate opacity-70">{sentenceNow(detail)}</span>
+      ) : null}
     </span>
   );
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 import {
   type PhoneCall,
   phoneCallActionMutationOptions,
@@ -53,7 +53,7 @@ function CallPanel({ call }: { call: PhoneCall }) {
       </p>
       {shown.said ? (
         <p className="mt-2 text-muted-foreground text-sm" role="status">
-          {shown.said}
+          {sentenceNow(shown.said)}
         </p>
       ) : null}
       {shown.step === "ringing" ? (

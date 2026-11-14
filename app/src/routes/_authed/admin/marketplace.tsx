@@ -20,7 +20,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   dismissReportMutationOptions,
   reviewListingMutationOptions,
@@ -141,7 +141,7 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
         <IconBook />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{listing.title}</ItemTitle>
+        <ItemTitle>{sentenceNow(listing.title)}</ItemTitle>
         <ItemDescription className="line-clamp-none">
           {tNow("{summary} · by {publisher} · version {version}", {
             summary: listing.summary,
@@ -151,7 +151,9 @@ function PendingRow({ listing }: { listing: ListingDetail }) {
         </ItemDescription>
         {shared ? (
           <ItemDescription className="mt-1 line-clamp-none whitespace-pre-wrap">
-            {tNow("Role: {text}", { text: shared.roleDescription })}
+            {tNow("Role: {text}", {
+              text: sentenceNow(shared.roleDescription),
+            })}
             {shared.instructions
               ? `\n\n${tNow("Instruction: {text}", { text: shared.instructions })}`
               : ""}
@@ -251,7 +253,7 @@ function ReportItem({ report }: { report: ReportRow }) {
         <IconFlag />
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{report.listing.title}</ItemTitle>
+        <ItemTitle>{sentenceNow(report.listing.title)}</ItemTitle>
         <ItemDescription className="line-clamp-none">
           {tNow("{reason} · by {publisher}", {
             reason,

@@ -78,7 +78,7 @@ import {
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
 import { cloudQueryOptions } from "@/lib/cloud/queries";
 import { isComposing } from "@/lib/composing";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 
@@ -168,7 +168,7 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
                 {profile.name}
               </span>
               <span className="truncate text-xs text-muted-foreground">
-                {profile.title}
+                {sentenceNow(profile.title)}
               </span>
             </div>
           </SidebarHeader>
@@ -824,8 +824,8 @@ function AccessSection({ agentId }: { agentId: string }) {
         {skills.map((skill) => (
           <Item key={skill.slug} variant="muted">
             <ItemContent>
-              <ItemTitle>{skill.title}</ItemTitle>
-              <ItemDescription>{skill.summary}</ItemDescription>
+              <ItemTitle>{sentenceNow(skill.title)}</ItemTitle>
+              <ItemDescription>{sentenceNow(skill.summary)}</ItemDescription>
             </ItemContent>
             <ItemActions>
               <span className="text-sm text-muted-foreground">

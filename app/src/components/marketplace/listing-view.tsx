@@ -28,7 +28,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   installListingMutationOptions,
   withdrawListingMutationOptions,
@@ -92,8 +92,8 @@ export function ListingView({
         )
       }
       backButton={backButton}
-      description={listing.summary}
-      title={listing.title}
+      description={sentenceNow(listing.summary)}
+      title={sentenceNow(listing.title)}
     >
       {install.error ? (
         <p className="mt-4 text-destructive text-sm" role="alert">
@@ -211,7 +211,7 @@ export function ListingView({
       {listing.description ? (
         <PageSection title={t("About")}>
           <p className="mt-3 whitespace-pre-wrap text-pretty text-sm leading-relaxed">
-            {listing.description}
+            {sentenceNow(listing.description)}
           </p>
         </PageSection>
       ) : null}
@@ -231,11 +231,14 @@ export function ListingView({
             <>
               <Detail label={t("Name")} value={content.install.name} />
               <Separator />
-              <Detail label={t("Title")} value={content.install.title} />
+              <Detail
+                label={t("Title")}
+                value={sentenceNow(content.install.title)}
+              />
               <Separator />
               <Detail
                 label={t("Starts with this role")}
-                value={content.install.roleDescription}
+                value={sentenceNow(content.install.roleDescription)}
               />
               {content.suggestedTools.length > 0 ? (
                 <>
@@ -380,7 +383,7 @@ function RoleSections({ role }: { role: OfficialRole }) {
             <Fragment key={skill.slug}>
               <Detail
                 label={`/${skill.slug}`}
-                value={`${skill.title}. ${skill.summary}`}
+                value={`${sentenceNow(skill.title)}. ${sentenceNow(skill.summary)}`}
               />
               {index !== role.skills.length - 1 && <Separator />}
             </Fragment>
@@ -398,8 +401,8 @@ function RoleSections({ role }: { role: OfficialRole }) {
             <Fragment key={request.label}>
               <Detail
                 icon={<IconTool />}
-                label={request.label}
-                value={request.why}
+                label={sentenceNow(request.label)}
+                value={sentenceNow(request.why)}
               />
               {index !== requests.length - 1 && <Separator />}
             </Fragment>

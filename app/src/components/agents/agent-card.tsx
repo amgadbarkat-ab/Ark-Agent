@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { Button } from "@/components/ui/button";
 import type { AgentProfile } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 
 export function AgentCard({
   agent,
@@ -30,7 +30,7 @@ export function AgentCard({
         <div className="absolute top-0 left-0 flex h-full w-full flex-col justify-end gap-2 p-3">
           <span className="line-clamp-1 text-sm font-medium">{agent.name}</span>
           <span className="line-clamp-3 text-xs text-foreground dark:text-foreground/80">
-            {agent.roleDescription}
+            {sentenceNow(agent.roleDescription)}
           </span>
         </div>
       </div>
@@ -55,7 +55,7 @@ export function AgentCard({
           ) : null}
         </span>
         <span className="line-clamp-2 break-words text-xs leading-4 text-muted-foreground">
-          {agent.roleDescription}
+          {sentenceNow(agent.roleDescription)}
         </span>
       </div>
       <div className="mt-auto flex shrink-0 items-center justify-between pt-2">

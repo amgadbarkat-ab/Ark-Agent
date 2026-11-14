@@ -9,7 +9,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { LiveWaveform } from "@/components/ui/live-waveform";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { useDictation } from "./use-dictation";
@@ -134,7 +134,7 @@ function RecordingControls({
       >
         {state.phase === "error" ? (
           <p className="text-sm text-destructive" role="alert">
-            {state.error}
+            {sentenceNow(state.error)}
           </p>
         ) : state.phase === "requesting" ? (
           <p className="text-sm text-muted-foreground" role="status">

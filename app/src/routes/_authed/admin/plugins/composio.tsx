@@ -19,7 +19,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   enableComposioAppMutationOptions,
   invalidatePlugins,
@@ -200,7 +200,9 @@ function RouteComponent() {
                     </ItemMedia>
                     <ItemContent>
                       <ItemTitle>{entry.name}</ItemTitle>
-                      <ItemDescription>{entry.description}</ItemDescription>
+                      <ItemDescription>
+                        {sentenceNow(entry.description)}
+                      </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       {/* The size of the decision, stated before it is made: an app is not one

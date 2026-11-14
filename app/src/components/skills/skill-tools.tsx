@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 import { undeclaredElsewhere } from "@/lib/skills/form";
 
@@ -95,7 +95,9 @@ export function SkillTools({
         <div className="flex flex-col gap-3">
           {servers.map((server) => (
             <div className="flex flex-col gap-1.5" key={server.id}>
-              <p className="text-muted-foreground text-xs">{server.title}</p>
+              <p className="text-muted-foreground text-xs">
+                {sentenceNow(server.title)}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {server.tools.map((tool) => {
                   const on = held.has(tool.ref);
@@ -108,7 +110,7 @@ export function SkillTools({
                        * The vendor's own tool name, not the namespaced one a model sees. The person
                        * reading this is matching it against the vendor's documentation.
                        */
-                      title={tool.description}
+                      title={sentenceNow(tool.description)}
                       type="button"
                       variant={on ? "default" : "outline"}
                     >

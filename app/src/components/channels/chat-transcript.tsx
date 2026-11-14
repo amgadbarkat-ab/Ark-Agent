@@ -52,7 +52,7 @@ import { tidyAnswer } from "@/lib/answer-text";
 import { attachmentUrl } from "@/lib/channels/attachments";
 import { readFiring } from "@/lib/channels/routine-firing";
 import { readColleagueAnswer } from "@/lib/copilot/markers";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { markdownComponents } from "@/lib/markdown";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { readToolName } from "@/lib/plugins/tool-name";
@@ -214,7 +214,7 @@ function Stopped({ reason }: { reason: string }) {
       data-testid="transcript-stopped"
       role="alert"
     >
-      {reason}
+      {sentenceNow(reason)}
     </p>
   );
 }

@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   FREE_MODEL_NOTE,
   isFreeModel,
@@ -263,7 +263,7 @@ function ModelForm({
 
           {provider ? (
             <div className="space-y-1 text-muted-foreground text-sm">
-              <p>{provider.summary}</p>
+              <p>{sentenceNow(provider.summary)}</p>
               {provider.notes?.map((note) => (
                 <p key={note}>{note}</p>
               ))}
@@ -446,7 +446,7 @@ function ModelForm({
               </p>
             ) : probe ? (
               <p className="text-destructive text-sm" role="alert">
-                {probe.reason}
+                {sentenceNow(probe.reason)}
               </p>
             ) : null}
           </div>

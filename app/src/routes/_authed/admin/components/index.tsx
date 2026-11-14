@@ -10,7 +10,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { componentListQueryOptions } from "@/lib/components/queries";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,7 +75,7 @@ function RouteComponent() {
                     })}
                   />
                   <h4 className="line-clamp-1 font-medium text-sm">
-                    {component.title}
+                    {sentenceNow(component.title)}
                   </h4>
                 </div>
                 <p className="mt-2 line-clamp-2 text-muted-foreground text-xs">

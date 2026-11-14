@@ -18,7 +18,7 @@ import {
   createChannelMutationOptions,
   renameChannelMutationOptions,
 } from "@/lib/channels/mutations";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
 
 /**
@@ -139,7 +139,7 @@ export function NewGroupForm({
                 {agent.title ? (
                   <span className="text-muted-foreground">
                     {" "}
-                    · {agent.title}
+                    · {sentenceNow(agent.title)}
                   </span>
                 ) : null}
               </label>

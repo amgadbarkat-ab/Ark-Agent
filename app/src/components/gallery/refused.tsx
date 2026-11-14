@@ -1,4 +1,4 @@
-import { tNow } from "@/lib/i18n";
+import { sentenceNow, tNow } from "@/lib/i18n";
 /**
  * Visible component refusal, using the same blocked-action semantics as computer policy refusals.
  */
@@ -17,9 +17,9 @@ export function RefusedCard({
       role="status"
     >
       <p className="text-sm font-medium text-destructive">
-        {tNow("Not shown: {title}", { title })}
+        {tNow("Not shown: {title}", { title: sentenceNow(title) })}
       </p>
-      <p className="mt-1 text-sm text-foreground/80">{reason}</p>
+      <p className="mt-1 text-sm text-foreground/80">{sentenceNow(reason)}</p>
     </div>
   );
 }

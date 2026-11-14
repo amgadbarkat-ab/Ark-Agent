@@ -42,7 +42,7 @@ import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
 import { storeMcpToken } from "@/lib/credentials/mutations";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   addCuratedServerMutationOptions,
   connectAccountMutationOptions,
@@ -931,7 +931,9 @@ function RouteComponent() {
                       <ItemTitle className="font-mono text-xs">
                         {tool.name}
                       </ItemTitle>
-                      <ItemDescription>{tool.description}</ItemDescription>
+                      <ItemDescription>
+                        {sentenceNow(tool.description)}
+                      </ItemDescription>
                     </ItemContent>
                     <ItemActions>
                       {/*

@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/item";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { DATA_SERVICES, type DataService } from "@/lib/data-services";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -362,7 +362,7 @@ function ServiceRow({
         id={service.connector as string}
         mark={mark}
         note={service.untested ? UNTESTED : undefined}
-        summary={service.summary}
+        summary={sentenceNow(service.summary)}
         title={service.name}
       />
     );
@@ -374,10 +374,10 @@ function ServiceRow({
         <ItemTitle className="block w-auto truncate">{service.name}</ItemTitle>
         <ItemDescription
           className="line-clamp-2 text-xs"
-          title={service.summary}
+          title={sentenceNow(service.summary)}
         >
-          {service.summary}
-          {state.kind === "needs-setup" ? ` ${state.reason}` : ""}
+          {sentenceNow(service.summary)}
+          {state.kind === "needs-setup" ? ` ${sentenceNow(state.reason)}` : ""}
           {service.untested ? ` ${UNTESTED}` : ""}
         </ItemDescription>
       </ItemContent>

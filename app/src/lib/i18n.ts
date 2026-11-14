@@ -219,8 +219,11 @@ export function tNow(
 }
 
 /** A whole sentence from elsewhere (the server, a runtime), in the language chosen right now. */
-export function sentenceNow(sentence: string): string {
-  return translateSentence(storedLanguage(), sentence);
+export function sentenceNow<T extends string | null | undefined>(
+  sentence: T,
+): T {
+  if (typeof sentence !== "string") return sentence;
+  return translateSentence(storedLanguage(), sentence) as T;
 }
 
 /** The same, redrawing when the language changes. */

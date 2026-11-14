@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   clearDefaultModelMutationOptions,
   setBotModelMutationOptions,
@@ -220,7 +220,7 @@ function ModelsPage() {
                           </span>
                         </ItemTitle>
                         <ItemDescription className="line-clamp-none">
-                          {provider.summary}
+                          {sentenceNow(provider.summary)}
                           {running && status?.models?.length
                             ? ` ${
                                 status.models.length > 3

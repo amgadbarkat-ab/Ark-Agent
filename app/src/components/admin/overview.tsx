@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { formatEur } from "@/lib/account/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   type OverviewAttention,
   type OverviewCheck,
@@ -267,9 +267,9 @@ function AttentionRow({ item }: { item: OverviewAttention }) {
         {item.severity === "action" ? <IconAlertTriangle /> : <IconEye />}
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{item.title}</ItemTitle>
+        <ItemTitle>{sentenceNow(item.title)}</ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {item.detail}
+          {sentenceNow(item.detail)}
         </ItemDescription>
       </ItemContent>
     </>
@@ -300,9 +300,9 @@ function CheckRow({ check }: { check: OverviewCheck }) {
         )}
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{check.title}</ItemTitle>
+        <ItemTitle>{sentenceNow(check.title)}</ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {check.detail}
+          {sentenceNow(check.detail)}
         </ItemDescription>
       </ItemContent>
       <ItemActions>

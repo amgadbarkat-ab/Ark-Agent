@@ -34,7 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   removeSkillMutationOptions,
   saveSkillMutationOptions,
@@ -128,7 +128,7 @@ function RouteComponent() {
                       <code className="font-mono text-foreground/80 text-xs">
                         /{skill.slug}
                       </code>{" "}
-                      {skill.title}
+                      {sentenceNow(skill.title)}
                       {/*
                        * A name can now belong to more than one skill, so a row says whose it is: staff see every
                        * skill, and two rows reading `/standup` would otherwise look like a duplicate.
@@ -140,7 +140,9 @@ function RouteComponent() {
                         </span>
                       ) : null}
                     </ItemTitle>
-                    <ItemDescription>{skill.summary}</ItemDescription>
+                    <ItemDescription>
+                      {sentenceNow(skill.summary)}
+                    </ItemDescription>
                     {/* A set, so it wraps onto its own line rather than crowding the title. */}
                     <ItemFooter>
                       <div className="flex flex-wrap gap-2">

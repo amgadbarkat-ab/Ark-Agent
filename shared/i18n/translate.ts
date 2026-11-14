@@ -105,8 +105,10 @@ function whole1(sentence: string): string | null {
     const values: Record<string, string> = {};
     pattern.names.forEach((name, index) => {
       const value = found[index + 1] ?? "";
-      // A value that is itself a known phrase (a status, a step) is translated too.
-      values[name] = EL[value] ?? value;
+      // A value that is itself a known phrase (a status, a step, a sentence with its own
+      // placeholders) is translated too. It is shorter than the sentence, so this ends.
+      values[name] =
+        (value.length < sentence.length ? whole1(value) : null) ?? value;
     });
     return fill(pattern.greek, values);
   }

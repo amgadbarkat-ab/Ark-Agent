@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { tNow, txNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, txNow, useT } from "@/lib/i18n";
 import { removeSkillMutationOptions } from "@/lib/plugins/mutations";
 import { pluginsPageQueryOptions } from "@/lib/plugins/queries";
 
@@ -155,7 +155,7 @@ function SkillsPage() {
                 <StaggerItem index={index} key={skill.id}>
                   <Item size="sm">
                     <ItemContent>
-                      <ItemTitle>{skill.title}</ItemTitle>
+                      <ItemTitle>{sentenceNow(skill.title)}</ItemTitle>
                       {/*
                        * THE COMMAND FIRST, because it is the only part a person has to know. The title
                        * says what the skill is for; `/slug` is what they actually type, and a page that
@@ -168,7 +168,9 @@ function SkillsPage() {
                         <code className="font-mono text-foreground/80 text-xs">
                           /{skill.slug}
                         </code>
-                        {skill.summary ? ` · ${skill.summary}` : null}
+                        {skill.summary
+                          ? ` · ${sentenceNow(skill.summary)}`
+                          : null}
                       </ItemDescription>
                     </ItemContent>
                     <ItemActions>
@@ -240,7 +242,7 @@ function SkillsPage() {
                 <StaggerItem index={index} key={skill.id}>
                   <Item size="sm">
                     <ItemContent>
-                      <ItemTitle>{skill.title}</ItemTitle>
+                      <ItemTitle>{sentenceNow(skill.title)}</ItemTitle>
                       {/*
                        * THE COMMAND FIRST, because it is the only part a person has to know. The title
                        * says what the skill is for; `/slug` is what they actually type, and a page that
@@ -253,7 +255,9 @@ function SkillsPage() {
                         <code className="font-mono text-foreground/80">
                           /{skill.slug}
                         </code>
-                        {skill.summary ? ` · ${skill.summary}` : null}
+                        {skill.summary
+                          ? ` · ${sentenceNow(skill.summary)}`
+                          : null}
                       </ItemDescription>
                     </ItemContent>
                   </Item>

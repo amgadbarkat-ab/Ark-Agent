@@ -21,7 +21,7 @@ import {
   type ApprovalRecord,
   approvalsQueryOptions,
 } from "@/lib/approvals/queries";
-import { type MessageKey, useT } from "@/lib/i18n";
+import { type MessageKey, sentenceNow, useT } from "@/lib/i18n";
 import { relativeTime } from "@/lib/relative-time";
 import { queryClient } from "@/query-client";
 
@@ -138,7 +138,7 @@ export function ApprovalItem({
           {t(kindWords(row.kind))}
         </ItemDescription>
         <ItemDescription className="line-clamp-none whitespace-pre-wrap">
-          {row.summary}
+          {sentenceNow(row.summary)}
         </ItemDescription>
         {row.details?.length ? (
           <dl className="mt-1 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-4 gap-y-1 text-sm">
@@ -148,7 +148,7 @@ export function ApprovalItem({
                 key={`${detail.label}-${index.toString()}`}
               >
                 <dt className="truncate text-muted-foreground">
-                  {detail.label}
+                  {sentenceNow(detail.label)}
                 </dt>
                 <dd className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs leading-5">
                   {detail.value}

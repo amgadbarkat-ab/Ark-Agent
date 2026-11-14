@@ -24,7 +24,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   type CatalogueItem,
   connectionsQueryOptions,
@@ -170,7 +170,7 @@ function RouteComponent() {
                           <Mark className="size-4" />
                         </RowMark>
                         <ItemContent>
-                          <ItemTitle>{server.title}</ItemTitle>
+                          <ItemTitle>{sentenceNow(server.title)}</ItemTitle>
                           {/*
                            * The vendor's last failure takes the description's place when there is
                            * one. A server with no tools and no explanation reads as a server that
@@ -235,8 +235,10 @@ function RouteComponent() {
                           <Mark className="size-4" />
                         </RowMark>
                         <ItemContent>
-                          <ItemTitle>{entry.title}</ItemTitle>
-                          <ItemDescription>{entry.summary}</ItemDescription>
+                          <ItemTitle>{sentenceNow(entry.title)}</ItemTitle>
+                          <ItemDescription>
+                            {sentenceNow(entry.summary)}
+                          </ItemDescription>
                         </ItemContent>
                         <ItemActions>
                           <span className="text-muted-foreground text-xs">

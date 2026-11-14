@@ -12,7 +12,7 @@ import {
   readScreenshot,
   type Screenshot,
 } from "@/lib/computers/screen";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { ChannelAvatar } from "../channels/avatar";
 import { LiveScreen } from "./live-screen";
 import { useElementVisible, usePageVisible } from "./preview-visibility";
@@ -522,7 +522,7 @@ export function ComputerView({
               <strong className="font-medium">
                 {t("The assistant needs you.")}
               </strong>{" "}
-              {control.reason}
+              {sentenceNow(control.reason)}
             </span>
             <button
               type="button"
@@ -704,14 +704,16 @@ export function ComputerView({
                           {tNow(
                             "You have control — click and type on the page.",
                           )}
-                          {control?.reason ? ` ${control.reason}` : null}
+                          {control?.reason
+                            ? ` ${sentenceNow(control.reason)}`
+                            : null}
                         </span>
                       ) : control?.requested ? (
                         <span className="truncate text-muted-foreground">
                           <strong className="font-medium text-foreground">
                             {t("The assistant needs you.")}
                           </strong>{" "}
-                          {control.reason}
+                          {sentenceNow(control.reason)}
                         </span>
                       ) : null}
                     </span>

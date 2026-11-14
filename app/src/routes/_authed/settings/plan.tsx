@@ -30,7 +30,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
 import { trialDaysLeft } from "../../../../../shared/plans";
@@ -70,7 +70,8 @@ function statusLine(
   const until = account.currentPeriodEnd
     ? new Date(account.currentPeriodEnd).toLocaleDateString()
     : null;
-  if (!account.canRun && account.blockedReason) return account.blockedReason;
+  if (!account.canRun && account.blockedReason)
+    return sentenceNow(account.blockedReason);
   if (account.cancelAtPeriodEnd) {
     return until
       ? tNow("Ends on {until}", { until: until })
@@ -437,7 +438,7 @@ function PlanRow({
           </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
-          {plan.summary}
+          {sentenceNow(plan.summary)}
         </ItemDescription>
       </ItemContent>
       <ItemActions>

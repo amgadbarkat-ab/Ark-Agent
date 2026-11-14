@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useBotNames } from "@/lib/agents/bot-names";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   grantPlugin,
   invalidatePlugins,
@@ -256,7 +256,8 @@ function RouteComponent() {
             <ItemContent>
               <ItemTitle className="font-mono text-xs">{tool.name}</ItemTitle>
               <ItemDescription>
-                {tool.description || t("This action came with no description.")}
+                {sentenceNow(tool.description) ||
+                  t("This action came with no description.")}
               </ItemDescription>
             </ItemContent>
             <ItemActions>

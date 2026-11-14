@@ -8,7 +8,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
-import { tNow } from "@/lib/i18n";
+import { sentenceNow, tNow } from "@/lib/i18n";
 import type { ListingCard } from "@/lib/marketplace/queries";
 
 /**
@@ -39,8 +39,8 @@ export function ListingRow({
         {listing.kind === "official" ? <IconSparkles /> : <IconBook />}
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>{listing.title}</ItemTitle>
-        <ItemDescription>{listing.summary}</ItemDescription>
+        <ItemTitle>{sentenceNow(listing.title)}</ItemTitle>
+        <ItemDescription>{sentenceNow(listing.summary)}</ItemDescription>
         <ItemDescription className="line-clamp-none">
           {[by, note].filter(Boolean).join(" · ")}
         </ItemDescription>

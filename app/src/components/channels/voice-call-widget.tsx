@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LiveWaveform } from "@/components/ui/live-waveform";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { EASE_OUT, ENTRANCE_SECONDS } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { useVoiceCall } from "@/lib/voice/use-voice-call";
@@ -280,7 +280,7 @@ export function VoiceCallWidget({
           {failed && (
             <div className="mt-3 text-xs">
               <p className="text-destructive" role="alert">
-                {state.error}
+                {sentenceNow(state.error)}
               </p>
               <Button
                 variant="ghost"

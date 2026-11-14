@@ -17,7 +17,7 @@ import {
 } from "@/lib/audit/outcome";
 import { auditEventsQueryOptions } from "@/lib/audit/queries";
 import { silenceOf } from "@/lib/audit/silence";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 
 /**
  * Read surface for policy, computer, component, MCP, and credential audit events.
@@ -322,7 +322,7 @@ function Row({
           event.eventType === "mcp.call_rejected") &&
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {payload.reason}
+            {sentenceNow(payload.reason)}
           </div>
         ) : null}
         {/*
@@ -360,13 +360,13 @@ function Row({
            * where nobody scrolls to find it.
            */
           <div className="mt-0.5 w-[22rem] break-words text-xs text-muted-foreground">
-            {payload.reason}
+            {sentenceNow(payload.reason)}
           </div>
         ) : null}
         {event.eventType === "bot.declined" &&
         typeof payload.reason === "string" ? (
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {payload.reason}
+            {sentenceNow(payload.reason)}
             <span className="italic">
               {t(", reported by the digital employee itself")}
             </span>

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { openInBrowser } from "@/lib/external-links";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { connectAccountMutationOptions } from "@/lib/plugins/mutations";
 import { pastedCallback } from "@/lib/plugins/pasted-callback";
 import {
@@ -309,7 +309,7 @@ function RouteComponent() {
   return (
     <PageShell
       backButton={back}
-      description={entry.summary}
+      description={sentenceNow(entry.summary)}
       title={entry.title}
     >
       {notice ? (

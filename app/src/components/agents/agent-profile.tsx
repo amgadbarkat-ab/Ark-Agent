@@ -6,7 +6,7 @@ import { AgentDialog } from "@/components/agents/agent-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agentQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { sentenceNow, useT } from "@/lib/i18n";
 
 function Tag({ children }: { children: ReactNode }) {
   return (
@@ -81,7 +81,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
             {profile.name}
           </h1>
           <p className="w-full text-balance text-sm text-muted-foreground">
-            {profile.title}
+            {sentenceNow(profile.title)}
           </p>
         </div>
 
@@ -97,7 +97,7 @@ export function AgentProfile({ agentId }: { agentId: string }) {
           {t("Role")}
         </h2>
         <p className="text-sm whitespace-pre-wrap text-pretty">
-          {profile.roleDescription}
+          {sentenceNow(profile.roleDescription)}
         </p>
       </section>
 

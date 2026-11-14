@@ -24,7 +24,7 @@ import {
   agentQueryOptions,
 } from "@/lib/agents/queries";
 import { useStartChannel } from "@/lib/channels/start";
-import { tNow, useT } from "@/lib/i18n";
+import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { useSkillCommands } from "@/lib/plugins/skill-commands";
 import { newId } from "../../../../lib/new-id";
 
@@ -131,7 +131,7 @@ function RouteComponent() {
                   <ChannelAvatar participantIds={[item.id]} size={24} />
                   {item.name}
                   <span className="truncate text-muted-foreground ml-1">
-                    {item.title}
+                    {sentenceNow(item.title)}
                   </span>
                 </ComboboxItem>
               )}
