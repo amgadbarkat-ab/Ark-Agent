@@ -9,7 +9,9 @@ import { OwnBrowserIndicator } from "@/components/computer/own-browser-indicator
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { SimulatedPhone } from "@/components/phone/simulated-phone";
 import { accountQueryOptions } from "@/lib/account/queries";
+import { agentKeys } from "@/lib/agents/queries";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
+import { trialQueryOptions } from "@/lib/trial/queries";
 
 export const Route = createFileRoute("/_authed/_app")({
   /*
@@ -21,6 +23,19 @@ export const Route = createFileRoute("/_authed/_app")({
    * A deployment with no account service answers an error here, which means there is nothing to gate.
    */
   beforeLoad: async ({ context }) => {
+    /*
+     * The trial, asked once as the app opens (#109): asking is what sets up the roster on the server,
+     * so the Digital Team is read again once it has, rather than showing the team from before.
+     */
+    void context.queryClient
+      .fetchQuery(trialQueryOptions())
+      .then((overview) => {
+        if (overview.trial)
+          void context.queryClient.invalidateQueries({
+            queryKey: agentKeys.all,
+          });
+      })
+      .catch(() => undefined);
     try {
       const user = await context.queryClient.ensureQueryData(
         currentUserQueryOptions(),

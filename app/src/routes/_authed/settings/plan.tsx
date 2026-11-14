@@ -9,6 +9,7 @@ import {
   PageShell,
 } from "@/components/layout/page-shell";
 import { CloudRunningSection } from "@/components/settings/cloud-running";
+import { TrialSection } from "@/components/settings/trial-section";
 import { Button } from "@/components/ui/button";
 import {
   Item,
@@ -30,6 +31,7 @@ import {
   formatEur,
   type PlanOffer,
 } from "@/lib/account/queries";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
@@ -142,6 +144,7 @@ function PlanPage() {
   const [requested, setRequested] = useState<string | null>(null);
   const [gaveUp, setGaveUp] = useState(false);
   const overview = useQuery(accountQueryOptions());
+  const currentUser = useQuery(currentUserQueryOptions());
   const choose = useMutation(choosePlanMutationOptions());
   const portal = useMutation(openBillingPortalMutationOptions());
   const cancel = useMutation(cancelPlanMutationOptions(queryClient));
@@ -218,7 +221,7 @@ function PlanPage() {
                 ? t("This account does not have an active plan.")
                 : data.account.blockedCode === "no_plan"
                   ? t("Choose a plan to start your digital employees.")
-                  : data.account.blockedReason}
+                  : sentenceNow(data.account.blockedReason)}
             </p>
           ) : null}
           {failure ? (
@@ -229,7 +232,8 @@ function PlanPage() {
 
           <PageSection
             description={
-              data.billing.mode === "internal"
+              data.billing.mode === "internal" &&
+              data.account.subscriptionStatus !== "trialing"
                 ? t(
                     "This deployment is run by your company: nobody pays and there is no limit.",
                   )
@@ -261,6 +265,8 @@ function PlanPage() {
               </Item>
             </PageRows>
           </PageSection>
+
+          <TrialSection admin={currentUser.data?.role === "admin"} />
 
           {purchasesAllowed && data.billing.mode === "subscriptions" ? (
             <PageSection

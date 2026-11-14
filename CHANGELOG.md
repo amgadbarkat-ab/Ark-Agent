@@ -8,6 +8,50 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Customer trials (#109)
+
+A customer trial is now set by one signed file from BlackArk, and ArkAgent keeps to it on its own:
+the employees it names, nothing more, until the end it names.
+
+- **Trial profile.** A file named `<customer>.arktrial`. It holds the customer, a fixed first and last
+  day, the plan, the digital employees to set up, whether making more is blocked, and the check-in
+  address. BlackArk signs it (Ed25519) with `bun scripts/ark-trial.ts`. ArkAgent accepts only a file
+  signed with the BlackArk key built into this release.
+- **Where to import it.** Either the setup window (**Import trial profile**, top right under
+  EN / ΕΛ, on every step; it is handed over when ArkAgent opens), or **Settings → Plan → Trial →
+  Import trial profile → Choose file** (administrator). Importing the same file again changes
+  nothing. A newer profile for the same customer replaces the old one. A profile for another
+  customer is refused.
+- **The roster is set up once.** Each employee is private to the person and has the profile's name,
+  title, role description and standing instruction. An employee `basedOn` an official role gets that
+  role's skills. The lead is the one the profile marks, or the first one. The deployment's own
+  example employees are hidden. An employee the person deletes is not brought back.
+- **No extra employees (createBlocked).** While the trial runs, creating an employee is refused on
+  every path: Hire/Install from the marketplace, Create your own, Duplicate, an employee proposing one
+  in a conversation, and unhiding a non-trial employee. The buttons are off, and the server refuses
+  (403) with «Κατά τη δοκιμή δεν μπορείτε να δημιουργήσετε επιπλέον ψηφιακούς υπαλλήλους. Οι
+  υπάλληλοι της δοκιμής έχουν ήδη οριστεί.» / "During the trial you cannot create extra digital
+  employees. The trial employees are already set up." Routines, Requests and approvals work as
+  before.
+- **Plan.** The profile names it: **Ark Team** (`team`) lets up to 15 employees work at the same
+  moment. An employee counts only while it is working.
+- **The end (day 31).** From the profile's last moment on, no employee runs: replies, routines and
+  hand-offs all stop. Conversations, settings and files are kept and readable. Settings → Plan says
+  «Η δοκιμή 30 ημερών έληξε στις 2026-12-16. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται. Για να
+  συνεχίσετε, εισαγάγετε κωδικό ξεκλειδώματος στις Ρυθμίσεις, στο Πρόγραμμα.» The length is the
+  profile's real length. Turning the computer's clock back does not reopen it: ArkAgent compares the
+  end with the latest time it has seen. Reinstalling and importing the same file does not restart it,
+  because the dates are in the file.
+- **Unlock codes.** BlackArk makes them with `bun scripts/ark-trial.ts sign-code`. Each code is for
+  one customer and works once. It is entered in **Settings → Plan → Trial → Unlock code**, and does
+  one of three things: extend to a date, end now, or convert to paid (no end, no block).
+- **Daily check-in.** At start and once a day, if the profile names an address, ArkAgent sends it the
+  customer id, a random install id, the version, the trial status, the days left, the end date and
+  the number of trial employees. Nothing about conversations, files, mail or people is sent. BlackArk's
+  own server receives these with `ARK_TRIAL_RECEIVER=true` and lists them in **Admin → Trials**.
+- **Without the BlackArk key** built in, a build accepts no profile and says so. Nothing about a
+  trial changes on any install that has no profile.
+
 ## 0.1.36
 
 ### The whole app in English or Greek (#108)

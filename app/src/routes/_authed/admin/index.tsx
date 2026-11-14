@@ -1,6 +1,7 @@
 import {
   IconBuildingBank,
   IconBuildingStore,
+  IconCalendarTime,
   IconChevronRight,
   IconCloud,
   IconCode,
@@ -141,6 +142,14 @@ const SECTIONS: {
         ),
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
+      },
+      {
+        title: tNow("Trials"),
+        description: tNow(
+          "Customer trials that report to this server: status and days left for each install.",
+        ),
+        icon: IconCalendarTime,
+        linkOptions: { to: "/admin/trials" },
       },
       {
         title: tNow("Cloud costs"),

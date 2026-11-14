@@ -17,6 +17,7 @@ import { EL_SCREENS3 } from "./screens3";
 import { EL_SERVER } from "./server";
 import { EL_SERVER_COUNTS } from "./server-counts";
 import { EL_SERVER_LABELS } from "./server-labels";
+import { EL_TRIAL } from "./trial";
 
 export const EL: Readonly<Record<string, string>> = {
   ...EL_COMMON,
@@ -34,4 +35,5 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_SERVER_LABELS,
   ...EL_DESKTOP,
   ...EL_PACKAGE,
+  ...EL_TRIAL,
 };

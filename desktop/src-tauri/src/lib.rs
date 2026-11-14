@@ -28,6 +28,7 @@ pub mod saved_intent;
 pub mod stack;
 pub mod supervise;
 pub mod tray;
+pub mod trial_profile;
 pub mod vault;
 pub mod windows;
 

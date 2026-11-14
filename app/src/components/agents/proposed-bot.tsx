@@ -11,6 +11,7 @@ import {
   wasCreated,
 } from "@/lib/agents/proposal";
 import { tNow, useT } from "@/lib/i18n";
+import { useCreateBlocked } from "@/lib/trial/use-create-blocked";
 
 /**
  * The coworker a Bot has written, put in front of the person before it exists.
@@ -65,6 +66,7 @@ export function ProposedBotCard({
   create,
 }: ProposedBotCardProps) {
   const t = useT();
+  const createBlocked = useCreateBlocked();
   const [sending, setSending] = useState<"create" | "decline" | null>(null);
   /**
    * A refusal from the server, kept on the card rather than answered with.
@@ -192,11 +194,15 @@ export function ProposedBotCard({
         <p className="mt-3 text-destructive text-sm" role="alert">
           {refusal}
         </p>
+      ) : createBlocked ? (
+        <p className="mt-3 text-muted-foreground text-sm" role="status">
+          {createBlocked}
+        </p>
       ) : null}
 
       <div className="mt-4 flex gap-2">
         <Button
-          disabled={Boolean(sending)}
+          disabled={Boolean(sending) || createBlocked !== null}
           onClick={() => void make()}
           size="sm"
         >

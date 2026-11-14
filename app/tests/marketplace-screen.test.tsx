@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { ListingView } from "@/components/marketplace/listing-view";
 import { ShareDialog } from "@/components/marketplace/share-dialog";
 import type { ListingDetail } from "@/lib/marketplace/queries";
+import { queryClient as appQueryClient } from "@/query-client";
 import { Route as ReviewRoute } from "@/routes/_authed/admin/marketplace";
 
 /**
@@ -163,12 +164,53 @@ test("an official digital employee shows what it starts with and can be installe
   expect(
     await screen.findByText(/is now one of your digital employees/, {}, SLOW),
   ).toBeTruthy();
-  expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
-    "POST /api/marketplace/listings/research-analyst/install",
-  ]);
+  // The trial is asked about as well (#109); the only write is the install.
+  expect(
+    calls
+      .filter((c) => c.url !== "/api/trial")
+      .map((c) => `${c.method} ${c.url}`),
+  ).toEqual(["POST /api/marketplace/listings/research-analyst/install"]);
   expect(
     (screen.getByRole("link", { name: "Open it" }) as HTMLAnchorElement).href,
   ).toContain("/agents");
+});
+
+test("during a trial with a fixed team, Install is off and says why (#109)", async () => {
+  appQueryClient.removeQueries({ queryKey: ["trial"] });
+  const calls = serve({
+    "GET /api/trial": () =>
+      Response.json({
+        keyConfigured: true,
+        trial: {
+          customerId: "wine24",
+          customerName: "Wine24",
+          status: "trial",
+          startsAt: "2026-11-16T00:00:00.000Z",
+          endsAt: "2026-12-16T00:00:00.000Z",
+          lengthDays: 30,
+          daysLeft: 29,
+          planId: "team",
+          planName: "Ark Team",
+          createBlocked: true,
+          rosterSize: 12,
+          checkInHost: null,
+          lastCheckInAt: null,
+          lastCheckInError: null,
+        },
+      }),
+  });
+  const screen = inRouter(<ListingView backButton={back} listing={official} />);
+  expect(
+    await screen.findByText(
+      "During the trial you cannot create extra digital employees. The trial employees are already set up.",
+      {},
+      SLOW,
+    ),
+  ).toBeTruthy();
+  const install = screen.getByRole("button", { name: "Install" });
+  expect((install as HTMLButtonElement).disabled).toBe(true);
+  expect(calls.some((c) => c.method === "POST")).toBe(false);
+  appQueryClient.removeQueries({ queryKey: ["trial"] });
 });
 
 test("a shared digital employee is for reading: no way to install it, and it says so", async () => {

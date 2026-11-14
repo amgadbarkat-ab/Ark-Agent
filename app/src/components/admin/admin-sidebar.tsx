@@ -2,6 +2,7 @@ import {
   IconArrowLeft,
   IconBuildingBank,
   IconBuildingStore,
+  IconCalendarTime,
   IconCode,
   IconCreditCard,
   IconDeviceDesktop,
@@ -103,6 +104,11 @@ const GROUPS: {
         title: tNow("Accounts"),
         icon: IconCreditCard,
         linkOptions: { to: "/admin/accounts" },
+      },
+      {
+        title: tNow("Trials"),
+        icon: IconCalendarTime,
+        linkOptions: { to: "/admin/trials" },
       },
       {
         title: tNow("Marketplace"),
