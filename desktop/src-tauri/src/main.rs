@@ -2758,6 +2758,18 @@ where
 /// returns whichever answered, because a dev server binds whichever loopback its runtime resolved
 /// and naming one guesses wrong half the time. Never the word `localhost`: it does not resolve the
 /// same way on every operating system, which is the whole reason both are asked.
+/// Keeps the trial profile the person chose in the setup window, for when the app opens (#109).
+#[tauri::command]
+fn save_trial_profile<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    text: String,
+) -> Result<(), Problem> {
+    let config = app.path().app_config_dir().map_err(|_| {
+        Problem::plain("ArkAgent could not keep the trial profile on this computer.")
+    })?;
+    openbot_desktop_lib::trial_profile::save(&config, &text).map_err(Problem::plain)
+}
+
 #[tauri::command]
 async fn show_openbot<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -2807,6 +2819,19 @@ fn show_openbot_on<R: tauri::Runtime>(
     // Before the window shows the app: an app whose digital employees cannot reach the server or the
     // model looks fine and answers nothing, which is worse than the sentence this returns instead.
     restore_adopted_relays(&shell, &root, ports)?;
+    // A trial profile chosen in the setup window goes to the server now that it runs (#109). A
+    // refusal is said here, in the server's words, and the file is gone, so opening again works.
+    if let Ok(config) = app.path().app_config_dir() {
+        match openbot_desktop_lib::trial_profile::deliver(&config, ports.server) {
+            openbot_desktop_lib::trial_profile::Delivery::Refused(reason) => {
+                return Err(Problem::plain(reason));
+            }
+            openbot_desktop_lib::trial_profile::Delivery::Imported => {
+                eprintln!("[show] trial profile imported")
+            }
+            _ => {}
+        }
+    }
     eprintln!("[show] navigating to the owned ArkAgent app");
     let window = app
         .get_webview_window("main")
@@ -3962,6 +3987,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Shell::default())
         .invoke_handler(tauri::generate_handler![
+            save_trial_profile,
             detect_engine,
             windows_blocker,
             windows_blocker_instruction,

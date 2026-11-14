@@ -70,6 +70,13 @@ export const EL_TRIAL: Record<string, string> = {
   ended: "έληξε",
   paid: "πληρωμένο",
 
+  // The setup window, before ArkAgent opens.
+  "Trial profile ready. It is imported when ArkAgent opens.":
+    "Το προφίλ δοκιμής είναι έτοιμο. Θα εισαχθεί όταν ανοίξει το ArkAgent.",
+  "ArkAgent could not keep the trial profile on this computer.":
+    "Το ArkAgent δεν μπόρεσε να κρατήσει το προφίλ δοκιμής σε αυτόν τον υπολογιστή.",
+  "The trial profile was not accepted.": "Το προφίλ δοκιμής δεν έγινε δεκτό.",
+
   // What the server says about a profile or a code.
   "This version of ArkAgent has no BlackArk key yet, so it cannot check a trial profile or code. Ask BlackArk for the current version.":
     "Αυτή η έκδοση του ArkAgent δεν έχει ακόμη κλειδί της BlackArk και δεν μπορεί να ελέγξει προφίλ ή κωδικό δοκιμής. Ζητήστε από την BlackArk την τρέχουσα έκδοση.",

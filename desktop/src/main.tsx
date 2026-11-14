@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { BrandBar } from "./BrandBar";
 import { LanguageSwitch } from "./LanguageSwitch";
+import { TrialImport } from "./TrialImport";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -13,6 +14,7 @@ createRoot(root).render(
   <StrictMode>
     <BrandBar />
     <LanguageSwitch />
+    <TrialImport />
     <App />
   </StrictMode>,
 );
