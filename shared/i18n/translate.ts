@@ -41,7 +41,7 @@ type Pattern = { match: RegExp; names: string[]; greek: string };
 
 let patterns: Pattern[] | null = null;
 
-function escape(text: string): string {
+function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -60,7 +60,7 @@ function compiled(): Pattern[] {
             names.push(part);
             return "([\\s\\S]+?)";
           }
-          return escape(part);
+          return escapeRegExp(part);
         })
         .join("");
       return { match: new RegExp(`^${source}$`), names, greek };

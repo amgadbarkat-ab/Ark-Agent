@@ -107,7 +107,12 @@ function files(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) files(path, out);
-    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) && name !== "routeTree.gen.ts") out.push(path);
+    else if (
+      /\.tsx?$/.test(name) &&
+      !/\.test\.tsx?$/.test(name) &&
+      name !== "routeTree.gen.ts"
+    )
+      out.push(path);
   }
   return out;
 }
@@ -124,7 +129,12 @@ function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
       const holder = parent.parent;
       if (holder && ts.isJsxAttribute(holder)) {
         const prop = holder.name.getText(source);
-        return !TECHNICAL_PROPS.has(prop) && !prop.endsWith("ClassName") && !prop.startsWith("on") && !prop.startsWith("data-");
+        return (
+          !TECHNICAL_PROPS.has(prop) &&
+          !prop.endsWith("ClassName") &&
+          !prop.startsWith("on") &&
+          !prop.startsWith("data-")
+        );
       }
       return true;
     }
@@ -134,11 +144,13 @@ function shownInJsx(node: ts.Node, source: ts.SourceFile): boolean {
       (ts.isBinaryExpression(parent) &&
         (parent.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
           parent.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
-          parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)) ||
+          parent.operatorToken.kind ===
+            ts.SyntaxKind.AmpersandAmpersandToken)) ||
       ts.isTemplateSpan(parent) ||
       ts.isTemplateExpression(parent)
     ) {
-      if (ts.isConditionalExpression(parent) && parent.condition === current) return false;
+      if (ts.isConditionalExpression(parent) && parent.condition === current)
+        return false;
       current = parent;
       continue;
     }
@@ -168,7 +180,9 @@ export function scan(
     const visit = (node: ts.Node) => {
       const inCode = (n: ts.Node) =>
         ts.isJsxElement(n.parent) &&
-        /^(code|kbd|pre|samp)$/.test(n.parent.openingElement.tagName.getText(source));
+        /^(code|kbd|pre|samp)$/.test(
+          n.parent.openingElement.tagName.getText(source),
+        );
       if (ts.isJsxText(node) && isWords(node.text) && !inCode(node)) {
         raw.push({ file, line: at(node), text: node.text.trim() });
       } else if (
@@ -196,7 +210,11 @@ export function scan(
         const text = ts.isTemplateExpression(node)
           ? node.getText(source).slice(1, -1)
           : node.text;
-        if (isWords(text) && /\s/.test(text.trim()) && /^[A-Z“"(]/.test(text.trim())) {
+        if (
+          isWords(text) &&
+          /\s/.test(text.trim()) &&
+          /^[A-Z“"(]/.test(text.trim())
+        ) {
           raw.push({ file, line: at(node), text });
         }
       } else if (
