@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.36
+
 ### The whole app in English or Greek (#108)
 
 - **Settings → General → Language: English / Ελληνικά.** Choosing Greek redraws the whole app in
