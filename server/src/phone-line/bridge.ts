@@ -205,6 +205,13 @@ export function startCallBridge(input: CallBridgeInput) {
     if (speak) toSpeech({ type: "response.create" });
   };
 
+  const handled = new Set<string>();
+  const handleOnce = (name: string, callId: string, rawArgs: string) => {
+    if (handled.has(callId)) return;
+    handled.add(callId);
+    onTool(name, callId, rawArgs);
+  };
+
   const onTool = (name: string, callId: string, rawArgs: string) => {
     let args: Record<string, unknown> = {};
     try {
@@ -256,7 +263,7 @@ export function startCallBridge(input: CallBridgeInput) {
         hangupTimer = setTimeout(() => {
           input.relay({ type: "transfer", callId: input.callId });
           finish();
-        }, 2500);
+        }, 4000);
         return;
       }
       case "end_call": {
@@ -266,7 +273,7 @@ export function startCallBridge(input: CallBridgeInput) {
         hangupTimer = setTimeout(() => {
           input.relay({ type: "hangup", callId: input.callId });
           finish();
-        }, 2500);
+        }, 4000);
         return;
       }
       default:
@@ -330,12 +337,33 @@ export function startCallBridge(input: CallBridgeInput) {
         input.relay({ type: "clear", callId: input.callId });
         return;
       case "response.function_call_arguments.done":
-        onTool(
-          String(message.name ?? ""),
-          String(message.call_id ?? ""),
-          String(message.arguments ?? ""),
-        );
+        // Some versions of the service name the tool here, others only on the finished item.
+        if (typeof message.name === "string" && message.name) {
+          handleOnce(
+            message.name,
+            String(message.call_id ?? ""),
+            String(message.arguments ?? ""),
+          );
+        }
         return;
+      case "response.output_item.done": {
+        const item = message.item as
+          | {
+              type?: string;
+              name?: string;
+              call_id?: string;
+              arguments?: string;
+            }
+          | undefined;
+        if (item?.type === "function_call" && item.name) {
+          handleOnce(
+            item.name,
+            String(item.call_id ?? ""),
+            String(item.arguments ?? ""),
+          );
+        }
+        return;
+      }
       case "error":
         console.error(
           "Phone line: the speech service reported an error:",
