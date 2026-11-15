@@ -22,6 +22,9 @@ replace an existing key.
    - `startsAt` / `endsAt`: fixed instants, with the Athens offset.
    - `plan`: `team`.
    - `createBlocked`: `true`.
+   - `addons`: paid add-ons the customer has paid for, for example `["phone"]` (answering the
+     business's phone line). Leave it out until the customer has paid: without it the add-on is
+     off on that install, its settings are hidden and nothing connects.
    - `checkInUrl`: `https://<BlackArk server>/api/trial-checkins`, or leave it out.
    - `roster`: per employee, `key`, `name`, `title`, `roleDescription` (600 characters at most),
      `instructions`, and optionally `basedOn` (an official role's slug, which brings its skills) and

@@ -30,6 +30,8 @@ import {
 } from "./bridge";
 
 const LINE_ID = "line";
+export const NOT_ORDERED =
+  "Phone answering is a paid add-on. BlackArk switches it on for this business once it is ordered.";
 const LOCK_KEY = 7_109_000_001;
 
 export type PhoneLineInput = {
@@ -134,6 +136,12 @@ export function createPhoneLineService(
     business: () => Promise<string>;
     /** Whether Eurodiagnosi's AMKA rule applies (the trial profile's `mailBlockAmka`). */
     blockAmka: () => Promise<boolean>;
+    /**
+     * Whether phone answering is switched on for this customer: a paid add-on BlackArk signs into
+     * the trial profile (#109, MD 15 Nov). Off, nothing is saved, nothing connects, and a call that
+     * still arrives goes straight to the fallback number.
+     */
+    allowed: () => Promise<boolean>;
     connectSpeech?: SpeechConnect;
     /** Tests only: a relay on http://localhost. */
     allowInsecureRelay?: boolean;
@@ -205,6 +213,9 @@ export function createPhoneLineService(
     actorUserId: string,
     input: PhoneLineInput,
   ): Promise<PhoneLineView> {
+    if (!(await dependencies.allowed())) {
+      throw new PhoneLineRefusedError(NOT_ORDERED);
+    }
     if (!lineSocketUrl(input.relayUrl, dependencies.allowInsecureRelay)) {
       throw new PhoneLineRefusedError(
         "The relay address must start with https://.",
@@ -331,6 +342,7 @@ export function createPhoneLineService(
         payload: { call: callId, reason },
       });
     };
+    if (!(await dependencies.allowed())) return refuse("the add-on is not on");
     if (!row?.enabled) return refuse("the line is switched off");
     const employee = await dependencies.employee(row.ownerUserId, row.agentId);
     if (!employee) return refuse("the answering employee is gone");
@@ -500,7 +512,7 @@ export function createPhoneLineService(
     if (stopped) return;
     try {
       const row = await load();
-      if (!row?.enabled) {
+      if (!row?.enabled || !(await dependencies.allowed())) {
         status = "off";
         return;
       }
@@ -563,6 +575,8 @@ export function createPhoneLineService(
     async settings(): Promise<PhoneLineView | null> {
       return view(await load());
     },
+    /** Whether the add-on is on here; the app shows the Phone line section only then. */
+    allowed: () => dependencies.allowed(),
     save,
     remove,
     calls,

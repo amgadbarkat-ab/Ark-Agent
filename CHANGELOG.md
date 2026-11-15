@@ -8,6 +8,20 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Phone answering is a paid add-on, off unless BlackArk switches it on (MD, 15 Nov)
+
+- Phone answering now runs only where the customer's **signed profile** names it:
+  `"addons": ["phone"]`. BlackArk signs that in once the customer has paid for the add-on, in a
+  trial or after it.
+- **Without it:**
+  - **Settings → Connect your Data → Phone line** is not shown;
+  - the server refuses to save a phone line;
+  - the install never connects to a relay;
+  - a call that still reaches it goes straight to the fallback number.
+- A phone line set up on v0.1.38 without the add-on stops answering.
+- A profile naming an add-on that does not exist is refused, so a misspelling is never signed by
+  accident.
+
 ## 0.1.38
 
 ### Your own mailbox over IMAP/SMTP (#109: Zoho Mail for Wine24, cPanel for Eurodiagnosi)

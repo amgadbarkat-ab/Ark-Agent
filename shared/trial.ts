@@ -53,8 +53,16 @@ export type TrialProfile = {
   checkInUrl?: string;
   /** Refuse any outgoing email with an AMKA-shaped (11-digit) number in it (Eurodiagnosi). */
   mailBlockAmka?: boolean;
+  /**
+   * Paid add-ons BlackArk switched on for this customer, signed like the rest. "phone": answering
+   * the business's phone line. Absent: none, and the add-on stays off on this install.
+   */
+  addons?: TrialAddon[];
   roster: RosterEntry[];
 };
+
+export const TRIAL_ADDONS = ["phone"] as const;
+export type TrialAddon = (typeof TRIAL_ADDONS)[number];
 
 export type UnlockAction = "extend" | "end" | "paid";
 
@@ -255,8 +263,27 @@ export function readProfile(value: unknown): TrialProfile {
     createBlocked: raw.createBlocked,
     ...(checkInUrl ? { checkInUrl } : {}),
     ...(raw.mailBlockAmka === true ? { mailBlockAmka: true } : {}),
+    ...addonsFrom(raw.addons),
     roster,
   };
+}
+
+/** Known add-ons only, each once; an unknown name is refused so a typo is not signed silently. */
+function addonsFrom(value: unknown): { addons?: TrialAddon[] } {
+  if (value === undefined) return {};
+  if (!Array.isArray(value)) {
+    throw new TrialFormatError(
+      'The add-ons must be a list, for example ["phone"].',
+    );
+  }
+  const addons: TrialAddon[] = [];
+  for (const name of value) {
+    if (!TRIAL_ADDONS.includes(name as TrialAddon)) {
+      throw new TrialFormatError(`There is no add-on called ${String(name)}.`);
+    }
+    if (!addons.includes(name as TrialAddon)) addons.push(name as TrialAddon);
+  }
+  return addons.length > 0 ? { addons } : {};
 }
 
 /** A profile file's text, split into what was signed and the signature. Shape only. */

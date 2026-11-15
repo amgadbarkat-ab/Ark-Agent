@@ -98,7 +98,16 @@ const OUTCOMES: Record<string, string> = {
   in_progress: "In progress",
 };
 
+/**
+ * Shown only where BlackArk switched the paid phone add-on on for this business (MD, 15 Nov).
+ * Everywhere else there is nothing to see and nothing to set up.
+ */
 export function PhoneLineSection() {
+  const line = useQuery(phoneLineQueryOptions());
+  return line.data?.allowed ? <PhoneLineSettings /> : null;
+}
+
+function PhoneLineSettings() {
   const t = useT();
   const id = useId();
   const line = useQuery(phoneLineQueryOptions());
@@ -109,7 +118,7 @@ export function PhoneLineSection() {
   const done = useMutation(callbackDoneMutationOptions(queryClient));
   const [form, setForm] = useState<Form>(EMPTY);
   const [editing, setEditing] = useState(false);
-  const held = line.data ?? null;
+  const held = line.data?.line ?? null;
 
   useEffect(() => {
     if (held && !editing) setForm(formFrom(held));

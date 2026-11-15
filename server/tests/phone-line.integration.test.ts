@@ -114,6 +114,8 @@ const relayServer = Bun.serve({
 base = `http://localhost:${relayServer.port}`;
 
 const speech = fakeSpeech();
+/** The paid add-on (MD, 15 Nov): off until the test switches it on. */
+let phoneOrdered = false;
 const service = createPhoneLineService(database, {
   credentials: createCredentialStore(database),
   encryptionKey,
@@ -128,6 +130,7 @@ const service = createPhoneLineService(database, {
       : null,
   business: async () => "Eurodiagnosi",
   blockAmka: async () => true,
+  allowed: async () => phoneOrdered,
   connectSpeech: speech.connect,
   allowInsecureRelay: true,
 });
@@ -251,7 +254,26 @@ describe("the phone line (#109)", () => {
     );
     agentId = employee.id;
 
+    const line = {
+      relayUrl: base,
+      lineToken,
+      speechKey: "sk-test-speech-key",
+      agentId,
+      speechModel: "gpt-realtime",
+      voice: "marin",
+      greeting: "Eurodiagnosi, καλημέρα σας.",
+      hours: null,
+      enabled: true,
+    };
+
+    // Without the paid add-on: nothing is saved, and nothing connects to the relay.
     service.start();
+    await expect(service.save(userId, line)).rejects.toThrow("paid add-on");
+    expect(await service.settings()).toBeNull();
+    await Bun.sleep(100);
+    expect(relay.state.desks.size).toBe(0);
+
+    phoneOrdered = true;
     const saved = await service.save(userId, {
       relayUrl: base,
       lineToken,

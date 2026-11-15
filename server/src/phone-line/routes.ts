@@ -53,7 +53,11 @@ export function createPhoneLineRoutes(options: {
   routes.get("/", requireUser, async (context) => {
     const denied = requireAdmin(context);
     if (denied) return denied;
-    return context.json({ line: await phoneLine.settings() });
+    const allowed = await phoneLine.allowed();
+    return context.json({
+      allowed,
+      line: allowed ? await phoneLine.settings() : null,
+    });
   });
 
   routes.put("/", requireUser, async (context) => {
@@ -91,6 +95,7 @@ export function createPhoneLineRoutes(options: {
   routes.get("/calls", requireUser, async (context) => {
     const denied = requireAdmin(context);
     if (denied) return denied;
+    if (!(await phoneLine.allowed())) return context.json({ calls: [] });
     return context.json({ calls: await phoneLine.calls(50) });
   });
 

@@ -39,13 +39,18 @@ export const phoneLineKeys = {
   calls: () => [...phoneLineKeys.all, "calls"] as const,
 };
 
+/** Whether the paid add-on is on for this business, and the line when it is. */
+export type PhoneLineState = { allowed: boolean; line: PhoneLine | null };
+
 export function phoneLineQueryOptions() {
   return queryOptions({
     queryKey: phoneLineKeys.line(),
-    queryFn: (): Promise<PhoneLine | null> =>
-      client("/api/phone-line", "line", {
-        fallback: "Could not load the phone line",
-      }),
+    queryFn: async (): Promise<PhoneLineState> =>
+      (
+        await client("/api/phone-line", {
+          fallback: "Could not load the phone line",
+        })
+      ).json(),
     refetchInterval: 10_000,
   });
 }

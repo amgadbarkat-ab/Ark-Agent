@@ -61,6 +61,20 @@ describe("trial profile", () => {
     ).toThrow(TrialFormatError);
   });
 
+  test("a paid add-on is on only when the profile names it, and a misspelt one is refused", () => {
+    expect(readProfile(draft).addons).toBeUndefined();
+    expect(
+      readProfile({ ...draft, addons: ["phone", "phone"] }).addons,
+    ).toEqual(["phone"]);
+    expect(readProfile({ ...draft, addons: [] }).addons).toBeUndefined();
+    expect(() => readProfile({ ...draft, addons: ["phones"] })).toThrow(
+      TrialFormatError,
+    );
+    expect(() => readProfile({ ...draft, addons: "phone" })).toThrow(
+      TrialFormatError,
+    );
+  });
+
   test("a signature covers exactly the signed text", () => {
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
     const key = publicKeyFromBase64(publicKeyToBase64(publicKey));
