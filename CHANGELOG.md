@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.40
+
 ### Video editing on the business's own computer (#109: Wine24's SM Media Creator; FFmpeg, MD yes 15 Nov)
 
 - **What it does:** an employee marked `video` in the trial profile gets two tools.
