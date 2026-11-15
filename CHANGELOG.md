@@ -8,6 +8,10 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Fixed
+
+- **Desktop, local model:** another program that happened to take the model's port while it was starting no longer counts as the model being up. The app now waits until the program it started answers to the key it was given. Before, the bots could be handed an address that was not their model.
+
 ## 0.1.40
 
 ### Video editing on the business's own computer (#109: Wine24's SM Media Creator; FFmpeg, MD yes 15 Nov)
