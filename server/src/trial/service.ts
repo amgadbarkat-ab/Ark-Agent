@@ -234,6 +234,12 @@ export function createTrialService(
       daysLeft: trial.daysLeft,
       endsAt: trial.endsAt,
       employees: trial.rosterSize,
+      /*
+       * The signed profile itself, so a receiver can check with BlackArk's public key that this
+       * check-in comes from a real trial for this customer (the one.com receiver does). Nothing in
+       * it was written by the customer: it is the file BlackArk signed.
+       */
+      proof: { profile: row.profile, signature: row.signature },
     };
     let error: string | null = null;
     try {

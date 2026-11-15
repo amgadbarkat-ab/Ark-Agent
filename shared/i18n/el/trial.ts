@@ -115,4 +115,20 @@ export const EL_TRIAL: Record<string, string> = {
     "Δεν ήταν δυνατή η εισαγωγή του προφίλ δοκιμής",
   "Could not use the unlock code":
     "Δεν ήταν δυνατή η χρήση του κωδικού ξεκλειδώματος",
+
+  // Settings, then Models: the trial demos' model choices (#109, 14 Nov).
+  "Large models need a large computer: Qwen3.8-Flash-Next, for example, needs 64 GB of memory or more and about 62 GB of disk.":
+    "Τα μεγάλα μοντέλα χρειάζονται μεγάλο υπολογιστή: το Qwen3.8-Flash-Next, για παράδειγμα, χρειάζεται 64 GB μνήμης ή περισσότερα και περίπου 62 GB δίσκου.",
+  "Edge0-145B running in Edge0's own engine on this computer or your network.":
+    "Το Edge0-145B, στη δική του μηχανή Edge0, σε αυτόν τον υπολογιστή ή στο δίκτυό σας.",
+  "Needs an NVIDIA graphics card with CUDA 13 and 16–24 GB of graphics memory plus about 20 GB of memory, or an Apple Silicon Mac, and about 50 GB of disk. A 16 GB office PC cannot run it.":
+    "Χρειάζεται κάρτα γραφικών NVIDIA με CUDA 13 και 16–24 GB μνήμης γραφικών και περίπου 20 GB μνήμης, ή Mac με Apple Silicon, και περίπου 50 GB δίσκου. Ένας υπολογιστής γραφείου με 16 GB δεν μπορεί να το τρέξει.",
+  "Install and start edge0-infer first, then enter the address it shows (ending in /v1).":
+    "Εγκαταστήστε και ξεκινήστε πρώτα το edge0-infer και μετά εισαγάγετε τη διεύθυνση που δείχνει (τελειώνει σε /v1).",
+  "Edge0 and Qwen licences apply; check them before using it for a business.":
+    "Ισχύουν οι άδειες των Edge0 και Qwen· ελέγξτε τις πριν το χρησιμοποιήσετε σε επιχείρηση.",
+  "DeepSeek's hosted models, with your own paid key.":
+    "Τα φιλοξενούμενα μοντέλα της DeepSeek, με δικό σας πληρωμένο κλειδί.",
+  "Your conversations are sent to DeepSeek's servers. Do not use it for health or other sensitive data without the customer's written agreement.":
+    "Οι συνομιλίες σας αποστέλλονται στους διακομιστές της DeepSeek. Μην το χρησιμοποιείτε για δεδομένα υγείας ή άλλα ευαίσθητα δεδομένα χωρίς τη γραπτή συμφωνία του πελάτη.",
 };
