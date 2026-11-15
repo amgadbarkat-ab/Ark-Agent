@@ -505,6 +505,13 @@
       "when": 1794735071410,
       "tag": "0071_phone_line",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794748352372,
+      "tag": "0072_price_list",
+      "breakpoints": true
     }
   ]
 }

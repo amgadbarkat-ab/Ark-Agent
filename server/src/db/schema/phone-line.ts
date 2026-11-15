@@ -75,3 +75,21 @@ export const phoneCalls = pgTable(
   },
   (table) => [index("phone_calls_started_idx").on(table.startedAt)],
 );
+
+/**
+ * The business's own price list (#109): the uploaded CSV or XLSX, as its header row and its rows,
+ * each the text it was written with. One per install; a new upload replaces it.
+ */
+export const priceList = pgTable("price_list", {
+  /** Always "list". */
+  id: text("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  header: text("header").notNull(),
+  rows: text("rows").array().notNull(),
+  uploadedBy: text("uploaded_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

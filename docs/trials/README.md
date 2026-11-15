@@ -28,7 +28,13 @@ replace an existing key.
    - `checkInUrl`: `https://<BlackArk server>/api/trial-checkins`, or leave it out.
    - `roster`: per employee, `key`, `name`, `title`, `roleDescription` (600 characters at most),
      `instructions`, and optionally `basedOn` (an official role's slug, which brings its skills) and
-     `lead: true`.
+     `lead: true`. Also optionally, per employee:
+     - `mail`: `{ "folders": [...], "from": "..." }` gives it the business's mailbox (v0.1.38);
+     - `priceList: true` gives it `find_price`, the business's uploaded price list (v0.1.40). Its
+       instruction should say: prices only from `find_price`; if it says the prices are not loaded,
+       say so and give none;
+     - `video: true` gives it video editing on that computer (v0.1.40), for example Wine24's
+       SM Media Creator.
 2. `bun scripts/ark-trial.ts sign-profile wine24.json` writes `wine24.arktrial`.
 3. `bun scripts/ark-trial.ts show wine24.arktrial --public-key <public key>` prints what it says and
    whether the key signed it.

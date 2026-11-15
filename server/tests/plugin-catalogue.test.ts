@@ -105,7 +105,13 @@ describe("which servers this deployment will talk to", () => {
         // First-party and in-process: there is no host outside this process to reach, so the
         // https requirement below does not apply. Asserted positively instead, so this branch
         // cannot quietly become a loophole for a future entry that DOES dial a real host.
-        expect(entry.host).toBe("builtin://routines");
+        // The three first-party ones (#109 added the price list and video editing), each named.
+        expect([
+          "builtin://routines",
+          "builtin://price-list",
+          "builtin://video",
+        ]).toContain(entry.host);
+        expect(entry.host).toBe(`builtin://${entry.key}`);
       } else if (entry.auth.kind === "user-password") {
         // The person's own mailbox (#109): the host each person dials is in their own login, and
         // the transport refuses this computer's addresses. Asserted positively, like builtin.

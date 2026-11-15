@@ -108,6 +108,7 @@ import { createPhoneLineRoutes } from "./phone-line/routes";
 import type { PhoneLineService } from "./phone-line/service";
 import { createMcpAppRoutes } from "./plugins/apps-routes";
 import type { ComposioBroker } from "./plugins/broker";
+import { createBuiltinToolRoutes } from "./plugins/builtin-routes";
 import { createPluginRoutes } from "./plugins/routes";
 import {
   isDeploymentFault,
@@ -1774,6 +1775,9 @@ export function createApp(
       createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
     );
   }
+
+  // The price list and video editing settings (#109); the tools themselves are catalogue entries.
+  app.route("/api", createBuiltinToolRoutes(requireUser));
 
   if (phoneLine) {
     app.route(

@@ -91,6 +91,7 @@ function file() {
         instructions: "You are the front desk. Never give medical advice.",
         basedOn: "front-desk",
         mail: { folders: ["INBOX/Front"], from: "info@eurodiagnosi.example" },
+        priceList: true,
       },
       {
         key: "qa-auditing",
@@ -99,6 +100,7 @@ function file() {
         roleDescription: "Checks the team's drafts.",
         instructions: "Check drafts for the house rules.",
         lead: true,
+        video: true,
       },
     ],
   });
@@ -138,9 +140,13 @@ describe("setting up a trial roster on the real stores (#109)", () => {
     await trial.importProfile(file());
     const installed: string[] = [];
     const mailed: string[] = [];
+    const builtins: string[] = [];
     const made = await seedTrialRoster(actor, {
       grantMailbox: async (agentId) => {
         mailed.push(agentId);
+      },
+      grantBuiltin: async (agentId, key) => {
+        builtins.push(`${key}:${agentId}`);
       },
       trial,
       profiles,
@@ -180,6 +186,10 @@ describe("setting up a trial roster on the real stores (#109)", () => {
 
     // Only the mail employee gets the mailbox, with its folder and From address; AMKA for all.
     expect(mailed).toEqual([frontDesk.id]);
+    // The price list and video editing go only to the employees the profile marks.
+    expect(builtins.sort()).toEqual(
+      [`price-list:${frontDesk.id}`, `video:${qa?.id}`].sort(),
+    );
     expect(await trial.mailPolicyFor(frontDesk.id)).toEqual({
       folders: ["INBOX/Front"],
       from: "info@eurodiagnosi.example",

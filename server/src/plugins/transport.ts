@@ -6,6 +6,8 @@ import * as mailbox from "./mailbox";
 import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
 import * as graphRest from "./microsoft-graph-rest";
+import * as priceList from "./price-list";
+import * as video from "./video";
 
 /**
  * How this deployment reaches one vendor: which protocol, from the kind `./access` resolved.
@@ -144,6 +146,8 @@ export type TransportKind =
   | "gmail-rest"
   | "microsoft-graph-rest"
   | "builtin-routines"
+  | "builtin-price-list"
+  | "builtin-video"
   | "imap-smtp"
   | "composio";
 
@@ -172,6 +176,8 @@ const TRANSPORTS: Record<TransportKind, VendorTransport> = {
   "gmail-rest": gmailRest,
   "microsoft-graph-rest": graphRest,
   "builtin-routines": builtinRoutines,
+  "builtin-price-list": priceList,
+  "builtin-video": video,
   "imap-smtp": mailbox,
   composio,
 };

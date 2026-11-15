@@ -8,6 +8,29 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Video editing on the business's own computer (#109: Wine24's SM Media Creator; FFmpeg, MD yes 15 Nov)
+
+- **What it does:** an employee marked `video` in the trial profile gets two tools.
+  - **`list_media`** lists the footage, photos and audio the business put in `ArkAgent/media/in`.
+  - **`render_video`** turns an edit plan into the final cut:
+    - cuts and trims;
+    - slow zoom on stills;
+    - title and end cards;
+    - captions and burned-in subtitles in Greek;
+    - a music bed and voice-over, with loudness evened out;
+    - one MP4 per size asked for (9:16, 1:1, 4:5, 16:9), written to `ArkAgent/media/out`.
+- **Every render waits on an approval card** that shows the whole plan.
+- **There is no publish tool.** A person watches the files and publishes them outside ArkAgent.
+- **Limits:** at most 90 seconds and 30 pieces per video. Files only from `media/in`, also through links. One render at a time.
+- **FFmpeg** is the one installed on the computer: `winget install Gyan.FFmpeg` on Windows, `brew install ffmpeg` on a Mac. **Settings → Connect your Data → Video editing** says whether it was found.
+- **Desktop only:** video editing runs only in the desktop app.
+
+### The business's price list (#109: Wine24 adds its own after the trial starts)
+
+- **Settings → Connect your Data → Price list** (administrators): upload a **CSV or Excel (.xlsx)** file, up to 8 MB. Replace or remove it at any time.
+- **Who uses it:** employees marked `priceList` in the trial profile get **`find_price`**. It returns the matching rows exactly as written, and finds «Ροζέ» whether or not it was typed with accents.
+- **Until a list is uploaded,** the answer is «Οι τιμές δεν έχουν φορτωθεί ακόμη», and the employee says the prices are not loaded instead of guessing.
+
 ## 0.1.39
 
 ### Phone answering is a paid add-on, off unless BlackArk switches it on (MD, 15 Nov)
