@@ -46,6 +46,8 @@ export const EL_PHONE_LINE: Record<string, string> = {
   "In progress": "Σε εξέλιξη",
 
   // What the server says.
+  "Phone answering is a paid add-on. BlackArk switches it on for this business once it is ordered.":
+    "Η τηλεφωνική απάντηση είναι πρόσθετη υπηρεσία με χρέωση. Η BlackArk την ενεργοποιεί για την επιχείρηση μόλις παραγγελθεί.",
   "Another computer is answering this line now.":
     "Αυτή τη γραμμή την απαντά τώρα άλλος υπολογιστής.",
   "The relay could not be reached, or it refused this line token. Trying again.":

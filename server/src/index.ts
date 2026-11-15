@@ -1564,6 +1564,8 @@ const phoneLine = createPhoneLineService(database, {
   business: async () => (await trial.current())?.customerName ?? "the business",
   blockAmka: async () =>
     (await trial.mailPolicyFor(undefined)).blockAmka === true,
+  // A paid add-on, off unless BlackArk signed it into this customer's profile (MD, 15 Nov).
+  allowed: () => trial.addonEnabled("phone"),
 });
 
 const app = createApp(

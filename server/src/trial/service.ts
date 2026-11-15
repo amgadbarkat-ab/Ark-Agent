@@ -21,6 +21,7 @@ import { planById } from "../../../shared/plans";
 import {
   readProfileFile,
   readUnlockCode,
+  type TrialAddon,
   TrialFormatError,
   type TrialProfile,
   trialDaysLeftAt,
@@ -274,6 +275,23 @@ export function createTrialService(
     /** Refuses with the sentence the app shows, when making employees is blocked. */
     async refuseCreate(): Promise<void> {
       if (await createBlocked()) throw new TrialCreateBlockedError();
+    },
+
+    /**
+     * Whether BlackArk switched a paid add-on on for this customer, in the signed profile (#109).
+     * No trial profile, or a profile without it: off.
+     */
+    async addonEnabled(name: TrialAddon): Promise<boolean> {
+      const row = await load();
+      if (!row) return false;
+      const profile = readProfileFile(
+        JSON.stringify({
+          format: "arktrial/1",
+          profile: row.profile,
+          signature: row.signature,
+        }),
+      ).profile;
+      return profile.addons?.includes(name) === true;
     },
 
     /**

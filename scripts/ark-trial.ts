@@ -141,6 +141,9 @@ function signProfile(args: string[]) {
     `  ${profile.roster.length} employees, making more ${profile.createBlocked ? "blocked" : "allowed"}`,
   );
   console.log(`  check-in: ${profile.checkInUrl ?? "none"}`);
+  console.log(
+    `  paid add-ons: ${profile.addons?.join(", ") ?? "none (phone answering stays off)"}`,
+  );
 }
 
 function signCode(args: string[]) {
