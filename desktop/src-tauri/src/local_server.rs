@@ -152,7 +152,8 @@ fn log_path(logs: &Path) -> PathBuf {
 /// Start the model and wait until it answers.
 ///
 /// A big model takes a while to read from disk, so `ready_within` is generous. The wait ends early, with
-/// the program's last words, if it exits; and at once if `cancel` is set.
+/// the program's last words, if it exits; and at once if `cancel` is set. Ready means our program, with
+/// our key, answers on the port; another program answering there never counts (`answers_to_our_key`).
 pub fn start(
     settings: &Settings,
     root: &Path,
@@ -265,12 +266,11 @@ fn wait_until_ready(
                 tail_of(log)
             )));
         }
-        let answered = client
+        let healthy = client
             .get(&url)
-            .bearer_auth(&running.api_key)
             .send()
             .is_ok_and(|response| response.status().is_success());
-        if answered {
+        if healthy && answers_to_our_key(&client, running) {
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -278,6 +278,28 @@ fn wait_until_ready(
         }
         std::thread::sleep(Duration::from_millis(300));
     }
+}
+
+/// Whether what answers on the port is the program we started, holding the key minted for this start.
+///
+/// `/health` is public in llama-server (it never looks at the key), so a 200 there says only that
+/// *something* is ready on the port. The port was free when chosen, but it is released before our
+/// program binds it, and another program can take it in between: then that program's 200 would hand the
+/// bots an address that is not our model. Ours refuses a key it was not given and accepts the one it
+/// was; a server that says 200 to everything fails the first, another model with its own key fails the
+/// second. Asked of `/v1/models`, which needs the key and is cheap.
+fn answers_to_our_key(client: &reqwest::blocking::Client, running: &Running) -> bool {
+    let url = format!("http://127.0.0.1:{}/v1/models", running.port);
+    let status = |key: &str| {
+        client
+            .get(&url)
+            .bearer_auth(key)
+            .send()
+            .map(|response| response.status())
+    };
+    let refuses_another =
+        status(&mint_key()).is_ok_and(|status| status == reqwest::StatusCode::UNAUTHORIZED);
+    refuses_another && status(&running.api_key).is_ok_and(|status| status.is_success())
 }
 
 /// The last lines the program wrote, for whoever is working out why it stopped.
