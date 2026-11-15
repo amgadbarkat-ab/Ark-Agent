@@ -11,6 +11,7 @@ import { EL_DESKTOP } from "./desktop";
 import { EL_MESSAGES } from "./messages";
 import { EL_MORE } from "./more";
 import { EL_PACKAGE } from "./package";
+import { EL_PHONE_LINE } from "./phone-line";
 import { EL_SCREENS } from "./screens";
 import { EL_SCREENS2 } from "./screens2";
 import { EL_SCREENS3 } from "./screens3";
@@ -36,4 +37,5 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_DESKTOP,
   ...EL_PACKAGE,
   ...EL_TRIAL,
+  ...EL_PHONE_LINE,
 };

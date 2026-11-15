@@ -158,6 +158,7 @@ import { createPeopleStore } from "./people/store";
 import { createTermsStore } from "./people/terms";
 import { simulatedPhoneProvider } from "./phone/provider";
 import { createPhoneApprovals } from "./phone/service";
+import { createPhoneLineService } from "./phone-line/service";
 import { builtinOAuthClientsFrom } from "./plugins/builtin-oauth-clients";
 import { useRoutineTools } from "./plugins/builtin-routines";
 import { useComposioClient } from "./plugins/composio";
@@ -1540,6 +1541,31 @@ repeatAfterEach(async () => {
   }
 }, 10_000);
 
+/*
+ * The business's own phone line (#109): off until an administrator sets it up in Settings. It keeps
+ * one outgoing connection to BlackArk's relay and answers each call with the chosen employee.
+ */
+const phoneLine = createPhoneLineService(database, {
+  credentials: credentialStore,
+  encryptionKey: config.keyEncryptionKey,
+  auditStore: bootAuditStore,
+  employee: async (ownerUserId, agentId) => {
+    const profile = await agentProfileStore.get(
+      { id: ownerUserId, role: "admin" },
+      agentId,
+    );
+    if (!profile || profile.deletedAt) return null;
+    return {
+      name: profile.name,
+      title: profile.title,
+      instruction: profile.persona ?? profile.roleDescription,
+    };
+  },
+  business: async () => (await trial.current())?.customerName ?? "the business",
+  blockAmka: async () =>
+    (await trial.mailPolicyFor(undefined)).blockAmka === true,
+});
+
 const app = createApp(
   config,
   auth,
@@ -1818,9 +1844,12 @@ const app = createApp(
       ? { receiver: { database } }
       : {}),
   },
+  // The business's own phone line (#109).
+  phoneLine,
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
+phoneLine.start();
 // Each mail employee's folders, From address and the AMKA block, from the trial profile (#109).
 useMailboxPolicy((botId) => trial.mailPolicyFor(botId));
 
@@ -2095,6 +2124,7 @@ const drain = createDrain({
       // Started only where handing work between Bots is switched on, so it is often not there.
       workOfferedListener?.stop() ?? Promise.resolve(),
       Promise.resolve(retentionSweeps.stop()),
+      phoneLine.stop(),
     ]),
   exit: (code) => process.exit(code),
   log: (line) => console.log(line),

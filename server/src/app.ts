@@ -104,6 +104,8 @@ import { MAX_PAGE, type PeopleStore } from "./people/store";
 import type { TermsStore } from "./people/terms";
 import { createPhoneRoutes } from "./phone/routes";
 import type { PhoneApprovals } from "./phone/service";
+import { createPhoneLineRoutes } from "./phone-line/routes";
+import type { PhoneLineService } from "./phone-line/service";
 import { createMcpAppRoutes } from "./plugins/apps-routes";
 import type { ComposioBroker } from "./plugins/broker";
 import { createPluginRoutes } from "./plugins/routes";
@@ -484,6 +486,11 @@ export function createApp(
    * leaves `/api/trial` unmounted, and the app reads that as no trial.
    */
   trial?: TrialRouteDependencies,
+  /**
+   * The business's own phone line (#109). Appended last, for the positional reason above. Absent
+   * leaves `/api/phone-line` unmounted.
+   */
+  phoneLine?: PhoneLineService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1765,6 +1772,13 @@ export function createApp(
     app.route(
       "/api/channels",
       createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
+    );
+  }
+
+  if (phoneLine) {
+    app.route(
+      "/api/phone-line",
+      createPhoneLineRoutes({ phoneLine, requireUser }),
     );
   }
 
