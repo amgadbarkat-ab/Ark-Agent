@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.38
+
 ### Your own mailbox over IMAP/SMTP (#109: Zoho Mail for Wine24, cPanel for Eurodiagnosi)
 
 - **Settings → Connect your Data → Mailbox (IMAP/SMTP).**
