@@ -17,6 +17,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   - The login is tried against the mail server first. It is kept only if it works, **encrypted, on
     this computer**, and never shown again.
   - **Disconnect** removes it.
+  - The password never crosses the network unencrypted: on any port but 993 the mail server must
+    switch to TLS first, or the connection is refused.
   - With Zoho's two-step sign-in, use an app password and switch IMAP on in Zoho's settings.
 - **What a digital employee can do with it:**
   - list folders, list and search messages, read one, save a draft, and send;
