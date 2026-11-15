@@ -31,6 +31,12 @@ export type RosterEntry = {
   basedOn?: string;
   /** The one who leads the team. The first entry when none says so. */
   lead?: boolean;
+  /**
+   * Gets the customer's mailbox (from v0.1.38): read, search, draft, and send behind an approval
+   * card. `folders` limits what it may read (absent: the whole mailbox); `from` is the address it
+   * sends as (absent: the mailbox's own).
+   */
+  mail?: { folders?: string[]; from?: string };
 };
 
 export type TrialProfile = {
@@ -45,6 +51,8 @@ export type TrialProfile = {
   createBlocked: boolean;
   /** Where the app reports its trial status once a day. Absent: it reports nowhere. */
   checkInUrl?: string;
+  /** Refuse any outgoing email with an AMKA-shaped (11-digit) number in it (Eurodiagnosi). */
+  mailBlockAmka?: boolean;
   roster: RosterEntry[];
 };
 
@@ -189,6 +197,40 @@ export function readProfile(value: unknown): TrialProfile {
     keys.add(key);
     const basedOn =
       entry.basedOn === undefined ? undefined : text(entry.basedOn, "role", 64);
+    let mail: RosterEntry["mail"];
+    if (entry.mail !== undefined && entry.mail !== null) {
+      const raw = entry.mail as Record<string, unknown>;
+      if (typeof raw !== "object") {
+        throw new TrialFormatError(
+          `The trial profile's mail settings for "${key}" are not valid.`,
+        );
+      }
+      const folders =
+        raw.folders === undefined
+          ? undefined
+          : Array.isArray(raw.folders) &&
+              raw.folders.length > 0 &&
+              raw.folders.length <= 20
+            ? raw.folders.map((folder) => text(folder, "mail folder", 200))
+            : (() => {
+                throw new TrialFormatError(
+                  `The trial profile's mail folders for "${key}" are not valid.`,
+                );
+              })();
+      const from =
+        raw.from === undefined
+          ? undefined
+          : text(raw.from, "mail address", 254);
+      if (
+        from !== undefined &&
+        !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(from)
+      ) {
+        throw new TrialFormatError(
+          `The trial profile's mail address for "${key}" is not valid.`,
+        );
+      }
+      mail = { ...(folders ? { folders } : {}), ...(from ? { from } : {}) };
+    }
     return {
       key,
       name: text(entry.name, "employee name", 80),
@@ -197,6 +239,7 @@ export function readProfile(value: unknown): TrialProfile {
       instructions: text(entry.instructions, "standing instruction", 20_000),
       ...(basedOn ? { basedOn } : {}),
       ...(entry.lead === true ? { lead: true } : {}),
+      ...(mail ? { mail } : {}),
     };
   });
   return {
@@ -211,6 +254,7 @@ export function readProfile(value: unknown): TrialProfile {
     plan: plan as PlanId,
     createBlocked: raw.createBlocked,
     ...(checkInUrl ? { checkInUrl } : {}),
+    ...(raw.mailBlockAmka === true ? { mailBlockAmka: true } : {}),
     roster,
   };
 }

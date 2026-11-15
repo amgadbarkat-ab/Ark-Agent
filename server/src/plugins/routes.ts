@@ -20,6 +20,7 @@ import { isToolCallOutcome } from "./call-outcome";
 import { CATALOGUE, catalogueEntry } from "./catalogue";
 import { toolkitOf, vendorSentence } from "./composio";
 import { connectedAccount } from "./connected-account";
+import { checkMailboxLogin, mailboxSettingsSchema } from "./mailbox";
 import {
   authorizationUrlFor,
   type ConnectOrigin,
@@ -944,6 +945,59 @@ export function createPluginRoutes(
       .catch(() => "unknown" as const);
     return context.json({ state });
   });
+
+  /*
+   * A person's own mailbox (#109): server, user name and password, typed in Settings. The login is
+   * tried first, IMAP and SMTP both, and only a working one is stored, encrypted, in the vault. The
+   * password never comes back out of this route or any other.
+   */
+  routes.post("/mailbox/connection", requireUser, async (context) => {
+    const parsed = mailboxSettingsSchema.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success) {
+      return context.json(
+        {
+          error:
+            "Fill in the incoming and outgoing server, their ports, the user name and the password.",
+        },
+        400,
+      );
+    }
+    const actor = context.var.actor;
+    if (!(await store.serverExists("mailbox"))) {
+      if (actor.role !== "admin") {
+        return context.json(
+          {
+            error:
+              "The Mailbox connector is not added to this deployment. An administrator has to add it first.",
+          },
+          409,
+        );
+      }
+      await store.addServer({ key: "mailbox", by: actor.id });
+    }
+    const problem = await checkMailboxLogin(parsed.data);
+    if (problem) return context.json({ error: problem }, 400);
+    const account = parsed.data.fromAddress ?? parsed.data.user;
+    await store.recordConnection({
+      serverId: "mailbox",
+      userId: actor.id,
+      refreshToken: JSON.stringify(parsed.data),
+      scope: "imap smtp",
+      account,
+    });
+    return context.json({ connected: true, account });
+  });
+
+  routes.delete("/mailbox/connection", requireUser, async (context) =>
+    context.json(
+      await store.disconnectPassword({
+        serverId: "mailbox",
+        userId: context.var.actor.id,
+      }),
+    ),
+  );
 
   routes.get("/connections", requireUser, async (context) => {
     /*

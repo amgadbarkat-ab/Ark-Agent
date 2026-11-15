@@ -31,6 +31,8 @@ export type CredentialSource =
   | "deployment-token"
   /** The asking person's own OAuth grant, exchanged per call. */
   | "person-oauth"
+  /** The asking person's own mailbox login, read from the vault per call. */
+  | "person-password"
   /** One key the deployment holds, with the broker keeping people apart by an id we send. */
   | "brokered"
   /** None at all, because the call never leaves this process. */
@@ -75,6 +77,7 @@ const CREDENTIAL_BY_AUTH: Record<
   none: "none",
   "deployment-bearer": "deployment-token",
   "user-oauth": "person-oauth",
+  "user-password": "person-password",
   builtin: "none",
 };
 
@@ -99,6 +102,7 @@ const REACHED_AS_BY_AUTH: Record<
   none: "deployment",
   "deployment-bearer": "deployment",
   "user-oauth": "person",
+  "user-password": "person",
   builtin: "person",
 };
 

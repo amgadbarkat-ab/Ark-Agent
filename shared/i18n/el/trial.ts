@@ -131,4 +131,47 @@ export const EL_TRIAL: Record<string, string> = {
     "Τα φιλοξενούμενα μοντέλα της DeepSeek, με δικό σας πληρωμένο κλειδί.",
   "Your conversations are sent to DeepSeek's servers. Do not use it for health or other sensitive data without the customer's written agreement.":
     "Οι συνομιλίες σας αποστέλλονται στους διακομιστές της DeepSeek. Μην το χρησιμοποιείτε για δεδομένα υγείας ή άλλα ευαίσθητα δεδομένα χωρίς τη γραπτή συμφωνία του πελάτη.",
+
+  // Settings, then Connect your Data: the Mailbox (#109).
+  "Mailbox (IMAP/SMTP)": "Γραμματοκιβώτιο (IMAP/SMTP)",
+  "Connected as {account}.": "Συνδεδεμένο ως {account}.",
+  "Your own mailbox at Zoho Mail, cPanel hosting or any provider with IMAP and SMTP.":
+    "Το δικό σας γραμματοκιβώτιο στο Zoho Mail, σε φιλοξενία cPanel ή σε οποιονδήποτε πάροχο με IMAP και SMTP.",
+  "Digital employees can read, search and draft. Every email they want to send, and every draft they want to save, waits for your approval. They cannot forward, delete or move mail.":
+    "Οι ψηφιακοί υπάλληλοι μπορούν να διαβάζουν, να αναζητούν και να συντάσσουν. Κάθε email που θέλουν να στείλουν και κάθε πρόχειρο που θέλουν να αποθηκεύσουν περιμένει την έγκρισή σας. Δεν μπορούν να προωθήσουν, να διαγράψουν ή να μετακινήσουν μηνύματα.",
+  "Zoho Mail": "Zoho Mail",
+  "cPanel hosting": "Φιλοξενία cPanel",
+  "Incoming server (IMAP)": "Διακομιστής εισερχομένων (IMAP)",
+  "IMAP port": "Θύρα IMAP",
+  "Outgoing server (SMTP)": "Διακομιστής εξερχομένων (SMTP)",
+  "SMTP port": "Θύρα SMTP",
+  "User name (usually the email address)":
+    "Όνομα χρήστη (συνήθως η διεύθυνση email)",
+  "Password or app password": "Κωδικός ή κωδικός εφαρμογής",
+  "Send as (optional)": "Αποστολή ως (προαιρετικό)",
+  "Connect mailbox": "Σύνδεση γραμματοκιβωτίου",
+  "The login is tried first, and kept only if it works: encrypted, on this computer. With Zoho two-step sign-in, use an app password and switch IMAP on in Zoho's settings.":
+    "Η σύνδεση δοκιμάζεται πρώτα και κρατιέται μόνο αν λειτουργεί: κρυπτογραφημένη, σε αυτόν τον υπολογιστή. Με τη σύνδεση δύο βημάτων του Zoho, χρησιμοποιήστε κωδικό εφαρμογής και ενεργοποιήστε το IMAP στις ρυθμίσεις του Zoho.",
+  "Your own mailbox at any provider that offers IMAP and SMTP, such as Zoho Mail or cPanel hosting.":
+    "Το δικό σας γραμματοκιβώτιο σε οποιονδήποτε πάροχο προσφέρει IMAP και SMTP, όπως το Zoho Mail ή η φιλοξενία cPanel.",
+
+  // What the mailbox server says.
+  "Fill in the incoming and outgoing server, their ports, the user name and the password.":
+    "Συμπληρώστε τον διακομιστή εισερχομένων και εξερχομένων, τις θύρες τους, το όνομα χρήστη και τον κωδικό.",
+  "The Mailbox connector is not added to this deployment. An administrator has to add it first.":
+    "Η σύνδεση Γραμματοκιβωτίου δεν έχει προστεθεί σε αυτή την εγκατάσταση. Πρέπει πρώτα να την προσθέσει ένας διαχειριστής.",
+  "That server name points at this computer, not a mail server.":
+    "Αυτό το όνομα διακομιστή δείχνει σε αυτόν τον υπολογιστή, όχι σε διακομιστή αλληλογραφίας.",
+  "The mail server refused the user name or password (IMAP). For Zoho with two-step sign-in, use an app password.":
+    "Ο διακομιστής αλληλογραφίας απέρριψε το όνομα χρήστη ή τον κωδικό (IMAP). Για Zoho με σύνδεση δύο βημάτων, χρησιμοποιήστε κωδικό εφαρμογής.",
+  "The incoming mail server (IMAP) could not be reached. Check the server name and port.":
+    "Δεν ήταν δυνατή η σύνδεση με τον διακομιστή εισερχομένων (IMAP). Ελέγξτε το όνομα διακομιστή και τη θύρα.",
+  "The mail server refused the user name or password for sending (SMTP).":
+    "Ο διακομιστής αλληλογραφίας απέρριψε το όνομα χρήστη ή τον κωδικό για αποστολή (SMTP).",
+  "The outgoing mail server (SMTP) could not be reached. Check the server name and port.":
+    "Δεν ήταν δυνατή η σύνδεση με τον διακομιστή εξερχομένων (SMTP). Ελέγξτε το όνομα διακομιστή και τη θύρα.",
+  "The mailbox could not be connected":
+    "Δεν ήταν δυνατή η σύνδεση του γραμματοκιβωτίου",
+  "The mailbox could not be disconnected":
+    "Δεν ήταν δυνατή η αποσύνδεση του γραμματοκιβωτίου",
 };

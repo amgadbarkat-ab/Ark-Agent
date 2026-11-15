@@ -38,9 +38,11 @@ export async function seedTrialRoster(
     trial: Pick<TrialService, "seed" | "roster" | "rosterAgents" | "current">;
     profiles: AgentProfileStore;
     skills?: TrialSkills;
+    /** Gives one employee the customer's mailbox (#109). Idempotent. */
+    grantMailbox?: (agentId: string) => Promise<void>;
   },
 ): Promise<number> {
-  const { trial, profiles, skills } = dependencies;
+  const { trial, profiles, skills, grantMailbox } = dependencies;
   const roster = await trial.roster();
   const leadKey = (roster.find((entry) => entry.lead) ?? roster[0])?.key;
   const made = await trial.seed(async (entry) => {
@@ -79,6 +81,19 @@ export async function seedTrialRoster(
     if (entry.key === leadKey) await profiles.setPrimary(actor, profile.id);
     return { agentId: profile.id };
   });
+  /*
+   * The mail employees get the mailbox, every time this runs, so an install that was set up before
+   * mail existed (v0.1.37) gets it on its first start of v0.1.38. Granting twice changes nothing.
+   */
+  if (grantMailbox) {
+    const seeded = new Map(
+      (await trial.rosterAgents()).map((row) => [row.key, row.agentId]),
+    );
+    for (const entry of roster) {
+      const agentId = seeded.get(entry.key);
+      if (entry.mail && agentId) await grantMailbox(agentId);
+    }
+  }
   if (made > 0 && (await trial.current())?.createBlocked) {
     const onRoster = new Set(
       (await trial.rosterAgents()).map((row) => row.agentId),

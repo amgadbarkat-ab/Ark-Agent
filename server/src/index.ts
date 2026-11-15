@@ -15,7 +15,7 @@ import {
   IntelligenceAgentRunner,
 } from "@copilotkit/runtime/v2";
 import { serve } from "bun";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
 import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
 import { createDrain } from "../../shared/drain";
@@ -128,7 +128,11 @@ import {
   useRetiredEncryptionKeys,
 } from "./credentials";
 import { createDatabase } from "./db/client";
-import { agentProfiles, intelligenceChannelMappings } from "./db/schema";
+import {
+  agentProfiles,
+  intelligenceChannelMappings,
+  pluginGrants,
+} from "./db/schema";
 import { createHostAccessBroker } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
@@ -159,6 +163,10 @@ import { useRoutineTools } from "./plugins/builtin-routines";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
 import { backfillComposioLogos } from "./plugins/logos";
+import {
+  listTools as listMailboxTools,
+  useMailboxPolicy,
+} from "./plugins/mailbox";
 import { redirectUriFor } from "./plugins/oauth";
 import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
@@ -1767,6 +1775,28 @@ const app = createApp(
           grant: (kind, ref, agentId, by) =>
             pluginStore.grant(kind, ref, agentId, by),
         },
+        grantMailbox: async (agentId) => {
+          if (!(await pluginStore.serverExists("mailbox"))) {
+            await pluginStore.addServer({ key: "mailbox", by: actor.id });
+          }
+          const held = await database
+            .select({ ref: pluginGrants.ref })
+            .from(pluginGrants)
+            .where(
+              and(
+                eq(pluginGrants.kind, "mcp"),
+                eq(pluginGrants.agentId, agentId),
+                like(pluginGrants.ref, "mailbox/%"),
+              ),
+            );
+          const have = new Set(held.map((row) => row.ref));
+          for (const tool of await listMailboxTools()) {
+            const ref = `mailbox/${tool.name}`;
+            if (!have.has(ref)) {
+              await pluginStore.grant("mcp", ref, agentId, actor.id);
+            }
+          }
+        },
       }),
     keyConfigured:
       trialKeysFrom(
@@ -1791,6 +1821,8 @@ const app = createApp(
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
+// Each mail employee's folders, From address and the AMKA block, from the trial profile (#109).
+useMailboxPolicy((botId) => trial.mailPolicyFor(botId));
 
 // Numbers about the service and the business, for whoever runs it: on a port of its own, and only
 // when one is configured (docs/ark/13-azure-hosting.md, "What to watch").

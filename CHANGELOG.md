@@ -8,6 +8,49 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Your own mailbox over IMAP/SMTP (#109: Zoho Mail for Wine24, cPanel for Eurodiagnosi)
+
+- **Settings → Connect your Data → Mailbox (IMAP/SMTP).**
+  - You enter the incoming and outgoing server, the ports, the user name and the password. The
+    password goes in a masked field.
+  - The **Zoho Mail** and **cPanel hosting** buttons fill in the usual servers.
+  - The login is tried against the mail server first. It is kept only if it works, **encrypted, on
+    this computer**, and never shown again.
+  - **Disconnect** removes it.
+  - With Zoho's two-step sign-in, use an app password and switch IMAP on in Zoho's settings.
+- **What a digital employee can do with it:**
+  - list folders, list and search messages, read one, save a draft, and send;
+  - **every email it wants to send, and every draft it wants to save, waits on an approval
+    card.**
+- **What it cannot do:**
+  - There are no tools to forward, delete, move, flag or mark mail as read, so an instruction
+    inside an email cannot make an employee do any of that.
+  - Reading leaves a message unread.
+  - A message's text reaches the employee marked as the sender's words, not instructions.
+  - Attachments are named but not opened (attachments come later).
+- **Trial profiles can now say which employees get the mailbox** (`mail` on a roster entry):
+  - `folders` limits an employee to its own folders;
+  - `from` gives it its own sending address;
+  - `mailBlockAmka` refuses any outgoing email with an 11-digit, AMKA-shaped number (Eurodiagnosi).
+  - An install already on v0.1.37 grants the mailbox to its mail employees on its first start of
+    v0.1.38.
+- Three open-source libraries were added for this, on Amgad's yes: imapflow, mailparser and
+  nodemailer (all MIT).
+
+### Model choices for the trial demos
+
+- **Edge0 (edge0-infer)** in Settings → Models. It is a local server choice, and its card states
+  what Edge0-145B needs: an NVIDIA GPU with CUDA 13 and 16–24 GB plus about 20 GB of memory, or an
+  Apple Silicon Mac, and about 50 GB of disk. A 16 GB office PC cannot run it, and Gemma E4B stays
+  the default.
+- The **llama.cpp** card says that Qwen3.8-Flash-Next needs 64 GB of memory or more.
+- **DeepSeek** with your own paid key. The note says conversations go to DeepSeek's servers.
+
+### Trial check-in
+
+- The daily check-in now carries the signed trial profile. BlackArk's receiver at blackark.uk
+  checks it against BlackArk's key, so a check-in can be told apart from a forged one.
+
 ## 0.1.37
 
 ### Customer trials (#109)

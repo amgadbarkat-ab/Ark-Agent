@@ -276,6 +276,41 @@ export function createTrialService(
       if (await createBlocked()) throw new TrialCreateBlockedError();
     },
 
+    /**
+     * The mailbox rules for one employee, from the profile (#109): its folders and From address,
+     * and the AMKA block for the whole install. Empty when there is no trial.
+     */
+    async mailPolicyFor(agentId: string | undefined): Promise<{
+      folders?: string[];
+      from?: string;
+      blockAmka?: boolean;
+    }> {
+      const row = await load();
+      if (!row) return {};
+      const profile = readProfileFile(
+        JSON.stringify({
+          format: "arktrial/1",
+          profile: row.profile,
+          signature: row.signature,
+        }),
+      ).profile;
+      const blockAmka = profile.mailBlockAmka === true;
+      if (!agentId) return blockAmka ? { blockAmka } : {};
+      const [seeded] = await database
+        .select({ key: trialRoster.key })
+        .from(trialRoster)
+        .where(eq(trialRoster.agentId, agentId))
+        .limit(1);
+      const mail = seeded
+        ? profile.roster.find((entry) => entry.key === seeded.key)?.mail
+        : undefined;
+      return {
+        ...(mail?.folders ? { folders: mail.folders } : {}),
+        ...(mail?.from ? { from: mail.from } : {}),
+        ...(blockAmka ? { blockAmka } : {}),
+      };
+    },
+
     /** Whether this employee is one of the roster's. */
     async onRoster(agentId: string): Promise<boolean> {
       const [row] = await database

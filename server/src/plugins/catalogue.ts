@@ -43,6 +43,12 @@ export type CatalogueAuth =
    */
   | { kind: "builtin" }
   /**
+   * The asker's own mailbox login (#109: Zoho for Wine24, cPanel for Eurodiagnosi). The person types
+   * the server, user name and password in a masked field; it is stored encrypted in the vault, one
+   * per person, and read back only for that person's calls. Nothing is held for the deployment.
+   */
+  | { kind: "user-password" }
+  /**
    * The asker's own grant. The deployment registers an OAuth client; each person consents once and
    * the call runs on their token, so the vendor decides what comes back.
    */
@@ -391,6 +397,28 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
       "sharepoint_upload_file",
     ]),
     docsUrl: "https://learn.microsoft.com/graph/auth-v2-user",
+  },
+  {
+    key: "mailbox",
+    title: "Mailbox (IMAP/SMTP)",
+    vendor: "Your mail provider",
+    summary:
+      "Your own mailbox at any provider that offers IMAP and SMTP, such as Zoho Mail or cPanel hosting.",
+    /*
+     * No vendor host: each person's server is in their own login, typed in Settings and kept in
+     * the vault. The address below is only this row's name; the transport dials the host the
+     * person gave, and refuses this computer's own addresses (see mailbox.ts).
+     *
+     * Reads, a draft, and a send. Nothing forwards, deletes, moves or marks as read, so an
+     * instruction inside an email cannot make a digital employee do any of those: there is no
+     * tool for it. Both writes are on the list below, so each one is held for the person.
+     */
+    host: "builtin://mailbox",
+    path: "/",
+    transport: "imap-smtp",
+    auth: Object.freeze({ kind: "user-password" }),
+    writeTools: Object.freeze(["save_draft", "send_message"]),
+    docsUrl: "https://www.rfc-editor.org/rfc/rfc9051",
   },
   {
     key: "routines",
