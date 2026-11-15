@@ -46,6 +46,19 @@ const checkInBody = z.strictObject({
   daysLeft: z.number().int().min(0).max(10_000),
   endsAt: z.string().datetime().optional(),
   employees: z.number().int().min(0).max(1_000).optional(),
+  /** From v0.1.38: the install's signed profile. Accepted and not stored. */
+  proof: z
+    .strictObject({
+      profile: z
+        .string()
+        .regex(/^[A-Za-z0-9_-]+$/)
+        .max(700_000),
+      signature: z
+        .string()
+        .regex(/^[A-Za-z0-9_-]+$/)
+        .max(200),
+    })
+    .optional(),
 });
 
 async function seedQuietly(
@@ -147,7 +160,7 @@ export function trialCheckInRoutes(database: Database) {
   const app = new Hono();
   app.post("/", async (context) => {
     const length = Number(context.req.header("content-length") ?? "0");
-    if (length > 4_096) return context.json({ error: "Too large." }, 413);
+    if (length > 800_000) return context.json({ error: "Too large." }, 413);
     const parsed = checkInBody.safeParse(
       await context.req.json().catch(() => undefined),
     );

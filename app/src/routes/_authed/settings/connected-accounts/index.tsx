@@ -13,6 +13,8 @@ import * as React from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
+import { MailboxSection } from "@/components/settings/mailbox-section";
+import { PhoneLineSection } from "@/components/settings/phone-line-section";
 import {
   InputGroup,
   InputGroupAddon,
@@ -271,6 +273,8 @@ function RouteComponent() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
+          <MailboxSection />
+          {isAdmin ? <PhoneLineSection /> : null}
           {services.length === 0 && brokeredMatching.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground" role="status">
               {tNow("No services match “{search}”.", { search: search.trim() })}

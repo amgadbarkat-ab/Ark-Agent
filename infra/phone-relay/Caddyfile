@@ -1,0 +1,4 @@
+# No access log: the relay keeps call ids and durations only, and Caddy keeps nothing.
+{$RELAY_DOMAIN} {
+	reverse_proxy relay:8080
+}

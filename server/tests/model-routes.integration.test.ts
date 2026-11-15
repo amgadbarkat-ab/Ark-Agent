@@ -122,7 +122,7 @@ describe("GET /local", () => {
     // one of two things, never a guess.
     expect(
       answer.servers.map((server: { providerId: string }) => server.providerId),
-    ).toEqual(["ollama", "lmstudio", "llamacpp"]);
+    ).toEqual(["ollama", "lmstudio", "llamacpp", "edge0"]);
     for (const server of answer.servers) {
       expect(["running", "stopped"]).toContain(server.state);
     }

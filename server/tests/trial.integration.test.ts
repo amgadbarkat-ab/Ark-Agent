@@ -316,11 +316,15 @@ describe("a customer trial on this install (#109)", () => {
       "employees",
       "endsAt",
       "installId",
+      "proof",
       "status",
       "version",
     ]);
-    expect(JSON.stringify(body)).not.toContain("Wine24");
-    expect(JSON.stringify(body)).not.toContain("Front Desk");
+    // Only the signed file BlackArk made rides along; no field holds anything the customer wrote.
+    const { proof, ...plain } = body as { proof: Record<string, string> };
+    expect(Object.keys(proof).sort()).toEqual(["profile", "signature"]);
+    expect(JSON.stringify(plain)).not.toContain("Wine24");
+    expect(JSON.stringify(plain)).not.toContain("Front Desk");
 
     const receiver = trialCheckInRoutes(database);
     const post = (payload: unknown) =>

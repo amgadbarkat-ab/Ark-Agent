@@ -421,6 +421,10 @@ export const auditEventTypes = [
   "phone.call_answered",
   "phone.call_ended",
   "phone.settings_changed",
+  /* The business's own phone line (#109): set up, removed, and calls refused at the door. */
+  "phone.line_saved",
+  "phone.line_removed",
+  "phone.line_refused",
 
   /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
   "team.action",

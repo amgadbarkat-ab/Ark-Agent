@@ -35,6 +35,7 @@ export default defineConfig({
     "./src/db/schema/memories.ts",
     "./src/db/schema/phone.ts",
     "./src/db/schema/trial.ts",
+    "./src/db/schema/phone-line.ts",
   ],
   out: "./drizzle",
   dbCredentials: {

@@ -83,6 +83,32 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
     keyRequired: false,
     suggestedModels: [],
     summary: "A llama.cpp server running on this computer.",
+    notes: [
+      "Large models need a large computer: Qwen3.8-Flash-Next, for example, needs 64 GB of memory or more and about 62 GB of disk.",
+    ],
+    local: true,
+  },
+  {
+    /*
+     * Edge0-145B (#109, Amgad 14 Nov): its own engine, `edge0-infer`, serves an OpenAI-compatible
+     * endpoint, so it is reached like any local server. It is not in the setup window's download
+     * list: it needs Edge0's engine and an NVIDIA CUDA 13 card, which that list cannot provide.
+     */
+    id: "edge0",
+    name: "Edge0 (edge0-infer)",
+    tier: "local",
+    protocol: "openai",
+    baseUrl: "http://localhost:8000/v1",
+    baseUrlEditable: true,
+    keyRequired: false,
+    suggestedModels: ["Edge0-145B"],
+    summary:
+      "Edge0-145B running in Edge0's own engine on this computer or your network.",
+    notes: [
+      "Needs an NVIDIA graphics card with CUDA 13 and 16–24 GB of graphics memory plus about 20 GB of memory, or an Apple Silicon Mac, and about 50 GB of disk. A 16 GB office PC cannot run it.",
+      "Install and start edge0-infer first, then enter the address it shows (ending in /v1).",
+      "Edge0 and Qwen licences apply; check them before using it for a business.",
+    ],
     local: true,
   },
 
@@ -227,6 +253,23 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
     summary: "Models in your own Azure subscription.",
     unavailable:
       "Planned. Azure needs its own deployment names and API version.",
+  },
+
+  {
+    // Approved by Amgad for the trial demos (#109, 14 Nov); the key is typed on site.
+    id: "deepseek",
+    name: "DeepSeek",
+    tier: "paid",
+    protocol: "openai",
+    baseUrl: "https://api.deepseek.com/v1",
+    baseUrlEditable: false,
+    keyRequired: true,
+    keyHelpUrl: "https://platform.deepseek.com/api_keys",
+    suggestedModels: ["deepseek-chat", "deepseek-reasoner"],
+    summary: "DeepSeek's hosted models, with your own paid key.",
+    notes: [
+      "Your conversations are sent to DeepSeek's servers. Do not use it for health or other sensitive data without the customer's written agreement.",
+    ],
   },
 
   // ---- any server that speaks the OpenAI API ------------------------------------------------

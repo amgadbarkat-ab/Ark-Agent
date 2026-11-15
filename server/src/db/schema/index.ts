@@ -10,6 +10,7 @@ export * from "./marketplace";
 export * from "./memories";
 export * from "./models";
 export * from "./phone";
+export * from "./phone-line";
 export * from "./plugins";
 export * from "./push";
 export * from "./tenants";

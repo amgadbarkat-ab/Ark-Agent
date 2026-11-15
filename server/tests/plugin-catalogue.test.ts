@@ -106,6 +106,11 @@ describe("which servers this deployment will talk to", () => {
         // https requirement below does not apply. Asserted positively instead, so this branch
         // cannot quietly become a loophole for a future entry that DOES dial a real host.
         expect(entry.host).toBe("builtin://routines");
+      } else if (entry.auth.kind === "user-password") {
+        // The person's own mailbox (#109): the host each person dials is in their own login, and
+        // the transport refuses this computer's addresses. Asserted positively, like builtin.
+        expect(entry.host).toBe("builtin://mailbox");
+        expect(entry.transport).toBe("imap-smtp");
       } else {
         expect(entry.host.startsWith("https://")).toBe(true);
       }
@@ -119,9 +124,13 @@ describe("whose credential a server uses", () => {
     // whose, and a reader who guessed would guess the deployment's, which for a user-oauth vendor
     // is the one answer that breaks the promise the connector exists to keep.
     for (const entry of CATALOGUE) {
-      expect(["none", "deployment-bearer", "user-oauth", "builtin"]).toContain(
-        entry.auth.kind,
-      );
+      expect([
+        "none",
+        "deployment-bearer",
+        "user-oauth",
+        "user-password",
+        "builtin",
+      ]).toContain(entry.auth.kind);
     }
   });
 

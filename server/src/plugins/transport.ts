@@ -2,6 +2,7 @@ import * as builtinRoutines from "./builtin-routines";
 import * as composio from "./composio";
 import * as gmailRest from "./gmail-rest";
 import * as driveRest from "./google-drive-rest";
+import * as mailbox from "./mailbox";
 import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
 import * as graphRest from "./microsoft-graph-rest";
@@ -143,6 +144,7 @@ export type TransportKind =
   | "gmail-rest"
   | "microsoft-graph-rest"
   | "builtin-routines"
+  | "imap-smtp"
   | "composio";
 
 /**
@@ -170,6 +172,7 @@ const TRANSPORTS: Record<TransportKind, VendorTransport> = {
   "gmail-rest": gmailRest,
   "microsoft-graph-rest": graphRest,
   "builtin-routines": builtinRoutines,
+  "imap-smtp": mailbox,
   composio,
 };
 

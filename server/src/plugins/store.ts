@@ -1663,6 +1663,42 @@ export function createPluginStore(options: PluginStoreOptions) {
       return {};
     }
 
+    /*
+     * The asker's own mailbox login (#109). Their settings and password were stored in the vault
+     * when they connected, one per person, and are read back here for their call only: whose
+     * mailbox is decided by the session, never by anything in the arguments.
+     */
+    if (access.credential === "person-password") {
+      if (!actorId) {
+        throw new PluginRefusedError(
+          `${row.id} answers as the person asking, and this run is not attributed to anybody.`,
+          null,
+        );
+      }
+      const [held] = await database
+        .select({ credentialId: mcpUserCredentials.credentialId })
+        .from(mcpUserCredentials)
+        .where(
+          and(
+            eq(mcpUserCredentials.serverId, row.id),
+            eq(mcpUserCredentials.userId, actorId),
+          ),
+        )
+        .limit(1);
+      if (!held) {
+        throw new PluginRefusedError(
+          `You have not connected your ${row.title}. Connect it in Settings, then Connect your Data, and ask again.`,
+          null,
+        );
+      }
+      return {
+        token: await secretFor(
+          held.credentialId,
+          `Your ${row.title} has to be connected again. Connect it in Settings, then Connect your Data.`,
+        ),
+      };
+    }
+
     if (access.credential !== "person-oauth") {
       const token = row.credentialId
         ? await secretFor(
@@ -5064,6 +5100,38 @@ export function createPluginStore(options: PluginStoreOptions) {
      * Reads only. {@link ensureOAuthClient} is the one that will go and get one.
      */
     oauthClientFor: storedOAuthClient,
+
+    /**
+     * Ends a person's mailbox login (#109): the stored login is revoked in the vault and the
+     * connection row removed. Only the person's own; whose comes from the session.
+     */
+    async disconnectPassword(input: {
+      serverId: string;
+      userId: string;
+    }): Promise<{ disconnected: boolean }> {
+      const [held] = await database
+        .delete(mcpUserCredentials)
+        .where(
+          and(
+            eq(mcpUserCredentials.serverId, input.serverId),
+            eq(mcpUserCredentials.userId, input.userId),
+          ),
+        )
+        .returning({ credentialId: mcpUserCredentials.credentialId });
+      if (!held) return { disconnected: false };
+      await credentials.revoke(held.credentialId).catch(() => undefined);
+      await recordAuditEvent(auditStore, {
+        eventType: "mcp.account_disconnected",
+        targetType: "mcp_server",
+        targetId: input.serverId,
+        payload: {
+          actor: input.userId,
+          server: input.serverId,
+          reason: "self",
+        },
+      });
+      return { disconnected: true };
+    },
 
     /** Which `user-oauth` servers this person has connected, for their own settings page. */
     async connectionsFor(userId: string): Promise<

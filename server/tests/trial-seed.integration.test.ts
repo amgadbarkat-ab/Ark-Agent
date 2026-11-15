@@ -81,6 +81,7 @@ function file() {
     endsAt: "2099-12-16T00:00:00Z",
     plan: "team",
     createBlocked: true,
+    mailBlockAmka: true,
     roster: [
       {
         key: "front-desk",
@@ -89,6 +90,7 @@ function file() {
         roleDescription: "Answers enquiries. No medical advice.",
         instructions: "You are the front desk. Never give medical advice.",
         basedOn: "front-desk",
+        mail: { folders: ["INBOX/Front"], from: "info@eurodiagnosi.example" },
       },
       {
         key: "qa-auditing",
@@ -135,7 +137,11 @@ describe("setting up a trial roster on the real stores (#109)", () => {
 
     await trial.importProfile(file());
     const installed: string[] = [];
+    const mailed: string[] = [];
     const made = await seedTrialRoster(actor, {
+      grantMailbox: async (agentId) => {
+        mailed.push(agentId);
+      },
       trial,
       profiles,
       skills: {
@@ -170,6 +176,16 @@ describe("setting up a trial roster on the real stores (#109)", () => {
 
     const frontDesk = team.find((p) => p.name === "Υποδοχή");
     if (!frontDesk) throw new Error("no front desk");
+    const qa = team.find((p) => p.name === "QA & Auditing");
+
+    // Only the mail employee gets the mailbox, with its folder and From address; AMKA for all.
+    expect(mailed).toEqual([frontDesk.id]);
+    expect(await trial.mailPolicyFor(frontDesk.id)).toEqual({
+      folders: ["INBOX/Front"],
+      from: "info@eurodiagnosi.example",
+      blockAmka: true,
+    });
+    expect(await trial.mailPolicyFor(qa?.id)).toEqual({ blockAmka: true });
     const channel = await createChannelStore(
       database,
       profiles,
