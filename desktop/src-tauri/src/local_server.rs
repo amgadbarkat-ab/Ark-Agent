@@ -580,7 +580,9 @@ fn main() {
         let mut buffer = [0u8; 4096];
         let n = stream.read(&mut buffer).unwrap_or(0);
         let request = String::from_utf8_lossy(&buffer[..n]).to_string();
-        let allowed = request.contains(&format!("Bearer {key}"));
+        // As the real one does: `/health` is public, everything else needs the key.
+        let public = request.starts_with("GET /health ");
+        let allowed = public || request.contains(&format!("Bearer {key}\r\n"));
         let response = if allowed {
             "HTTP/1.1 200 OK\r\nContent-Length: 15\r\nConnection: close\r\n\r\n{\"status\":\"ok\"}"
         } else {
@@ -639,10 +641,10 @@ fn main() {
 
             // The key is required: the same address without it is refused.
             let client = reqwest::blocking::Client::new();
-            let health = format!("http://127.0.0.1:{}/health", running.port);
-            assert_eq!(client.get(&health).send().unwrap().status().as_u16(), 401);
+            let models = format!("http://127.0.0.1:{}/v1/models", running.port);
+            assert_eq!(client.get(&models).send().unwrap().status().as_u16(), 401);
             assert!(client
-                .get(&health)
+                .get(&models)
                 .bearer_auth(&running.api_key)
                 .send()
                 .unwrap()
@@ -703,6 +705,90 @@ fn main() {
             assert!(problem.said.contains("took too long"), "{problem:?}");
             assert!(started.elapsed() < Duration::from_secs(10));
             assert!(!record_path(&dir).exists());
+        }
+
+        /// Another program on the port we chose, answering before ours has bound it: a test server
+        /// that says 200 to everything, or another model with its own key. Neither is our model, so the
+        /// wait runs out rather than handing the bots an address that is not ours. (v0.1.39 publish
+        /// run: a parallel test's server took the just-released port of a "slow" stand-in.)
+        #[test]
+        fn a_stranger_answering_on_our_port_is_not_our_model() {
+            let dir = scratch("stranger");
+            let server = stand_in(&dir, "slow");
+            for stranger in [Stranger::AnswersEverything, Stranger::HasAnotherKey] {
+                let (port, served) = stranger.listen();
+                let child = crate::quiet::command(&server)
+                    .args(["--port", "1"])
+                    .env(API_KEY_VARIABLE, "ours")
+                    .current_dir(&dir)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .unwrap();
+                let mut running = Running {
+                    child,
+                    port,
+                    api_key: mint_key(),
+                    alias: "stand-in".into(),
+                };
+                let waited = wait_until_ready(
+                    &mut running,
+                    &dir.join("no-log"),
+                    Duration::from_secs(1),
+                    &AtomicBool::new(false),
+                );
+                let _ = running.child.kill();
+                let _ = running.child.wait();
+                assert!(
+                    matches!(waited, Err(Wait::TooSlow)),
+                    "{stranger:?} counted as our model: {waited:?}"
+                );
+                assert!(
+                    served.load(Ordering::SeqCst) > 0,
+                    "{stranger:?} was never asked"
+                );
+            }
+        }
+
+        #[derive(Clone, Copy, Debug)]
+        enum Stranger {
+            /// Says 200 to every request, as many test servers in this binary do.
+            AnswersEverything,
+            /// Behaves like llama-server, keyed for someone else.
+            HasAnotherKey,
+        }
+
+        impl Stranger {
+            fn listen(self) -> (u16, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+                use std::io::Read;
+                let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+                let port = listener.local_addr().unwrap().port();
+                let served = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+                let count = served.clone();
+                std::thread::spawn(move || {
+                    for stream in listener.incoming() {
+                        let Ok(mut stream) = stream else { continue };
+                        let mut buffer = [0u8; 4096];
+                        let n = stream.read(&mut buffer).unwrap_or(0);
+                        let request = String::from_utf8_lossy(&buffer[..n]).to_string();
+                        count.fetch_add(1, Ordering::SeqCst);
+                        let ok = match self {
+                            Stranger::AnswersEverything => true,
+                            Stranger::HasAnotherKey => {
+                                request.starts_with("GET /health ")
+                                    || request.contains("Bearer theirs\r\n")
+                            }
+                        };
+                        let response = if ok {
+                            "HTTP/1.1 200 OK\r\nContent-Length: 15\r\nConnection: close\r\n\r\n{\"status\":\"ok\"}"
+                        } else {
+                            "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                        };
+                        let _ = stream.write_all(response.as_bytes());
+                    }
+                });
+                (port, served)
+            }
         }
 
         #[test]
