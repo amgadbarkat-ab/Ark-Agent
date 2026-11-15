@@ -169,8 +169,17 @@ import {
   useMailboxPolicy,
 } from "./plugins/mailbox";
 import { redirectUriFor } from "./plugins/oauth";
+import {
+  listTools as listPriceListTools,
+  usePriceListDatabase,
+} from "./plugins/price-list";
 import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
+import {
+  detectVideoSetup,
+  listTools as listVideoTools,
+  useVideoSetup,
+} from "./plugins/video";
 import { hubConversations } from "./privacy/conversations";
 import { createProviderOAuthProxy } from "./provider-oauth";
 import { createPushSender, webPushSend } from "./push/sender";
@@ -1541,6 +1550,53 @@ repeatAfterEach(async () => {
   }
 }, 10_000);
 
+/**
+ * Gives one employee every tool of a catalogue server, adding the server first if this deployment
+ * has not yet (#109: the mailbox, the price list, video editing). Granting twice changes nothing.
+ */
+async function grantServerTools(
+  by: string,
+  agentId: string,
+  key: string,
+  list: () => Promise<{ name: string }[]>,
+): Promise<void> {
+  if (!(await pluginStore.serverExists(key))) {
+    await pluginStore.addServer({ key, by });
+  }
+  const held = await database
+    .select({ ref: pluginGrants.ref })
+    .from(pluginGrants)
+    .where(
+      and(
+        eq(pluginGrants.kind, "mcp"),
+        eq(pluginGrants.agentId, agentId),
+        like(pluginGrants.ref, `${key}/%`),
+      ),
+    );
+  const have = new Set(held.map((row) => row.ref));
+  for (const tool of await list()) {
+    const ref = `${key}/${tool.name}`;
+    if (!have.has(ref)) await pluginStore.grant("mcp", ref, agentId, by);
+  }
+}
+
+// The price list lives in this database; video editing runs only in the desktop app (#109).
+usePriceListDatabase(database);
+useVideoSetup(
+  detectVideoSetup({
+    enabled: config.singleUser,
+    ...(process.env.ARK_MEDIA_DIR?.trim()
+      ? { mediaDir: process.env.ARK_MEDIA_DIR.trim() }
+      : {}),
+    ...(process.env.ARK_FFMPEG?.trim()
+      ? { ffmpeg: process.env.ARK_FFMPEG.trim() }
+      : {}),
+    ...(process.env.ARK_VIDEO_FONT?.trim()
+      ? { font: process.env.ARK_VIDEO_FONT.trim() }
+      : {}),
+  }),
+);
+
 /*
  * The business's own phone line (#109): off until an administrator sets it up in Settings. It keeps
  * one outgoing connection to BlackArk's relay and answers each call with the chosen employee.
@@ -1803,28 +1859,15 @@ const app = createApp(
           grant: (kind, ref, agentId, by) =>
             pluginStore.grant(kind, ref, agentId, by),
         },
-        grantMailbox: async (agentId) => {
-          if (!(await pluginStore.serverExists("mailbox"))) {
-            await pluginStore.addServer({ key: "mailbox", by: actor.id });
-          }
-          const held = await database
-            .select({ ref: pluginGrants.ref })
-            .from(pluginGrants)
-            .where(
-              and(
-                eq(pluginGrants.kind, "mcp"),
-                eq(pluginGrants.agentId, agentId),
-                like(pluginGrants.ref, "mailbox/%"),
-              ),
-            );
-          const have = new Set(held.map((row) => row.ref));
-          for (const tool of await listMailboxTools()) {
-            const ref = `mailbox/${tool.name}`;
-            if (!have.has(ref)) {
-              await pluginStore.grant("mcp", ref, agentId, actor.id);
-            }
-          }
-        },
+        grantMailbox: (agentId) =>
+          grantServerTools(actor.id, agentId, "mailbox", listMailboxTools),
+        grantBuiltin: (agentId, key) =>
+          grantServerTools(
+            actor.id,
+            agentId,
+            key,
+            key === "video" ? listVideoTools : listPriceListTools,
+          ),
       }),
     keyConfigured:
       trialKeysFrom(

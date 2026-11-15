@@ -40,9 +40,14 @@ export async function seedTrialRoster(
     skills?: TrialSkills;
     /** Gives one employee the customer's mailbox (#109). Idempotent. */
     grantMailbox?: (agentId: string) => Promise<void>;
+    /** Gives one employee a built-in tool set: the price list or video editing (#109). Idempotent. */
+    grantBuiltin?: (
+      agentId: string,
+      key: "price-list" | "video",
+    ) => Promise<void>;
   },
 ): Promise<number> {
-  const { trial, profiles, skills, grantMailbox } = dependencies;
+  const { trial, profiles, skills, grantMailbox, grantBuiltin } = dependencies;
   const roster = await trial.roster();
   const leadKey = (roster.find((entry) => entry.lead) ?? roster[0])?.key;
   const made = await trial.seed(async (entry) => {
@@ -85,13 +90,17 @@ export async function seedTrialRoster(
    * The mail employees get the mailbox, every time this runs, so an install that was set up before
    * mail existed (v0.1.37) gets it on its first start of v0.1.38. Granting twice changes nothing.
    */
-  if (grantMailbox) {
+  if (grantMailbox || grantBuiltin) {
     const seeded = new Map(
       (await trial.rosterAgents()).map((row) => [row.key, row.agentId]),
     );
     for (const entry of roster) {
       const agentId = seeded.get(entry.key);
-      if (entry.mail && agentId) await grantMailbox(agentId);
+      if (!agentId) continue;
+      if (entry.mail && grantMailbox) await grantMailbox(agentId);
+      if (entry.priceList && grantBuiltin)
+        await grantBuiltin(agentId, "price-list");
+      if (entry.video && grantBuiltin) await grantBuiltin(agentId, "video");
     }
   }
   if (made > 0 && (await trial.current())?.createBlocked) {

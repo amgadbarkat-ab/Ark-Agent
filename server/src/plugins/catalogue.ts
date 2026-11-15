@@ -442,6 +442,33 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     ]),
     docsUrl: "https://github.com/CopilotKit/OpenBot/blob/main/docs/routines.md",
   },
+  {
+    key: "price-list",
+    title: "Price list",
+    vendor: "ArkAgent",
+    summary:
+      "The business's own price list, uploaded in Settings as CSV or XLSX. Prices come only from it.",
+    host: "builtin://price-list",
+    path: "/",
+    transport: "builtin-price-list",
+    auth: Object.freeze({ kind: "builtin" }),
+    writeTools: Object.freeze([]),
+    docsUrl:
+      "https://github.com/amgadbarkat-ab/Ark-Agent/blob/main/docs/trials/README.md",
+  },
+  {
+    key: "video",
+    title: "Video editing",
+    vendor: "ArkAgent",
+    summary:
+      "Final cuts made with FFmpeg on this computer, from the business's own files in ArkAgent/media/in. Every render waits for approval; nothing is published.",
+    host: "builtin://video",
+    path: "/",
+    transport: "builtin-video",
+    auth: Object.freeze({ kind: "builtin" }),
+    writeTools: Object.freeze(["render_video"]),
+    docsUrl: "https://ffmpeg.org/documentation.html",
+  },
 ]);
 
 const BY_KEY = new Map(CATALOGUE.map((entry) => [entry.key, entry]));

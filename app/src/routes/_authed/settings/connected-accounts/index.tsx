@@ -13,6 +13,10 @@ import * as React from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { RowMark } from "@/components/layout/row-mark";
 import { PluginLogo } from "@/components/plugins/plugin-logo";
+import {
+  PriceListSection,
+  VideoEditingSection,
+} from "@/components/settings/builtin-tools-section";
 import { MailboxSection } from "@/components/settings/mailbox-section";
 import { PhoneLineSection } from "@/components/settings/phone-line-section";
 import {
@@ -274,6 +278,8 @@ function RouteComponent() {
             />
           </InputGroup>
           <MailboxSection />
+          {isAdmin ? <PriceListSection /> : null}
+          {isAdmin ? <VideoEditingSection /> : null}
           {isAdmin ? <PhoneLineSection /> : null}
           {services.length === 0 && brokeredMatching.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground" role="status">

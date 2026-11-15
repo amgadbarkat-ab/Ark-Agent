@@ -248,6 +248,9 @@ jobs:
       # comes from the job env instead, which drizzle.config.ts already reads.
       - run: bunx drizzle-kit migrate --config=drizzle.config.ts
         working-directory: server
+      # Video editing (#109) renders with the FFmpeg installed on the customer's computer; the render
+      # tests need one here too, or they would only report that they could not run.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
       # A passing job must include the expected test floor. Import-time failures can otherwise skip
       # files before their tests are registered.
       - run: bun run test:ci

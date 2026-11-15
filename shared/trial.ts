@@ -37,6 +37,10 @@ export type RosterEntry = {
    * sends as (absent: the mailbox's own).
    */
   mail?: { folders?: string[]; from?: string };
+  /** Looks prices up in the business's uploaded price list (from v0.1.40), and nowhere else. */
+  priceList?: boolean;
+  /** Edits video on this computer from the business's own files (from v0.1.40). */
+  video?: boolean;
 };
 
 export type TrialProfile = {
@@ -248,6 +252,8 @@ export function readProfile(value: unknown): TrialProfile {
       ...(basedOn ? { basedOn } : {}),
       ...(entry.lead === true ? { lead: true } : {}),
       ...(mail ? { mail } : {}),
+      ...(entry.priceList === true ? { priceList: true } : {}),
+      ...(entry.video === true ? { video: true } : {}),
     };
   });
   return {
