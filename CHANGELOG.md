@@ -39,6 +39,28 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - Three open-source libraries were added for this, on Amgad's yes: imapflow, mailparser and
   nodemailer (all MIT).
 
+### The business's own phone line (#109: Wine24 Phone & Enquiries Desk, Eurodiagnosi Front Desk)
+
+- **Settings → Connect your Data → Phone line** (administrators).
+  - You enter BlackArk's relay address and the line token BlackArk issued.
+  - You also enter the business's own speech key (OpenAI Realtime).
+  - Both go in masked fields and are stored **encrypted on this computer**. Neither is shown again.
+  - You choose which digital employee answers, its greeting, and the opening hours.
+- **How a call reaches it:** the business's line forwards to a Twilio number. BlackArk's relay passes the call to this computer, which keeps one outgoing connection to the relay, so nothing is opened on the router.
+- **On a call, the employee:**
+  - greets the caller;
+  - answers within its standing instruction;
+  - takes **callbacks**;
+  - **puts the caller through** to the fallback number BlackArk set for the line.
+  - If asked, it says it is the business's digital employee and offers a person.
+  - It never calls itself an AI or a bot.
+  - Outside the hours, it says the business is closed and takes a callback.
+- **What it cannot do:** it makes no calls. The number a hand-over rings is the relay's, never one the employee says.
+- **If something fails:** if this computer or the speech service stops answering, the caller goes to the fallback number rather than to silence.
+- **Nothing is recorded.** The **call log** keeps the time, the caller's number, how long it lasted, the outcome, a one-line summary and any callback, with **Mark as done**.
+- **Eurodiagnosi:** the AMKA rule applies on the phone too. A callback note with an AMKA-shaped number is refused.
+- `infra/phone-relay/`: the relay BlackArk runs on an EU server, set up with one `deploy.sh`.
+
 ### Model choices for the trial demos
 
 - **Edge0 (edge0-infer)** in Settings → Models. It is a local server choice, and its card states
