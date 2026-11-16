@@ -227,7 +227,7 @@ export async function callTool(
   const shown = found.slice(0, MAX_MATCHES);
   return answer(
     [
-      `From the price list ${row.fileName}, uploaded ${row.uploadedAt.toISOString().slice(0, 10)}. Quote these rows as they are; do not change or round a price.`,
+      `From the price list ${row.fileName}, uploaded ${row.uploadedAt.toISOString().slice(0, 10)}. Give each price exactly as it is written in its row (14.90 stays 14.90: do not add a currency sign, change the decimal mark or round it). Say whether a price includes VAT only if the header or the row says so; if the list does not say, say that the list does not say.`,
       row.header,
       ...shown,
       ...(found.length > shown.length

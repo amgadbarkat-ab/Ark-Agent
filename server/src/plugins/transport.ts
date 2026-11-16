@@ -130,6 +130,16 @@ export type VendorTransport = {
   ): Promise<{
     args: Record<string, unknown>;
     shown?: Record<string, string>;
+    /**
+     * One plain sentence for the approval card, written from the arguments by this code, in place
+     * of the generic "Call <tool> on <server>".
+     */
+    summary?: string;
+    /**
+     * A call that cannot run as asked, refused before any card is shown: the sentence goes back to
+     * the employee to correct, so nobody approves a call that would then fail (#109, DT 16 Nov).
+     */
+    refused?: string;
   }>;
 };
 

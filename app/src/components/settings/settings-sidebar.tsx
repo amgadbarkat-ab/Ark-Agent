@@ -8,6 +8,7 @@ import {
   IconSettings,
   IconShieldLock,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import type * as React from "react";
 import {
@@ -21,6 +22,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { tNow, useT } from "@/lib/i18n";
+import { phoneSettingsQueryOptions } from "@/lib/phone/queries";
+import { queryClient } from "@/query-client";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
 
@@ -88,6 +91,16 @@ export function SettingsSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const t = useT();
+  // Approving by phone is mounted only where a deployment offers it; elsewhere its page has
+  // nothing to load, so it is not listed (#109, DT 16 Nov: shown while the API answered 404).
+  const phone = useQuery(
+    { ...phoneSettingsQueryOptions(), retry: false },
+    queryClient,
+  );
+  const items = ITEMS.filter(
+    (item) =>
+      item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess,
+  );
   return (
     <Sidebar {...props}>
       {/* Matched to the app sidebar's header, as Admin's is. See admin-sidebar.tsx. */}
@@ -112,7 +125,7 @@ export function SettingsSidebar({
          */}
         <SidebarGroup>
           <SidebarMenu className="gap-px">
-            {ITEMS.map((option) => (
+            {items.map((option) => (
               <SidebarMenuItem key={option.title}>
                 <SidebarMenuButton
                   render={(props) => (

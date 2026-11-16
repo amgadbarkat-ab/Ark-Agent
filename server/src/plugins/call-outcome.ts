@@ -72,6 +72,8 @@ export type HeldToolCall = {
    * Shown to the person deciding in place of the bare value, and never sent.
    */
   shown?: Record<string, string>;
+  /** A plain sentence for the card, from the transport; absent, the generic one is used. */
+  summary?: string;
   /** The vendor's version of the action at the time it was asked, so a changed action is not run. */
   version: string | null;
   effect: "read" | "write";

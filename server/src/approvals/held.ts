@@ -102,7 +102,9 @@ async function asking<T>(work: () => Promise<T>): Promise<T> {
 /** What the employee is told when its call is held. */
 function heldMessage(what: string, threadId: string | undefined): string {
   return [
-    `${what} has NOT been done yet. It is waiting for the person to approve it in Requests.`,
+    threadId
+      ? `${what} has NOT been done yet. It is waiting for the person to approve it on the card in this conversation.`
+      : `${what} has NOT been done yet. It is waiting for the person to approve it in Requests.`,
     "Tell them plainly that it is waiting for their approval and what it will do once approved.",
     "Do not try to do it another way, and do not say it is done.",
     threadId
@@ -134,7 +136,9 @@ export function toolCallApprovals(store: ApprovalStore): ToolCallApprovals {
           kind: TOOL_CALL_KIND,
           targetId: call.ref,
           // Written here from the call, never by the model: the arguments are shown beside it.
-          summary: `Call ${what}${call.effect === "write" ? ", which changes something there" : ""}.`,
+          summary:
+            call.summary ??
+            `Call ${what}${call.effect === "write" ? ", which changes something there" : ""}.`,
           payload,
           ...(call.threadId ? { threadId: call.threadId } : {}),
           ...(call.runId ? { runId: call.runId } : {}),

@@ -26,6 +26,7 @@ import {
   phoneLineQueryOptions,
 } from "@/lib/phone-line/queries";
 import { queryClient } from "@/query-client";
+import { PhoneEstimator } from "./phone-estimator";
 
 type Form = {
   relayUrl: string;
@@ -99,12 +100,13 @@ const OUTCOMES: Record<string, string> = {
 };
 
 /**
- * Shown only where BlackArk switched the paid phone add-on on for this business (MD, 15 Nov).
- * Everywhere else there is nothing to see and nothing to set up.
+ * The setup where BlackArk switched the paid phone add-on on for this business (MD, 15 Nov);
+ * everywhere else the cost estimate, so the business can see the price before ordering it.
  */
 export function PhoneLineSection() {
   const line = useQuery(phoneLineQueryOptions());
-  return line.data?.allowed ? <PhoneLineSettings /> : null;
+  if (!line.data) return null;
+  return line.data.allowed ? <PhoneLineSettings /> : <PhoneEstimator />;
 }
 
 function PhoneLineSettings() {
