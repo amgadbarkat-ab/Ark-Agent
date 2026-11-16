@@ -128,3 +128,47 @@ posts here, and that install collects what waited for it. Amgad said yes to this
 - 256 KB per event;
 - 1000 events waiting per inbox;
 - 200 events per collection.
+
+## Paid licence keys after Stripe payment (v0.1.44)
+
+Amgad said yes on 16 Nov. A customer pays through a Stripe Payment Link. Stripe tells this
+receiver, which signs an ArkAgent licence key with BlackArk's **separate licence key**. The customer
+copies the key from the page Stripe sends them to. Each month the app collects the renewed key by
+itself.
+
+**What is kept:** one row per subscription, with:
+- the customer id;
+- the Stripe subscription and checkout session ids;
+- the plan, seats and add-ons;
+- the period end;
+- the latest key.
+
+**What is not kept:** no card data, no name, no email, no address.
+
+**Endpoints:**
+- `…/checkin/stripe/`: Stripe's webhook. Each event is checked with `Stripe-Signature` (HMAC-SHA256
+  with the webhook secret, timestamp within 5 minutes) and taken once.
+- `…/checkin/key/?session_id=…`: the page after payment. It shows the key, in Greek and English.
+- `…/checkin/renew/`: where the app asks once a day. It answers `{"key": …}` when a longer-lasting
+  key exists for that customer, and `{}` otherwise.
+
+**Setup, once.** Upload only after Amgad's yes on this exact build, as before.
+1. **On Amgad's PC**, run `bun scripts/ark-trial.ts license-keygen`.
+   - It writes `~/.arklicense/license-config.php.txt`, and prints only the public key.
+   - Paste the two lines from that file into `checkin/config.php`, inside the array.
+   - Post only the public key on #109, so it is built into the app.
+2. **In Stripe** → Developers → Webhooks:
+   - Add the endpoint `https://blackark.uk/checkin/stripe/` with the events
+     `checkout.session.completed`, `invoice.paid` and `customer.subscription.deleted`.
+   - Copy its signing secret (`whsec_…`) into `'stripe_webhook_secret'`. Never post it.
+3. **Each Payment Link:**
+   - Set **After payment** to *Don't show confirmation page → redirect to*
+     `https://blackark.uk/checkin/key/?session_id={CHECKOUT_SESSION_ID}`.
+   - Send each customer the link with `?client_reference_id=<customer id>` added, so their key
+     carries their id. Without it, the id becomes `stripe-<Stripe customer>`.
+4. **In `'stripe_prices'`**, map each Stripe price id to a plan:
+   - `'price_…' => ['plan' => 'team', 'seats' => 1]` for a plan;
+   - `'price_…' => ['addon' => 'phone']` for the phone add-on sold as its own price.
+
+**Keys after cancelling:** when a subscription is cancelled, no new key is made. The last key runs
+out on its own, at its period end plus 7 days.

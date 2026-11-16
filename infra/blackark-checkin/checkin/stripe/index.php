@@ -1,0 +1,176 @@
+<?php
+/**
+ * https://blackark.uk/checkin/stripe/ — Stripe's webhook for paid licence keys (#109, v0.1.44;
+ * Amgad 16 Nov: "ok, go").
+ *
+ * Events, each checked with the Stripe-Signature header (HMAC-SHA256 with the webhook secret in
+ * config.php, timestamp within 5 minutes) and taken once:
+ * - checkout.session.completed: which subscription belongs to which customer id (the Payment Link's
+ *   client_reference_id) and which checkout session, so the key page can find it.
+ * - invoice.paid: the plan, seats and add-ons (from config's price table) and the paid period's end;
+ *   a new key is signed, valid to that end plus the grace days.
+ * - customer.subscription.deleted: no more keys; the last one runs out on its own.
+ *
+ * Kept: the customer id, the Stripe subscription and session ids, the plan, seats, add-ons, the
+ * period end and the latest key. No card data, no name, no email, no address.
+ */
+
+declare(strict_types=1);
+define('ARK_CHECKIN', true);
+require dirname(__DIR__) . '/lib.php';
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+function reply(int $status, string $message = 'ok'): void
+{
+    http_response_code($status);
+    echo json_encode(['result' => $message]);
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    reply(405, 'POST only.');
+}
+$secret = (string) ark_config('stripe_webhook_secret', '');
+if ($secret === '') {
+    reply(503, 'Not configured.');
+}
+$body = (string) file_get_contents('php://input', false, null, 0, 1048577);
+if (strlen($body) > 1048576) {
+    reply(413, 'Too large.');
+}
+
+// Stripe-Signature: t=<unix>,v1=<hex>[,v1=<hex>…]
+$header = (string) ($_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '');
+$time = 0;
+$signatures = [];
+foreach (explode(',', $header) as $part) {
+    [$name, $value] = array_pad(explode('=', trim($part), 2), 2, '');
+    if ($name === 't') {
+        $time = (int) $value;
+    } elseif ($name === 'v1') {
+        $signatures[] = $value;
+    }
+}
+$expected = hash_hmac('sha256', $time . '.' . $body, $secret);
+$valid = false;
+foreach ($signatures as $signature) {
+    if (hash_equals($expected, $signature)) {
+        $valid = true;
+    }
+}
+$now = time();
+if (!$valid || abs($now - $time) > 300) {
+    reply(400, 'Bad signature.');
+}
+
+$event = json_decode($body, true);
+if (!is_array($event) || !is_string($event['id'] ?? null) || !is_string($event['type'] ?? null)) {
+    reply(400, 'Not an event.');
+}
+$db = ark_db();
+$seen = $db->prepare('INSERT OR IGNORE INTO stripe_events (event_id, received_at) VALUES (?, ?)');
+$seen->execute([$event['id'], ark_now()]);
+if ($seen->rowCount() === 0) {
+    reply(200, 'Already taken.');
+}
+$object = is_array($event['data']['object'] ?? null) ? $event['data']['object'] : [];
+
+function customer_id_from($reference, $customer): string
+{
+    $reference = is_string($reference) ? strtolower(trim($reference)) : '';
+    if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $reference) === 1) {
+        return $reference;
+    }
+    return 'stripe-' . strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $customer));
+}
+
+function upsert(PDO $db, string $subscription, array $fields): void
+{
+    $db->prepare('INSERT OR IGNORE INTO licenses (subscription_id, updated_at) VALUES (?, ?)')
+        ->execute([$subscription, ark_now()]);
+    foreach ($fields as $column => $value) {
+        $db->prepare("UPDATE licenses SET $column = ?, updated_at = ? WHERE subscription_id = ?")
+            ->execute([$value, ark_now(), $subscription]);
+    }
+}
+
+/** Signs a key once the row has both its customer (from checkout) and its plan (from the invoice). */
+function issue(PDO $db, string $subscription): void
+{
+    $read = $db->prepare('SELECT * FROM licenses WHERE subscription_id = ?');
+    $read->execute([$subscription]);
+    $row = $read->fetch();
+    if (!$row || $row['status'] !== 'active' || !$row['customer_id'] || !$row['plan'] || !$row['period_end']) {
+        return;
+    }
+    $addons = $row['addons'] ? explode(',', (string) $row['addons']) : [];
+    $signed = ark_sign_license((string) $row['customer_id'], (string) $row['plan'], (int) $row['seats'], $addons, (int) $row['period_end']);
+    if ($signed) {
+        upsert($db, $subscription, ['license_key' => $signed['key'], 'valid_until' => $signed['valid_until']]);
+    }
+}
+
+$subscription = (string) ($object['subscription'] ?? ($event['type'] === 'customer.subscription.deleted' ? ($object['id'] ?? '') : ''));
+if (is_array($object['subscription'] ?? null)) {
+    $subscription = (string) ($object['subscription']['id'] ?? '');
+}
+if ($subscription === '' && is_array($object['parent']['subscription_details'] ?? null)) {
+    $subscription = (string) ($object['parent']['subscription_details']['subscription'] ?? '');
+}
+
+switch ($event['type']) {
+    case 'checkout.session.completed':
+        if ($subscription === '') {
+            reply(200, 'Not a subscription.');
+        }
+        upsert($db, $subscription, [
+            'customer_id' => customer_id_from($object['client_reference_id'] ?? null, $object['customer'] ?? ''),
+            'session_id' => (string) ($object['id'] ?? ''),
+        ]);
+        issue($db, $subscription);
+        reply(200);
+    case 'invoice.paid':
+        if ($subscription === '') {
+            reply(200, 'Not a subscription.');
+        }
+        $prices = (array) ark_config('stripe_prices', []);
+        $plan = null;
+        $seats = 1;
+        $addons = [];
+        $periodEnd = 0;
+        foreach ((array) ($object['lines']['data'] ?? []) as $line) {
+            $price = (string) ($line['price']['id'] ?? ($line['pricing']['price_details']['price'] ?? ''));
+            $map = $prices[$price] ?? null;
+            if (is_array($map) && isset($map['plan'])) {
+                $plan = (string) $map['plan'];
+                $seats = max(1, (int) ($map['seats'] ?? 1) * max(1, (int) ($line['quantity'] ?? 1)));
+                foreach ((array) ($map['addons'] ?? []) as $addon) {
+                    $addons[] = (string) $addon;
+                }
+            } elseif (is_array($map) && isset($map['addon'])) {
+                $addons[] = (string) $map['addon'];
+            }
+            $periodEnd = max($periodEnd, (int) ($line['period']['end'] ?? 0));
+        }
+        if ($plan === null) {
+            reply(200, 'No price in this invoice is in the price table.');
+        }
+        upsert($db, $subscription, [
+            'plan' => $plan,
+            'seats' => $seats,
+            'addons' => implode(',', array_unique($addons)),
+            'period_end' => $periodEnd ?: (int) ($object['period_end'] ?? 0),
+            'status' => 'active',
+        ]);
+        issue($db, $subscription);
+        reply(200);
+    case 'customer.subscription.deleted':
+        if ($subscription !== '') {
+            upsert($db, $subscription, ['status' => 'canceled']);
+        }
+        reply(200);
+    default:
+        reply(200, 'Ignored.');
+}

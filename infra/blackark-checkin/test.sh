@@ -31,6 +31,9 @@ json() { php -r '$d = json_decode($argv[1], true); echo json_encode($d[$argv[2]]
 public_key="$(php -r '$d = json_decode($argv[1], true); echo $d["publicKey"];' "$keys")"
 
 hash="$(php -r 'echo password_hash("test-password", PASSWORD_DEFAULT);')"
+# A throwaway licence key pair, as license-keygen would make (64-byte sodium secret, 32-byte public).
+pair="$(php -r '$k = sodium_crypto_sign_keypair(); echo base64_encode(sodium_crypto_sign_secretkey($k)), " ", base64_encode(sodium_crypto_sign_publickey($k));')"
+license_secret="${pair% *}"; license_public="${pair#* }"
 cat > "$work/checkin/config.php" <<PHP
 <?php
 return [
@@ -40,6 +43,12 @@ return [
   'require_proof' => false,
   'rate_limit_seconds' => 300,
   'max_installs' => 2000,
+  'license_secret_key' => '$license_secret',
+  'license_public_key' => '$license_public',
+  'license_grace_days' => 7,
+  'license_renew_url' => 'https://blackark.example/checkin/renew/',
+  'stripe_webhook_secret' => 'whsec_test',
+  'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1], 'price_phone' => ['addon' => 'phone']],
 ];
 PHP
 
@@ -98,6 +107,47 @@ got="$(curl -s -X POST -H "authorization: Bearer $key" "$sk")"
 [[ "$got" == '{"events":[]}' ]] && { pass=$((pass+1)); echo "ok   and it is gone after collecting"; } || { fail=$((fail+1)); echo "FAIL not deleted: $got"; }
 signed_out="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/checkin/admin/skroutz.php")"
 [[ "$signed_out" == 302 ]] && { pass=$((pass+1)); echo "ok   the inbox page needs the staff sign-in"; } || { fail=$((fail+1)); echo "FAIL inbox page open: $signed_out"; }
+
+# Paid licence keys from Stripe (v0.1.44).
+stripe="http://127.0.0.1:$port/checkin/stripe/"
+send_event() { # json -> status; signed like Stripe: HMAC-SHA256 of "<t>.<body>" with the webhook secret
+  local t; t="$(date +%s)"
+  local sig; sig="$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "whsec_test");' "$t" "$1")"
+  curl -s -o /dev/null -w '%{http_code}' -X POST -H "stripe-signature: t=$t,v1=$sig" -H 'content-type: application/json' --data "$1" "$stripe"
+}
+expect "a webhook without Stripe's signature is refused" 400 -X POST -H 'stripe-signature: t=1,v1=00' --data '{"id":"evt_x","type":"invoice.paid"}' "$stripe"
+end=$(( $(date +%s) + 30*86400 ))
+checkout='{"id":"evt_1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_abcdefghijkl","client_reference_id":"demo-shop","customer":"cus_1","subscription":"sub_1"}}}'
+invoice='{"id":"evt_2","type":"invoice.paid","data":{"object":{"subscription":"sub_1","lines":{"data":[{"price":{"id":"price_team"},"quantity":1,"period":{"end":'"$end"'}},{"price":{"id":"price_phone"},"quantity":1,"period":{"end":'"$end"'}}]}}}}'
+[[ "$(send_event "$invoice")" == 200 && "$(send_event "$checkout")" == 200 ]] && { pass=$((pass+1)); echo "ok   signed invoice and checkout events are taken, in either order"; } || { fail=$((fail+1)); echo "FAIL stripe events"; }
+page="$(curl -s "http://127.0.0.1:$port/checkin/key/?session_id=cs_test_abcdefghijkl")"
+key="$(grep -o 'ARK1-[A-Za-z0-9_.-]*' <<<"$page" | head -1)"
+[[ -n "$key" ]] && { pass=$((pass+1)); echo "ok   the key page shows the key after payment"; } || { fail=$((fail+1)); echo "FAIL key page"; }
+cat > "$repo/.checkin-verify.ts" <<'TS'
+import { readActivationCode } from "./shared/activation";
+import { publicKeyFromBase64, signedByAny } from "./shared/trial-sign";
+const [key, pub, end] = process.argv.slice(2);
+const read = readActivationCode(key);
+const ok = signedByAny([publicKeyFromBase64(pub)], read.payload, read.signature);
+const code = read.code as { action: string; customer: string; plan: string; addons?: string[]; validUntil: string; renewUrl?: string };
+const graceOk = Date.parse(code.validUntil) === (Number(end) + 7 * 86400) * 1000;
+console.log(ok && code.action === "license" && code.customer === "demo-shop" && code.plan === "team" && code.addons?.join() === "phone" && graceOk && code.renewUrl === "https://blackark.example/checkin/renew/" ? "valid" : `invalid ${JSON.stringify(code)} ${ok}`);
+TS
+verdict="$(cd "$repo" && bun .checkin-verify.ts "$key" "$license_public" "$end")"; rm -f "$repo/.checkin-verify.ts"
+[[ "$verdict" == valid ]] && { pass=$((pass+1)); echo "ok   the app reads the key: signed, demo-shop, team, phone, period end + 7 days"; } || { fail=$((fail+1)); echo "FAIL key check: $verdict"; }
+t="$(date +%s)"; sig="$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "whsec_test");' "$t" "$invoice")"
+again="$(curl -s -X POST -H "stripe-signature: t=$t,v1=$sig" --data "$invoice" "$stripe")"
+grep -q 'Already taken' <<<"$again" && { pass=$((pass+1)); echo "ok   the same event twice is taken once"; } || { fail=$((fail+1)); echo "FAIL replay: $again"; }
+renew="http://127.0.0.1:$port/checkin/renew/"
+got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2026-01-01T00:00:00Z"}' "$renew")"
+grep -q '"key":"ARK1-' <<<"$got" && { pass=$((pass+1)); echo "ok   renewal hands an older install the newer key"; } || { fail=$((fail+1)); echo "FAIL renew: $got"; }
+got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2099-01-01T00:00:00Z"}' "$renew")"
+[[ "$got" == '{}' ]] && { pass=$((pass+1)); echo "ok   and nothing to an install that is up to date"; } || { fail=$((fail+1)); echo "FAIL renew up to date: $got"; }
+send_event '{"id":"evt_3","type":"customer.subscription.deleted","data":{"object":{"id":"sub_1"}}}' >/dev/null
+got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2026-01-01T00:00:00Z"}' "$renew")"
+[[ "$got" == '{}' ]] && { pass=$((pass+1)); echo "ok   a cancelled subscription gets no more keys"; } || { fail=$((fail+1)); echo "FAIL after cancel: $got"; }
+page="$(curl -s "http://127.0.0.1:$port/checkin/key/?session_id=cs_unknownsession1")"
+grep -q 'ετοιμάζεται' <<<"$page" && { pass=$((pass+1)); echo "ok   an unknown session sees 'being prepared', no key"; } || { fail=$((fail+1)); echo "FAIL unknown session"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]
