@@ -62,6 +62,39 @@ function ark_db(): PDO
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS installs_customer ON installs (customer_id)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS login_failures (at INTEGER NOT NULL)');
+    // Skroutz order inboxes (v0.1.43): one per customer install; events wait here until collected.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS skroutz_inboxes (
+        inbox_id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        secret_sha256 TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        last_event_at TEXT,
+        last_collect_at TEXT
+    )');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS skroutz_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inbox_id TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        body TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS skroutz_events_inbox ON skroutz_events (inbox_id, id)');
+    // Paid licence keys from Stripe (v0.1.44): one row per subscription, its latest signed key.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS licenses (
+        subscription_id TEXT PRIMARY KEY,
+        customer_id TEXT,
+        session_id TEXT,
+        plan TEXT,
+        seats INTEGER,
+        addons TEXT,
+        period_end INTEGER,
+        status TEXT NOT NULL DEFAULT \'active\',
+        license_key TEXT,
+        valid_until TEXT,
+        updated_at TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_session ON licenses (session_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_customer ON licenses (customer_id)');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)');
     return $pdo;
 }
 
@@ -121,4 +154,43 @@ function ark_send_security_headers(): void
     header('Referrer-Policy: no-referrer');
     header('X-Frame-Options: DENY');
     header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+}
+
+function ark_base64url(string $bytes): string
+{
+    return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+}
+
+/**
+ * A paid licence key (v0.1.44), the same `ARK1-` format the app reads (shared/activation.ts):
+ * base64url JSON, a dot, and the Ed25519 signature over exactly that base64url text, made with the
+ * licence secret key in config.php. Null when this server has no licence key or no sodium.
+ */
+function ark_sign_license(string $customerId, string $plan, int $seats, array $addons, int $periodEnd): ?array
+{
+    $secret = base64_decode((string) ark_config('license_secret_key', ''), true);
+    if ($secret === false || strlen($secret) !== 64 || !function_exists('sodium_crypto_sign_detached')) {
+        return null;
+    }
+    $validUntil = gmdate('Y-m-d\TH:i:s\Z', $periodEnd + 86400 * (int) ark_config('license_grace_days', 7));
+    $payload = [
+        'v' => 1,
+        'action' => 'license',
+        'customer' => $customerId,
+        'nonce' => ark_base64url(random_bytes(12)),
+        'issuedAt' => ark_now(),
+        'plan' => $plan,
+        'seats' => $seats,
+        'validUntil' => $validUntil,
+    ];
+    if ($addons) {
+        $payload['addons'] = array_values($addons);
+    }
+    $renew = (string) ark_config('license_renew_url', '');
+    if ($renew !== '') {
+        $payload['renewUrl'] = $renew;
+    }
+    $encoded = ark_base64url(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    $signature = ark_base64url(sodium_crypto_sign_detached($encoded, $secret));
+    return ['key' => 'ARK1-' . $encoded . '.' . $signature, 'valid_until' => $validUntil];
 }

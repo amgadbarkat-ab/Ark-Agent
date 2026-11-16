@@ -8,6 +8,24 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Shop and delivery connectors: Skroutz, WooCommerce, BOX NOW (#109, MD 16 Nov)
+
+**For every install, in Settings → Connect your Data → Shop and delivery.** Each customer's own account is typed in at the setup session. The login is tried first and kept only if it works, encrypted, on that computer. Secrets are never shown again.
+
+- **Skroutz:**
+  - **Reads:** Smart Cart orders, their state, items, delivery area, and the Skroutz Last Mile or courier tracking codes.
+  - **On an approval card:** accepting an order (with a pickup place and window from the order's own options), rejecting it with a written reason, and marking it ready for pickup.
+  - **New orders:** these come from the **order inbox** on blackark.uk. Skroutz announces orders only by webhook to a public address, so BlackArk's receiver holds each one until this computer collects it, then deletes it. Nothing is kept longer than 7 days.
+  - **Without the inbox:** an employee reads any order it is given the code of.
+- **WooCommerce:**
+  - **Reads:** orders, products, SKUs, prices and stock.
+  - **On an approval card:** stock and price changes.
+- **BOX NOW:**
+  - **Reads only:** parcels, their latest tracking events, and the cash-on-delivery money state (pending, paid by the customer, or transferred to the shop), with totals.
+  - **Needs:** BOX NOW's partner API address, client id and secret.
+- **Business data files:** exports such as Pylon's items, stock, sales and customer lists, uploaded as CSV or XLSX under a short name. Employees find rows in them, exactly as written.
+- **The trial setup file:** can now give an employee any of these, with `connectors: ["skroutz", "woocommerce", "boxnow", "business-files"]`.
+
 ## 0.1.42
 
 ### Activation: a trial activation code or a paid licence key (#109, MD 16 Nov)

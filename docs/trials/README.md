@@ -111,3 +111,21 @@ in **Settings → Plan → Activation**. The same box also takes the unlock code
 **Renewal:** the app POSTs `{customerId, installId, version, nonce, validUntil}` to the key's
 `renewUrl` once a day. If the answer is `{"key": "ARK1-…"}` with a newer signed licence key for the
 same customer, the app takes it. If the answer is `{}`, nothing changes.
+
+## Shop and delivery connectors (from v0.1.43)
+
+Every install has them, under **Settings → Connect your Data → Shop and delivery**. At the setup
+session, type in the customer's own details:
+
+| Connector | What to type | Where the customer gets it |
+|---|---|---|
+| Skroutz | API token; optionally the order inbox address and key | Skroutz merchant panel → Merchants → Services → Skroutz Marketplace. The inbox comes from BlackArk's `…/checkin/admin/skroutz.php` |
+| WooCommerce | shop address, consumer key and secret | WordPress → WooCommerce → Settings → Advanced → REST API |
+| BOX NOW | API address (API_URL), client id, client secret | BOX NOW, after partner registration; stage first |
+| Business data files | upload each export under a short name (`stock`, `items`, `customers`) | Pylon's own export to Excel/CSV |
+
+**Which employee gets which connector** goes in the setup file, per employee:
+
+```json
+"connectors": ["skroutz", "boxnow", "business-files"]
+```

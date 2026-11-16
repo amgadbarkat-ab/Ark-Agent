@@ -6,6 +6,7 @@ password-protected status page. It runs on one.com shared hosting (PHP + Apache,
 - `https://blackark.uk/checkin/`: where installs POST their check-in. Put this address, **with
   the trailing slash**, in each trial profile as `checkInUrl`.
 - `https://blackark.uk/checkin/admin/`: the status page, behind a password.
+- `https://blackark.uk/checkin/skroutz/`: the **Skroutz order inbox** (from v0.1.43). See below.
 
 ## What it keeps
 
@@ -95,3 +96,79 @@ bash infra/blackark-checkin/test.sh
 ```
 bash infra/blackark-checkin/package.sh   # writes blackark-checkin-<date>.zip, without config.php or data
 ```
+
+## Skroutz order inbox (v0.1.43)
+
+**Why it exists.** Skroutz announces new and changed Smart Cart orders only by webhook, to a public
+https address. A customer's ArkAgent sits behind their router and has no such address. So Skroutz
+posts here, and that install collects what waited for it. Amgad said yes to this on 16 Nov.
+
+**What it keeps, and for how long:**
+- each order event exactly as Skroutz sent it, which includes the buyer's name and delivery address
+  (the DPA covers this);
+- each event only **until the install collects it**, and never more than **7 days**;
+- no IP address;
+- only the SHA-256 of each inbox key.
+
+**Setting one up, per customer:**
+1. Sign in at `…/checkin/admin/`, open **Skroutz order inboxes**, and create one with the customer id.
+2. The page shows two things **once**:
+   - the **webhook address**: the customer pastes it into the Skroutz merchant panel, in the Smart
+     Cart settings, as the webhook URL;
+   - the **inbox key**: the installer types it into ArkAgent, under **Settings → Connect your Data →
+     Skroutz → Order inbox key**, with the webhook address as **Order inbox address**.
+3. A lost key cannot be shown again. Delete the inbox and make a new one.
+
+**Requests:**
+- `POST ?inbox=<id>` from Skroutz: one event, which waits until it is collected.
+- `POST` with `Authorization: Bearer <key>` from the install: returns every waiting event, then
+  deletes them.
+
+**Limits:**
+- 256 KB per event;
+- 1000 events waiting per inbox;
+- 200 events per collection.
+
+## Paid licence keys after Stripe payment (v0.1.44)
+
+Amgad said yes on 16 Nov. A customer pays through a Stripe Payment Link. Stripe tells this
+receiver, which signs an ArkAgent licence key with BlackArk's **separate licence key**. The customer
+copies the key from the page Stripe sends them to. Each month the app collects the renewed key by
+itself.
+
+**What is kept:** one row per subscription, with:
+- the customer id;
+- the Stripe subscription and checkout session ids;
+- the plan, seats and add-ons;
+- the period end;
+- the latest key.
+
+**What is not kept:** no card data, no name, no email, no address.
+
+**Endpoints:**
+- `…/checkin/stripe/`: Stripe's webhook. Each event is checked with `Stripe-Signature` (HMAC-SHA256
+  with the webhook secret, timestamp within 5 minutes) and taken once.
+- `…/checkin/key/?session_id=…`: the page after payment. It shows the key, in Greek and English.
+- `…/checkin/renew/`: where the app asks once a day. It answers `{"key": …}` when a longer-lasting
+  key exists for that customer, and `{}` otherwise.
+
+**Setup, once.** Upload only after Amgad's yes on this exact build, as before.
+1. **On Amgad's PC**, run `bun scripts/ark-trial.ts license-keygen`.
+   - It writes `~/.arklicense/license-config.php.txt`, and prints only the public key.
+   - Paste the two lines from that file into `checkin/config.php`, inside the array.
+   - Post only the public key on #109, so it is built into the app.
+2. **In Stripe** → Developers → Webhooks:
+   - Add the endpoint `https://blackark.uk/checkin/stripe/` with the events
+     `checkout.session.completed`, `invoice.paid` and `customer.subscription.deleted`.
+   - Copy its signing secret (`whsec_…`) into `'stripe_webhook_secret'`. Never post it.
+3. **Each Payment Link:**
+   - Set **After payment** to *Don't show confirmation page → redirect to*
+     `https://blackark.uk/checkin/key/?session_id={CHECKOUT_SESSION_ID}`.
+   - Send each customer the link with `?client_reference_id=<customer id>` added, so their key
+     carries their id. Without it, the id becomes `stripe-<Stripe customer>`.
+4. **In `'stripe_prices'`**, map each Stripe price id to a plan:
+   - `'price_…' => ['plan' => 'team', 'seats' => 1]` for a plan;
+   - `'price_…' => ['addon' => 'phone']` for the phone add-on sold as its own price.
+
+**Keys after cancelling:** when a subscription is cancelled, no new key is made. The last key runs
+out on its own, at its period end plus 7 days.

@@ -1,4 +1,6 @@
+import * as boxnow from "./boxnow";
 import * as builtinRoutines from "./builtin-routines";
+import * as businessFiles from "./business-files";
 import * as composio from "./composio";
 import * as gmailRest from "./gmail-rest";
 import * as driveRest from "./google-drive-rest";
@@ -7,7 +9,9 @@ import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
 import * as graphRest from "./microsoft-graph-rest";
 import * as priceList from "./price-list";
+import * as skroutz from "./skroutz";
 import * as video from "./video";
+import * as woocommerce from "./woocommerce";
 
 /**
  * How this deployment reaches one vendor: which protocol, from the kind `./access` resolved.
@@ -158,7 +162,11 @@ export type TransportKind =
   | "builtin-routines"
   | "builtin-price-list"
   | "builtin-video"
+  | "builtin-business-files"
   | "imap-smtp"
+  | "skroutz-rest"
+  | "woocommerce-rest"
+  | "boxnow-rest"
   | "composio";
 
 /**
@@ -188,7 +196,11 @@ const TRANSPORTS: Record<TransportKind, VendorTransport> = {
   "builtin-routines": builtinRoutines,
   "builtin-price-list": priceList,
   "builtin-video": video,
+  "builtin-business-files": businessFiles,
   "imap-smtp": mailbox,
+  "skroutz-rest": skroutz,
+  "woocommerce-rest": woocommerce,
+  "boxnow-rest": boxnow,
   composio,
 };
 

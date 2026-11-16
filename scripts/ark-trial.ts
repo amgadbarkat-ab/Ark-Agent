@@ -26,6 +26,12 @@
  *       with the licence key; until BlackArk makes a separate one, that is the trial key
  *       (shared/license-public-key.ts). Typing the same key again on a reinstall works.
  *
+ *   bun scripts/ark-trial.ts license-keygen [--dir <folder>]
+ *       Makes the SEPARATE licence signing key for the payment server on blackark.uk (v0.1.44).
+ *       Writes <folder>/license-config.php.txt (default ~/.arklicense) holding the one config line
+ *       for blackark.uk's config.php, readable by you alone, and the private key as PEM beside it.
+ *       Prints only the PUBLIC key: post that one on #109 so it is built into the app.
+ *
  *   bun scripts/ark-trial.ts show <file.arktrial | ARK1-code> [--public-key <base64>]
  *       Prints what a profile or a code says, and whether that key signed it.
  *
@@ -52,12 +58,12 @@ import { planById } from "../shared/plans";
 import {
   CODE_PREFIX,
   encodeBase64Url,
-  TRIAL_ADDONS,
-  type TrialAddon,
   PROFILE_FORMAT,
   readProfile,
   readProfileFile,
   readUnlockCode,
+  TRIAL_ADDONS,
+  type TrialAddon,
   trialLengthDays,
   type UnlockCode,
 } from "../shared/trial";
@@ -118,6 +124,48 @@ function keygen(args: string[]) {
   );
   console.log("");
   console.log("PUBLIC key (post this one):");
+  console.log(publicKeyToBase64(publicKey));
+}
+
+function licenseKeygen(args: string[]) {
+  const dir = resolve(option(args, "--dir") ?? join(homedir(), ".arklicense"));
+  const pem = join(dir, "ark-license-private.pem");
+  const php = join(dir, "license-config.php.txt");
+  if (existsSync(pem) || existsSync(php)) {
+    fail(
+      `${dir} already has a licence key. It is not replaced: every key signed with it would stop working.`,
+    );
+  }
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const der = privateKey.export({ format: "der", type: "pkcs8" });
+  const seed = Buffer.from(der.subarray(der.length - 32));
+  const raw = Buffer.from(publicKeyToBase64(publicKey), "base64");
+  // PHP sodium wants the 64-byte secret key: the 32-byte seed, then the 32-byte public key.
+  const sodiumSecret = Buffer.concat([seed, raw]).toString("base64");
+  writeFileSync(
+    pem,
+    privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+    { mode: 0o600, flag: "wx" },
+  );
+  writeFileSync(
+    php,
+    `// Paste into checkin/config.php on blackark.uk, inside the array. Never post it anywhere.\n'license_secret_key' => '${sodiumSecret}',\n'license_public_key' => '${publicKeyToBase64(publicKey)}',\n`,
+    { mode: 0o600, flag: "wx" },
+  );
+  for (const path of [pem, php]) {
+    try {
+      chmodSync(path, 0o600);
+    } catch {
+      // Windows has no such mode; the folder is in the user's own profile.
+    }
+  }
+  console.log(
+    `Licence key written to ${dir} (keep it offline except on blackark.uk).`,
+  );
+  console.log(`The config.php line is in ${php}.`);
+  console.log("");
+  console.log("PUBLIC licence key (post this one on #109):");
   console.log(publicKeyToBase64(publicKey));
 }
 
@@ -318,6 +366,9 @@ try {
       break;
     case "sign-code":
       signCode(rest);
+      break;
+    case "license-keygen":
+      licenseKeygen(rest);
       break;
     case "sign-trial-code":
       signTrialCode(rest);

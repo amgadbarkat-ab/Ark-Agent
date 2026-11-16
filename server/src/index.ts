@@ -19,16 +19,17 @@ import { and, eq, like, sql } from "drizzle-orm";
 import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
 import { createDrain } from "../../shared/drain";
+import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
 import { listenHosts } from "../../shared/listen-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
-import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
 import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
 import { workOwner } from "../../shared/work-owner";
 import { RunGateAgent } from "./accounts/run-gate";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
+import { containerRelayCheck } from "./agents/container-relay";
 import { createAgentFetch } from "./agents/endpoint";
 import { createHandoffDesk, HANDOFF_KIND } from "./agents/handoff";
 import { createHandoffDelivery } from "./agents/handoff-delivery";
@@ -160,8 +161,13 @@ import { createTermsStore } from "./people/terms";
 import { simulatedPhoneProvider } from "./phone/provider";
 import { createPhoneApprovals } from "./phone/service";
 import { createPhoneLineService } from "./phone-line/service";
+import { listTools as listBoxNowTools } from "./plugins/boxnow";
 import { builtinOAuthClientsFrom } from "./plugins/builtin-oauth-clients";
 import { useRoutineTools } from "./plugins/builtin-routines";
+import {
+  listTools as listBusinessFileTools,
+  useBusinessFilesDatabase,
+} from "./plugins/business-files";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
 import { backfillComposioLogos } from "./plugins/logos";
@@ -174,6 +180,7 @@ import {
   listTools as listPriceListTools,
   usePriceListDatabase,
 } from "./plugins/price-list";
+import { listTools as listSkroutzTools } from "./plugins/skroutz";
 import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import {
@@ -181,6 +188,7 @@ import {
   listTools as listVideoTools,
   useVideoSetup,
 } from "./plugins/video";
+import { listTools as listWooCommerceTools } from "./plugins/woocommerce";
 import { hubConversations } from "./privacy/conversations";
 import { createProviderOAuthProxy } from "./provider-oauth";
 import { createPushSender, webPushSend } from "./push/sender";
@@ -197,7 +205,6 @@ import {
   synchronizeTenantPackage,
 } from "./tenant-package";
 import { createActivationService } from "./trial/activation";
-import { containerRelayCheck } from "./agents/container-relay";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
 import { seedTrialRoster } from "./trial/seed";
 import { createTrialService, trialKeysFrom } from "./trial/service";
@@ -1605,6 +1612,7 @@ async function grantServerTools(
 
 // The price list lives in this database; video editing runs only in the desktop app (#109).
 usePriceListDatabase(database);
+useBusinessFilesDatabase(database);
 useVideoSetup(
   detectVideoSetup({
     enabled: config.singleUser,
@@ -1889,7 +1897,14 @@ const app = createApp(
             actor.id,
             agentId,
             key,
-            key === "video" ? listVideoTools : listPriceListTools,
+            {
+              video: listVideoTools,
+              "price-list": listPriceListTools,
+              skroutz: listSkroutzTools,
+              woocommerce: listWooCommerceTools,
+              boxnow: listBoxNowTools,
+              "business-files": listBusinessFileTools,
+            }[key],
           ),
       }),
     activation,

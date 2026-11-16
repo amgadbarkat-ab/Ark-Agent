@@ -6,6 +6,7 @@ import { EL_ACTIVATION } from "./activation";
 import { EL_ADMIN } from "./admin";
 import { EL_ADMIN2 } from "./admin2";
 import { EL_BUILTIN_TOOLS } from "./builtin-tools";
+import { EL_BUSINESS } from "./business";
 import { EL_COMMON } from "./common";
 import { EL_COMPONENTS } from "./components";
 import { EL_DAILY } from "./daily";
@@ -44,4 +45,5 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_PHONE_ESTIMATOR,
   ...EL_BUILTIN_TOOLS,
   ...EL_ACTIVATION,
+  ...EL_BUSINESS,
 };

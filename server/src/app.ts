@@ -135,9 +135,9 @@ import { createRoutingRoutes } from "./routing/routes";
 import { securityHeaders } from "./security-headers";
 import type { PackageStatusReader } from "./tenant-package";
 import {
+  activationRoutes,
   adminTrialRoutes,
   type TrialRouteDependencies,
-  activationRoutes,
   trialCheckInRoutes,
   trialRoutes,
 } from "./trial/routes";

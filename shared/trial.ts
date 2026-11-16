@@ -41,7 +41,20 @@ export type RosterEntry = {
   priceList?: boolean;
   /** Edits video on this computer from the business's own files (from v0.1.40). */
   video?: boolean;
+  /**
+   * Business connectors this employee may use (from v0.1.43): any of `skroutz`, `woocommerce`,
+   * `boxnow`, `business-files`. The accounts themselves are connected at setup in Settings.
+   */
+  connectors?: RosterConnector[];
 };
+
+export const ROSTER_CONNECTORS = [
+  "skroutz",
+  "woocommerce",
+  "boxnow",
+  "business-files",
+] as const;
+export type RosterConnector = (typeof ROSTER_CONNECTORS)[number];
 
 export type TrialProfile = {
   v: 1;
@@ -254,6 +267,7 @@ export function readProfile(value: unknown): TrialProfile {
       ...(mail ? { mail } : {}),
       ...(entry.priceList === true ? { priceList: true } : {}),
       ...(entry.video === true ? { video: true } : {}),
+      ...connectorsFrom(entry.connectors, key),
     };
   });
   return {
@@ -272,6 +286,24 @@ export function readProfile(value: unknown): TrialProfile {
     ...addonsFrom(raw.addons),
     roster,
   };
+}
+
+/** Known connectors only, each once; a typo is refused rather than signed silently. */
+function connectorsFrom(
+  value: unknown,
+  key: string,
+): { connectors?: RosterConnector[] } {
+  if (value === undefined) return {};
+  if (
+    !Array.isArray(value) ||
+    value.some((name) => !ROSTER_CONNECTORS.includes(name as RosterConnector))
+  ) {
+    throw new TrialFormatError(
+      `The trial profile's connectors for "${key}" are not valid. Known: ${ROSTER_CONNECTORS.join(", ")}.`,
+    );
+  }
+  const unique = [...new Set(value as RosterConnector[])];
+  return unique.length > 0 ? { connectors: unique } : {};
 }
 
 /** Known add-ons only, each once; an unknown name is refused so a typo is not signed silently. */
