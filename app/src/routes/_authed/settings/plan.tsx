@@ -8,8 +8,8 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
-import { CloudRunningSection } from "@/components/settings/cloud-running";
 import { ActivationSection } from "@/components/settings/activation-section";
+import { CloudRunningSection } from "@/components/settings/cloud-running";
 import { TrialSection } from "@/components/settings/trial-section";
 import { Button } from "@/components/ui/button";
 import {

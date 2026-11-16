@@ -43,7 +43,13 @@ export async function seedTrialRoster(
     /** Gives one employee a built-in tool set: the price list or video editing (#109). Idempotent. */
     grantBuiltin?: (
       agentId: string,
-      key: "price-list" | "video",
+      key:
+        | "price-list"
+        | "video"
+        | "skroutz"
+        | "woocommerce"
+        | "boxnow"
+        | "business-files",
     ) => Promise<void>;
   },
 ): Promise<number> {
@@ -101,6 +107,9 @@ export async function seedTrialRoster(
       if (entry.priceList && grantBuiltin)
         await grantBuiltin(agentId, "price-list");
       if (entry.video && grantBuiltin) await grantBuiltin(agentId, "video");
+      for (const connector of entry.connectors ?? []) {
+        if (grantBuiltin) await grantBuiltin(agentId, connector);
+      }
     }
   }
   if (made > 0 && (await trial.current())?.createBlocked) {

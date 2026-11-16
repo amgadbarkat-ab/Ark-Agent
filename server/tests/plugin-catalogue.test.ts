@@ -110,13 +110,25 @@ describe("which servers this deployment will talk to", () => {
           "builtin://routines",
           "builtin://price-list",
           "builtin://video",
+          // v0.1.43: the business's own data files (Pylon exports and the like).
+          "builtin://business-files",
         ]).toContain(entry.host);
         expect(entry.host).toBe(`builtin://${entry.key}`);
       } else if (entry.auth.kind === "user-password") {
         // The person's own mailbox (#109): the host each person dials is in their own login, and
         // the transport refuses this computer's addresses. Asserted positively, like builtin.
-        expect(entry.host).toBe("builtin://mailbox");
-        expect(entry.transport).toBe("imap-smtp");
+        // The business connectors (v0.1.43) the same way: the account, and for the shop and BOX
+        // NOW the address, are the person's own, typed at setup; each transport refuses this
+        // computer's addresses and Skroutz's is fixed in code.
+        const transports: Record<string, string> = {
+          "builtin://mailbox": "imap-smtp",
+          "builtin://skroutz": "skroutz-rest",
+          "builtin://woocommerce": "woocommerce-rest",
+          "builtin://boxnow": "boxnow-rest",
+        };
+        expect(Object.keys(transports)).toContain(entry.host);
+        expect(entry.transport).toBe(transports[entry.host] as never);
+        expect(entry.host).toBe(`builtin://${entry.key}`);
       } else {
         expect(entry.host.startsWith("https://")).toBe(true);
       }

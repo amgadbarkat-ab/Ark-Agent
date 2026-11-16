@@ -62,6 +62,22 @@ function ark_db(): PDO
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS installs_customer ON installs (customer_id)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS login_failures (at INTEGER NOT NULL)');
+    // Skroutz order inboxes (v0.1.43): one per customer install; events wait here until collected.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS skroutz_inboxes (
+        inbox_id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        secret_sha256 TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        last_event_at TEXT,
+        last_collect_at TEXT
+    )');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS skroutz_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        inbox_id TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        body TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS skroutz_events_inbox ON skroutz_events (inbox_id, id)');
     return $pdo;
 }
 

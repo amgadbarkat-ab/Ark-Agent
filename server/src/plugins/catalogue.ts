@@ -469,6 +469,68 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     writeTools: Object.freeze(["render_video"]),
     docsUrl: "https://ffmpeg.org/documentation.html",
   },
+  {
+    key: "business-files",
+    title: "Business data files",
+    vendor: "ArkAgent",
+    summary:
+      "The business's own exports, such as Pylon's items, stock, sales and customers, uploaded in Settings as CSV or XLSX.",
+    host: "builtin://business-files",
+    path: "/",
+    transport: "builtin-business-files",
+    auth: Object.freeze({ kind: "builtin" }),
+    writeTools: Object.freeze([]),
+    docsUrl:
+      "https://github.com/amgadbarkat-ab/Ark-Agent/blob/main/docs/trials/README.md",
+  },
+  /*
+   * The business connectors (#109, v0.1.43). Each install's own account, typed at setup in Settings
+   * and kept in the vault like the mailbox login; the hosts are the vendors' own (Skroutz) or the
+   * ones the person typed (the shop, BOX NOW's API address). Every write is held for a person.
+   */
+  {
+    key: "skroutz",
+    title: "Skroutz",
+    vendor: "Skroutz",
+    summary:
+      "Smart Cart orders and Skroutz Last Mile status. Accepting, rejecting or marking an order ready waits for approval.",
+    host: "builtin://skroutz",
+    path: "/",
+    transport: "skroutz-rest",
+    auth: Object.freeze({ kind: "user-password" }),
+    writeTools: Object.freeze([
+      "accept_order",
+      "reject_order",
+      "set_order_ready",
+    ]),
+    docsUrl: "https://developer.skroutz.gr/smart_cart/orders_api",
+  },
+  {
+    key: "woocommerce",
+    title: "WooCommerce",
+    vendor: "WooCommerce",
+    summary:
+      "The shop's orders, products, prices and stock. Stock and price changes wait for approval.",
+    host: "builtin://woocommerce",
+    path: "/",
+    transport: "woocommerce-rest",
+    auth: Object.freeze({ kind: "user-password" }),
+    writeTools: Object.freeze(["update_stock", "update_price"]),
+    docsUrl: "https://woocommerce.github.io/woocommerce-rest-api-docs/",
+  },
+  {
+    key: "boxnow",
+    title: "BOX NOW",
+    vendor: "BOX NOW",
+    summary:
+      "Parcels, tracking events and cash-on-delivery money state. Read only.",
+    host: "builtin://boxnow",
+    path: "/",
+    transport: "boxnow-rest",
+    auth: Object.freeze({ kind: "user-password" }),
+    writeTools: Object.freeze([]),
+    docsUrl: "https://boxnow.gr/api",
+  },
 ]);
 
 const BY_KEY = new Map(CATALOGUE.map((entry) => [entry.key, entry]));

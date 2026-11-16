@@ -39,6 +39,19 @@ const draft = {
 };
 
 describe("trial profile", () => {
+  test("an employee may name business connectors, known ones only (v0.1.43)", () => {
+    const withConnectors = (connectors: unknown) => ({
+      ...draft,
+      roster: [{ ...draft.roster[0], connectors }],
+    });
+    expect(
+      readProfile(withConnectors(["skroutz", "boxnow", "skroutz"])).roster[0]
+        ?.connectors,
+    ).toEqual(["skroutz", "boxnow"]);
+    expect(() => readProfile(withConnectors(["elta"]))).toThrow("connectors");
+    expect(readProfile(draft).roster[0]?.connectors).toBeUndefined();
+  });
+
   test("reads a good draft and normalises its dates", () => {
     const profile = readProfile(draft);
     expect(profile.startsAt).toBe("2026-11-15T22:00:00.000Z");

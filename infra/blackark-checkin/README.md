@@ -6,6 +6,7 @@ password-protected status page. It runs on one.com shared hosting (PHP + Apache,
 - `https://blackark.uk/checkin/`: where installs POST their check-in. Put this address, **with
   the trailing slash**, in each trial profile as `checkInUrl`.
 - `https://blackark.uk/checkin/admin/`: the status page, behind a password.
+- `https://blackark.uk/checkin/skroutz/`: the **Skroutz order inbox** (from v0.1.43). See below.
 
 ## What it keeps
 
@@ -95,3 +96,35 @@ bash infra/blackark-checkin/test.sh
 ```
 bash infra/blackark-checkin/package.sh   # writes blackark-checkin-<date>.zip, without config.php or data
 ```
+
+## Skroutz order inbox (v0.1.43)
+
+**Why it exists.** Skroutz announces new and changed Smart Cart orders only by webhook, to a public
+https address. A customer's ArkAgent sits behind their router and has no such address. So Skroutz
+posts here, and that install collects what waited for it. Amgad said yes to this on 16 Nov.
+
+**What it keeps, and for how long:**
+- each order event exactly as Skroutz sent it, which includes the buyer's name and delivery address
+  (the DPA covers this);
+- each event only **until the install collects it**, and never more than **7 days**;
+- no IP address;
+- only the SHA-256 of each inbox key.
+
+**Setting one up, per customer:**
+1. Sign in at `…/checkin/admin/`, open **Skroutz order inboxes**, and create one with the customer id.
+2. The page shows two things **once**:
+   - the **webhook address**: the customer pastes it into the Skroutz merchant panel, in the Smart
+     Cart settings, as the webhook URL;
+   - the **inbox key**: the installer types it into ArkAgent, under **Settings → Connect your Data →
+     Skroutz → Order inbox key**, with the webhook address as **Order inbox address**.
+3. A lost key cannot be shown again. Delete the inbox and make a new one.
+
+**Requests:**
+- `POST ?inbox=<id>` from Skroutz: one event, which waits until it is collected.
+- `POST` with `Authorization: Bearer <key>` from the install: returns every waiting event, then
+  deletes them.
+
+**Limits:**
+- 256 KB per event;
+- 1000 events waiting per inbox;
+- 200 events per collection.

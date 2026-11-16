@@ -17,6 +17,10 @@ import {
   PriceListSection,
   VideoEditingSection,
 } from "@/components/settings/builtin-tools-section";
+import {
+  BusinessConnectorsSection,
+  BusinessFilesSection,
+} from "@/components/settings/business-connectors-section";
 import { MailboxSection } from "@/components/settings/mailbox-section";
 import { PhoneLineSection } from "@/components/settings/phone-line-section";
 import {
@@ -278,6 +282,8 @@ function RouteComponent() {
             />
           </InputGroup>
           <MailboxSection />
+          {isAdmin ? <BusinessConnectorsSection /> : null}
+          {isAdmin ? <BusinessFilesSection /> : null}
           {isAdmin ? <PriceListSection /> : null}
           {isAdmin ? <VideoEditingSection /> : null}
           {isAdmin ? <PhoneLineSection /> : null}
