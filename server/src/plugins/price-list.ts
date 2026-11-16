@@ -1,5 +1,5 @@
 /**
- * The business's own price list (#109, MD 15 Nov: Wine24 adds it after the trial starts).
+ * The business's own price list (#109, MD 15 Nov: the business adds it after setup).
  *
  * An administrator uploads a CSV or XLSX in Settings, then Price list. Its rows are kept as the text
  * they were written with, one line per row, under the header row. The employees the trial profile

@@ -38,7 +38,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## 0.1.40
 
-### Video editing on the business's own computer (#109: Wine24's SM Media Creator; FFmpeg, MD yes 15 Nov)
+### Video editing on the business's own computer (#109)
 
 - **What it does:** an employee marked `video` in the trial profile gets two tools.
   - **`list_media`** lists the footage, photos and audio the business put in `ArkAgent/media/in`.
@@ -55,7 +55,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **FFmpeg** is the one installed on the computer: `winget install Gyan.FFmpeg` on Windows, `brew install ffmpeg` on a Mac. **Settings → Connect your Data → Video editing** says whether it was found.
 - **Desktop only:** video editing runs only in the desktop app.
 
-### The business's price list (#109: Wine24 adds its own after the trial starts)
+### The business's price list (#109)
 
 - **Settings → Connect your Data → Price list** (administrators): upload a **CSV or Excel (.xlsx)** file, up to 8 MB. Replace or remove it at any time.
 - **Who uses it:** employees marked `priceList` in the trial profile get **`find_price`**. It returns the matching rows exactly as written, and finds «Ροζέ» whether or not it was typed with accents.
@@ -79,7 +79,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## 0.1.38
 
-### Your own mailbox over IMAP/SMTP (#109: Zoho Mail for Wine24, cPanel for Eurodiagnosi)
+### Your own mailbox over IMAP/SMTP (#109: for example Zoho Mail or cPanel hosting)
 
 - **Settings → Connect your Data → Mailbox (IMAP/SMTP).**
   - You enter the incoming and outgoing server, the ports, the user name and the password. The
@@ -104,13 +104,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **Trial profiles can now say which employees get the mailbox** (`mail` on a roster entry):
   - `folders` limits an employee to its own folders;
   - `from` gives it its own sending address;
-  - `mailBlockAmka` refuses any outgoing email with an 11-digit, AMKA-shaped number (Eurodiagnosi).
+  - `mailBlockAmka` refuses any outgoing email with an 11-digit, AMKA-shaped number.
   - An install already on v0.1.37 grants the mailbox to its mail employees on its first start of
     v0.1.38.
 - Three open-source libraries were added for this, on Amgad's yes: imapflow, mailparser and
   nodemailer (all MIT).
 
-### The business's own phone line (#109: Wine24 Phone & Enquiries Desk, Eurodiagnosi Front Desk)
+### The business's own phone line (#109)
 
 - **Settings → Connect your Data → Phone line** (administrators).
   - You enter BlackArk's relay address and the line token BlackArk issued.
@@ -129,7 +129,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **What it cannot do:** it makes no calls. The number a hand-over rings is the relay's, never one the employee says.
 - **If something fails:** if this computer or the speech service stops answering, the caller goes to the fallback number rather than to silence.
 - **Nothing is recorded.** The **call log** keeps the time, the caller's number, how long it lasted, the outcome, a one-line summary and any callback, with **Mark as done**.
-- **Eurodiagnosi:** the AMKA rule applies on the phone too. A callback note with an AMKA-shaped number is refused.
+- **The AMKA guard** applies on the phone too, where the setup file switches it on. A callback note with an AMKA-shaped number is refused.
 - `infra/phone-relay/`: the relay BlackArk runs on an EU server, set up with one `deploy.sh`.
 
 ### Model choices for the trial demos
@@ -289,7 +289,7 @@ the employees it names, nothing more, until the end it names.
   2026 keep 30 days. Nothing in this release changes a live billing setting: when Stripe or Paddle go
   live, their trial period is set to 7 days (`FREE_TRIAL_DAYS`, with a note beside the `trialing`
   handling in both).
-- **Published outside the Wine24 demo:** nothing was released between 13:45 and 15:30 Athens on
+- **Published outside the customer demo:** nothing was released between 13:45 and 15:30 Athens on
   12 Nov.
 
 ### Conversations
@@ -367,7 +367,7 @@ the employees it names, nothing more, until the end it names.
 
 ### Plugins
 
-- **Gmail and Microsoft 365 can send an email, after you approve it** (DT Lab, Wine24). A digital
+- **Gmail and Microsoft 365 can send an email, after you approve it** (DT Lab). A digital
   employee drafts the message; the approval card shows who it goes to, the subject and the text,
   and nothing is sent until you approve. Plain text, to and cc only. Microsoft keeps a copy in Sent
   Items.
@@ -463,8 +463,8 @@ the employees it names, nothing more, until the end it names.
 
 ### Conversations
 
-- **Typing straight after Alt+Tab reaches the message box, first word included** (DT Lab,
-  Wine24). Coming back with Alt+Tab and typing at once lost the first word. A key typed while the
+- **Typing straight after Alt+Tab reaches the message box, first word included** (DT Lab).
+  Coming back with Alt+Tab and typing at once lost the first word. A key typed while the
   caret is nowhere now moves it into the message box and lands there. Shortcuts, other fields,
   menus and open dialogs keep their keys, and a capital N on its way is a letter, not a new chat.
 - **Approval cards speak the card's language.** A Greek card's reason box, status and default
@@ -488,7 +488,7 @@ the employees it names, nothing more, until the end it names.
 
 ### Conversations
 
-- **Greek ω is drawn as ω again** (DT Lab, Wine24). The app's typeface maps lowercase ω to its
+- **Greek ω is drawn as ω again** (DT Lab). The app's typeface maps lowercase ω to its
   capital Ω, so every ω in Greek text, typed or answered, showed as Ω («τΩν», «όπΩς»). Greek
   is now drawn entirely in a typeface that has all of it, in the app and in the setup window.
 - **Typing right after you come back to the window reaches the message box.** Restored from the
@@ -511,7 +511,7 @@ Not in this release, and being worked on:
 
 ### Conversations
 
-- **Greek lists show one item per line** (DT Lab, Wine24). When an answer wrote its bullets as `•`
+- **Greek lists show one item per line** (DT Lab). When an answer wrote its bullets as `•`
   or `–` rather than as a markdown list, the whole list came out as one paragraph. Those lines are
   now drawn as a list, and so are several `•` items strung along one line.
 - **No more capital letters in the middle of a Greek word.** A capital Greek letter between two
@@ -528,7 +528,7 @@ Not in this release, and being worked on:
 
 ### Conversations
 
-- **A long table no longer freezes the window while it streams** (DT Lab, Wine24). Every few
+- **A long table no longer freezes the window while it streams** (DT Lab). Every few
   characters of an answer redrew the whole answer, so a long table took longer and longer to draw:
   the window stopped responding, and when the answer was complete it still seemed to be streaming
   while the screen caught up. A streaming answer is now redrawn a few times a second, and the last

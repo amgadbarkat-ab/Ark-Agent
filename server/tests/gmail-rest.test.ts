@@ -300,8 +300,8 @@ describe("reading one message", () => {
           mimeType: "multipart/mixed",
           headers: headers({
             From: "Anna <anna@example.com>",
-            To: "orders@wine24.example",
-            Cc: "desk@wine24.example",
+            To: "orders@demo-shop.example",
+            Cc: "desk@demo-shop.example",
             Subject: "Παραγγελία 42",
             Date: "Tue, 10 Nov 2026 09:00:00 +0200",
           }),
@@ -339,8 +339,8 @@ describe("reading one message", () => {
     expect(result.text).toBe(
       [
         "From: Anna <anna@example.com>",
-        "To: orders@wine24.example",
-        "Cc: desk@wine24.example",
+        "To: orders@demo-shop.example",
+        "Cc: desk@demo-shop.example",
         "Date: Tue, 10 Nov 2026 09:00:00 +0200",
         "Subject: Παραγγελία 42",
         "Attachments (not opened): invoice-42.pdf",
@@ -405,7 +405,7 @@ describe("decoding", () => {
   });
 });
 
-describe("sending a message (desk #83, the Wine24 email scene)", () => {
+describe("sending a message (desk #83, the email demo)", () => {
   const fromRaw = (raw: string) =>
     Buffer.from(raw.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
       "utf8",
@@ -414,15 +414,15 @@ describe("sending a message (desk #83, the Wine24 email scene)", () => {
   test("goes to Gmail's send endpoint as one plain-text message, Greek intact", async () => {
     const seen = stubGmail(() => ({ body: { id: "sent-1" } }));
     const result = await callTool(connection, "send_message", {
-      to: "anna@example.com, desk@wine24.example",
-      cc: "boss@wine24.example",
+      to: "anna@example.com, desk@demo-shop.example",
+      cc: "boss@demo-shop.example",
       subject: "Παραγγελία 42",
       body: "Καλημέρα,\nη παραγγελία στάλθηκε.",
     });
 
     expect(result.isError).toBe(false);
     expect(result.text).toContain(
-      "Sent to anna@example.com, desk@wine24.example, boss@wine24.example",
+      "Sent to anna@example.com, desk@demo-shop.example, boss@demo-shop.example",
     );
     expect(result.text).toContain("sent-1");
     expect(seen[0]?.method).toBe("POST");
@@ -430,8 +430,10 @@ describe("sending a message (desk #83, the Wine24 email scene)", () => {
     expect(seen[0]?.authorization).toBe("Bearer test-token");
     const sent = seen[0]?.body as { raw?: string } | undefined;
     const message = fromRaw(sent?.raw ?? "");
-    expect(message).toContain("To: anna@example.com, desk@wine24.example\r\n");
-    expect(message).toContain("Cc: boss@wine24.example\r\n");
+    expect(message).toContain(
+      "To: anna@example.com, desk@demo-shop.example\r\n",
+    );
+    expect(message).toContain("Cc: boss@demo-shop.example\r\n");
     expect(message).toContain(
       `Subject: =?UTF-8?B?${Buffer.from("Παραγγελία 42").toString("base64")}?=\r\n`,
     );

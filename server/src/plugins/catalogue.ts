@@ -43,7 +43,7 @@ export type CatalogueAuth =
    */
   | { kind: "builtin" }
   /**
-   * The asker's own mailbox login (#109: Zoho for Wine24, cPanel for Eurodiagnosi). The person types
+   * The asker's own mailbox login (#109: for example Zoho Mail or cPanel hosting). The person types
    * the server, user name and password in a masked field; it is stored encrypted in the vault, one
    * per person, and read back only for that person's calls. Nothing is held for the deployment.
    */
@@ -259,7 +259,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
       tokenUrl: "https://oauth2.googleapis.com/token",
       revokeUrl: "https://oauth2.googleapis.com/revoke",
       /*
-       * Read, and send (desk #83, the Wine24 email scene). `gmail.send` lets a message be sent and
+       * Read, and send (desk #83, the email demo). `gmail.send` lets a message be sent and
        * nothing else: it cannot read, delete or label. It is a "sensitive" scope rather than a
        * "restricted" one, so it needs no security assessment. Sending is `send_message`, a write, so
        * every send waits for the person's approval with the message shown.

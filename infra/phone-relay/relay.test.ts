@@ -10,7 +10,7 @@ const authToken = "test-auth-token";
 const callId = `CA${"a".repeat(32)}`;
 const lineToken = "line-token-for-tests";
 const line: Line = {
-  name: "wine24",
+  name: "demo-shop",
   number: "+302101234567",
   tokenSha256: sha256Hex(lineToken),
   fallback: "+306900000000",

@@ -36,7 +36,7 @@ const fail = (text: string) => {
 if (command === "add") {
   if (!name || !NAME.test(name))
     fail(
-      "The name is 2-40 lower-case letters, digits or hyphens, e.g. wine24.",
+      "The name is 2-40 lower-case letters, digits or hyphens, e.g. demo-shop.",
     );
   if (!number || !E164.test(number))
     fail("The number is the Twilio number in +E.164 form, e.g. +302101234567.");

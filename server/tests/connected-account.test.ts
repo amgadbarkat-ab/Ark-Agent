@@ -37,9 +37,9 @@ describe("which account was connected (#83: the Gmail page names no account)", (
       await connectedAccount(
         "microsoft-365",
         "t",
-        answering(200, { mail: null, userPrincipalName: "nikos@wine24.gr" }),
+        answering(200, { mail: null, userPrincipalName: "nikos@demo-shop.gr" }),
       ),
-    ).toBe("nikos@wine24.gr");
+    ).toBe("nikos@demo-shop.gr");
   });
 
   test("a refusal, an odd answer, a throw, no token or an unknown connector name nobody", async () => {

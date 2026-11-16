@@ -26,7 +26,7 @@ function choose(view: ReturnType<typeof render>, text: string) {
   const input = view.container.querySelector(
     'input[type="file"]',
   ) as HTMLInputElement;
-  const file = new File([text], "wine24.arktrial", {
+  const file = new File([text], "demo-shop.arktrial", {
     type: "application/json",
   });
   Object.defineProperty(input, "files", { value: [file], configurable: true });

@@ -4,7 +4,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { usePacedText } from "@/hooks/use-paced-text";
 
 /**
- * A streaming answer is redrawn a few times a second, not on every piece (DT Lab, Wine24: a long
+ * A streaming answer is redrawn a few times a second, not on every piece (DT Lab: a long
  * table froze the window and seemed to keep streaming after the answer was complete). What must
  * hold: a finished message shows at once, pieces arriving inside one pace are drawn together, and
  * the last piece always lands.

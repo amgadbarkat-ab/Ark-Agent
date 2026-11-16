@@ -23,7 +23,7 @@ const settings = {
   imapPort: 993,
   smtpHost: "smtp.zoho.eu",
   smtpPort: 465,
-  user: "orders@wine24.example",
+  user: "orders@demo-shop.example",
   password: "app-password",
 };
 const token = JSON.stringify(settings);
@@ -55,7 +55,7 @@ function fake() {
       return uid === 7
         ? {
             from: "anna@example.com",
-            to: "orders@wine24.example",
+            to: "orders@demo-shop.example",
             cc: "",
             subject: "Order",
             date: "2026-11-15T09:00:00.000Z",
@@ -155,14 +155,14 @@ describe("the Mailbox connector (#109)", () => {
 
   test("send uses the employee's own From address and the addresses checked", async () => {
     const { sent } = fake();
-    policy({ from: "eshop@wine24.example" });
+    policy({ from: "eshop@demo-shop.example" });
     const result = await call("send_message", {
       to: "anna@example.com, bob@example.com",
       subject: "Your order",
       body: "Thank you.",
     });
     expect(result.isError).toBe(false);
-    expect(sent[0]?.from).toBe("eshop@wine24.example");
+    expect(sent[0]?.from).toBe("eshop@demo-shop.example");
     expect(sent[0]?.to).toEqual(["anna@example.com", "bob@example.com"]);
     expect(
       (
@@ -194,7 +194,7 @@ describe("the Mailbox connector (#109)", () => {
         await call("send_message", {
           to: "a@b.gr",
           subject: "Booking",
-          body: "Call 2310424500.",
+          body: "Call 2101234567.",
         })
       ).isError,
     ).toBe(false);
@@ -221,15 +221,15 @@ describe("the Mailbox connector (#109)", () => {
     expect(settingsFrom("not json")).toBeNull();
     expect(
       settingsFrom(
-        JSON.stringify({ ...settings, fromName: "Wine24\r\nBcc: x@y.gr" }),
+        JSON.stringify({ ...settings, fromName: "Demo Shop\r\nBcc: x@y.gr" }),
       ),
     ).toBeNull();
     expect(refusedMailHost("localhost")).toBe(true);
     expect(refusedMailHost("127.0.0.1")).toBe(true);
     expect(refusedMailHost("169.254.169.254")).toBe(true);
-    expect(refusedMailHost("mail.eurodiagnosi.example")).toBe(false);
+    expect(refusedMailHost("mail.demo-clinic.example")).toBe(false);
     expect(looksLikeAmka("AMKA 01017012345")).toBe(true);
-    expect(looksLikeAmka("tel 2310 424500")).toBe(false);
+    expect(looksLikeAmka("tel 210 1234567")).toBe(false);
     expect(looksLikeAmka("order 1234567890123")).toBe(false);
   });
 });

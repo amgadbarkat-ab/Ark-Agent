@@ -5,7 +5,7 @@
  *
  * 1. BULLETS AS GLYPHS. A model answering in Greek often writes its list items as `• item` or
  *    `– item` rather than markdown's `- item`. Markdown reads those lines as one paragraph, so a
- *    «Τι λείπει» list came out as a single run of text (DT Lab, Wine24, v0.1.23). Lines that start
+ *    «Τι λείπει» list came out as a single run of text (DT Lab, v0.1.23). Lines that start
  *    with a bullet glyph become markdown list items, and so does a line that strings several `•`
  *    items together.
  * 2. A CAPITAL INSIDE A WORD. «επιβεβαιΩθεί»: a capital Greek letter between two lowercase Greek

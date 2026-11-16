@@ -68,7 +68,7 @@ If the install is not connected, or drops mid-call, the caller goes to the line'
 # On the VPS, as a user who can run docker:
 git clone --depth 1 https://github.com/amgadbarkat-ab/Ark-Agent.git && cd Ark-Agent/infra/phone-relay
 ./deploy.sh setup        # asks for the domain, the Account SID and (hidden) the auth token
-./deploy.sh add-line wine24 +30XXXXXXXXXX +30YYYYYYYYYY   # Twilio number, fallback person
+./deploy.sh add-line demo-shop +30XXXXXXXXXX +30YYYYYYYYYY   # Twilio number, fallback person
 #   → prints the line token ONCE: the on-site installer types it into the install's masked field
 curl -fsS https://phone.blackark.uk/health   # ok
 ```

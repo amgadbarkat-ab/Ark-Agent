@@ -1,5 +1,5 @@
 /**
- * Wine24's video editing (#109) on this machine: plans read strictly, files only from media/in, and
+ * Video editing (#109) on this machine: plans read strictly, files only from media/in, and
  * a real render by FFmpeg from clips, a still and a tone FFmpeg itself generates. The render tests
  * need FFmpeg on this machine (CI installs it); without it they report that and stop.
  */

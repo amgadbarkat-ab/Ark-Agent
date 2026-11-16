@@ -33,10 +33,10 @@ replace an existing key.
      - `priceList: true` gives it `find_price`, the business's uploaded price list (v0.1.40). Its
        instruction should say: prices only from `find_price`; if it says the prices are not loaded,
        say so and give none;
-     - `video: true` gives it video editing on that computer (v0.1.40), for example Wine24's
-       SM Media Creator.
-2. `bun scripts/ark-trial.ts sign-profile wine24.json` writes `wine24.arktrial`.
-3. `bun scripts/ark-trial.ts show wine24.arktrial --public-key <public key>` prints what it says and
+     - `video: true` gives it video editing on that computer (v0.1.40), for example a social-media
+       content employee.
+2. `bun scripts/ark-trial.ts sign-profile demo-shop.json` writes `demo-shop.arktrial`.
+3. `bun scripts/ark-trial.ts show demo-shop.arktrial --public-key <public key>` prints what it says and
    whether the key signed it.
 4. On the customer's computer: setup window → **Import trial profile**, or after setup
    **Settings → Plan → Trial → Import trial profile → Choose file**.
@@ -51,9 +51,9 @@ its standing instruction is all it has.
 ## Afterwards: unlock codes
 
 ```
-bun scripts/ark-trial.ts sign-code --customer wine24 --action extend --until 2027-01-15T23:59:59+02:00
-bun scripts/ark-trial.ts sign-code --customer wine24 --action end
-bun scripts/ark-trial.ts sign-code --customer wine24 --action paid
+bun scripts/ark-trial.ts sign-code --customer demo-shop --action extend --until 2027-01-15T23:59:59+02:00
+bun scripts/ark-trial.ts sign-code --customer demo-shop --action end
+bun scripts/ark-trial.ts sign-code --customer demo-shop --action paid
 ```
 
 The customer pastes the printed `ARK1-…` line into **Settings → Plan → Trial → Unlock code**. Each

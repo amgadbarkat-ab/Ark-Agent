@@ -277,8 +277,7 @@ function PhoneLineSettings() {
             {text("voice", t("Voice"), { placeholder: "marin" })}
             <div className="@min-[36rem]:col-span-2">
               {text("greeting", t("Greeting"), {
-                placeholder:
-                  "Eurodiagnosi, καλημέρα σας. Πώς μπορώ να βοηθήσω;",
+                placeholder: "Καλημέρα σας. Πώς μπορώ να βοηθήσω;",
               })}
             </div>
             {text("weekdayFrom", t("Monday to Friday, from"), {
