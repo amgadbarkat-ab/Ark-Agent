@@ -8,6 +8,32 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Phone answering: the cost estimate before ordering (#109, MD 15–16 Nov)
+
+- **Where:** on installs where the phone add-on is not switched on, **Settings → Connect your Data** shows **Phone answering (paid add-on)**.
+- **The questions:** the country, chosen from all 27 EU and all 6 GCC countries; hours of incoming and outgoing calls a month; how much of a call the employee speaks; and the speech model.
+- **The estimate, line by line, per month in EUR:**
+  - a local number;
+  - incoming minutes;
+  - outgoing minutes, from landline to mobile rate, Twilio's *From EEA* rate in the EU. These are labelled "not in the current feature";
+  - Twilio Media Streams;
+  - speech on OpenAI Realtime, as a range;
+  - **BlackArk's €20 a month, excluding VAT**.
+- **Where the prices come from:** official list prices retrieved on 16 Nov 2026, converted at the ECB rate of 13 Nov 2026, 1 EUR = 1.1052 USD.
+- **Missing prices:** a price a provider does not publish is shown as **not published**, and the total then reads **at least**. It is never counted as zero.
+- **Request activation** writes a summary to copy and send to BlackArk. Nothing is sent or paid from the app. BlackArk switches the add-on on in the signed profile once it is paid for.
+
+### Fixes from DT Lab's v0.1.40 test (16 Nov)
+
+- **Video plans are checked before the approval card.**
+  - A plan that cannot run goes back to the employee to correct, so nobody approves a render that then fails.
+  - A Greek or spaced video name is accepted and written in Latin letters: «Δοκιμή DT» becomes `dokimi-dt`.
+- **The render card reads as a sentence:** the sizes, each file and its seconds, the captions, and "saved in media/out; nothing is published". It no longer shows raw JSON.
+- **The waiting message names the right place:** the employee now says the request waits on the card in this conversation, not "in Requests", when it does.
+- **`find_price`** tells the employee to give a price exactly as written, and to say whether it includes VAT only when the list says so.
+- **A Greek conversation stays Greek,** including the short sentences between tool calls.
+- **Settings no longer lists Phone approval** on installs where that feature is off.
+
 ## 0.1.40
 
 ### Video editing on the business's own computer (#109: Wine24's SM Media Creator; FFmpeg, MD yes 15 Nov)

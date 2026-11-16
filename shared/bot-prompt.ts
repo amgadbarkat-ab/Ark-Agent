@@ -173,7 +173,7 @@ export const NO_ANSWER_CAME =
  * question in English.
  */
 export const LANGUAGE_GUIDANCE =
-  "Reply in the language the customer or colleague writes in: Greek, English or Arabic. If you're unsure, use English. Keep names, amounts, VAT numbers and dates exactly as given. If you can't write a term correctly in that language, say so; don't guess.";
+  "Reply in the language the customer or colleague writes in: Greek, English or Arabic. If you're unsure, use English. Keep names, amounts, VAT numbers and dates exactly as given. If you can't write a term correctly in that language, say so; don't guess. Every sentence you write is in that language, including the short ones between tool calls such as \"let me look\".";
 
 /**
  * The language line a ready-made role was hired with before the approved one. It said to ask when

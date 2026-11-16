@@ -287,13 +287,57 @@ function words(value: unknown, what: string): string {
     .trim();
 }
 
+const GREEK: Record<string, string> = {
+  α: "a",
+  β: "v",
+  γ: "g",
+  δ: "d",
+  ε: "e",
+  ζ: "z",
+  η: "i",
+  θ: "th",
+  ι: "i",
+  κ: "k",
+  λ: "l",
+  μ: "m",
+  ν: "n",
+  ξ: "x",
+  ο: "o",
+  π: "p",
+  ρ: "r",
+  σ: "s",
+  ς: "s",
+  τ: "t",
+  υ: "y",
+  φ: "f",
+  χ: "ch",
+  ψ: "ps",
+  ω: "o",
+};
+
+/**
+ * A file name from whatever the plan calls the video: Greek written in Latin letters, anything
+ * else that is not a letter or digit turned into a hyphen. «Δοκιμή DT» becomes `dokimi-dt` (#109,
+ * DT 16 Nov: a Greek name was approved and then refused). Empty when nothing usable is left.
+ */
+export function fileNameFrom(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const latin = [...value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()]
+    .map((ch) => GREEK[ch] ?? ch)
+    .join("");
+  return latin
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+}
+
 /** Reads the model's arguments into a plan, refusing anything outside the limits. */
 export function planFrom(args: Record<string, unknown>): VideoPlan {
-  const name =
-    typeof args.name === "string" ? args.name.trim().toLowerCase() : "";
-  if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(name)) {
+  const name = fileNameFrom(args.name);
+  if (!name) {
     throw new VideoPlanError(
-      "Give the video a short name of letters, digits and hyphens, e.g. assyrtiko-reel.",
+      "Give the video a short name, e.g. assyrtiko-reel or «Ασύρτικο reel».",
     );
   }
   const sizes = Array.isArray(args.sizes) ? args.sizes : ["9:16"];
@@ -434,7 +478,8 @@ const TOOLS: readonly McpTool[] = Object.freeze([
       properties: {
         name: {
           type: "string",
-          description: "Short output name, e.g. assyrtiko-reel.",
+          description:
+            "Short output name, e.g. assyrtiko-reel; Greek is written in Latin letters.",
         },
         sizes: {
           type: "array",
@@ -871,6 +916,79 @@ export async function render(
     return outputs;
   } finally {
     await rm(work, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function seconds(value: number): string {
+  return `${Number(value.toFixed(1))} s`;
+}
+
+/** The plan in one plain sentence for the approval card (#109, DT 16 Nov: it showed raw JSON). */
+export function planSummary(plan: VideoPlan): string {
+  const pieces = plan.pieces.map((piece) => {
+    const span =
+      piece.from !== undefined || piece.to !== undefined
+        ? ` ${piece.from ?? 0}–${piece.to ?? "end"} s`
+        : piece.seconds !== undefined
+          ? ` for ${seconds(piece.seconds)}`
+          : "";
+    const caption = piece.caption ? ` with caption «${piece.caption}»` : "";
+    return `${piece.file}${span}${caption}`;
+  });
+  return [
+    `Make the video "${plan.name}" in ${plan.sizes.join(", ")}`,
+    `from ${pieces.join("; ")}`,
+    ...(plan.title ? [`title card «${plan.title.text}»`] : []),
+    ...(plan.end ? [`end card «${plan.end.text}»`] : []),
+    ...(plan.subtitles.length > 0
+      ? [`${plan.subtitles.length} subtitles`]
+      : []),
+    ...(plan.music ? [`music ${plan.music.file}`] : []),
+    ...(plan.voiceover ? [`voice-over ${plan.voiceover.file}`] : []),
+    "saved in media/out on this computer; nothing is published",
+  ].join(" · ");
+}
+
+/**
+ * Checks a render before it is held for approval, so a plan that would fail is sent back to the
+ * employee instead of to a person (#109, DT 16 Nov). The files must be in media/in.
+ */
+export async function prepareCall(
+  _connection: { actorId?: string; botId?: string; threadId?: string },
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<{
+  args: Record<string, unknown>;
+  shown?: Record<string, string>;
+  summary?: string;
+  refused?: string;
+}> {
+  if (toolName !== "render_video") return { args };
+  const unavailable = videoUnavailable();
+  if (unavailable) return { args, refused: unavailable };
+  try {
+    const plan = planFrom(args);
+    const inDir = join(setup.mediaDir, "in");
+    await mkdir(inDir, { recursive: true });
+    for (const piece of plan.pieces) {
+      await inside(inDir, piece.file, new Set([...VIDEO_EXT, ...IMAGE_EXT]));
+    }
+    if (plan.music) await inside(inDir, plan.music.file, AUDIO_EXT);
+    if (plan.voiceover) await inside(inDir, plan.voiceover.file, AUDIO_EXT);
+    const summary = planSummary(plan);
+    return {
+      args: { ...args, name: plan.name },
+      summary,
+      shown: { name: plan.name, pieces: summary },
+    };
+  } catch (error) {
+    return {
+      args,
+      refused:
+        error instanceof VideoPlanError
+          ? `${error.message} Nothing was asked of the person; correct the plan and call render_video again.`
+          : "The plan could not be checked. Try again.",
+    };
   }
 }
 
