@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.42
+
 ### Activation: a trial activation code or a paid licence key (#109, MD 16 Nov)
 
 - **What changes:** on the desktop app, ArkAgent opens only when this computer has one of:
