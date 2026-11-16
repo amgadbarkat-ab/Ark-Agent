@@ -2,6 +2,7 @@
  * Every Greek text, by area. Keys are the English exactly as it is written in the code; see
  * ../translate.ts. One file per area keeps the review sheet readable and the merges small.
  */
+import { EL_ACTIVATION } from "./activation";
 import { EL_ADMIN } from "./admin";
 import { EL_ADMIN2 } from "./admin2";
 import { EL_BUILTIN_TOOLS } from "./builtin-tools";
@@ -42,4 +43,5 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_PHONE_LINE,
   ...EL_PHONE_ESTIMATOR,
   ...EL_BUILTIN_TOOLS,
+  ...EL_ACTIVATION,
 };

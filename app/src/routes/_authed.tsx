@@ -6,6 +6,7 @@ import {
 } from "../lib/auth/queries";
 import { CopilotProvider } from "../lib/copilot/provider";
 import { AppHotkeys } from "../lib/hotkeys/app-hotkeys";
+import { activationQueryOptions } from "../lib/trial/queries";
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: async ({ context, location }) => {
@@ -30,6 +31,19 @@ export const Route = createFileRoute("/_authed")({
      */
     if (needsOnboarding(user) && location.pathname !== "/onboarding") {
       throw redirect({ to: "/onboarding" });
+    }
+    /*
+     * Activation (#109, v0.1.42): on a desktop install, nothing opens without a trial activation
+     * code, a paid licence key or the trial setup file. Null means the server has nothing to gate;
+     * an error reading it is not a reason to lock somebody out, and the server refuses runs anyway.
+     */
+    if (location.pathname !== "/activate") {
+      const activation = await context.queryClient
+        .ensureQueryData(activationQueryOptions())
+        .catch(() => null);
+      if (activation && !activation.allowed) {
+        throw redirect({ to: "/activate" });
+      }
     }
   },
   // Mounted INSIDE the authed boundary, not at the root: the runtime endpoint requires a session, so

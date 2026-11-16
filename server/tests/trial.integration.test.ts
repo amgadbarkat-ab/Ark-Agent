@@ -213,9 +213,10 @@ describe("a customer trial on this install (#109)", () => {
         provider: "manual",
       }),
     } as unknown as AccountStore;
-    const summary = await withTrialEntitlement(accounts, service).summaryFor(
-      "u",
-    );
+    const summary = await withTrialEntitlement(accounts, {
+      entitlement: service.entitlement,
+      trialCurrent: service.current,
+    }).summaryFor("u");
     expect(summary).toMatchObject({
       planId: "team",
       subscriptionStatus: "trialing",

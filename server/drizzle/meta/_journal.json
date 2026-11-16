@@ -512,6 +512,13 @@
       "when": 1794748352372,
       "tag": "0072_price_list",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794830804028,
+      "tag": "0073_activation",
+      "breakpoints": true
     }
   ]
 }

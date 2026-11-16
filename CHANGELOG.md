@@ -8,6 +8,38 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Activation: a trial activation code or a paid licence key (#109, MD 16 Nov)
+
+- **What changes:** on the desktop app, ArkAgent opens only when this computer has one of:
+  - a **trial activation code**;
+  - a **paid licence key**;
+  - the **trial setup file** (`.arktrial`) imported in the trial setup session.
+
+  Without one of them, the **Activate ArkAgent** screen is the only screen, and nothing runs.
+- **Upgrading:** an install that already has a trial setup file keeps working with nothing to enter. Any other install asks for a code or key after the upgrade. Nothing is deleted.
+- **The one box:** the same field takes a trial activation code, a licence key, or an unlock code. All three start with `ARK1-`. They are also on **Settings → Plan → Activation**.
+- **How each one is checked:**
+  - **Trial activation code:** signed by BlackArk's trial key. It ends at a fixed moment, so entering it again after a reinstall does not restart the trial.
+  - **Paid licence key:** signed by BlackArk's licence key. It is valid until the end of the paid period plus 7 days. The same key works again after a reinstall.
+  - **Clock:** every end is compared with the later of the computer's clock and the latest time the install has seen, so turning the clock back changes nothing.
+- **When it ends:** at the end of the trial, or when the licence passes its last valid day, the Activate screen comes back. Conversations, employees and settings are kept.
+- **Renewal:** a licence key may name a renewal address. Once a day the app asks that address for the renewed key and takes it if it is signed by BlackArk. Only these are sent:
+  - the customer id;
+  - a random id for this computer;
+  - the version;
+  - the key's number.
+- **The phone add-on** can be switched on in the code or key, as well as in the trial setup file.
+- **Hosted deployments, developer machines and CI:** nothing changes. Only the desktop app turns the gate on.
+- **For BlackArk:**
+  - `bun scripts/ark-trial.ts sign-trial-code` makes trial activation codes.
+  - `bun scripts/ark-trial.ts sign-license` makes paid licence keys.
+  - Until a separate licence key exists, licence keys are signed with the trial key (`shared/license-public-key.ts`).
+
+### No customer names in the app (#109, MD 16 Nov)
+
+- **One general release for everyone.** The app, its examples, its tests and these notes name no customer.
+- **Where customer content comes in:** customer details, data, price lists and the recommended employees are added only in the trial setup session on the customer's computer.
+
 ## 0.1.41
 
 ### Phone answering: the cost estimate before ordering (#109, MD 15–16 Nov)

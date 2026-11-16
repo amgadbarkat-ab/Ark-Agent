@@ -77,3 +77,35 @@ export const trialCheckIns = pgTable("trial_check_ins", {
   firstSeenAt: at("first_seen_at").notNull().defaultNow(),
   lastSeenAt: at("last_seen_at").notNull().defaultNow(),
 });
+
+/**
+ * How this install was activated (#109, v0.1.42): a trial activation code or a paid licence key, as
+ * typed, with what was read from it. One row or none, keyed "install". A newer key for the same
+ * customer replaces the row; the trial profile, when there is one, stays in `trial_state`.
+ */
+export const activationState = pgTable("activation_state", {
+  id: text("id").primaryKey().default("install"),
+  /** "trial" (a trial activation code) or "license" (a paid licence key). */
+  kind: text("kind").notNull(),
+  customerId: text("customer_id").notNull(),
+  /** The signed text and its signature, exactly as typed. */
+  payload: text("payload").notNull(),
+  signature: text("signature").notNull(),
+  nonce: text("nonce").notNull(),
+  planId: text("plan_id").notNull(),
+  seats: integer("seats"),
+  /** Paid add-ons, comma-separated; empty for none. */
+  addons: text("addons").notNull().default(""),
+  issuedAt: at("issued_at").notNull(),
+  /** The trial's last moment, or the licence's `validUntil`. */
+  validUntil: at("valid_until").notNull(),
+  renewUrl: text("renew_url"),
+  /** As on `trial_state`: the latest time seen here, so turning the clock back changes nothing. */
+  latestSeenAt: at("latest_seen_at").notNull().defaultNow(),
+  /** Random, made once; what a renewal calls this install. */
+  installId: uuid("install_id").notNull().defaultRandom(),
+  lastRenewAt: at("last_renew_at"),
+  lastRenewError: text("last_renew_error"),
+  activatedAt: at("activated_at").notNull().defaultNow(),
+  updatedAt: at("updated_at").notNull().defaultNow(),
+});

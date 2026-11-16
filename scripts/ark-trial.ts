@@ -15,6 +15,17 @@
  *   bun scripts/ark-trial.ts sign-code --customer <id> --action end|paid [--key <pem>]
  *       Prints one single-use unlock code for that customer.
  *
+ *   bun scripts/ark-trial.ts sign-trial-code --customer <id> --until <date> [--plan team] [--addons phone] [--key <pem>]
+ *       Prints a trial activation code (v0.1.42): opens ArkAgent on any computer until that moment.
+ *       Signed with the trial key. The trial setup file counts as activation too, so a code is only
+ *       needed where there is no setup session.
+ *
+ *   bun scripts/ark-trial.ts sign-license --customer <id> --period-end <date> [--plan team]
+ *       [--seats 1] [--addons phone] [--renew-url https://…] [--key <pem>]
+ *       Prints a paid licence key (v0.1.42), valid until the period end plus 7 days' grace. Signed
+ *       with the licence key; until BlackArk makes a separate one, that is the trial key
+ *       (shared/license-public-key.ts). Typing the same key again on a reinstall works.
+ *
  *   bun scripts/ark-trial.ts show <file.arktrial | ARK1-code> [--public-key <base64>]
  *       Prints what a profile or a code says, and whether that key signed it.
  *
@@ -33,8 +44,16 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { ROLES } from "../server/src/marketplace/official-roles";
 import {
+  type ActivationCode,
+  LICENSE_GRACE_DAYS,
+  readActivationCode,
+} from "../shared/activation";
+import { planById } from "../shared/plans";
+import {
   CODE_PREFIX,
   encodeBase64Url,
+  TRIAL_ADDONS,
+  type TrialAddon,
   PROFILE_FORMAT,
   readProfile,
   readProfileFile,
@@ -174,12 +193,97 @@ function signCode(args: string[]) {
   console.log(full);
 }
 
+function addonsOption(args: string[]): { addons?: TrialAddon[] } {
+  const raw = option(args, "--addons");
+  if (!raw) return {};
+  const names = raw.split(",").map((name) => name.trim());
+  for (const name of names) {
+    if (!TRIAL_ADDONS.includes(name as TrialAddon)) {
+      fail(
+        `There is no add-on called ${name}. Known: ${TRIAL_ADDONS.join(", ")}`,
+      );
+    }
+  }
+  return { addons: names as TrialAddon[] };
+}
+
+function dateOption(args: string[], name: string): string {
+  const value = option(args, name) ?? fail(`Give ${name} <date>.`);
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) fail(`${value} is not a date.`);
+  return new Date(time).toISOString();
+}
+
+function printActivation(code: ActivationCode, args: string[]) {
+  const key = loadKey(args);
+  const payload = encodeBase64Url(JSON.stringify(code));
+  const full = `${CODE_PREFIX}${payload}.${signText(key, payload)}`;
+  // Checked back before it is printed, so a code that would be refused is never handed out.
+  readActivationCode(full);
+  console.log(full);
+}
+
+function signTrialCode(args: string[]) {
+  const customer = option(args, "--customer") ?? fail("Give --customer <id>.");
+  const plan = option(args, "--plan") ?? "team";
+  if (!planById(plan) || plan === "internal") fail(`${plan} is not a plan.`);
+  printActivation(
+    {
+      v: 1,
+      action: "trial",
+      customer,
+      nonce: randomBytes(12).toString("base64url"),
+      issuedAt: new Date().toISOString(),
+      until: dateOption(args, "--until"),
+      plan: plan as ActivationCode["plan"],
+      ...addonsOption(args),
+    },
+    args,
+  );
+}
+
+function signLicense(args: string[]) {
+  const customer = option(args, "--customer") ?? fail("Give --customer <id>.");
+  const plan = option(args, "--plan") ?? "team";
+  if (!planById(plan)) fail(`${plan} is not a plan.`);
+  const seats = Number(option(args, "--seats") ?? "1");
+  if (!Number.isInteger(seats) || seats < 1) fail("--seats is a whole number.");
+  const periodEnd = Date.parse(dateOption(args, "--period-end"));
+  const renewUrl = option(args, "--renew-url");
+  if (renewUrl && !renewUrl.startsWith("https://")) {
+    fail("--renew-url must start with https://.");
+  }
+  printActivation(
+    {
+      v: 1,
+      action: "license",
+      customer,
+      nonce: randomBytes(12).toString("base64url"),
+      issuedAt: new Date().toISOString(),
+      plan: plan as ActivationCode["plan"],
+      seats,
+      validUntil: new Date(
+        periodEnd + LICENSE_GRACE_DAYS * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      ...addonsOption(args),
+      ...(renewUrl ? { renewUrl } : {}),
+    },
+    args,
+  );
+}
+
 function show(args: string[]) {
   const target = args[0] ?? fail("Give a .arktrial file or an ARK1- code.");
   const publicKey = option(args, "--public-key");
   const keys = publicKey ? [publicKeyFromBase64(publicKey)] : [];
   if (target.startsWith(CODE_PREFIX)) {
-    const { payload, signature, code } = readUnlockCode(target);
+    let read: { payload: string; signature: string; code: unknown };
+    try {
+      read = readActivationCode(target);
+    } catch {
+      read = readUnlockCode(target);
+    }
+    const { payload, signature, code } = read;
     console.log(JSON.stringify(code, null, 2));
     if (publicKey) {
       console.log(
@@ -215,12 +319,18 @@ try {
     case "sign-code":
       signCode(rest);
       break;
+    case "sign-trial-code":
+      signTrialCode(rest);
+      break;
+    case "sign-license":
+      signLicense(rest);
+      break;
     case "show":
       show(rest);
       break;
     default:
       fail(
-        "Use: keygen | sign-profile <draft.json> | sign-code --customer <id> --action extend|end|paid | show <file|code>",
+        "Use: keygen | sign-profile <draft.json> | sign-code --customer <id> --action extend|end|paid | sign-trial-code --customer <id> --until <date> | sign-license --customer <id> --period-end <date> | show <file|code>",
       );
   }
 } catch (error) {

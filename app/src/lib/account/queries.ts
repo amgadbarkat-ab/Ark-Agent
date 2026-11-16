@@ -16,7 +16,10 @@ export type BlockedCode =
   | "no_plan"
   | "canceled"
   /** Day 8 of a free trial: read-only until a plan is chosen. */
-  | "trial_ended";
+  | "trial_ended"
+  /** A desktop install that is not activated, or whose licence ended (#109). */
+  | "not_activated"
+  | "license_expired";
 
 export type SubscriptionStatus =
   | "incomplete"
