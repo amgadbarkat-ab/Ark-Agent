@@ -79,4 +79,8 @@ export const EL_ACTIVATION: Record<string, string> = {
     "Η άδειά σας έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται. Για να συνεχίσετε, εισαγάγετε το ανανεωμένο κλειδί άδειας.",
   "Your trial ended on {date}. Your conversations and settings are kept. Enter a licence key or an unlock code to continue.":
     "Η δοκιμή σας έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται. Για να συνεχίσετε, εισαγάγετε κλειδί άδειας ή κωδικό ξεκλειδώματος.",
+
+  // The desktop app closed while the server kept running (#109, DT item 3).
+  "ArkAgent is not open, so {name} cannot work right now. Open ArkAgent on this computer, then send your message again.":
+    "Το ArkAgent δεν είναι ανοιχτό και ο υπάλληλος {name} δεν μπορεί να εργαστεί αυτή τη στιγμή. Ανοίξτε το ArkAgent σε αυτόν τον υπολογιστή και στείλτε ξανά το μήνυμά σας.",
 };

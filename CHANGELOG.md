@@ -35,6 +35,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   - `bun scripts/ark-trial.ts sign-license` makes paid licence keys.
   - Until a separate licence key exists, licence keys are signed with the trial key (`shared/license-public-key.ts`).
 
+### "Open ArkAgent" instead of "Connection error" (#109, DT Lab item 3)
+
+- **The problem:** on Linux with Docker Engine, the desktop app carries the employees' containers to the server. When the app was closed while the server kept running, those employees failed with only "Connection error", or kept thinking.
+- **The fix:** the server now checks that connection before such an employee runs. If the connection is gone, the employee answers: «Το ArkAgent δεν είναι ανοιχτό… Ανοίξτε το ArkAgent σε αυτόν τον υπολογιστή και στείλτε ξανά το μήνυμά σας.»
+- **Where it applies:** only on Linux with Docker Engine. Other machines need no such connection.
+
 ### No customer names in the app (#109, MD 16 Nov)
 
 - **One general release for everyone.** The app, its examples, its tests and these notes name no customer.

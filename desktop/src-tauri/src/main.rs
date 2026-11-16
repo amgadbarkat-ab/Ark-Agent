@@ -1682,6 +1682,13 @@ async fn start_stack_inner<R: tauri::Runtime>(
                         match openbot_desktop_lib::bridge::forward(gateway, ports.server) {
                             Ok(relay) => {
                                 relays.push(relay);
+                                // Where the server checks this relay before a container employee
+                                // runs (#109, DT item 3): closing the app takes the relay with it,
+                                // and the employee should say "open ArkAgent", not "Connection error".
+                                secrets.insert(
+                                    "ARK_CONTAINER_RELAY".into(),
+                                    format!("{gateway}:{}", ports.server),
+                                );
                                 true
                             }
                             Err(_) => false,

@@ -197,6 +197,7 @@ import {
   synchronizeTenantPackage,
 } from "./tenant-package";
 import { createActivationService } from "./trial/activation";
+import { containerRelayCheck } from "./agents/container-relay";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
 import { seedTrialRoster } from "./trial/seed";
 import { createTrialService, trialKeysFrom } from "./trial/service";
@@ -404,6 +405,8 @@ const loadAgentsForActor = createRuntimeAgentLoader(
   ),
   // Reads only: what each of the person's digital employees keeps in mind, for its instructions.
   createMemoryStore(database),
+  // The desktop app's relay for the containers (#109): closed app, "open ArkAgent".
+  containerRelayCheck(process.env.ARK_CONTAINER_RELAY),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
