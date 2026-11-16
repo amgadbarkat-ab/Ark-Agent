@@ -1,0 +1,20 @@
+CREATE TABLE "activation_state" (
+	"id" text PRIMARY KEY DEFAULT 'install' NOT NULL,
+	"kind" text NOT NULL,
+	"customer_id" text NOT NULL,
+	"payload" text NOT NULL,
+	"signature" text NOT NULL,
+	"nonce" text NOT NULL,
+	"plan_id" text NOT NULL,
+	"seats" integer,
+	"addons" text DEFAULT '' NOT NULL,
+	"issued_at" timestamp with time zone NOT NULL,
+	"valid_until" timestamp with time zone NOT NULL,
+	"renew_url" text,
+	"latest_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"install_id" uuid DEFAULT gen_random_uuid() NOT NULL,
+	"last_renew_at" timestamp with time zone,
+	"last_renew_error" text,
+	"activated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);

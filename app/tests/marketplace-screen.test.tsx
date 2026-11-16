@@ -182,8 +182,8 @@ test("during a trial with a fixed team, Install is off and says why (#109)", asy
       Response.json({
         keyConfigured: true,
         trial: {
-          customerId: "wine24",
-          customerName: "Wine24",
+          customerId: "demo-shop",
+          customerName: "Demo Shop",
           status: "trial",
           startsAt: "2026-11-16T00:00:00.000Z",
           endsAt: "2026-12-16T00:00:00.000Z",

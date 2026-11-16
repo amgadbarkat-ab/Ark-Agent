@@ -134,7 +134,7 @@ export function createPhoneLineService(
     ) => Promise<Employee | null>;
     /** The business's name, for the greeting rules: the trial's customer, or the deployment's. */
     business: () => Promise<string>;
-    /** Whether Eurodiagnosi's AMKA rule applies (the trial profile's `mailBlockAmka`). */
+    /** Whether the AMKA guard applies (the trial profile's `mailBlockAmka`). */
     blockAmka: () => Promise<boolean>;
     /**
      * Whether phone answering is switched on for this customer: a paid add-on BlackArk signs into

@@ -75,7 +75,7 @@ afterAll(async () => {
 function file() {
   const profile = readProfile({
     v: 1,
-    customer: { id: "eurodiagnosi", name: "Eurodiagnosi" },
+    customer: { id: "demo-clinic", name: "Demo Clinic" },
     issuedAt: "2026-11-15T10:00:00Z",
     startsAt: "2026-11-16T00:00:00Z",
     endsAt: "2099-12-16T00:00:00Z",
@@ -90,7 +90,7 @@ function file() {
         roleDescription: "Answers enquiries. No medical advice.",
         instructions: "You are the front desk. Never give medical advice.",
         basedOn: "front-desk",
-        mail: { folders: ["INBOX/Front"], from: "info@eurodiagnosi.example" },
+        mail: { folders: ["INBOX/Front"], from: "info@demo-clinic.example" },
         priceList: true,
       },
       {
@@ -192,7 +192,7 @@ describe("setting up a trial roster on the real stores (#109)", () => {
     );
     expect(await trial.mailPolicyFor(frontDesk.id)).toEqual({
       folders: ["INBOX/Front"],
-      from: "info@eurodiagnosi.example",
+      from: "info@demo-clinic.example",
       blockAmka: true,
     });
     expect(await trial.mailPolicyFor(qa?.id)).toEqual({ blockAmka: true });

@@ -15,12 +15,16 @@ import type { AgentActor } from "../agents/profile-types";
 import { type AppVariables, requireAdmin } from "../auth/guards";
 import type { Database } from "../db/client";
 import { trialCheckIns } from "../db/schema";
+import type { ActivationService } from "./activation";
 import { TrialRefusedError, type TrialService } from "./service";
 
 type Middleware = MiddlewareHandler<{ Variables: AppVariables }>;
 
 export type TrialAudit = (event: {
-  eventType: "trial.profile_imported" | "trial.code_applied";
+  eventType:
+    | "trial.profile_imported"
+    | "trial.code_applied"
+    | "activation.code_applied";
   actorUserId: string;
   payload: Record<string, unknown>;
 }) => Promise<void>;
@@ -34,6 +38,8 @@ export type TrialRouteDependencies = {
   audit?: TrialAudit;
   /** BlackArk's own server: receives check-ins and lists them. */
   receiver?: { database: Database };
+  /** Trial activation codes and licence keys (v0.1.42), at `/api/activation`. */
+  activation?: ActivationService;
 };
 
 const profileBody = z.strictObject({ text: z.string().min(2).max(400_000) });
@@ -214,5 +220,61 @@ export function adminTrialRoutes(requireUser: Middleware, database: Database) {
       total: total?.count ?? 0,
     });
   });
+  return app;
+}
+
+/**
+ * `/api/activation` (#109, v0.1.42): whether this install is activated, and the one box that takes a
+ * trial activation code, a licence key or an unlock code. Reading is for anyone signed in, so the app
+ * can show the Activate screen; typing a code is for an administrator, who on a desktop install is
+ * the one person on it.
+ */
+export function activationRoutes(
+  requireUser: Middleware,
+  activation: ActivationService,
+  audit?: TrialAudit,
+) {
+  const app = new Hono<{ Variables: AppVariables }>();
+  app.use("*", requireUser);
+
+  app.get("/", async (context) =>
+    context.json({ activation: await activation.current() }),
+  );
+
+  app.post("/code", async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    const parsed = codeBody.safeParse(
+      await context.req.json().catch(() => undefined),
+    );
+    if (!parsed.success) {
+      return context.json(
+        { error: "Enter the activation code or the licence key." },
+        400,
+      );
+    }
+    try {
+      const applied = await activation.apply(parsed.data.code);
+      if (applied.changed) {
+        await audit?.({
+          eventType: "activation.code_applied",
+          actorUserId: context.var.actor.id,
+          payload: {
+            kind: applied.kind,
+            customer: applied.activation.customerId,
+            state: applied.activation.state,
+            until: applied.activation.until,
+          },
+        });
+      }
+      return context.json(applied);
+    } catch (error) {
+      if (error instanceof TrialRefusedError) {
+        return context.json({ error: error.message }, 400);
+      }
+      throw error;
+    }
+  });
+
   return app;
 }

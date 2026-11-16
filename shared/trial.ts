@@ -55,7 +55,7 @@ export type TrialProfile = {
   createBlocked: boolean;
   /** Where the app reports its trial status once a day. Absent: it reports nowhere. */
   checkInUrl?: string;
-  /** Refuse any outgoing email with an AMKA-shaped (11-digit) number in it (Eurodiagnosi). */
+  /** Refuse any outgoing email with an AMKA-shaped (11-digit) number in it . */
   mailBlockAmka?: boolean;
   /**
    * Paid add-ons BlackArk switched on for this customer, signed like the rest. "phone": answering

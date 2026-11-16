@@ -14,6 +14,7 @@ import {
 } from "../db/schema";
 import { type MemoryStore, memoryGuidance } from "../memories/store";
 import { agentAuthHeaders, authFromConfiguration } from "./auth-header";
+import { RELAY_DOWN_MESSAGE } from "./container-relay";
 import type { AgentActor } from "./profile-types";
 import { type TeamMember, teamGuidance } from "./team";
 
@@ -44,6 +45,12 @@ export function createRuntimeAgentLoader(
    * Absent leaves every employee with no memories section, which is what they had before.
    */
   memories?: Pick<MemoryStore, "forRun">,
+  /**
+   * Whether the containers can reach this server right now (#109): false on a desktop install
+   * whose app was closed. Then each employee this deployment runs in a container says to open
+   * ArkAgent instead of failing with "Connection error". Absent: always reachable.
+   */
+  containersReachServer?: () => Promise<boolean>,
 ) {
   return async (actor: AgentActor): Promise<RegisteredAgent[]> => {
     const [active, tombstones] = await Promise.all([
@@ -108,6 +115,15 @@ export function createRuntimeAgentLoader(
           [managedAgent.endpoint, managedAgent.alsoRun]
             .filter((url): url is URL => url !== undefined)
             .some((url) => endpoint === managedEndpointIdentity(url));
+        if (ours && containersReachServer && !(await containersReachServer())) {
+          registered.set(agent.id, {
+            id: agent.id,
+            name: agent.name,
+            type: "unavailable",
+            reason: RELAY_DOWN_MESSAGE.replace("{name}", agent.name),
+          });
+          continue;
+        }
         if (ours) {
           // Asked per bot, because a person can point each one at a different connection, and
           // only for a bot this deployment runs.

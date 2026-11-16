@@ -15,6 +15,7 @@ import { Route as SignRouteImport } from './routes/sign'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthedAppRouteImport } from './routes/_authed/_app'
 import { Route as AuthedAcceptTermsRouteImport } from './routes/_authed/accept-terms'
+import { Route as AuthedActivateRouteImport } from './routes/_authed/activate'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedSettingsRouteRouteImport } from './routes/_authed/settings/route'
@@ -86,6 +87,11 @@ const AuthedAppRoute = AuthedAppRouteImport.update({
 const AuthedAcceptTermsRoute = AuthedAcceptTermsRouteImport.update({
   id: '/accept-terms',
   path: '/accept-terms',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedActivateRoute = AuthedActivateRouteImport.update({
+  id: '/activate',
+  path: '/activate',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedAdminRouteRoute = AuthedAdminRouteRouteImport.update({
@@ -333,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthedAdminRouteRouteWithChildren
   '/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/accept-terms': typeof AuthedAcceptTermsRoute
+  '/activate': typeof AuthedActivateRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/approvals': typeof AuthedAppApprovalsRoute
   '/bot': typeof AuthedAppBotRoute
@@ -381,6 +388,7 @@ export interface FileRoutesByTo {
   '/sign': typeof SignRoute
   '/terms': typeof TermsRoute
   '/accept-terms': typeof AuthedAcceptTermsRoute
+  '/activate': typeof AuthedActivateRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/approvals': typeof AuthedAppApprovalsRoute
   '/bot': typeof AuthedAppBotRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/_authed/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/_authed/_app': typeof AuthedAppRouteWithChildren
   '/_authed/accept-terms': typeof AuthedAcceptTermsRoute
+  '/_authed/activate': typeof AuthedActivateRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/_authed/_app/approvals': typeof AuthedAppApprovalsRoute
   '/_authed/_app/bot': typeof AuthedAppBotRoute
@@ -486,6 +495,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/settings'
     | '/accept-terms'
+    | '/activate'
     | '/onboarding'
     | '/approvals'
     | '/bot'
@@ -534,6 +544,7 @@ export interface FileRouteTypes {
     | '/sign'
     | '/terms'
     | '/accept-terms'
+    | '/activate'
     | '/onboarding'
     | '/approvals'
     | '/bot'
@@ -585,6 +596,7 @@ export interface FileRouteTypes {
     | '/_authed/settings'
     | '/_authed/_app'
     | '/_authed/accept-terms'
+    | '/_authed/activate'
     | '/_authed/onboarding'
     | '/_authed/_app/approvals'
     | '/_authed/_app/bot'
@@ -678,6 +690,13 @@ declare module '@tanstack/react-router' {
       path: '/accept-terms'
       fullPath: '/accept-terms'
       preLoaderRoute: typeof AuthedAcceptTermsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/activate': {
+      id: '/_authed/activate'
+      path: '/activate'
+      fullPath: '/activate'
+      preLoaderRoute: typeof AuthedActivateRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/admin': {
@@ -1110,6 +1129,7 @@ interface AuthedRouteChildren {
   AuthedSettingsRouteRoute: typeof AuthedSettingsRouteRouteWithChildren
   AuthedAppRoute: typeof AuthedAppRouteWithChildren
   AuthedAcceptTermsRoute: typeof AuthedAcceptTermsRoute
+  AuthedActivateRoute: typeof AuthedActivateRoute
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute
 }
 
@@ -1118,6 +1138,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedSettingsRouteRoute: AuthedSettingsRouteRouteWithChildren,
   AuthedAppRoute: AuthedAppRouteWithChildren,
   AuthedAcceptTermsRoute: AuthedAcceptTermsRoute,
+  AuthedActivateRoute: AuthedActivateRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
 }
 

@@ -31,7 +31,7 @@ import { readFileSync, statSync } from "node:fs";
 import type { Server, ServerWebSocket } from "bun";
 
 export type Line = {
-  /** A short name for logs, e.g. "wine24". */
+  /** A short name for logs, e.g. "demo-shop". */
   name: string;
   /** The Twilio number calls arrive on, E.164, e.g. "+302101234567". */
   number: string;

@@ -815,6 +815,11 @@ pub fn compose(
     // answered, and it is the same switch `ci.yml` uses for the same reason.
     env.insert("OPENBOT_SINGLE_USER".into(), "true".into());
 
+    // Activation (#109, v0.1.42): on a desktop install nothing runs without a trial activation
+    // code, a paid licence key or the trial setup file. Only the desktop app sets this, so a hosted
+    // deployment, a developer's machine and CI are unchanged. An older server ignores it.
+    env.insert("ARK_ACTIVATION_REQUIRED".into(), "true".into());
+
     // Pull the published images rather than build them. A desktop install has no toolchain and no
     // reason to compile Chromium.
     env.insert("IMAGE_PULL_POLICY".into(), "missing".into());
@@ -1564,6 +1569,22 @@ HTTPS_PROXY=http://proxy:8080
         );
         assert_eq!(
             env.get("OPENBOT_SINGLE_USER").map(String::as_str),
+            Some("true")
+        );
+    }
+
+    #[test]
+    fn a_desktop_install_needs_a_trial_code_or_a_licence_key() {
+        let env = compose(
+            &Model::default(),
+            &engine_status(None),
+            &Ports::default(),
+            &pinned(),
+            None,
+            &BTreeMap::new(),
+        );
+        assert_eq!(
+            env.get("ARK_ACTIVATION_REQUIRED").map(String::as_str),
             Some("true")
         );
     }

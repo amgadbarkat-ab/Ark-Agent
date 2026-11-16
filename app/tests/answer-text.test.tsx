@@ -5,7 +5,7 @@ import { Streamdown } from "streamdown";
 import { tidyAnswer } from "@/lib/answer-text";
 
 /**
- * Greek answers in the Wine24 demo (desk #73, v0.1.23): a «Τι λείπει» list drawn as one paragraph,
+ * Greek answers in a customer demo (desk #73, v0.1.23): a «Τι λείπει» list drawn as one paragraph,
  * and a capital Ω in the middle of «επιβεβαιωθεί».
  */
 

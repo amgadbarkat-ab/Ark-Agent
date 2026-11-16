@@ -469,14 +469,14 @@ describe("channel routes", () => {
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: "  Wine24\nπαραγγελίες  " }),
+        body: JSON.stringify({ title: "  Demo Shop\nπαραγγελίες  " }),
       },
     );
 
     expect(response.status).toBe(200);
-    expect(await json(response)).toEqual({ title: "Wine24 παραγγελίες" });
+    expect(await json(response)).toEqual({ title: "Demo Shop παραγγελίες" });
     expect(store.calls).toEqual([
-      ["rename", actor, "channel-1", "Wine24 παραγγελίες"],
+      ["rename", actor, "channel-1", "Demo Shop παραγγελίες"],
     ]);
   });
 
@@ -1317,13 +1317,13 @@ describe("channel rename (desk #83)", () => {
     const created = await persistentStore.create(actor, [agentId]);
     createdChannelIds.push(created.id);
 
-    await persistentStore.rename(actor, created.id, "Wine24 orders");
+    await persistentStore.rename(actor, created.id, "Demo Shop orders");
 
     const [row] = await database
       .select({ summary: channels.summary, summaryAt: channels.summaryAt })
       .from(channels)
       .where(eq(channels.id, created.id));
-    expect(row?.summary).toBe("Wine24 orders");
+    expect(row?.summary).toBe("Demo Shop orders");
     expect(row?.summaryAt).not.toBeNull();
   });
 

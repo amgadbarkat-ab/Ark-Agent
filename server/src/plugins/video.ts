@@ -1,5 +1,5 @@
 /**
- * Video editing on the customer's own computer (#109: Wine24's SM Media Creator; MD 15 Nov 15:01,
+ * Video editing on the customer's own computer (#109: a social-media content employee; MD 15 Nov 15:01,
  * FFmpeg yes, Amgad handles the licence).
  *
  * WHERE THE FILES ARE. The business copies its own footage, photos and audio into

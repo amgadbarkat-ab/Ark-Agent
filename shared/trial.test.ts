@@ -20,7 +20,7 @@ import {
 
 const draft = {
   v: 1,
-  customer: { id: "wine24", name: "Wine24" },
+  customer: { id: "demo-shop", name: "Demo Shop" },
   issuedAt: "2026-11-15T10:00:00Z",
   startsAt: "2026-11-16T00:00:00+02:00",
   endsAt: "2026-12-16T00:00:00+02:00",
@@ -85,7 +85,7 @@ describe("trial profile", () => {
       signature: signText(privateKey, encoded),
     });
     const read = readProfileFile(file);
-    expect(read.profile.customer.id).toBe("wine24");
+    expect(read.profile.customer.id).toBe("demo-shop");
     expect(signedByAny([key], read.file.profile, read.file.signature)).toBe(
       true,
     );
@@ -104,7 +104,7 @@ describe("trial profile", () => {
     const payload = encodeBase64Url(
       JSON.stringify({
         v: 1,
-        customer: "wine24",
+        customer: "demo-shop",
         nonce: "abcdefgh1234",
         action: "extend",
         until: "2027-01-10",

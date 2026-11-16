@@ -22,6 +22,7 @@ import { createDrain } from "../../shared/drain";
 import { listenHosts } from "../../shared/listen-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
+import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
 import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
 import { workOwner } from "../../shared/work-owner";
 import { RunGateAgent } from "./accounts/run-gate";
@@ -195,6 +196,8 @@ import {
   loadTenantPackage,
   synchronizeTenantPackage,
 } from "./tenant-package";
+import { createActivationService } from "./trial/activation";
+import { containerRelayCheck } from "./agents/container-relay";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
 import { seedTrialRoster } from "./trial/seed";
 import { createTrialService, trialKeysFrom } from "./trial/service";
@@ -305,13 +308,31 @@ const trial = createTrialService(database, {
   ),
   version: appVersion(),
 });
+/*
+ * Activation (#109, v0.1.42): on a desktop install nothing runs without a trial activation code, a
+ * paid licence key or the trial setup file. The desktop app sets ARK_ACTIVATION_REQUIRED; nothing
+ * else does, so a hosted deployment, a developer's machine and CI are unchanged.
+ */
+const activation = createActivationService(database, {
+  required: process.env.ARK_ACTIVATION_REQUIRED?.trim() === "true",
+  trialKeys: trialKeysFrom(
+    TRIAL_PUBLIC_KEYS,
+    config.singleUser ? undefined : process.env.ARK_TRIAL_PUBLIC_KEY,
+  ),
+  licenseKeys: trialKeysFrom(
+    LICENSE_PUBLIC_KEYS,
+    config.singleUser ? undefined : process.env.ARK_LICENSE_PUBLIC_KEY,
+  ),
+  trial,
+  version: appVersion(),
+});
 const accountStore = withTrialEntitlement(
   createAccountStore(database, {
     billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
     // Off unless exactly "true": a new account starting a 7-day trial is a billing decision.
     freeTrial: process.env.ARK_FREE_TRIAL_ENABLED?.trim() === "true",
   }),
-  trial,
+  activation,
 );
 const unguardedProfileStore = createAgentProfileStore(
   database,
@@ -319,7 +340,7 @@ const unguardedProfileStore = createAgentProfileStore(
   agentVault,
   accountStore,
 );
-const agentProfileStore = guardProfiles(unguardedProfileStore, trial);
+const agentProfileStore = guardProfiles(unguardedProfileStore, activation);
 // Ark's own digital employees, written to the database on every start so the catalogue in code is the
 // catalogue on screen.
 const marketplaceStore = createMarketplaceStore(database, {
@@ -384,6 +405,8 @@ const loadAgentsForActor = createRuntimeAgentLoader(
   ),
   // Reads only: what each of the person's digital employees keeps in mind, for its instructions.
   createMemoryStore(database),
+  // The desktop app's relay for the containers (#109): closed app, "open ArkAgent".
+  containerRelayCheck(process.env.ARK_CONTAINER_RELAY),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -1621,7 +1644,7 @@ const phoneLine = createPhoneLineService(database, {
   blockAmka: async () =>
     (await trial.mailPolicyFor(undefined)).blockAmka === true,
   // A paid add-on, off unless BlackArk signed it into this customer's profile (MD, 15 Nov).
-  allowed: () => trial.addonEnabled("phone"),
+  allowed: () => activation.addonEnabled("phone"),
 });
 
 const app = createApp(
@@ -1869,6 +1892,7 @@ const app = createApp(
             key === "video" ? listVideoTools : listPriceListTools,
           ),
       }),
+    activation,
     keyConfigured:
       trialKeysFrom(
         TRIAL_PUBLIC_KEYS,
@@ -1894,6 +1918,8 @@ const app = createApp(
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
+// Once a day, the renewed licence key from the address the key names; nothing when it names none.
+activation.startRenewals();
 phoneLine.start();
 // Each mail employee's folders, From address and the AMKA block, from the trial profile (#109).
 useMailboxPolicy((botId) => trial.mailPolicyFor(botId));

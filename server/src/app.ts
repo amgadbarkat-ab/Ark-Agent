@@ -137,6 +137,7 @@ import type { PackageStatusReader } from "./tenant-package";
 import {
   adminTrialRoutes,
   type TrialRouteDependencies,
+  activationRoutes,
   trialCheckInRoutes,
   trialRoutes,
 } from "./trial/routes";
@@ -1788,6 +1789,12 @@ export function createApp(
 
   if (trial) {
     app.route("/api/trial", trialRoutes(requireUser, trial));
+    if (trial.activation) {
+      app.route(
+        "/api/activation",
+        activationRoutes(requireUser, trial.activation, trial.audit),
+      );
+    }
     if (trial.receiver) {
       app.route(
         "/api/trial-checkins",
