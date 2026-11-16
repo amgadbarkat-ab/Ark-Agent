@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.43
+
 ### Shop and delivery connectors: Skroutz, WooCommerce, BOX NOW (#109, MD 16 Nov)
 
 **For every install, in Settings → Connect your Data → Shop and delivery.** Each customer's own account is typed in at the setup session. The login is tried first and kept only if it works, encrypted, on that computer. Secrets are never shown again.
