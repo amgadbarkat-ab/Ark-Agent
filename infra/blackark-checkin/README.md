@@ -139,3 +139,108 @@ itself.
 
 **Keys after cancelling:** when a subscription is cancelled, no new key is made. The last key runs
 out on its own, at its period end plus 7 days.
+
+## The buy page and the prepaid phone balance (v0.1.47)
+
+Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
+- **One checkout for everything:** a buy page on blackark.uk opens one Stripe Checkout showing every price before payment.
+- **Prepaid phone time:** the phone add-on comes with **5 prepaid hours**.
+- **The last hour:** the customer is told and can buy 5 more, or have them bought automatically if they chose that at checkout.
+- **Never negative:** the balance never goes below zero.
+
+**The balance is money, not minutes.**
+- **The 5-hour block:** EUR 23.40 excl. VAT, which is 5 hours at the incoming rate. It is credited as EUR 23.40.
+- **What a call costs:** each part of a call takes off its own **whole minutes** at its own rate:
+
+  | Part | Rate excl. VAT |
+  |---|---|
+  | incoming | EUR 0.078/min |
+  | put through to a Greek landline (+302…) | EUR 0.088/min |
+  | put through to any other number | EUR 0.139/min |
+
+- **Units:** amounts are kept in mils (1/1000 euro), so every rate is a whole number.
+
+| State | When | What callers get |
+|---|---|---|
+| `ok` | more than EUR 8.34 left (one hour at the mobile rate) | the employee answers |
+| `low` | EUR 8.34 or less | the employee answers. The app shows **Add 5 hours**, the email is sent if switched on, and an automatic top-up starts if chosen |
+| `empty` | less than one incoming minute (EUR 0.078) | **not answered**: a busy tone, which Twilio does not bill |
+
+**Never below zero.** The phone relay sets each minute's cost aside **before** the minute starts, across all of a customer's live calls:
+- **The rate set aside:** the incoming rate, plus the landline or mobile rate once the caller is put through to a person.
+- **When the next minute can't be paid:** the caller hears one sentence and the call ends before that minute starts: «Ο διαθέσιμος χρόνος της γραμμής τελείωσε. Παρακαλούμε καλέστε ξανά αργότερα.» ("The line's available time has run out. Please call again later.")
+- **If this server can't be reached**, the relay answers **one** call per customer on the last balance it knew, then busy until this server answers again. It also sends BlackArk one internal alert. That call's cost beyond what is booked is BlackArk's.
+- **The last line of defence, here:** a charge never takes the balance below zero. If Twilio ever reports more than was left, the rest is **written off** at BlackArk's cost, in the ledger row's `written_off_mils`, and logged.
+
+**Automatic top-up (optional, off by default):**
+- **Opting in:** at checkout the customer can pick "Ναι" ("Yes") under «Αυτόματη προσθήκη 5 ωρών τηλεφωνίας» ("Automatic addition of 5 phone hours").
+- **When it charges:** when `low` starts, this server asks Stripe for an invoice of one block on the subscription. It is charged to the saved card, with VAT added the same way.
+- **When it's credited:** on `invoice.paid`.
+- **How often:** one attempt per block. A declined card leaves the app's notice and button.
+
+**Unused balance is not refunded** on cancellation (Amgad).
+
+**What is kept**, beyond the licence rows:
+- **Per customer:**
+  - the balance;
+  - whether automatic top-up was chosen, and the Stripe customer id it needs;
+  - the billing **country**, only to choose the low-balance email's language.
+- **One ledger row per credit or charge**, with:
+  - the customer id;
+  - a reference: the Stripe checkout session or invoice, or the Twilio call id and part;
+  - the kind;
+  - the minutes;
+  - the amount;
+  - anything written off.
+- **Never kept:** the caller's number. It never reaches this server.
+- **The customer's email:** kept only while the low-balance email is switched on, and only to send it.
+
+**Endpoints:**
+- `…/checkin/buy/?customer=<id>&phone=1`: the team plan, the phone add-on and the first 5-hour block, with the automatic top-up choice, in one Stripe Checkout.
+  - Without `phone=1`: the plan alone.
+  - After paying, Stripe returns to the key page.
+- `…/checkin/buy/?customer=<id>&topup=1`: one more 5-hour block, as a one-off payment. Only for a customer who has the phone add-on.
+- `…/checkin/phone/`: only the phone relay calls this.
+  - What it does: answers the balance and the rates, or takes a call's charges.
+  - Signing: each request is signed with the shared `relay_secret` (`X-Ark-Time`, and `X-Ark-Signature` = HMAC-SHA256 of `<time>.<body>`, within 5 minutes).
+  - No double charges: each part of a call is charged once, keyed by Twilio's call id and the part.
+- `…/checkin/stripe/` also credits a block for:
+  - a paid checkout from the buy page: `checkout.session.completed` with payment status `paid`, or `checkout.session.async_payment_succeeded`;
+  - a paid automatic top-up invoice: `invoice.paid` with metadata `kind=phone_topup`.
+
+  Each is credited once.
+
+**Setup, once, after Amgad's yes on this exact build:**
+1. **In Stripe**, create a one-off price "Phone: 5 hours" at EUR 23.40.
+2. **In Stripe**, create a **restricted key** with:
+   - Checkout Sessions: write;
+   - for automatic top-up, also Invoices: write and Customers: read.
+3. **In `config.php`:**
+   - Put that key in `'stripe_api_key'`. Never post it.
+   - Put the three price ids in `'stripe_buy'` (`plan`, `phone`, `block`).
+   - Make a secret with `php -r 'echo bin2hex(random_bytes(32));'` and put it in `'relay_secret'`.
+4. **In Stripe → Webhooks**, add the event `checkout.session.async_payment_succeeded` to the existing endpoint. `invoice.paid` is already there.
+5. **On the relay server**, enable billing and bill each line:
+
+   ```bash
+   ./deploy.sh billing                          # type the same secret at the hidden prompt
+   ./deploy.sh bill-line <line> <customer-id>   # billed from that customer's balance
+   ```
+
+   A line that is not billed (a demo or trial line) works as before.
+6. **Send customers** `https://blackark.uk/checkin/buy/?customer=<id>&phone=1` instead of a Payment Link.
+
+**The low-balance email (approved by Amgad, 17 Nov 12:53).**
+- **When it is sent:** once, when the last hour starts. Again only after a top-up.
+- **Sender:** `no-reply@blackark.uk`, with Reply-To `General@blackark.uk`.
+- **Where the text is:** `checkin/phone-emails.php`, exactly as approved, which is denied to the web.
+- **Language rule:**
+
+  | Customer's country | The email |
+  |---|---|
+  | Greece | Greek first, then the English copy |
+  | GCC (AE, SA, QA, KW, BH, OM) | English only |
+  | any other country | the English text, and the server log names the country |
+
+- **Adding a language:** a new text is added to `phone-emails.php` in a pull request, and is used only after Amgad's yes on that text.
+- **Switching it on:** it is off (`'phone_low_email' => false`) until Amgad's yes at deploy. The app's notice works without it.

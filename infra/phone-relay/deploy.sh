@@ -3,6 +3,9 @@
 #
 #   ./deploy.sh setup                          asks for the domain and the Twilio account, starts it
 #   ./deploy.sh add-line <name> <+number> [<+fallback>]   adds a line, prints its token once
+#   ./deploy.sh bill-line <name> <customer-id|none>   pays the line from that prepaid balance
+#   ./deploy.sh billing                        asks (hidden) for the prepaid balance's shared secret
+#   ./deploy.sh alerts                         sets the mailbox BlackArk's internal alerts are sent from
 #   ./deploy.sh remove-line <name>
 #   ./deploy.sh lines | status | logs | restart | update
 #
@@ -59,8 +62,56 @@ Check:  curl -fsS https://$RELAY_DOMAIN/health   (answers ok once the certificat
 MSG
 }
 
+# The prepaid phone balance (v0.1.47): where it is kept, and the secret the relay signs with. The
+# secret is the same as relay_secret in blackark.uk's checkin/config.php, typed at a hidden prompt.
+billing() {
+  [[ -f .env ]] || { echo "Run ./deploy.sh setup first." >&2; exit 1; }
+  read -rsp "Prepaid balance secret, the same as relay_secret on blackark.uk (hidden): " secret; echo
+  [[ ${#secret} -ge 32 ]] || { echo "The secret is at least 32 characters." >&2; exit 1; }
+  umask 077
+  grep -v '^BILLING_' .env > .env.tmp || true
+  {
+    echo "BILLING_URL=https://blackark.uk/checkin/phone/"
+    echo "BILLING_SECRET=$secret"
+  } >> .env.tmp
+  mv .env.tmp .env
+  chmod 600 .env
+  compose up -d
+  echo "Billing is on. Bill a line with:  ./deploy.sh bill-line <name> <customer-id>"
+  echo "In the Twilio console nothing changes."
+}
+
+# BlackArk's internal alert when blackark.uk stops answering (v0.1.47): sent from one of BlackArk's
+# own one.com mailboxes over SMTP (send.one.com, port 465, TLS) to BlackArk's own addresses only.
+alerts() {
+  [[ -f .env ]] || { echo "Run ./deploy.sh setup first." >&2; exit 1; }
+  read -rp "Mailbox the alert is sent from (e.g. alerts@blackark.uk): " user
+  [[ "$user" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || { echo "That is not an email address." >&2; exit 1; }
+  read -rsp "That mailbox's password (hidden): " password; echo
+  [[ -n "$password" ]] || { echo "The password is empty." >&2; exit 1; }
+  read -rp "Send alerts to (comma-separated BlackArk addresses): " to
+  [[ -n "$to" ]] || { echo "Give at least one address." >&2; exit 1; }
+  umask 077
+  grep -v '^ALERT_' .env > .env.tmp || true
+  {
+    echo "ALERT_SMTP_HOST=send.one.com"
+    echo "ALERT_SMTP_PORT=465"
+    echo "ALERT_SMTP_USER=$user"
+    echo "ALERT_SMTP_PASSWORD=$password"
+    echo "ALERT_FROM=$user"
+    echo "ALERT_TO=$to"
+  } >> .env.tmp
+  mv .env.tmp .env
+  chmod 600 .env
+  compose up -d
+  echo "Alerts go to: $to"
+}
+
 case "${1:-}" in
   setup) setup ;;
+  alerts) alerts ;;
+  billing) billing ;;
+  bill-line) shift; compose exec relay bun lines.ts bill "$@" ;;
   add-line) shift; compose exec relay bun lines.ts add "$@" ;;
   remove-line) shift; compose exec relay bun lines.ts remove "$@" ;;
   lines) compose exec relay bun lines.ts list ;;
@@ -68,5 +119,5 @@ case "${1:-}" in
   logs) compose logs --tail=200 -f relay ;;
   restart) compose restart ;;
   update) compose up -d --build ;;
-  *) sed -n '2,10p' "$0"; exit 1 ;;
+  *) sed -n '2,13p' "$0"; exit 1 ;;
 esac
