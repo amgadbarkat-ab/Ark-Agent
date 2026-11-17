@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.47
+
 ### Prepaid phone balance (#109, MD 17 Nov)
 
 - **Buying:**
