@@ -148,3 +148,16 @@ describe("the key this release trusts (#109)", () => {
     }
   });
 });
+
+describe("the licence keys this release trusts (#109, v0.1.46)", () => {
+  test("are BlackArk's posted licence key, then the trial key, each an Ed25519 public key", async () => {
+    const { LICENSE_PUBLIC_KEYS } = await import("./license-public-key");
+    expect(LICENSE_PUBLIC_KEYS).toEqual([
+      "QRXNjz0m4Ovz0o//7g9+ty4ss6gplI4b3Hq7/vFHoEY=",
+      "+sUZUOflN+rBn01lZ1gTFr/Q2hL/OqhJqJ1XizQ9+9o=",
+    ]);
+    for (const key of LICENSE_PUBLIC_KEYS) {
+      expect(publicKeyToBase64(publicKeyFromBase64(key))).toBe(key);
+    }
+  });
+});
