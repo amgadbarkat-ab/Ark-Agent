@@ -45,7 +45,7 @@ Official role slugs for `basedOn` (the tool refuses any other): `sales`, `front-
 `accounting`, `support-agent` (Customer Support), `inventory-logistics`, `executive-assistant`
 (Personal Secretary), `operations-coordinator` (Chief of Operations), `sales-engineer`,
 `finance-assistant` (Finance), `programmer`, `chief-of-staff`, `designer`, `coding-engineer`,
-`code-reviewer`, `research-analyst`, `writing-editor`. An employee with no `basedOn` is a custom one:
+`code-reviewer`, `research-analyst`, `writing-editor`, `legal-helper`. An employee with no `basedOn` is a custom one:
 its standing instruction is all it has.
 
 ## Afterwards: unlock codes

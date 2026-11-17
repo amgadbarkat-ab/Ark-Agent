@@ -4,7 +4,7 @@ What Ark's own listings are, how an install works, and what was learned from oth
 `server/src/marketplace/official-roles.ts` (the words), `official.ts` (how they become an instruction) and
 `store.ts` (the install).
 
-## The list (17)
+## The list (18)
 
 | Listing | Was | Category |
 | --- | --- | --- |
@@ -17,6 +17,15 @@ What Ark's own listings are, how an install works, and what was learned from oth
 | Personal Secretary | the earlier Executive Assistant | Productivity |
 | Programmer, Coding Engineer, Code Reviewer | Code Reviewer is earlier | Engineering |
 | Research Analyst, Writing Editor | earlier | Research, Writing |
+| Legal Helper | new in #127 | Operations |
+
+Issue #127 added, adapted from Anthropic's knowledge-work-plugins (Apache-2.0; the licence and what was changed are in
+`server/src/marketplace/LICENSE-knowledge-work-plugins.txt`): five Sales skills for the day and the deal (call prep, call
+summary, deal review, stakeholder map, forecast narrative), the Legal Helper (a contract playbook that starts blank or from an
+EU, Greek or UK starter, NDA triage, contract review; it is not a lawyer and marks every output for one), and three Accounting
+skills for the close (close sequence, unmatched items by age, month-on-month changes). All of them draft and propose; none
+writes to a CRM or a ledger. Raising a role's version changes only what a new install gets: a digital employee already added
+keeps the skills it was given.
 
 The owner's list of 15 had 14 roles and "a role you write (custom)". The custom one is a row at the end of the list that
 opens the new digital employee form. Four of the 14 were the same job as one of the earlier seven, so those were renamed

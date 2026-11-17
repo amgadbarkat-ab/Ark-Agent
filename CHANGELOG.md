@@ -8,6 +8,19 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A Legal Helper, and new Sales and Accounting skills (#127)
+
+- **Legal Helper, a new role in the marketplace (18 roles now).** It is optional: nothing is added to anyone's team until a person adds it.
+  - **Contract playbook:** the business writes down its own positions for NDAs and contracts once. It starts blank or from an EU, Greek or UK starter; there are no US defaults. Each starter position says "to confirm with your lawyer" until the lawyer has confirmed it.
+  - **NDA triage:** an incoming NDA is marked green, yellow or red against the playbook, with the points to ask the lawyer.
+  - **Contract review:** a plain summary, then each clause against the playbook, with suggested wording for the lawyer to check.
+  - **Not a lawyer:** it gives no legal advice, says so, and starts and ends every output with "Draft for review by a qualified lawyer. Not legal advice." It never signs, sends or agrees anything.
+- **Sales gets five skills for the day and the deal:** Call prep, Call summary, Deal review, Stakeholder map and Forecast narrative. They draft and propose. CRM changes come back as a list for you to apply; the employee never writes to the CRM itself.
+- **Accounting gets three skills for the month-end close:** Close sequence (the close in order, with who waits for what), Unmatched items by age, and Month-on-month changes. They work from the statements and exports you upload, and list tax questions for your accountant instead of answering them.
+- **Who gets the new skills:** a Sales or Accounting employee added from this release on. One added earlier keeps the skills it has; nothing on an existing install changes by itself, trial installs included. A trial profile imported later whose employee is `basedOn` `sales` or `accounting` does bring the new skills.
+- **In Greek:** the new role's name, summary, description and role, and every new skill's name and summary.
+- **Source:** adapted from Anthropic's knowledge-work-plugins, Apache-2.0. The licence and what was changed are in `server/src/marketplace/LICENSE-knowledge-work-plugins.txt`.
+
 ### Test cases for trial employees, and scoring an instruction change before it is signed (#116)
 
 - **Test cases in the trial profile.** Each employee can have 5 to 8 made-up questions, each with what a good answer must do and must never do. Optional plain-code rules cover prices, AMKA numbers, calling itself an AI or a bot, and tools. `sign-profile` refuses a malformed case with a sentence naming it. The profile also gains `notes`.
