@@ -303,6 +303,65 @@ describe("a run through the SDK's own runner", () => {
     ]);
   });
 
+  test("an idle that arrives while the replay is being closed still comes after replay_complete", async () => {
+    const threadId = "sdk-replay-race";
+    await intelligence.createThread({
+      threadId,
+      userId: "ann",
+      agentId: "general",
+    });
+    await intelligence.ɵacquireThreadLock({
+      threadId,
+      runId: "run-race",
+      userId: "ann",
+      agentId: "general",
+    });
+    await withTimeout(
+      lastValueFrom(
+        runnerFor().run({
+          threadId,
+          agent: new ScriptedAgent(),
+          input: inputFor(threadId, "run-race"),
+        }),
+        { defaultValue: undefined },
+      ),
+    );
+    const connection = await intelligence.ɵconnectThread({
+      threadId,
+      userId: "ann",
+      agentId: "general",
+    });
+
+    // The last read before replay_complete is slow, and the run's idle arrives during it: exactly
+    // the moment CI once caught, now made to happen every time.
+    const store = running.hub.store;
+    const latestEventId = store.latestEventId.bind(store);
+    store.latestEventId = async (id: string) => {
+      running.hub.bus.publish(`thread:${threadId}`, "idle", {
+        latest_event_id: null,
+      });
+      await Bun.sleep(300);
+      return latestEventId(id);
+    };
+    try {
+      const view = watch(
+        connection?.joinToken as string,
+        `thread:${threadId}`,
+        { stream_mode: "connect", last_seen_event_id: null },
+      );
+      await withTimeout(view.joined);
+      await withTimeout(view.done);
+      await Bun.sleep(100);
+      view.close();
+      expect(view.controls.map((c) => c.event)).toEqual([
+        "replay_complete",
+        "stream_idle",
+      ]);
+    } finally {
+      store.latestEventId = latestEventId;
+    }
+  });
+
   test("a browser joined mid-run sees the rest live, with nothing missed or doubled", async () => {
     const threadId = "sdk-live-1";
     await intelligence.createThread({

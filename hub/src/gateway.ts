@@ -250,6 +250,13 @@ export function createGateway(hub: Hub) {
     let joined = false;
     let idleHeld = false;
     /**
+     * Set once replay_complete is out. Until then an idle is held, never sent: a browser reads
+     * replay_complete as "the history is all here" and stream_idle as "and nothing is running", in
+     * that order. The read just before replay_complete is a wait in which a live idle could
+     * otherwise slip ahead of it (CI caught this once, 17 Nov).
+     */
+    let ready = false;
+    /**
      * Brings this socket up to date from the log, in order, then lets live events through again.
      *
      * The same thing a join does, and the only way events are ever sent out of the log's order is
@@ -288,7 +295,7 @@ export function createGateway(hub: Hub) {
         live = true;
         syncing = false;
       }
-      if (idleHeld) {
+      if (idleHeld && ready) {
         idleHeld = false;
         ws.send(
           pushFrame(topic, "stream_idle", {
@@ -318,7 +325,7 @@ export function createGateway(hub: Hub) {
           send(stored);
         }
       } else if (event === "idle") {
-        if (live) ws.send(pushFrame(topic, "stream_idle", body));
+        if (live && ready) ws.send(pushFrame(topic, "stream_idle", body));
         else if (joined) idleHeld = true;
       }
     });
@@ -359,8 +366,22 @@ export function createGateway(hub: Hub) {
     const latest =
       (await store.latestEventId(threadId)) ?? afterEventId ?? null;
     ws.send(pushFrame(topic, "replay_complete", { latest_event_id: latest }));
+    let idleSent = false;
     if (mode === "connect" && !(await store.activeLock(threadId))) {
       ws.send(pushFrame(topic, "stream_idle", { latest_event_id: latest }));
+      idleSent = true;
+    }
+    ready = true;
+    // An idle that came while the join was closing: say it now, after replay_complete, once.
+    if (idleHeld) {
+      idleHeld = false;
+      if (!idleSent) {
+        ws.send(
+          pushFrame(topic, "stream_idle", {
+            latest_event_id: lastEventId ?? latest,
+          }),
+        );
+      }
     }
   }
 
