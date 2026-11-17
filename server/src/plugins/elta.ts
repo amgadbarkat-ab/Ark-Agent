@@ -51,7 +51,7 @@ export async function listTools(): Promise<McpTool[]> {
   return TOOLS.map((tool) => ({ ...tool }));
 }
 
-function escape(value: string): string {
+function xmlEscape(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -68,7 +68,7 @@ export function readRequest(fields: {
   byReference: boolean;
 }): string {
   const field = (name: string, value: string) =>
-    `<${name}>${escape(value)}</${name}>`;
+    `<${name}>${xmlEscape(value)}</${name}>`;
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="/PELTT01">',
