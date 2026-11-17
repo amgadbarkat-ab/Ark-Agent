@@ -8,17 +8,52 @@
  *
  * Bringing back a hidden employee is blocked too, unless it is one of the roster: under the block the
  * customer has exactly the employees the profile names.
+ *
+ * THE PROFILE'S EMPLOYEES KEEP THE PROFILE'S INSTRUCTION (#116). Every change to an employee ends in
+ * `update`: the edit screen, and an approved request from a colleague to rewrite its instructions.
+ * For an employee the signed profile set up, an update that would change its role description or
+ * standing instruction is refused while the profile owns them; its name, title, picture and the rest
+ * still change. An employee the customer made is never touched by this.
  */
 import type { AccountStore } from "../accounts/store";
 import type { AgentProfileStore } from "../agents/profile-store";
-import { TrialCreateBlockedError, type TrialService } from "./service";
+import type { AgentProfile, CreateAgentInput } from "../agents/profile-types";
+import {
+  TrialCreateBlockedError,
+  TrialInstructionsLockedError,
+  type TrialService,
+} from "./service";
+
+/** Whether this edit would change what the employee runs on: its role or standing instruction. */
+export function changesInstructions(
+  before: Pick<AgentProfile, "roleDescription" | "persona">,
+  input: Pick<CreateAgentInput, "roleDescription" | "persona">,
+): boolean {
+  if (input.roleDescription.trim() !== before.roleDescription.trim()) {
+    return true;
+  }
+  if (input.persona === undefined) return false;
+  return (input.persona?.trim() || null) !== (before.persona?.trim() || null);
+}
 
 export function guardProfiles(
   store: AgentProfileStore,
-  trial: Pick<TrialService, "refuseCreate" | "createBlocked" | "onRoster">,
+  trial: Pick<
+    TrialService,
+    "refuseCreate" | "createBlocked" | "onRoster" | "instructionsLocked"
+  >,
 ): AgentProfileStore {
   return {
     ...store,
+    async update(actor, id, input) {
+      if (await trial.instructionsLocked(id)) {
+        const before = await store.get(actor, id);
+        if (before && changesInstructions(before, input)) {
+          throw new TrialInstructionsLockedError();
+        }
+      }
+      return store.update(actor, id, input);
+    },
     async create(actor, input) {
       await trial.refuseCreate();
       return store.create(actor, input);

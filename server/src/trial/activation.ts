@@ -462,6 +462,22 @@ export function createActivationService(
 
     onRoster: (agentId: string) => trial.onRoster(agentId),
 
+    /**
+     * Whether a profile employee's role and standing instruction are read-only here (#116). A paid
+     * licence lifts it, as it lifts the block on new employees; otherwise the trial decides.
+     */
+    async instructionsLocked(agentId: string): Promise<boolean> {
+      const view = await current();
+      if (view.source === "license" && view.state === "paid") return false;
+      return trial.instructionsLocked(agentId);
+    },
+
+    async lockedEmployees(): Promise<{ key: string; agentId: string }[]> {
+      const view = await current();
+      if (view.source === "license" && view.state === "paid") return [];
+      return trial.lockedEmployees();
+    },
+
     /** An add-on is on when the active code or key carries it, or the trial setup file does. */
     async addonEnabled(name: TrialAddon): Promise<boolean> {
       const view = await current();

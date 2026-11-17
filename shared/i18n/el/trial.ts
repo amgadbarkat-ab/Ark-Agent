@@ -174,4 +174,59 @@ export const EL_TRIAL: Record<string, string> = {
     "Δεν ήταν δυνατή η σύνδεση του γραμματοκιβωτίου",
   "The mailbox could not be disconnected":
     "Δεν ήταν δυνατή η αποσύνδεση του γραμματοκιβωτίου",
+
+  // Read-only instructions for the trial's own employees, and "Propose a change" (#116).
+  "This digital employee's role and standing instruction come from BlackArk's signed trial profile, so they cannot be changed on this computer. Use Propose a change to send BlackArk the new text.":
+    "Ο ρόλος και οι μόνιμες οδηγίες αυτού του ψηφιακού υπαλλήλου προέρχονται από το υπογεγραμμένο προφίλ δοκιμής της BlackArk, γι' αυτό δεν αλλάζουν σε αυτόν τον υπολογιστή. Πατήστε «Πρόταση αλλαγής» για να στείλετε στην BlackArk το νέο κείμενο.",
+  "Set by BlackArk in the signed trial profile, so it cannot be edited here. It changes only when BlackArk sends a new profile.":
+    "Ορίζονται από την BlackArk στο υπογεγραμμένο προφίλ δοκιμής, γι' αυτό δεν αλλάζουν εδώ. Αλλάζουν μόνο όταν η BlackArk στείλει νέο προφίλ.",
+  "Propose a change": "Πρόταση αλλαγής",
+  "For {name}. Write the instruction you want instead and say why. This makes a file to send to BlackArk; nothing on this computer changes until BlackArk sends a new signed trial profile.":
+    "Για τον ψηφιακό υπάλληλο {name}. Γράψτε τις οδηγίες που θέλετε στη θέση τους και εξηγήστε γιατί. Δημιουργείται ένα αρχείο για να το στείλετε στην BlackArk· τίποτα δεν αλλάζει σε αυτόν τον υπολογιστή μέχρι η BlackArk να στείλει νέο υπογεγραμμένο προφίλ δοκιμής.",
+  "Current instruction": "Τρέχουσες οδηγίες",
+  "Proposed instruction": "Προτεινόμενες οδηγίες",
+  Why: "Γιατί",
+  "BlackArk reads this when it tests the change. The file holds only this employee's name, its instruction, your text and this reason: no conversations, mail or files.":
+    "Η BlackArk το διαβάζει όταν δοκιμάζει την αλλαγή. Το αρχείο περιέχει μόνο το όνομα αυτού του υπαλλήλου, τις οδηγίες του, το κείμενό σας και αυτή την αιτιολογία: καμία συνομιλία, κανένα email, κανένα αρχείο.",
+  "Download the file": "Λήψη του αρχείου",
+  "Could not make the file.": "Δεν ήταν δυνατή η δημιουργία του αρχείου.",
+  "Could not copy. Download the file instead.":
+    "Δεν ήταν δυνατή η αντιγραφή. Κατεβάστε το αρχείο.",
+  "The file is ready": "Το αρχείο είναι έτοιμο",
+  "Send it to BlackArk. Nothing on this computer has changed: the new instruction arrives with a new signed trial profile, once BlackArk has tested it.":
+    "Στείλτε το στην BlackArk. Τίποτα δεν άλλαξε σε αυτόν τον υπολογιστή: οι νέες οδηγίες έρχονται με νέο υπογεγραμμένο προφίλ δοκιμής, αφού τις δοκιμάσει η BlackArk.",
+  // What the proposal file's reader says (shared/instruction-proposal.ts).
+  "This is not a proposed change.": "Αυτό δεν είναι πρόταση αλλαγής.",
+  "This file is not a proposed change.":
+    "Αυτό το αρχείο δεν είναι πρόταση αλλαγής.",
+  "This proposed change is for a different version of ArkAgent.":
+    "Αυτή η πρόταση αλλαγής είναι για άλλη έκδοση του ArkAgent.",
+  "The proposed change does not say which employee it is for.":
+    "Η πρόταση αλλαγής δεν λέει για ποιον υπάλληλο είναι.",
+  "The proposed change's employee key is not valid.":
+    "Το κλειδί υπαλλήλου της πρότασης αλλαγής δεν είναι έγκυρο.",
+  "The proposed change does not name the employee.":
+    "Η πρόταση αλλαγής δεν αναφέρει το όνομα του υπαλλήλου.",
+  "The employee's name is too long.":
+    "Το όνομα του υπαλλήλου είναι πολύ μεγάλο.",
+  "The proposed change has no current instruction.":
+    "Η πρόταση αλλαγής δεν έχει τις τρέχουσες οδηγίες.",
+  "The current instruction is too long.":
+    "Οι τρέχουσες οδηγίες είναι πολύ μεγάλες.",
+  "Write the new instruction.": "Γράψτε τις νέες οδηγίες.",
+  "The new instruction can be 20000 characters at most.":
+    "Οι νέες οδηγίες μπορούν να έχουν έως 20000 χαρακτήρες.",
+  "The new instruction is the same as the current one.":
+    "Οι νέες οδηγίες είναι ίδιες με τις τρέχουσες.",
+  "Say why the instruction should change.":
+    "Εξηγήστε γιατί πρέπει να αλλάξουν οι οδηγίες.",
+  "The reason can be 2000 characters at most.":
+    "Η αιτιολογία μπορεί να έχει έως 2000 χαρακτήρες.",
+  "The proposed change has no date.": "Η πρόταση αλλαγής δεν έχει ημερομηνία.",
+  "The proposed change's date is not valid.":
+    "Η ημερομηνία της πρότασης αλλαγής δεν είναι έγκυρη.",
+  "The proposed change does not say which version of ArkAgent made it.":
+    "Η πρόταση αλλαγής δεν λέει ποια έκδοση του ArkAgent τη δημιούργησε.",
+  "The proposed change's version is not valid.":
+    "Η έκδοση της πρότασης αλλαγής δεν είναι έγκυρη.",
 };

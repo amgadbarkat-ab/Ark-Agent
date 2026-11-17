@@ -214,7 +214,7 @@ import {
 } from "./tenant-package";
 import { createActivationService } from "./trial/activation";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
-import { seedTrialRoster } from "./trial/seed";
+import { applyProfileInstructions, seedTrialRoster } from "./trial/seed";
 import { createTrialService, trialKeysFrom } from "./trial/service";
 import { appVersion } from "./trial/version";
 import { createUserInstructionsStore } from "./user-instructions";
@@ -1925,6 +1925,15 @@ const app = createApp(
             }[key],
           ),
       }),
+    // A newer signed profile's role and instruction onto the employees it set up (#116).
+    applyInstructionsFor: (actor) =>
+      applyProfileInstructions(actor, {
+        trial,
+        profiles: agentProfileStore,
+      }),
+    // Read-only instructions for the profile's employees; a paid licence lifts it (#116).
+    lockedEmployees: () => activation.lockedEmployees(),
+    appVersion: appVersion(),
     activation,
     keyConfigured:
       trialKeysFrom(
