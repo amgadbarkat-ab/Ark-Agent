@@ -168,3 +168,96 @@ home folder. Settings → Connect your Data → Business data files shows the ex
   `Pylon Items.csv` becomes `pylon-items`.
 - A newer export with the same file name replaces the older one.
 - A file whose name is only Greek letters is skipped. Name exports in Latin letters.
+
+## Test cases and scoring an instruction change (#116)
+
+Runs on Amgad's computer only, with one of BlackArk's free keys: **Groq** by default, **Cerebras** as
+the alternative. Never the local model, never an Anthropic key, never DeepSeek. Only the made-up test
+questions and our own instruction text are sent.
+
+### The test cases, in the profile
+
+Each roster employee may have `tests`: **5 to 8 cases**, or none. See `eval-cases-example.json` for
+three general employees (front desk, results admin, B2B orders). Each case:
+
+| Field | What it is |
+|---|---|
+| `id` | lower-case letters, numbers and hyphens; once per employee |
+| `ask` | a made-up customer-style question, Greek first. Never copied from real mail or calls |
+| `must` | 1 to 10 things a good answer does, e.g. "asks for the order number" |
+| `mustNot` | up to 10 things it never does, e.g. "gives medical advice" |
+| `rules` | optional plain-code checks, below |
+| `toolAnswers` | optional: what a tool "answers" in this test, by tool name |
+
+**Rules**, checked by code; one hit fails the case:
+- `prices`: the only prices the answer may give, as the price list writes them (`["6,40 €"]`). Any other
+  amount in euros fails. `[]` means no price at all.
+- `noAmka`: no AMKA-shaped (11-digit) number. Always on when the profile has `mailBlockAmka`.
+- `noAiWords`: it does not call itself an AI, a bot, a chatbot or a language model, in Greek or English.
+- `toolsShould` / `toolsNever`: tools it should call, or must never call, for this question.
+
+The rules also read what the employee wrote through a tool, such as a draft's text. **Tools never run in
+a test.** Each call is recorded and answered with the case's `toolAnswers` text, or with a fixed "this
+is a test" line. Tool notes for an employee live in its standing instruction; the profile has no
+separate field for them.
+
+`sign-profile` checks the cases like the rest of the profile and refuses a malformed one with a sentence
+that names the employee and the case.
+
+### Scoring a change
+
+A proposed change is a small JSON file, as in `eval-change-example.json`:
+`{"format": "arkchange/1", "customer": "<customer id>", "employee": "<key>", "instructions": "<the whole new text>"}`,
+optionally with `summary` and `source` (`person` or `tune`).
+
+```
+export ARK_EVAL_API_KEY=…            # or leave it unset and type it at the hidden prompt
+bun scripts/ark-eval.ts run --profile example-customer.json
+bun scripts/ark-eval.ts run --profile example-customer.json --proposed change.json
+bun scripts/ark-eval.ts run --profile example-customer.json --proposed change.json --reason "Why it goes on anyway"
+```
+
+- **Profile:** the draft JSON or the signed `.arktrial` file.
+- **Key:** only from `ARK_EVAL_API_KEY` or the hidden prompt. It is refused on the command line, never
+  printed and never written to a file.
+- **Options:** `--provider groq|cerebras`, `--model <id>` (or `ARK_EVAL_MODEL`), `--judge-model <id>`,
+  `--employee <key>`, `--report <file.md>`, `--out <draft.json>`. Model names change on the free tiers:
+  check the provider's list if the default is refused.
+
+**What it does:**
+1. It runs every case for the employee, once with the current instruction and once with the proposed
+   one.
+2. A judge call on the same key decides, item by item, whether each answer does what it must and avoids
+   what it must not. Then the rules are checked.
+3. A case passes only if all of that holds. The score is the share of cases passed.
+
+**The report** is Markdown, printed and written next to the profile. It shows the score before and
+after, case by case, the text diff, and every answer.
+
+**Blocked:** a change that scores lower, or adds a rule failure, is **blocked** (exit code 2), and no
+draft is written. `--reason "<text>"` lets it through. The reason is printed in the report and recorded
+in the new draft's `notes`.
+
+**Not blocked:** a new **unsigned** draft profile is written next to the profile, with the new
+instruction and a line in `notes`. It has no `issuedAt`, so signing stamps it now and the signed file
+replaces the older one on import. A person reads the report, then BlackArk signs the draft with
+`sign-profile` as today.
+
+**One honest limit:** the scores come from the free-key model, not from the model on the customer's PC.
+They say whether an instruction got better or worse, not exactly how the PC will answer. DT
+spot-checks two or three cases on a trial PC after each signed change.
+
+### Tuning (needs Amgad's yes for the proposer)
+
+```
+bun scripts/ark-eval.ts tune --profile example-customer.json --employee b2b-orders [--rounds 3] [--out-dir <folder>]
+```
+
+- **Proposing:** a proposer model on the same free key (`--proposer-model <id>`, default the same
+  model) proposes a new standing instruction. Each proposal is scored like `run`.
+- **What you see:** only a proposal that scores higher, with no new rule failure, is shown: the scores,
+  the diff and the cases.
+- **Your approval:** a proposal is written as a proposed-change file only after you answer `y`. It asks
+  first whether Amgad has said yes, and runs only in a terminal.
+- **What it never does:** edit or sign a profile. Score each written file with `run --proposed`, then
+  sign as above.

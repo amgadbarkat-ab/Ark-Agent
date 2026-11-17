@@ -8,6 +8,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Test cases for trial employees, and scoring an instruction change before it is signed (#116)
+
+- **Test cases in the trial profile.** Each employee can have 5 to 8 made-up questions, each with what a good answer must do and must never do. Optional plain-code rules cover prices, AMKA numbers, calling itself an AI or a bot, and tools. `sign-profile` refuses a malformed case with a sentence naming it. The profile also gains `notes`.
+- **`bun scripts/ark-eval.ts run`**, on BlackArk's computer with the free Groq key (or Cerebras):
+  - **Scoring:** it scores the current and a proposed standing instruction, case by case, with a judge model and the rule checks.
+  - **Blocking:** a change that scores lower or adds a rule failure is blocked unless a written reason is given. The reason goes into the report and into the new unsigned draft's notes.
+  - **Signing:** stays the manual `sign-profile` step.
+- **`bun scripts/ark-eval.ts tune`** (needs Amgad's yes for the proposer): a proposer model suggests better instructions. Only one that scores higher is shown, and a person approves each one before it is written as a proposed-change file.
+- **What is sent:** the key comes only from `ARK_EVAL_API_KEY` or a hidden prompt. Only the made-up questions and our own instruction text are sent. Nothing changes on a customer's computer. See `docs/trials/README.md`.
+
 ## 0.1.46
 
 ### Paid licence keys from the payment pages are accepted (#109, MD 17 Nov)
