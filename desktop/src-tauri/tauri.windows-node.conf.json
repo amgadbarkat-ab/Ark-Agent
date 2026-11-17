@@ -3,7 +3,11 @@
   "bundle": {
     "resources": {
       "node/node.exe": "node/node.exe",
-      "node/LICENSE": "node/LICENSE"
+      "node/LICENSE": "node/LICENSE",
+      "ffmpeg/ffmpeg.exe": "ffmpeg/ffmpeg.exe",
+      "ffmpeg/ffprobe.exe": "ffmpeg/ffprobe.exe",
+      "ffmpeg/LICENSE.txt": "ffmpeg/LICENSE.txt",
+      "ffmpeg/SOURCE.txt": "ffmpeg/SOURCE.txt"
     }
   }
 }

@@ -1,0 +1,223 @@
+<?php
+/**
+ * https://blackark.uk/checkin/stripe/ — Stripe's webhook for paid licence keys (#109, v0.1.44;
+ * Amgad 16 Nov: "ok, go").
+ *
+ * Events, each checked with the Stripe-Signature header (HMAC-SHA256 with the webhook secret in
+ * config.php, timestamp within 5 minutes) and taken once:
+ * - checkout.session.completed: which subscription belongs to which customer id (the Payment Link's
+ *   client_reference_id) and which checkout session, so the key page can find it.
+ * - invoice.paid: the plan, seats and add-ons (from config's price table) and the paid period's end;
+ *   a new key is signed, valid to that end plus the grace days.
+ * - customer.subscription.deleted: no more keys; the last one runs out on its own.
+ * - Prepaid phone balance (v0.1.47): a checkout the buy page opened with the phone add-on, or a
+ *   top-up, credits a 5-hour block once Stripe says it is paid (checkout.session.completed with
+ *   payment_status "paid", or checkout.session.async_payment_succeeded). The checkout session id is
+ *   the reference, so a repeated event credits nothing. An automatic top-up is a Stripe invoice
+ *   (metadata kind "phone_topup"), credited on invoice.paid under the invoice id. A checkout where
+ *   the customer chose "automatic top-up: yes" remembers that choice and the Stripe customer.
+ *
+ * Kept: the customer id, the Stripe subscription and session ids, the plan, seats, add-ons, the
+ * period end and the latest key. No card data, no name, no email, no address.
+ */
+
+declare(strict_types=1);
+define('ARK_CHECKIN', true);
+require dirname(__DIR__) . '/lib.php';
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+function reply(int $status, string $message = 'ok'): void
+{
+    http_response_code($status);
+    echo json_encode(['result' => $message]);
+    exit;
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    reply(405, 'POST only.');
+}
+$secret = (string) ark_config('stripe_webhook_secret', '');
+if ($secret === '') {
+    reply(503, 'Not configured.');
+}
+$body = (string) file_get_contents('php://input', false, null, 0, 1048577);
+if (strlen($body) > 1048576) {
+    reply(413, 'Too large.');
+}
+
+// Stripe-Signature: t=<unix>,v1=<hex>[,v1=<hex>…]
+$header = (string) ($_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '');
+$time = 0;
+$signatures = [];
+foreach (explode(',', $header) as $part) {
+    [$name, $value] = array_pad(explode('=', trim($part), 2), 2, '');
+    if ($name === 't') {
+        $time = (int) $value;
+    } elseif ($name === 'v1') {
+        $signatures[] = $value;
+    }
+}
+$expected = hash_hmac('sha256', $time . '.' . $body, $secret);
+$valid = false;
+foreach ($signatures as $signature) {
+    if (hash_equals($expected, $signature)) {
+        $valid = true;
+    }
+}
+$now = time();
+if (!$valid || abs($now - $time) > 300) {
+    reply(400, 'Bad signature.');
+}
+
+$event = json_decode($body, true);
+if (!is_array($event) || !is_string($event['id'] ?? null) || !is_string($event['type'] ?? null)) {
+    reply(400, 'Not an event.');
+}
+$db = ark_db();
+$seen = $db->prepare('INSERT OR IGNORE INTO stripe_events (event_id, received_at) VALUES (?, ?)');
+$seen->execute([$event['id'], ark_now()]);
+if ($seen->rowCount() === 0) {
+    reply(200, 'Already taken.');
+}
+$object = is_array($event['data']['object'] ?? null) ? $event['data']['object'] : [];
+
+function customer_id_from($reference, $customer): string
+{
+    $reference = is_string($reference) ? strtolower(trim($reference)) : '';
+    if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $reference) === 1) {
+        return $reference;
+    }
+    return 'stripe-' . strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $customer));
+}
+
+function upsert(PDO $db, string $subscription, array $fields): void
+{
+    $db->prepare('INSERT OR IGNORE INTO licenses (subscription_id, updated_at) VALUES (?, ?)')
+        ->execute([$subscription, ark_now()]);
+    foreach ($fields as $column => $value) {
+        $db->prepare("UPDATE licenses SET $column = ?, updated_at = ? WHERE subscription_id = ?")
+            ->execute([$value, ark_now(), $subscription]);
+    }
+}
+
+/** Signs a key once the row has both its customer (from checkout) and its plan (from the invoice). */
+function issue(PDO $db, string $subscription): void
+{
+    $read = $db->prepare('SELECT * FROM licenses WHERE subscription_id = ?');
+    $read->execute([$subscription]);
+    $row = $read->fetch();
+    if (!$row || $row['status'] !== 'active' || !$row['customer_id'] || !$row['plan'] || !$row['period_end']) {
+        return;
+    }
+    $addons = $row['addons'] ? explode(',', (string) $row['addons']) : [];
+    $signed = ark_sign_license((string) $row['customer_id'], (string) $row['plan'], (int) $row['seats'], $addons, (int) $row['period_end']);
+    if ($signed) {
+        upsert($db, $subscription, ['license_key' => $signed['key'], 'valid_until' => $signed['valid_until']]);
+    }
+}
+
+$subscription = (string) ($object['subscription'] ?? ($event['type'] === 'customer.subscription.deleted' ? ($object['id'] ?? '') : ''));
+if (is_array($object['subscription'] ?? null)) {
+    $subscription = (string) ($object['subscription']['id'] ?? '');
+}
+if ($subscription === '' && is_array($object['parent']['subscription_details'] ?? null)) {
+    $subscription = (string) ($object['parent']['subscription_details']['subscription'] ?? '');
+}
+
+/** Credits the prepaid phone block a paid checkout from the buy page carries. */
+function credit_phone(PDO $db, array $session): void
+{
+    $blocks = (int) ($session['metadata']['phone_blocks'] ?? 0);
+    $customer = strtolower(trim((string) ($session['client_reference_id'] ?? '')));
+    if ($blocks < 1 || ($session['payment_status'] ?? '') !== 'paid' || !is_string($session['id'] ?? null)
+        || preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1) {
+        return;
+    }
+    ark_phone_credit_blocks($db, $customer, $session['id'], $blocks);
+    foreach ((array) ($session['custom_fields'] ?? []) as $field) {
+        if (($field['key'] ?? '') === 'autotopup' && ($field['dropdown']['value'] ?? '') === 'yes'
+            && is_string($session['customer'] ?? null) && preg_match('/^cus_[A-Za-z0-9]+$/', $session['customer']) === 1) {
+            $db->prepare('UPDATE phone_accounts SET auto_topup = 1, stripe_customer = ? WHERE customer_id = ?')
+                ->execute([$session['customer'], $customer]);
+        }
+    }
+    $country = strtoupper((string) ($session['customer_details']['address']['country'] ?? ''));
+    if (preg_match('/^[A-Z]{2}$/', $country) === 1) {
+        // Only to choose the low-balance email's language (phone-emails.php).
+        $db->prepare('UPDATE phone_accounts SET country = ? WHERE customer_id = ?')->execute([$country, $customer]);
+    }
+    $email = (string) ($session['customer_details']['email'] ?? '');
+    if (ark_config('phone_low_email', false) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // Kept only while the low-balance email is on, and only to send that notice.
+        $db->prepare('UPDATE phone_accounts SET email = ? WHERE customer_id = ?')->execute([$email, $customer]);
+    }
+}
+
+switch ($event['type']) {
+    case 'checkout.session.async_payment_succeeded':
+        credit_phone($db, $object);
+        reply(200);
+    case 'checkout.session.completed':
+        credit_phone($db, $object);
+        if ($subscription === '') {
+            reply(200, 'Not a subscription.');
+        }
+        upsert($db, $subscription, [
+            'customer_id' => customer_id_from($object['client_reference_id'] ?? null, $object['customer'] ?? ''),
+            'session_id' => (string) ($object['id'] ?? ''),
+        ]);
+        issue($db, $subscription);
+        reply(200);
+    case 'invoice.paid':
+        if (($object['metadata']['kind'] ?? '') === 'phone_topup') {
+            // An automatic top-up this server asked Stripe for: one block, credited once.
+            $customer = strtolower((string) ($object['metadata']['customer_id'] ?? ''));
+            if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) === 1 && is_string($object['id'] ?? null)) {
+                ark_phone_credit_blocks($db, $customer, $object['id'], (int) ($object['metadata']['phone_blocks'] ?? 1));
+            }
+            reply(200);
+        }
+        if ($subscription === '') {
+            reply(200, 'Not a subscription.');
+        }
+        $prices = (array) ark_config('stripe_prices', []);
+        $plan = null;
+        $seats = 1;
+        $addons = [];
+        $periodEnd = 0;
+        foreach ((array) ($object['lines']['data'] ?? []) as $line) {
+            $price = (string) ($line['price']['id'] ?? ($line['pricing']['price_details']['price'] ?? ''));
+            $map = $prices[$price] ?? null;
+            if (is_array($map) && isset($map['plan'])) {
+                $plan = (string) $map['plan'];
+                $seats = max(1, (int) ($map['seats'] ?? 1) * max(1, (int) ($line['quantity'] ?? 1)));
+                foreach ((array) ($map['addons'] ?? []) as $addon) {
+                    $addons[] = (string) $addon;
+                }
+            } elseif (is_array($map) && isset($map['addon'])) {
+                $addons[] = (string) $map['addon'];
+            }
+            $periodEnd = max($periodEnd, (int) ($line['period']['end'] ?? 0));
+        }
+        if ($plan === null) {
+            reply(200, 'No price in this invoice is in the price table.');
+        }
+        upsert($db, $subscription, [
+            'plan' => $plan,
+            'seats' => $seats,
+            'addons' => implode(',', array_unique($addons)),
+            'period_end' => $periodEnd ?: (int) ($object['period_end'] ?? 0),
+            'status' => 'active',
+        ]);
+        issue($db, $subscription);
+        reply(200);
+    case 'customer.subscription.deleted':
+        if ($subscription !== '') {
+            upsert($db, $subscription, ['status' => 'canceled']);
+        }
+        reply(200);
+    default:
+        reply(200, 'Ignored.');
+}

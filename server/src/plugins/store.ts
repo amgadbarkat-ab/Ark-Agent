@@ -7485,7 +7485,12 @@ export function createPluginStore(options: PluginStoreOptions) {
        * runs. Not asked on an approved call — those arguments are the row the person approved.
        */
       const prepareCall = transportFor(access.transport).prepareCall;
-      const prepared =
+      const prepared: {
+        args: Record<string, unknown>;
+        shown?: Record<string, string>;
+        summary?: string;
+        refused?: string;
+      } =
         approved || !prepareCall
           ? { args: given }
           : await prepareCall(
@@ -7731,6 +7736,22 @@ export function createPluginStore(options: PluginStoreOptions) {
       }
 
       if ((outcome === "ask" || ruleAsks) && !approved) {
+        if (prepared.refused) {
+          // Refused before any card: the person is never asked to approve a call that cannot run.
+          await recordAuditEvent(auditStore, {
+            eventType: "mcp.call_rejected",
+            targetType: "mcp_tool",
+            targetId: input.ref,
+            ...(input.initiator ? { initiator: input.initiator } : {}),
+            payload: {
+              ...decided,
+              decision: { ...decided.decision, carriedOut: false },
+              refusal: "arguments_refused",
+              reason: prepared.refused,
+            },
+          });
+          throw new PluginRefusedError(prepared.refused, null);
+        }
         if (!approvals) {
           const reason = `${toolName} on ${row.title} needs a person to approve it first, and this deployment has nowhere to ask, so it was not called.`;
           await recordAuditEvent(auditStore, {
@@ -7756,6 +7777,7 @@ export function createPluginStore(options: PluginStoreOptions) {
           tool: toolName,
           args: modelArgs,
           ...(prepared.shown ? { shown: prepared.shown } : {}),
+          ...(prepared.summary ? { summary: prepared.summary } : {}),
           version: advertised[0]?.version ?? null,
           effect,
           because: ruleAsks

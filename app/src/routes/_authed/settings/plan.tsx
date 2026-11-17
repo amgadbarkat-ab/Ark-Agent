@@ -8,6 +8,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { ActivationSection } from "@/components/settings/activation-section";
 import { CloudRunningSection } from "@/components/settings/cloud-running";
 import { TrialSection } from "@/components/settings/trial-section";
 import { Button } from "@/components/ui/button";
@@ -265,6 +266,8 @@ function PlanPage() {
               </Item>
             </PageRows>
           </PageSection>
+
+          <ActivationSection admin={currentUser.data?.role === "admin"} />
 
           <TrialSection admin={currentUser.data?.role === "admin"} />
 

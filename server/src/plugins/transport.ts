@@ -1,5 +1,8 @@
+import * as boxnow from "./boxnow";
 import * as builtinRoutines from "./builtin-routines";
+import * as businessFiles from "./business-files";
 import * as composio from "./composio";
+import * as elta from "./elta";
 import * as gmailRest from "./gmail-rest";
 import * as driveRest from "./google-drive-rest";
 import * as mailbox from "./mailbox";
@@ -7,7 +10,10 @@ import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
 import * as graphRest from "./microsoft-graph-rest";
 import * as priceList from "./price-list";
+import * as priceWatch from "./price-watch";
+import * as skroutz from "./skroutz";
 import * as video from "./video";
+import * as woocommerce from "./woocommerce";
 
 /**
  * How this deployment reaches one vendor: which protocol, from the kind `./access` resolved.
@@ -130,6 +136,16 @@ export type VendorTransport = {
   ): Promise<{
     args: Record<string, unknown>;
     shown?: Record<string, string>;
+    /**
+     * One plain sentence for the approval card, written from the arguments by this code, in place
+     * of the generic "Call <tool> on <server>".
+     */
+    summary?: string;
+    /**
+     * A call that cannot run as asked, refused before any card is shown: the sentence goes back to
+     * the employee to correct, so nobody approves a call that would then fail (#109, DT 16 Nov).
+     */
+    refused?: string;
   }>;
 };
 
@@ -148,7 +164,13 @@ export type TransportKind =
   | "builtin-routines"
   | "builtin-price-list"
   | "builtin-video"
+  | "builtin-business-files"
+  | "builtin-price-watch"
   | "imap-smtp"
+  | "skroutz-rest"
+  | "woocommerce-rest"
+  | "boxnow-rest"
+  | "elta-soap"
   | "composio";
 
 /**
@@ -178,7 +200,13 @@ const TRANSPORTS: Record<TransportKind, VendorTransport> = {
   "builtin-routines": builtinRoutines,
   "builtin-price-list": priceList,
   "builtin-video": video,
+  "builtin-business-files": businessFiles,
+  "builtin-price-watch": priceWatch,
   "imap-smtp": mailbox,
+  "skroutz-rest": skroutz,
+  "woocommerce-rest": woocommerce,
+  "boxnow-rest": boxnow,
+  "elta-soap": elta,
   composio,
 };
 

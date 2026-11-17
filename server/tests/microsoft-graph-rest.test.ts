@@ -463,7 +463,7 @@ describe("when Microsoft says no", () => {
   });
 });
 
-describe("sending mail (desk #83, the Wine24 email scene)", () => {
+describe("sending mail (desk #83, the email demo)", () => {
   test("goes to /me/sendMail as plain text, kept in Sent Items", async () => {
     const seen = stubFetch({}, { status: 202 });
     const result = await callTool(connection, "outlook_send_mail", {

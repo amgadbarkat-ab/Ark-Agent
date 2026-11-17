@@ -2,9 +2,11 @@
  * Every Greek text, by area. Keys are the English exactly as it is written in the code; see
  * ../translate.ts. One file per area keeps the review sheet readable and the merges small.
  */
+import { EL_ACTIVATION } from "./activation";
 import { EL_ADMIN } from "./admin";
 import { EL_ADMIN2 } from "./admin2";
 import { EL_BUILTIN_TOOLS } from "./builtin-tools";
+import { EL_BUSINESS } from "./business";
 import { EL_COMMON } from "./common";
 import { EL_COMPONENTS } from "./components";
 import { EL_DAILY } from "./daily";
@@ -12,6 +14,7 @@ import { EL_DESKTOP } from "./desktop";
 import { EL_MESSAGES } from "./messages";
 import { EL_MORE } from "./more";
 import { EL_PACKAGE } from "./package";
+import { EL_PHONE_ESTIMATOR } from "./phone-estimator";
 import { EL_PHONE_LINE } from "./phone-line";
 import { EL_SCREENS } from "./screens";
 import { EL_SCREENS2 } from "./screens2";
@@ -39,5 +42,8 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_PACKAGE,
   ...EL_TRIAL,
   ...EL_PHONE_LINE,
+  ...EL_PHONE_ESTIMATOR,
   ...EL_BUILTIN_TOOLS,
+  ...EL_ACTIVATION,
+  ...EL_BUSINESS,
 };

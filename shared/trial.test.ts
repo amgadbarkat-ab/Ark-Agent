@@ -20,7 +20,7 @@ import {
 
 const draft = {
   v: 1,
-  customer: { id: "wine24", name: "Wine24" },
+  customer: { id: "demo-shop", name: "Demo Shop" },
   issuedAt: "2026-11-15T10:00:00Z",
   startsAt: "2026-11-16T00:00:00+02:00",
   endsAt: "2026-12-16T00:00:00+02:00",
@@ -39,6 +39,19 @@ const draft = {
 };
 
 describe("trial profile", () => {
+  test("an employee may name business connectors, known ones only (v0.1.43)", () => {
+    const withConnectors = (connectors: unknown) => ({
+      ...draft,
+      roster: [{ ...draft.roster[0], connectors }],
+    });
+    expect(
+      readProfile(withConnectors(["skroutz", "boxnow", "skroutz"])).roster[0]
+        ?.connectors,
+    ).toEqual(["skroutz", "boxnow"]);
+    expect(() => readProfile(withConnectors(["fax"]))).toThrow("connectors");
+    expect(readProfile(draft).roster[0]?.connectors).toBeUndefined();
+  });
+
   test("reads a good draft and normalises its dates", () => {
     const profile = readProfile(draft);
     expect(profile.startsAt).toBe("2026-11-15T22:00:00.000Z");
@@ -85,7 +98,7 @@ describe("trial profile", () => {
       signature: signText(privateKey, encoded),
     });
     const read = readProfileFile(file);
-    expect(read.profile.customer.id).toBe("wine24");
+    expect(read.profile.customer.id).toBe("demo-shop");
     expect(signedByAny([key], read.file.profile, read.file.signature)).toBe(
       true,
     );
@@ -104,7 +117,7 @@ describe("trial profile", () => {
     const payload = encodeBase64Url(
       JSON.stringify({
         v: 1,
-        customer: "wine24",
+        customer: "demo-shop",
         nonce: "abcdefgh1234",
         action: "extend",
         until: "2027-01-10",
@@ -131,6 +144,19 @@ describe("the key this release trusts (#109)", () => {
       "+sUZUOflN+rBn01lZ1gTFr/Q2hL/OqhJqJ1XizQ9+9o=",
     ]);
     for (const key of TRIAL_PUBLIC_KEYS) {
+      expect(publicKeyToBase64(publicKeyFromBase64(key))).toBe(key);
+    }
+  });
+});
+
+describe("the licence keys this release trusts (#109, v0.1.46)", () => {
+  test("are BlackArk's posted licence key, then the trial key, each an Ed25519 public key", async () => {
+    const { LICENSE_PUBLIC_KEYS } = await import("./license-public-key");
+    expect(LICENSE_PUBLIC_KEYS).toEqual([
+      "QRXNjz0m4Ovz0o//7g9+ty4ss6gplI4b3Hq7/vFHoEY=",
+      "+sUZUOflN+rBn01lZ1gTFr/Q2hL/OqhJqJ1XizQ9+9o=",
+    ]);
+    for (const key of LICENSE_PUBLIC_KEYS) {
       expect(publicKeyToBase64(publicKeyFromBase64(key))).toBe(key);
     }
   });

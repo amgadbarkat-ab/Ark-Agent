@@ -62,6 +62,47 @@ function ark_db(): PDO
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS installs_customer ON installs (customer_id)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS login_failures (at INTEGER NOT NULL)');
+    // Paid licence keys from Stripe (v0.1.44): one row per subscription, its latest signed key.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS licenses (
+        subscription_id TEXT PRIMARY KEY,
+        customer_id TEXT,
+        session_id TEXT,
+        plan TEXT,
+        seats INTEGER,
+        addons TEXT,
+        period_end INTEGER,
+        status TEXT NOT NULL DEFAULT \'active\',
+        license_key TEXT,
+        valid_until TEXT,
+        updated_at TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_session ON licenses (session_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_customer ON licenses (customer_id)');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)');
+    // Prepaid phone balance (v0.1.47): one account per customer, in mils (1/1000 euro, excl. VAT),
+    // and every credit and charge, each under a reference that can be taken only once.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS phone_accounts (
+        customer_id TEXT PRIMARY KEY,
+        balance_mils INTEGER NOT NULL DEFAULT 0,
+        email TEXT,
+        country TEXT,
+        low_notified_at TEXT,
+        auto_topup INTEGER NOT NULL DEFAULT 0,
+        stripe_customer TEXT,
+        auto_topup_at TEXT,
+        updated_at TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS phone_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id TEXT NOT NULL,
+        ref TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL,
+        minutes INTEGER NOT NULL DEFAULT 0,
+        mils INTEGER NOT NULL,
+        written_off_mils INTEGER NOT NULL DEFAULT 0,
+        at TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS phone_ledger_customer ON phone_ledger (customer_id, id)');
     return $pdo;
 }
 
@@ -121,4 +162,299 @@ function ark_send_security_headers(): void
     header('Referrer-Policy: no-referrer');
     header('X-Frame-Options: DENY');
     header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+}
+
+function ark_base64url(string $bytes): string
+{
+    return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+}
+
+/**
+ * A paid licence key (v0.1.44), the same `ARK1-` format the app reads (shared/activation.ts):
+ * base64url JSON, a dot, and the Ed25519 signature over exactly that base64url text, made with the
+ * licence secret key in config.php. Null when this server has no licence key or no sodium.
+ */
+function ark_sign_license(string $customerId, string $plan, int $seats, array $addons, int $periodEnd): ?array
+{
+    $secret = base64_decode((string) ark_config('license_secret_key', ''), true);
+    if ($secret === false || strlen($secret) !== 64 || !function_exists('sodium_crypto_sign_detached')) {
+        return null;
+    }
+    $validUntil = gmdate('Y-m-d\TH:i:s\Z', $periodEnd + 86400 * (int) ark_config('license_grace_days', 7));
+    $payload = [
+        'v' => 1,
+        'action' => 'license',
+        'customer' => $customerId,
+        'nonce' => ark_base64url(random_bytes(12)),
+        'issuedAt' => ark_now(),
+        'plan' => $plan,
+        'seats' => $seats,
+        'validUntil' => $validUntil,
+    ];
+    if ($addons) {
+        $payload['addons'] = array_values($addons);
+    }
+    $renew = (string) ark_config('license_renew_url', '');
+    if ($renew !== '') {
+        $payload['renewUrl'] = $renew;
+    }
+    $encoded = ark_base64url(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    $signature = ark_base64url(sodium_crypto_sign_detached($encoded, $secret));
+    return ['key' => 'ARK1-' . $encoded . '.' . $signature, 'valid_until' => $validUntil];
+}
+
+// ---- Prepaid phone balance (v0.1.47; Amgad 17 Nov) ------------------------------------------------
+//
+// A money balance in mils (1/1000 euro, excl. VAT). A 5-hour block is priced at the incoming rate
+// (EUR 23.40) and credited as money; each part of a call takes off its whole minutes at its own rate.
+// Every credit and charge has a reference (a Stripe checkout session or invoice, a Twilio call id and
+// part) taken only once, so a webhook or a relay report that arrives twice changes nothing.
+//
+// NEVER BELOW ZERO (Amgad, 17 Nov 12:29). The relay ends a call before a minute the balance cannot
+// pay; if Twilio still reports a little more than was left, the balance stops at zero and the rest is
+// written off at BlackArk's cost, recorded on the ledger row, never carried as debt.
+
+const ARK_PHONE_KINDS = ['incoming', 'landline', 'mobile'];
+
+function ark_phone_rates(): array
+{
+    $rates = (array) ark_config('phone_rates_mils', []);
+    return [
+        'incoming' => (int) ($rates['incoming'] ?? 78),
+        'landline' => (int) ($rates['landline'] ?? 88),
+        'mobile' => (int) ($rates['mobile'] ?? 139),
+    ];
+}
+
+function ark_phone_block_mils(): int
+{
+    return (int) ark_config('phone_block_mils', 23400);
+}
+
+/** What a part of a call costs: its seconds rounded up to whole minutes, at its rate. */
+function ark_phone_cost(string $kind, int $seconds): array
+{
+    $minutes = $seconds > 0 ? intdiv($seconds + 59, 60) : 0;
+    return ['minutes' => $minutes, 'mils' => $minutes * (ark_phone_rates()[$kind] ?? 0)];
+}
+
+/** ok; low (the last hour); empty (cannot pay one more minute: calls are not answered). */
+function ark_phone_state(int $balance): string
+{
+    if ($balance < ark_phone_rates()['incoming']) {
+        return 'empty';
+    }
+    return $balance <= (int) ark_config('phone_low_mils', 8340) ? 'low' : 'ok';
+}
+
+function ark_phone_balance(PDO $db, string $customerId): int
+{
+    $find = $db->prepare('SELECT balance_mils FROM phone_accounts WHERE customer_id = ?');
+    $find->execute([$customerId]);
+    $balance = $find->fetchColumn();
+    return $balance === false ? 0 : (int) $balance;
+}
+
+/**
+ * Adds one ledger entry and moves the balance by it, once per reference. A charge never takes the
+ * balance below zero: what it cannot cover is written off on the same row. Returns false when the
+ * reference was already taken (nothing changes).
+ */
+function ark_phone_post(PDO $db, string $customerId, string $ref, string $kind, int $minutes, int $mils): bool
+{
+    $db->beginTransaction();
+    try {
+        $db->prepare('INSERT OR IGNORE INTO phone_accounts (customer_id, balance_mils, updated_at) VALUES (?, 0, ?)')
+            ->execute([$customerId, ark_now()]);
+        $writtenOff = 0;
+        if ($mils < 0) {
+            $balance = max(0, ark_phone_balance($db, $customerId));
+            if (-$mils > $balance) {
+                $writtenOff = -$mils - $balance;
+                $mils = -$balance;
+            }
+        }
+        $insert = $db->prepare('INSERT OR IGNORE INTO phone_ledger (customer_id, ref, kind, minutes, mils, written_off_mils, at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $insert->execute([$customerId, $ref, $kind, $minutes, $mils, $writtenOff, ark_now()]);
+        if ($insert->rowCount() === 0) {
+            $db->rollBack();
+            return false;
+        }
+        if ($writtenOff > 0) {
+            error_log("ark-phone: $ref charged past the balance; $writtenOff mils written off");
+        }
+        $db->prepare('UPDATE phone_accounts SET balance_mils = balance_mils + ?, updated_at = ? WHERE customer_id = ?')
+            ->execute([$mils, ark_now(), $customerId]);
+        if ($mils > 0 && ark_phone_balance($db, $customerId) > (int) ark_config('phone_low_mils', 8340)) {
+            // Topped up past the last hour: the next time it runs low is worth a notice again.
+            $db->prepare('UPDATE phone_accounts SET low_notified_at = NULL WHERE customer_id = ?')->execute([$customerId]);
+        }
+        $db->commit();
+        return true;
+    } catch (Throwable $error) {
+        $db->rollBack();
+        throw $error;
+    }
+}
+
+/** Credits `blocks` 5-hour blocks for a paid Stripe checkout session or invoice (its id is `ref`). */
+function ark_phone_credit_blocks(PDO $db, string $customerId, string $ref, int $blocks): bool
+{
+    $blocks = max(1, min(10, $blocks));
+    $credited = ark_phone_post($db, $customerId, 'stripe:' . $ref, 'block', $blocks * 300, $blocks * ark_phone_block_mils());
+    if ($credited) {
+        // A paid block: the next automatic top-up may start when this one runs low.
+        $db->prepare('UPDATE phone_accounts SET auto_topup_at = NULL WHERE customer_id = ?')->execute([$customerId]);
+    }
+    return $credited;
+}
+
+/** The top-up page for this customer, which opens a Stripe Checkout for one 5-hour block. */
+function ark_phone_topup_url(string $customerId): string
+{
+    $base = rtrim((string) ark_config('buy_url', 'https://blackark.uk/checkin/buy/'), '/') . '/';
+    return $base . '?topup=1&customer=' . rawurlencode($customerId);
+}
+
+/** The balance as the relay and the app read it. */
+function ark_phone_view(PDO $db, string $customerId): array
+{
+    $balance = ark_phone_balance($db, $customerId);
+    $rates = ark_phone_rates();
+    return [
+        'customerId' => $customerId,
+        'balanceMils' => $balance,
+        'state' => ark_phone_state($balance),
+        // At the mobile rate, so it is never more than what is left.
+        'minutesLeftAtLeast' => $balance > 0 ? intdiv($balance, max(1, $rates['mobile'])) : 0,
+        'topUpUrl' => ark_phone_topup_url($customerId),
+        // The relay sets aside each minute at these rates before it starts, so calls stop at zero.
+        'rates' => $rates,
+    ];
+}
+
+/**
+ * Automatic top-up (optional, chosen at checkout): when the last hour starts, charge the card saved
+ * with the subscription for one 5-hour block, through a Stripe invoice so VAT is added the same way.
+ * The block is credited only when Stripe says the invoice is paid (invoice.paid). At most one attempt
+ * per block: a declined card leaves the app's notice and the Add 5 hours button.
+ */
+function ark_phone_auto_topup(PDO $db, string $customerId): void
+{
+    $find = $db->prepare('SELECT auto_topup, stripe_customer, auto_topup_at FROM phone_accounts WHERE customer_id = ?');
+    $find->execute([$customerId]);
+    $row = $find->fetch();
+    if (!$row || !(int) $row['auto_topup'] || !$row['stripe_customer'] || $row['auto_topup_at']) {
+        return;
+    }
+    $block = (string) (((array) ark_config('stripe_buy', []))['block'] ?? '');
+    $sub = $db->prepare("SELECT subscription_id FROM licenses WHERE customer_id = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1");
+    $sub->execute([$customerId]);
+    $subscription = (string) ($sub->fetchColumn() ?: '');
+    if ($block === '' || $subscription === '') {
+        return;
+    }
+    $mark = $db->prepare('UPDATE phone_accounts SET auto_topup_at = ? WHERE customer_id = ? AND auto_topup_at IS NULL');
+    $mark->execute([ark_now(), $customerId]);
+    if ($mark->rowCount() === 0) {
+        return;
+    }
+    $customer = (string) $row['stripe_customer'];
+    $item = ark_stripe_api('/v1/invoiceitems', ['customer' => $customer, 'subscription' => $subscription, 'price' => $block]);
+    $invoice = is_array($item) && isset($item['id']) ? ark_stripe_api('/v1/invoices', array_merge([
+        'customer' => $customer,
+        'subscription' => $subscription,
+        'pending_invoice_items_behavior' => 'include',
+        'collection_method' => 'charge_automatically',
+        'metadata' => ['kind' => 'phone_topup', 'customer_id' => $customerId, 'phone_blocks' => '1'],
+    ], ark_config('stripe_automatic_tax', false) ? ['automatic_tax' => ['enabled' => 'true']] : [])) : null;
+    $id = is_array($invoice) ? (string) ($invoice['id'] ?? '') : '';
+    if (preg_match('/^in_[A-Za-z0-9_]+$/', $id) !== 1) {
+        error_log('ark-phone: automatic top-up for ' . $customerId . ' was not created');
+        return;
+    }
+    ark_stripe_api('/v1/invoices/' . $id . '/finalize', []);
+    ark_stripe_api('/v1/invoices/' . $id . '/pay', []);
+}
+
+/**
+ * Calls Stripe's API with the restricted key in config.php (form-encoded, as Stripe takes it).
+ * Returns the decoded answer, or null when the key is missing or Stripe could not be reached.
+ */
+function ark_stripe_api(string $path, array $form): ?array
+{
+    $key = (string) ark_config('stripe_api_key', '');
+    if ($key === '') {
+        return null;
+    }
+    $context = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => "Authorization: Bearer $key\r\nContent-Type: application/x-www-form-urlencoded\r\n",
+        'content' => http_build_query($form, '', '&'),
+        'timeout' => 15,
+        'ignore_errors' => true,
+    ]]);
+    $base = rtrim((string) ark_config('stripe_api_base', 'https://api.stripe.com'), '/');
+    $raw = @file_get_contents($base . $path, false, $context);
+    if ($raw === false) {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+
+/** Which approved text a customer's country gets (phone-emails.php), and whether it has its own. */
+function ark_phone_email_text(?string $country): array
+{
+    $emails = require __DIR__ . '/phone-emails.php';
+    $country = strtoupper((string) $country);
+    $language = $emails['countries'][$country] ?? null;
+    if ($language === null) {
+        error_log("ark-phone: no approved low-balance email for country '$country'; sent in English");
+        $language = 'en';
+    }
+    return $emails['texts'][$language] + ['language' => $language];
+}
+
+/**
+ * The one email when the last hour starts (v0.1.47), only while `phone_low_email` is on in
+ * config.php (Amgad approved the text on 17 Nov; switching it on comes with his yes on the deploy).
+ * From no-reply@, Reply-To General@; once per block, again only after a top-up.
+ */
+function ark_phone_low_email(PDO $db, string $customerId, array $view): void
+{
+    if (!ark_config('phone_low_email', false)) {
+        return;
+    }
+    $find = $db->prepare('SELECT email, country, low_notified_at FROM phone_accounts WHERE customer_id = ?');
+    $find->execute([$customerId]);
+    $row = $find->fetch();
+    if (!$row || $row['low_notified_at'] || !filter_var((string) $row['email'], FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+    $mark = $db->prepare('UPDATE phone_accounts SET low_notified_at = ? WHERE customer_id = ? AND low_notified_at IS NULL');
+    $mark->execute([ark_now(), $customerId]);
+    if ($mark->rowCount() === 0) {
+        return;
+    }
+    $text = ark_phone_email_text($row['country']);
+    $body = strtr($text['body'], [
+        '{minutes}' => (string) $view['minutesLeftAtLeast'],
+        '{link}' => $view['topUpUrl'],
+    ]);
+    $from = (string) ark_config('phone_low_email_from', 'no-reply@blackark.uk');
+    $replyTo = (string) ark_config('phone_low_email_reply_to', '');
+    $headers = "From: $from\r\n"
+        . ($replyTo !== '' ? "Reply-To: $replyTo\r\n" : '')
+        . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n";
+    $subject = '=?UTF-8?B?' . base64_encode($text['subject']) . '?=';
+    $encoded = chunk_split(base64_encode($body), 76, "\r\n");
+    $outbox = (string) ark_config('mail_outbox_dir', '');
+    if ($outbox !== '') {
+        // Tests only: the message is written to a folder instead of being sent.
+        file_put_contents($outbox . '/' . $customerId . '.eml', "To: {$row['email']}\r\nSubject: $subject\r\n$headers\r\n$encoded");
+        return;
+    }
+    @mail((string) $row['email'], $subject, $encoded, $headers);
 }

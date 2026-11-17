@@ -1,6 +1,6 @@
 /**
- * A person's own mailbox over IMAP and SMTP, for the catalogue's `mailbox` entry (#109: Zoho Mail for
- * Wine24, cPanel hosting for Eurodiagnosi).
+ * A person's own mailbox over IMAP and SMTP, for the catalogue's `mailbox` entry (#109: for example Zoho
+ * Mail or cPanel hosting).
  *
  * WHAT A DIGITAL EMPLOYEE CAN DO. List folders, list and search messages, read one, save a draft, and
  * send. Nothing forwards, deletes, moves, flags or marks as read: there is no tool for any of it, so
@@ -13,7 +13,7 @@
  * arguments chooses an account or a server.
  *
  * PER EMPLOYEE. A trial profile may limit an employee to some folders and give it its own From
- * address, and may refuse any outgoing mail with an AMKA-shaped number (Eurodiagnosi). Those rules
+ * address, and may refuse any outgoing mail with an AMKA-shaped number. Those rules
  * come from {@link useMailboxPolicy}, asked by the employee's id, which is the call's own and never a
  * model's.
  *

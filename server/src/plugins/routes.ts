@@ -1,9 +1,15 @@
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import {
+  type BusinessConnectorKey,
+  businessConnector,
+  businessSettingsFrom,
+} from "../../../shared/business-connectors";
 import type { BotAccessCheck } from "../agents/profile-policy";
 import type { AppVariables } from "../auth/guards";
 import { requireAdmin } from "../auth/guards";
 import { reasonWithoutStatement } from "../db/query-failure";
+import { checkBoxNowLogin } from "./boxnow";
 import {
   type BrokerApp,
   type BrokerField,
@@ -20,7 +26,21 @@ import { isToolCallOutcome } from "./call-outcome";
 import { CATALOGUE, catalogueEntry } from "./catalogue";
 import { toolkitOf, vendorSentence } from "./composio";
 import { connectedAccount } from "./connected-account";
+import { checkEltaLogin } from "./elta";
 import { checkMailboxLogin, mailboxSettingsSchema } from "./mailbox";
+import { checkSkroutzLogin } from "./skroutz";
+import { checkWooCommerceLogin } from "./woocommerce";
+
+const BUSINESS_CHECKS: Record<
+  BusinessConnectorKey,
+  (settings: Record<string, string>) => Promise<string | null>
+> = {
+  skroutz: checkSkroutzLogin,
+  woocommerce: checkWooCommerceLogin,
+  boxnow: checkBoxNowLogin,
+  elta: checkEltaLogin,
+};
+
 import {
   authorizationUrlFor,
   type ConnectOrigin,
@@ -988,6 +1008,69 @@ export function createPluginRoutes(
       account,
     });
     return context.json({ connected: true, account });
+  });
+
+  /*
+   * The business connectors (#109, v0.1.43): Skroutz, WooCommerce, BOX NOW. As the mailbox: the
+   * fields are checked against the connector's list, the login is tried, and only a working one is
+   * stored, encrypted, in the vault. Nothing secret comes back out.
+   */
+  routes.post("/business/:key/connection", requireUser, async (context) => {
+    const connector = businessConnector(context.req.param("key"));
+    if (!connector) return context.json({ error: "No such connector." }, 404);
+    let settings: Record<string, string>;
+    try {
+      settings = businessSettingsFrom(
+        connector,
+        await context.req.json().catch(() => null),
+      );
+    } catch (error) {
+      return context.json(
+        { error: error instanceof Error ? error.message : "Check the form." },
+        400,
+      );
+    }
+    const actor = context.var.actor;
+    if (!(await store.serverExists(connector.key))) {
+      if (actor.role !== "admin") {
+        return context.json(
+          {
+            error: `The ${connector.title} connector is not added to this deployment. An administrator has to add it first.`,
+          },
+          409,
+        );
+      }
+      await store.addServer({ key: connector.key, by: actor.id });
+    }
+    const problem = await BUSINESS_CHECKS[connector.key](settings);
+    if (problem) return context.json({ error: problem }, 400);
+    const account =
+      connector.key === "woocommerce"
+        ? new URL(settings.siteUrl ?? "").host
+        : connector.key === "boxnow"
+          ? (settings.clientId ?? connector.key)
+          : connector.key === "elta"
+            ? `ELTA customer ${settings.customerCode ?? ""}`
+            : "Skroutz shop";
+    await store.recordConnection({
+      serverId: connector.key,
+      userId: actor.id,
+      refreshToken: JSON.stringify(settings),
+      scope: connector.key,
+      account,
+    });
+    return context.json({ connected: true, account });
+  });
+
+  routes.delete("/business/:key/connection", requireUser, async (context) => {
+    const connector = businessConnector(context.req.param("key"));
+    if (!connector) return context.json({ error: "No such connector." }, 404);
+    return context.json(
+      await store.disconnectPassword({
+        serverId: connector.key,
+        userId: context.var.actor.id,
+      }),
+    );
   });
 
   routes.delete("/mailbox/connection", requireUser, async (context) =>

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import { createInterface } from "node:readline";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { headersOf, rawResponse, requestUrl } from "../src/serve";
 
 /**

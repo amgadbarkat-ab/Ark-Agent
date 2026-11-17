@@ -8,7 +8,7 @@ export const PACE_MS = 150;
  *
  * A streaming answer arrives a few characters at a time, and drawing markdown again on every piece
  * re-parses the whole answer each time. For a long table that is quadratic: a 120-row price list was
- * 839 redraws and 14 seconds of rendering, single redraws over 150 ms (DT Lab, Wine24). The window
+ * 839 redraws and 14 seconds of rendering, single redraws over 150 ms (DT Lab). The window
  * froze while it streamed, and when the model had finished the screen was still working through the
  * pieces it had queued, so the answer seemed to keep streaming after it was complete.
  *

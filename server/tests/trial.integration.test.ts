@@ -66,7 +66,7 @@ function profileFile(
 ) {
   const profile = readProfile({
     v: 1,
-    customer: { id: "wine24", name: "Wine24" },
+    customer: { id: "demo-shop", name: "Demo Shop" },
     issuedAt: "2026-11-15T10:00:00Z",
     startsAt: "2026-11-16T00:00:00Z",
     endsAt: "2026-12-16T00:00:00Z",
@@ -93,7 +93,7 @@ function code(
   const payload = encodeBase64Url(
     JSON.stringify({
       v: 1,
-      customer: "wine24",
+      customer: "demo-shop",
       nonce: `nonce-${nonce}-abcdef`,
       issuedAt: "2026-11-20T10:00:00Z",
       ...over,
@@ -160,7 +160,7 @@ describe("a customer trial on this install (#109)", () => {
     const first = await service.importProfile(profileFile());
     expect(first.changed).toBe(true);
     expect(first.trial).toMatchObject({
-      customerName: "Wine24",
+      customerName: "Demo Shop",
       status: "trial",
       lengthDays: 30,
       daysLeft: 29,
@@ -175,9 +175,9 @@ describe("a customer trial on this install (#109)", () => {
     ).rejects.toThrow("older than the one already imported");
     await expect(
       service.importProfile(
-        profileFile({ customer: { id: "eurodiagnosi", name: "Eurodiagnosi" } }),
+        profileFile({ customer: { id: "demo-clinic", name: "Demo Clinic" } }),
       ),
-    ).rejects.toThrow("already has the trial for Wine24");
+    ).rejects.toThrow("already has the trial for Demo Shop");
   });
 
   test("the plan is the profile's while it runs; from the end on nothing runs, and turning the clock back does not undo it", async () => {
@@ -213,9 +213,10 @@ describe("a customer trial on this install (#109)", () => {
         provider: "manual",
       }),
     } as unknown as AccountStore;
-    const summary = await withTrialEntitlement(accounts, service).summaryFor(
-      "u",
-    );
+    const summary = await withTrialEntitlement(accounts, {
+      entitlement: service.entitlement,
+      trialCurrent: service.current,
+    }).summaryFor("u");
     expect(summary).toMatchObject({
       planId: "team",
       subscriptionStatus: "trialing",
@@ -280,7 +281,7 @@ describe("a customer trial on this install (#109)", () => {
     expect(extended.trial.endsAt).toBe("2027-01-31T00:00:00.000Z");
     await expect(service.applyCode(later)).rejects.toThrow("already used");
     await expect(
-      service.applyCode(code({ action: "end", customer: "eurodiagnosi" })),
+      service.applyCode(code({ action: "end", customer: "demo-clinic" })),
     ).rejects.toThrow("for another customer");
     await expect(
       service.applyCode(code({ action: "end" }, stranger.privateKey)),
@@ -323,7 +324,7 @@ describe("a customer trial on this install (#109)", () => {
     // Only the signed file BlackArk made rides along; no field holds anything the customer wrote.
     const { proof, ...plain } = body as { proof: Record<string, string> };
     expect(Object.keys(proof).sort()).toEqual(["profile", "signature"]);
-    expect(JSON.stringify(plain)).not.toContain("Wine24");
+    expect(JSON.stringify(plain)).not.toContain("Demo Shop");
     expect(JSON.stringify(plain)).not.toContain("Front Desk");
 
     const receiver = trialCheckInRoutes(database);

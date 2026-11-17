@@ -9,6 +9,13 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { type AppVariables, requireAdmin } from "../auth/guards";
 import {
+  BusinessFileRefusedError,
+  businessFolder,
+  listBusinessFiles,
+  removeBusinessFile,
+  saveBusinessFile,
+} from "./business-files";
+import {
   MAX_PRICE_LIST_BYTES,
   PriceListRefusedError,
   priceListStatus,
@@ -67,6 +74,58 @@ export function createBuiltinToolRoutes(
     const denied = requireAdmin(context);
     if (denied) return denied;
     await removePriceList();
+    return context.body(null, 204);
+  });
+
+  // The business's own data files (#109, v0.1.43): Pylon's exports and any other table.
+  routes.get("/business-files", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    return context.json({
+      files: await listBusinessFiles(),
+      folder: businessFolder(),
+    });
+  });
+
+  routes.put(
+    "/business-files/:name",
+    requireUser,
+    bodyLimit({
+      maxSize: MAX_PRICE_LIST_BYTES,
+      onError: (context) =>
+        context.json({ error: "The file is larger than 8 MB." }, 413),
+    }),
+    async (context) => {
+      const denied = requireAdmin(context);
+      if (denied) return denied;
+      let fileName = "";
+      try {
+        fileName = decodeURIComponent(context.req.header("x-file-name") ?? "");
+      } catch {
+        fileName = "";
+      }
+      try {
+        return context.json({
+          file: await saveBusinessFile({
+            name: context.req.param("name"),
+            fileName,
+            bytes: new Uint8Array(await context.req.arrayBuffer()),
+            by: context.var.actor.id,
+          }),
+        });
+      } catch (error) {
+        if (error instanceof BusinessFileRefusedError) {
+          return context.json({ error: error.message }, 400);
+        }
+        throw error;
+      }
+    },
+  );
+
+  routes.delete("/business-files/:name", requireUser, async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    await removeBusinessFile(context.req.param("name"));
     return context.body(null, 204);
   });
 

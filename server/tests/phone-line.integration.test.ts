@@ -128,7 +128,7 @@ const service = createPhoneLineService(database, {
           instruction: "Never give medical advice.",
         }
       : null,
-  business: async () => "Eurodiagnosi",
+  business: async () => "Demo Clinic",
   blockAmka: async () => true,
   allowed: async () => phoneOrdered,
   connectSpeech: speech.connect,
@@ -180,7 +180,7 @@ describe("the phone line (#109)", () => {
 
   test("the rules say what the employee may never do", () => {
     const rules = phoneRules({
-      business: "Eurodiagnosi",
+      business: "Demo Clinic",
       employee: "Υποδοχή",
       title: "Front Desk",
       afterHours: true,
@@ -261,7 +261,7 @@ describe("the phone line (#109)", () => {
       agentId,
       speechModel: "gpt-realtime",
       voice: "marin",
-      greeting: "Eurodiagnosi, καλημέρα σας.",
+      greeting: "Demo Clinic, καλημέρα σας.",
       hours: null,
       enabled: true,
     };
@@ -281,7 +281,7 @@ describe("the phone line (#109)", () => {
       agentId,
       speechModel: "gpt-realtime",
       voice: "marin",
-      greeting: "Eurodiagnosi, καλημέρα σας.",
+      greeting: "Demo Clinic, καλημέρα σας.",
       hours: null,
       enabled: true,
     });
@@ -345,7 +345,7 @@ describe("the phone line (#109)", () => {
     expect(String(session.session.instructions)).toContain(
       "Never give medical advice.",
     );
-    expect(String(session.session.instructions)).toContain("Eurodiagnosi");
+    expect(String(session.session.instructions)).toContain("Demo Clinic");
 
     // Caller audio reaches the speech service; the answer reaches the caller.
     twilio.send(

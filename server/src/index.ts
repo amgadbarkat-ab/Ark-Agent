@@ -10,6 +10,8 @@ import "./no-telemetry";
 // application's graph without it failed about three times in ten.
 import "eventsource";
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   CopilotKitIntelligence,
   IntelligenceAgentRunner,
@@ -19,6 +21,7 @@ import { and, eq, like, sql } from "drizzle-orm";
 import { COMPUTER_GUIDANCE } from "../../shared/bot-prompt";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
 import { createDrain } from "../../shared/drain";
+import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
 import { listenHosts } from "../../shared/listen-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
@@ -28,6 +31,7 @@ import { RunGateAgent } from "./accounts/run-gate";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
+import { containerRelayCheck } from "./agents/container-relay";
 import { createAgentFetch } from "./agents/endpoint";
 import { createHandoffDesk, HANDOFF_KIND } from "./agents/handoff";
 import { createHandoffDelivery } from "./agents/handoff-delivery";
@@ -159,10 +163,17 @@ import { createTermsStore } from "./people/terms";
 import { simulatedPhoneProvider } from "./phone/provider";
 import { createPhoneApprovals } from "./phone/service";
 import { createPhoneLineService } from "./phone-line/service";
+import { listTools as listBoxNowTools } from "./plugins/boxnow";
 import { builtinOAuthClientsFrom } from "./plugins/builtin-oauth-clients";
 import { useRoutineTools } from "./plugins/builtin-routines";
+import {
+  listTools as listBusinessFileTools,
+  startBusinessFolderWatch,
+  useBusinessFilesDatabase,
+} from "./plugins/business-files";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
+import { listTools as listEltaTools } from "./plugins/elta";
 import { backfillComposioLogos } from "./plugins/logos";
 import {
   listTools as listMailboxTools,
@@ -173,6 +184,11 @@ import {
   listTools as listPriceListTools,
   usePriceListDatabase,
 } from "./plugins/price-list";
+import {
+  listTools as listPriceWatchTools,
+  usePriceWatchDatabase,
+} from "./plugins/price-watch";
+import { listTools as listSkroutzTools } from "./plugins/skroutz";
 import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
 import {
@@ -180,6 +196,7 @@ import {
   listTools as listVideoTools,
   useVideoSetup,
 } from "./plugins/video";
+import { listTools as listWooCommerceTools } from "./plugins/woocommerce";
 import { hubConversations } from "./privacy/conversations";
 import { createProviderOAuthProxy } from "./provider-oauth";
 import { createPushSender, webPushSend } from "./push/sender";
@@ -195,6 +212,7 @@ import {
   loadTenantPackage,
   synchronizeTenantPackage,
 } from "./tenant-package";
+import { createActivationService } from "./trial/activation";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
 import { seedTrialRoster } from "./trial/seed";
 import { createTrialService, trialKeysFrom } from "./trial/service";
@@ -305,13 +323,31 @@ const trial = createTrialService(database, {
   ),
   version: appVersion(),
 });
+/*
+ * Activation (#109, v0.1.42): on a desktop install nothing runs without a trial activation code, a
+ * paid licence key or the trial setup file. The desktop app sets ARK_ACTIVATION_REQUIRED; nothing
+ * else does, so a hosted deployment, a developer's machine and CI are unchanged.
+ */
+const activation = createActivationService(database, {
+  required: process.env.ARK_ACTIVATION_REQUIRED?.trim() === "true",
+  trialKeys: trialKeysFrom(
+    TRIAL_PUBLIC_KEYS,
+    config.singleUser ? undefined : process.env.ARK_TRIAL_PUBLIC_KEY,
+  ),
+  licenseKeys: trialKeysFrom(
+    LICENSE_PUBLIC_KEYS,
+    config.singleUser ? undefined : process.env.ARK_LICENSE_PUBLIC_KEY,
+  ),
+  trial,
+  version: appVersion(),
+});
 const accountStore = withTrialEntitlement(
   createAccountStore(database, {
     billingMode: billingModeFrom(process.env.ARK_BILLING_MODE),
     // Off unless exactly "true": a new account starting a 7-day trial is a billing decision.
     freeTrial: process.env.ARK_FREE_TRIAL_ENABLED?.trim() === "true",
   }),
-  trial,
+  activation,
 );
 const unguardedProfileStore = createAgentProfileStore(
   database,
@@ -319,7 +355,7 @@ const unguardedProfileStore = createAgentProfileStore(
   agentVault,
   accountStore,
 );
-const agentProfileStore = guardProfiles(unguardedProfileStore, trial);
+const agentProfileStore = guardProfiles(unguardedProfileStore, activation);
 // Ark's own digital employees, written to the database on every start so the catalogue in code is the
 // catalogue on screen.
 const marketplaceStore = createMarketplaceStore(database, {
@@ -384,6 +420,8 @@ const loadAgentsForActor = createRuntimeAgentLoader(
   ),
   // Reads only: what each of the person's digital employees keeps in mind, for its instructions.
   createMemoryStore(database),
+  // The desktop app's relay for the containers (#109): closed app, "open ArkAgent".
+  containerRelayCheck(process.env.ARK_CONTAINER_RELAY),
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -1582,6 +1620,15 @@ async function grantServerTools(
 
 // The price list lives in this database; video editing runs only in the desktop app (#109).
 usePriceListDatabase(database);
+useBusinessFilesDatabase(database);
+// On the desktop app, exports saved into ArkAgent/data/in are loaded as business data files (#109).
+if (config.singleUser) {
+  startBusinessFolderWatch(
+    process.env.ARK_DATA_IN_DIR?.trim() ||
+      join(homedir(), "ArkAgent", "data", "in"),
+  );
+}
+usePriceWatchDatabase(database);
 useVideoSetup(
   detectVideoSetup({
     enabled: config.singleUser,
@@ -1621,7 +1668,7 @@ const phoneLine = createPhoneLineService(database, {
   blockAmka: async () =>
     (await trial.mailPolicyFor(undefined)).blockAmka === true,
   // A paid add-on, off unless BlackArk signed it into this customer's profile (MD, 15 Nov).
-  allowed: () => trial.addonEnabled("phone"),
+  allowed: () => activation.addonEnabled("phone"),
 });
 
 const app = createApp(
@@ -1866,9 +1913,19 @@ const app = createApp(
             actor.id,
             agentId,
             key,
-            key === "video" ? listVideoTools : listPriceListTools,
+            {
+              video: listVideoTools,
+              "price-list": listPriceListTools,
+              skroutz: listSkroutzTools,
+              woocommerce: listWooCommerceTools,
+              boxnow: listBoxNowTools,
+              elta: listEltaTools,
+              "price-watch": listPriceWatchTools,
+              "business-files": listBusinessFileTools,
+            }[key],
           ),
       }),
+    activation,
     keyConfigured:
       trialKeysFrom(
         TRIAL_PUBLIC_KEYS,
@@ -1894,6 +1951,8 @@ const app = createApp(
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
+// Once a day, the renewed licence key from the address the key names; nothing when it names none.
+activation.startRenewals();
 phoneLine.start();
 // Each mail employee's folders, From address and the AMKA block, from the trial profile (#109).
 useMailboxPolicy((botId) => trial.mailPolicyFor(botId));

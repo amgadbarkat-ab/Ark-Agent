@@ -135,6 +135,7 @@ import { createRoutingRoutes } from "./routing/routes";
 import { securityHeaders } from "./security-headers";
 import type { PackageStatusReader } from "./tenant-package";
 import {
+  activationRoutes,
   adminTrialRoutes,
   type TrialRouteDependencies,
   trialCheckInRoutes,
@@ -1788,6 +1789,12 @@ export function createApp(
 
   if (trial) {
     app.route("/api/trial", trialRoutes(requireUser, trial));
+    if (trial.activation) {
+      app.route(
+        "/api/activation",
+        activationRoutes(requireUser, trial.activation, trial.audit),
+      );
+    }
     if (trial.receiver) {
       app.route(
         "/api/trial-checkins",

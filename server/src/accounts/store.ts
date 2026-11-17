@@ -49,7 +49,15 @@ export class UnknownAccountError extends Error {
   }
 }
 
-export type BlockedCode = "suspended" | "no_plan" | "canceled" | "trial_ended";
+export type BlockedCode =
+  | "suspended"
+  | "no_plan"
+  | "canceled"
+  | "trial_ended"
+  /** A desktop install with no trial activation code, licence key or trial setup file (#109). */
+  | "not_activated"
+  /** A desktop install whose paid licence key has passed its last valid day (#109). */
+  | "license_expired";
 
 /** What an account is allowed to do right now, decided in one place. */
 export type Entitlement = {

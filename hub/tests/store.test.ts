@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   Conflict,
   HubStore,
+  isTerminalEvent,
   LockConflict,
   NotFound,
-  isTerminalEvent,
 } from "../src/store";
 import { createTestDatabase, type TestDatabase } from "./support";
 

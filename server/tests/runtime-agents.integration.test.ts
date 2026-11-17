@@ -153,6 +153,36 @@ describe("runtime agent loading", () => {
     });
   });
 
+  test("says to open ArkAgent when the desktop app's relay for the containers is gone (#109)", async () => {
+    const owner = await createUser();
+    const profile = await createCoworker(owner);
+    let up = false;
+    const loadWithRelay = createRuntimeAgentLoader(
+      database,
+      undefined,
+      {
+        endpoint: managedEndpoint,
+        token: managedAgentToken,
+        alsoRun: mastraManagedEndpoint,
+      },
+      undefined,
+      undefined,
+      async () => up,
+    );
+    expect(await loadWithRelay(owner)).toContainEqual({
+      id: profile.id,
+      name: "Expense Manager",
+      type: "unavailable",
+      reason:
+        "ArkAgent is not open, so Expense Manager cannot work right now. Open ArkAgent on this computer, then send your message again.",
+    });
+    up = true;
+    expect(
+      (await loadWithRelay(owner)).find((agent) => agent.id === profile.id)
+        ?.type,
+    ).toBe("remote_ag_ui");
+  });
+
   test("tells each of a person's digital employees who its colleagues are, and who leads", async () => {
     const owner = await createUser();
     const lead = await createCoworker(owner, { name: "Ana" });

@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { client } from "@/lib/client";
+import { client, tryClient } from "@/lib/client";
 
 /** A customer trial on this install (#109), as the server reads it. */
 export type Trial = {
@@ -69,5 +69,43 @@ export function trialInstallsQueryOptions() {
           fallback: "Could not load the trials",
         })
       ).json(),
+  });
+}
+
+/** Whether this install is activated (#109, v0.1.42), as the server decides it. */
+export type Activation = {
+  required: boolean;
+  /** Whether it may be used now: activated, or not required. */
+  allowed: boolean;
+  state: "none" | "trial" | "paid" | "ended" | "expired";
+  source: "license" | "trial-code" | "trial-profile" | null;
+  customerId: string | null;
+  customerName: string | null;
+  planId: string | null;
+  planName: string | null;
+  until: string | null;
+  daysLeft: number | null;
+  seats: number | null;
+  addons: string[];
+  renewHost: string | null;
+  lastRenewAt: string | null;
+  lastRenewError: string | null;
+  keys: { trial: boolean; license: boolean };
+};
+
+/**
+ * Activation, or null where the server has no such route (an older server, or a deployment with no
+ * trial service): null means nothing to gate.
+ */
+export function activationQueryOptions() {
+  return queryOptions({
+    queryKey: [...trialKeys.all, "activation"] as const,
+    queryFn: async (): Promise<Activation | null> => {
+      const response = await tryClient("/api/activation");
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error("Could not check the activation");
+      return ((await response.json()) as { activation: Activation }).activation;
+    },
+    staleTime: 60_000,
   });
 }

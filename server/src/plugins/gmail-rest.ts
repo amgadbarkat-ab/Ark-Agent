@@ -2,7 +2,7 @@
  * Gmail over Google's REST API, for the catalogue's `gmail` entry (desk #83: DT Lab needs a Gmail test
  * mailbox, and Gmail was listed as "Not yet").
  *
- * Search, list and read, and one write: `send_message` (desk #83, the Wine24 email scene). Nothing
+ * Search, list and read, and one write: `send_message` (desk #83, the email demo). Nothing
  * deletes, labels or marks as read. The scopes are `gmail.readonly` and `gmail.send`, so Google
  * itself refuses anything else, and the tools below are the only things a digital employee is
  * offered. `send_message` is on the catalogue's write list, so every call to it is held for the

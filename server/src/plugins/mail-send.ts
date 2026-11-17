@@ -1,6 +1,6 @@
 /**
  * What the Gmail and Microsoft 365 send tools share: reading recipients out of what a model wrote,
- * strictly (desk #83, the Wine24 email scene).
+ * strictly (desk #83, the email demo).
  *
  * A send tool is a write, so every call is held for the person to approve first (see
  * `call-outcome.ts`), and the card shows exactly these arguments. What is checked here is the shape:

@@ -1,5 +1,5 @@
 /**
- * Wine24's video editing (#109) on this machine: plans read strictly, files only from media/in, and
+ * Video editing (#109) on this machine: plans read strictly, files only from media/in, and
  * a real render by FFmpeg from clips, a still and a tone FFmpeg itself generates. The render tests
  * need FFmpeg on this machine (CI installs it); without it they report that and stop.
  */
@@ -11,8 +11,10 @@ import { catalogueEntry } from "../src/plugins/catalogue";
 import {
   callTool,
   detectVideoSetup,
+  fileNameFrom,
   listTools,
   planFrom,
+  prepareCall,
   useVideoSetup,
   VideoPlanError,
   videoUnavailable,
@@ -96,6 +98,41 @@ describe("video editing (#109)", () => {
     );
   });
 
+  test("a Greek or spaced name is written in Latin letters, so it never fails after approval", () => {
+    expect(fileNameFrom("Δοκιμή DT")).toBe("dokimi-dt");
+    expect(fileNameFrom("Ασύρτικο 2023 reel!")).toBe("asyrtiko-2023-reel");
+    expect(fileNameFrom("  ")).toBe("");
+  });
+
+  test.if(haveFfmpeg)(
+    "a plan is checked before its approval card: a bad one goes back to the employee, a good one gets a plain summary",
+    async () => {
+      const missing = await prepareCall({}, "render_video", {
+        name: "x",
+        sizes: ["9:16"],
+        pieces: [{ file: "nowhere.mp4" }],
+      });
+      expect(missing.refused).toContain("There is no file nowhere.mp4");
+      expect(missing.refused).toContain("Nothing was asked of the person");
+
+      const good = await prepareCall({}, "render_video", {
+        name: "Δοκιμή DT",
+        sizes: ["9:16"],
+        pieces: [{ file: "cellar.mp4", from: 0, to: 2, caption: "Δοκιμή DT" }],
+      });
+      expect(good.refused).toBeUndefined();
+      expect(good.args.name).toBe("dokimi-dt");
+      expect(good.summary).toContain('Make the video "dokimi-dt" in 9:16');
+      expect(good.summary).toContain(
+        "cellar.mp4 0–2 s with caption «Δοκιμή DT»",
+      );
+      expect(good.summary).toContain("nothing is published");
+      expect(good.summary).not.toContain("{");
+      // Other tools are not checked here.
+      expect(await prepareCall({}, "list_media", {})).toEqual({ args: {} });
+    },
+  );
+
   test("reads a plan strictly", () => {
     const plan = planFrom({
       name: "Reel-1",
@@ -105,7 +142,7 @@ describe("video editing (#109)", () => {
     expect(plan.name).toBe("reel-1");
     expect(plan.keepClipSound).toBe(true);
     expect(() =>
-      planFrom({ name: "../x", sizes: ["9:16"], pieces: [{ file: "a.mp4" }] }),
+      planFrom({ name: "../", sizes: ["9:16"], pieces: [{ file: "a.mp4" }] }),
     ).toThrow(VideoPlanError);
     expect(() =>
       planFrom({ name: "x", sizes: ["4:3"], pieces: [{ file: "a.mp4" }] }),

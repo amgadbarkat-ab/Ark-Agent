@@ -12,9 +12,149 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 - **Desktop, local model:** another program that happened to take the model's port while it was starting no longer counts as the model being up. The app now waits until the program it started answers to the key it was given. Before, the bots could be handed an address that was not their model.
 
+### Prepaid phone balance (#109, MD 17 Nov)
+
+- **Buying:**
+  - The phone add-on now comes with 5 prepaid hours.
+  - One page on blackark.uk opens a single Stripe checkout with the plan, the add-on and the first 5 hours, so every price is shown before paying.
+  - The customer can choose automatic top-up there. It is off by default.
+- **The balance is kept as money:**
+  - A block is EUR 23.40 excl. VAT, which is 5 hours at the incoming rate.
+  - Each call takes off its whole minutes at the rate of each part: incoming EUR 0.078, put through to a landline EUR 0.088, put through to a mobile EUR 0.139.
+- **In the last hour:** Settings → Phone line shows the balance and an **Add 5 hours** button.
+- **The last-hour email:** once switched on, one email (the text Amgad approved), in the customer's country language first with the English copy below. GCC countries get English only.
+- **The balance never goes below zero:**
+  - A call that cannot pay its first minute is not answered.
+  - A call that cannot pay its next minute hears one sentence and ends before that minute starts.
+  - If blackark.uk cannot be reached:
+    - One call per customer is answered on the last balance known, then callers hear busy until it answers again.
+    - BlackArk gets one internal alert email.
+    - That call's cost beyond what is booked is BlackArk's.
+- **Not billed:** lines with no customer, such as demo and trial lines, work as before.
+
+## 0.1.46
+
+### Paid licence keys from the payment pages are accepted (#109, MD 17 Nov)
+
+- This release trusts BlackArk's licence signing key, so a licence key the blackark.uk Stripe pages issue after payment activates the app. Its private half is only on BlackArk's signing computer and in the payment pages' config.
+- Licence keys signed earlier with the trial key keep working for now.
+
+## 0.1.45
+
+### Skroutz orders stay with the customer; Pylon exports load by themselves (#109, MD 16–17 Nov)
+
+- **No Skroutz order inbox at BlackArk.**
+  - **Amgad's decision (16 Nov):** Skroutz works only through the customer's own access, from their PC, and no order data passes through BlackArk.
+  - **Removed:** the inbox fields and the `new_orders` tool are gone from the app. The inbox pages are gone from the blackark.uk package.
+  - **New orders now:** an employee with both the Mailbox and Skroutz finds them from Skroutz's new-order emails, then reads each by its code. A Routine every few minutes keeps this close to live.
+- **Watched folder for exports.** On the desktop app, exports saved into `ArkAgent/data/in` load as business data files within a minute, for example from Pylon. Each is named after its file, so `stock.xlsx` becomes `stock`, and a newer export replaces the older one. Settings shows the folder.
+
+## 0.1.44
+
+### ELTA Courier, competitor prices, and FFmpeg in the Windows installer (#109, MD 17 Nov)
+
+- **ELTA Courier tracking**, in **Settings → Connect your Data → Shop and delivery**:
+  - **Reads:** a shipment's status, tracking events and delivery, by voucher number or by the shop's own reference.
+  - **Needs:** the customer's ELTA web-service login (customer code, user code, password), from ELTA Courier.
+  - **What to know:** ELTA's service uses plain http, and it gives no cash-on-delivery figures. It is checked for real once a customer's login exists.
+- **Competitor prices:**
+  - **The watch list:** a business data file named `price-watch`, with one row per product: name, SKU, own price, and its Skroutz and BestPrice page addresses.
+  - **How it runs:** on the schedule the customer chooses (a Routine), the employee opens each page in its browser, one at a time, at a person's pace. It records the shops and prices exactly as shown, and reports the cheapest against our own price.
+  - **What it never does:** get past a CAPTCHA or a block, or change a price. A price change goes through WooCommerce, on an approval card.
+- **Video editing on Windows works with nothing else to install.** The installer now ships FFmpeg 8.1.3: an LGPL build, pinned by its SHA-256, with its licence and source note beside it.
+- **The trial setup file** can give an employee `elta` and `price-watch` too.
+
+## 0.1.43
+
+### Shop and delivery connectors: Skroutz, WooCommerce, BOX NOW (#109, MD 16 Nov)
+
+**For every install, in Settings → Connect your Data → Shop and delivery.** Each customer's own account is typed in at the setup session. The login is tried first and kept only if it works, encrypted, on that computer. Secrets are never shown again.
+
+- **Skroutz:**
+  - **Reads:** Smart Cart orders, their state, items, delivery area, and the Skroutz Last Mile or courier tracking codes.
+  - **On an approval card:** accepting an order (with a pickup place and window from the order's own options), rejecting it with a written reason, and marking it ready for pickup.
+  - **New orders:** these come from the **order inbox** on blackark.uk. Skroutz announces orders only by webhook to a public address, so BlackArk's receiver holds each one until this computer collects it, then deletes it. Nothing is kept longer than 7 days.
+  - **Without the inbox:** an employee reads any order it is given the code of.
+- **WooCommerce:**
+  - **Reads:** orders, products, SKUs, prices and stock.
+  - **On an approval card:** stock and price changes.
+- **BOX NOW:**
+  - **Reads only:** parcels, their latest tracking events, and the cash-on-delivery money state (pending, paid by the customer, or transferred to the shop), with totals.
+  - **Needs:** BOX NOW's partner API address, client id and secret.
+- **Business data files:** exports such as Pylon's items, stock, sales and customer lists, uploaded as CSV or XLSX under a short name. Employees find rows in them, exactly as written.
+- **The trial setup file:** can now give an employee any of these, with `connectors: ["skroutz", "woocommerce", "boxnow", "business-files"]`.
+
+## 0.1.42
+
+### Activation: a trial activation code or a paid licence key (#109, MD 16 Nov)
+
+- **What changes:** on the desktop app, ArkAgent opens only when this computer has one of:
+  - a **trial activation code**;
+  - a **paid licence key**;
+  - the **trial setup file** (`.arktrial`) imported in the trial setup session.
+
+  Without one of them, the **Activate ArkAgent** screen is the only screen, and nothing runs.
+- **Upgrading:** an install that already has a trial setup file keeps working with nothing to enter. Any other install asks for a code or key after the upgrade. Nothing is deleted.
+- **The one box:** the same field takes a trial activation code, a licence key, or an unlock code. All three start with `ARK1-`. They are also on **Settings → Plan → Activation**.
+- **How each one is checked:**
+  - **Trial activation code:** signed by BlackArk's trial key. It ends at a fixed moment, so entering it again after a reinstall does not restart the trial.
+  - **Paid licence key:** signed by BlackArk's licence key. It is valid until the end of the paid period plus 7 days. The same key works again after a reinstall.
+  - **Clock:** every end is compared with the later of the computer's clock and the latest time the install has seen, so turning the clock back changes nothing.
+- **When it ends:** at the end of the trial, or when the licence passes its last valid day, the Activate screen comes back. Conversations, employees and settings are kept.
+- **Renewal:** a licence key may name a renewal address. Once a day the app asks that address for the renewed key and takes it if it is signed by BlackArk. Only these are sent:
+  - the customer id;
+  - a random id for this computer;
+  - the version;
+  - the key's number.
+- **The phone add-on** can be switched on in the code or key, as well as in the trial setup file.
+- **Hosted deployments, developer machines and CI:** nothing changes. Only the desktop app turns the gate on.
+- **For BlackArk:**
+  - `bun scripts/ark-trial.ts sign-trial-code` makes trial activation codes.
+  - `bun scripts/ark-trial.ts sign-license` makes paid licence keys.
+  - Until a separate licence key exists, licence keys are signed with the trial key (`shared/license-public-key.ts`).
+
+### "Open ArkAgent" instead of "Connection error" (#109, DT Lab item 3)
+
+- **The problem:** on Linux with Docker Engine, the desktop app carries the employees' containers to the server. When the app was closed while the server kept running, those employees failed with only "Connection error", or kept thinking.
+- **The fix:** the server now checks that connection before such an employee runs. If the connection is gone, the employee answers: «Το ArkAgent δεν είναι ανοιχτό… Ανοίξτε το ArkAgent σε αυτόν τον υπολογιστή και στείλτε ξανά το μήνυμά σας.»
+- **Where it applies:** only on Linux with Docker Engine. Other machines need no such connection.
+
+### No customer names in the app (#109, MD 16 Nov)
+
+- **One general release for everyone.** The app, its examples, its tests and these notes name no customer.
+- **Where customer content comes in:** customer details, data, price lists and the recommended employees are added only in the trial setup session on the customer's computer.
+
+## 0.1.41
+
+### Phone answering: the cost estimate before ordering (#109, MD 15–16 Nov)
+
+- **Where:** on installs where the phone add-on is not switched on, **Settings → Connect your Data** shows **Phone answering (paid add-on)**.
+- **The questions:** the country, chosen from all 27 EU and all 6 GCC countries; hours of incoming and outgoing calls a month; how much of a call the employee speaks; and the speech model.
+- **The estimate, line by line, per month in EUR:**
+  - a local number;
+  - incoming minutes;
+  - outgoing minutes, from landline to mobile rate, Twilio's *From EEA* rate in the EU. These are labelled "not in the current feature";
+  - Twilio Media Streams;
+  - speech on OpenAI Realtime, as a range;
+  - **BlackArk's €20 a month, excluding VAT**.
+- **Where the prices come from:** official list prices retrieved on 16 Nov 2026, converted at the ECB rate of 13 Nov 2026, 1 EUR = 1.1052 USD.
+- **Missing prices:** a price a provider does not publish is shown as **not published**, and the total then reads **at least**. It is never counted as zero.
+- **Request activation** writes a summary to copy and send to BlackArk. Nothing is sent or paid from the app. BlackArk switches the add-on on in the signed profile once it is paid for.
+
+### Fixes from DT Lab's v0.1.40 test (16 Nov)
+
+- **Video plans are checked before the approval card.**
+  - A plan that cannot run goes back to the employee to correct, so nobody approves a render that then fails.
+  - A Greek or spaced video name is accepted and written in Latin letters: «Δοκιμή DT» becomes `dokimi-dt`.
+- **The render card reads as a sentence:** the sizes, each file and its seconds, the captions, and "saved in media/out; nothing is published". It no longer shows raw JSON.
+- **The waiting message names the right place:** the employee now says the request waits on the card in this conversation, not "in Requests", when it does.
+- **`find_price`** tells the employee to give a price exactly as written, and to say whether it includes VAT only when the list says so.
+- **A Greek conversation stays Greek,** including the short sentences between tool calls.
+- **Settings no longer lists Phone approval** on installs where that feature is off.
+
 ## 0.1.40
 
-### Video editing on the business's own computer (#109: Wine24's SM Media Creator; FFmpeg, MD yes 15 Nov)
+### Video editing on the business's own computer (#109)
 
 - **What it does:** an employee marked `video` in the trial profile gets two tools.
   - **`list_media`** lists the footage, photos and audio the business put in `ArkAgent/media/in`.
@@ -31,7 +171,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **FFmpeg** is the one installed on the computer: `winget install Gyan.FFmpeg` on Windows, `brew install ffmpeg` on a Mac. **Settings → Connect your Data → Video editing** says whether it was found.
 - **Desktop only:** video editing runs only in the desktop app.
 
-### The business's price list (#109: Wine24 adds its own after the trial starts)
+### The business's price list (#109)
 
 - **Settings → Connect your Data → Price list** (administrators): upload a **CSV or Excel (.xlsx)** file, up to 8 MB. Replace or remove it at any time.
 - **Who uses it:** employees marked `priceList` in the trial profile get **`find_price`**. It returns the matching rows exactly as written, and finds «Ροζέ» whether or not it was typed with accents.
@@ -55,7 +195,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## 0.1.38
 
-### Your own mailbox over IMAP/SMTP (#109: Zoho Mail for Wine24, cPanel for Eurodiagnosi)
+### Your own mailbox over IMAP/SMTP (#109: for example Zoho Mail or cPanel hosting)
 
 - **Settings → Connect your Data → Mailbox (IMAP/SMTP).**
   - You enter the incoming and outgoing server, the ports, the user name and the password. The
@@ -80,13 +220,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **Trial profiles can now say which employees get the mailbox** (`mail` on a roster entry):
   - `folders` limits an employee to its own folders;
   - `from` gives it its own sending address;
-  - `mailBlockAmka` refuses any outgoing email with an 11-digit, AMKA-shaped number (Eurodiagnosi).
+  - `mailBlockAmka` refuses any outgoing email with an 11-digit, AMKA-shaped number.
   - An install already on v0.1.37 grants the mailbox to its mail employees on its first start of
     v0.1.38.
 - Three open-source libraries were added for this, on Amgad's yes: imapflow, mailparser and
   nodemailer (all MIT).
 
-### The business's own phone line (#109: Wine24 Phone & Enquiries Desk, Eurodiagnosi Front Desk)
+### The business's own phone line (#109)
 
 - **Settings → Connect your Data → Phone line** (administrators).
   - You enter BlackArk's relay address and the line token BlackArk issued.
@@ -105,7 +245,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **What it cannot do:** it makes no calls. The number a hand-over rings is the relay's, never one the employee says.
 - **If something fails:** if this computer or the speech service stops answering, the caller goes to the fallback number rather than to silence.
 - **Nothing is recorded.** The **call log** keeps the time, the caller's number, how long it lasted, the outcome, a one-line summary and any callback, with **Mark as done**.
-- **Eurodiagnosi:** the AMKA rule applies on the phone too. A callback note with an AMKA-shaped number is refused.
+- **The AMKA guard** applies on the phone too, where the setup file switches it on. A callback note with an AMKA-shaped number is refused.
 - `infra/phone-relay/`: the relay BlackArk runs on an EU server, set up with one `deploy.sh`.
 
 ### Model choices for the trial demos
@@ -265,7 +405,7 @@ the employees it names, nothing more, until the end it names.
   2026 keep 30 days. Nothing in this release changes a live billing setting: when Stripe or Paddle go
   live, their trial period is set to 7 days (`FREE_TRIAL_DAYS`, with a note beside the `trialing`
   handling in both).
-- **Published outside the Wine24 demo:** nothing was released between 13:45 and 15:30 Athens on
+- **Published outside the customer demo:** nothing was released between 13:45 and 15:30 Athens on
   12 Nov.
 
 ### Conversations
@@ -343,7 +483,7 @@ the employees it names, nothing more, until the end it names.
 
 ### Plugins
 
-- **Gmail and Microsoft 365 can send an email, after you approve it** (DT Lab, Wine24). A digital
+- **Gmail and Microsoft 365 can send an email, after you approve it** (DT Lab). A digital
   employee drafts the message; the approval card shows who it goes to, the subject and the text,
   and nothing is sent until you approve. Plain text, to and cc only. Microsoft keeps a copy in Sent
   Items.
@@ -439,8 +579,8 @@ the employees it names, nothing more, until the end it names.
 
 ### Conversations
 
-- **Typing straight after Alt+Tab reaches the message box, first word included** (DT Lab,
-  Wine24). Coming back with Alt+Tab and typing at once lost the first word. A key typed while the
+- **Typing straight after Alt+Tab reaches the message box, first word included** (DT Lab).
+  Coming back with Alt+Tab and typing at once lost the first word. A key typed while the
   caret is nowhere now moves it into the message box and lands there. Shortcuts, other fields,
   menus and open dialogs keep their keys, and a capital N on its way is a letter, not a new chat.
 - **Approval cards speak the card's language.** A Greek card's reason box, status and default
@@ -464,7 +604,7 @@ the employees it names, nothing more, until the end it names.
 
 ### Conversations
 
-- **Greek ω is drawn as ω again** (DT Lab, Wine24). The app's typeface maps lowercase ω to its
+- **Greek ω is drawn as ω again** (DT Lab). The app's typeface maps lowercase ω to its
   capital Ω, so every ω in Greek text, typed or answered, showed as Ω («τΩν», «όπΩς»). Greek
   is now drawn entirely in a typeface that has all of it, in the app and in the setup window.
 - **Typing right after you come back to the window reaches the message box.** Restored from the
@@ -487,7 +627,7 @@ Not in this release, and being worked on:
 
 ### Conversations
 
-- **Greek lists show one item per line** (DT Lab, Wine24). When an answer wrote its bullets as `•`
+- **Greek lists show one item per line** (DT Lab). When an answer wrote its bullets as `•`
   or `–` rather than as a markdown list, the whole list came out as one paragraph. Those lines are
   now drawn as a list, and so are several `•` items strung along one line.
 - **No more capital letters in the middle of a Greek word.** A capital Greek letter between two
@@ -504,7 +644,7 @@ Not in this release, and being worked on:
 
 ### Conversations
 
-- **A long table no longer freezes the window while it streams** (DT Lab, Wine24). Every few
+- **A long table no longer freezes the window while it streams** (DT Lab). Every few
   characters of an answer redrew the whole answer, so a long table took longer and longer to draw:
   the window stopped responding, and when the answer was complete it still seemed to be streaming
   while the screen caught up. A streaming answer is now redrawn a few times a second, and the last

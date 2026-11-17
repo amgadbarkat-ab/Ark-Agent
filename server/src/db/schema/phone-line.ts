@@ -93,3 +93,39 @@ export const priceList = pgTable("price_list", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * The business's own data files (#109, v0.1.43): exports from its ERP (for example Pylon's items,
+ * stock, sales or customer lists) or any other table, one row per named file. Kept as the text they
+ * were written with, like the price list.
+ */
+export const businessFiles = pgTable("business_files", {
+  /** The name employees use for it, for example "stock" or "customers". */
+  name: text("name").primaryKey(),
+  fileName: text("file_name").notNull(),
+  header: text("header").notNull(),
+  rows: text("rows").array().notNull(),
+  uploadedBy: text("uploaded_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * Competitor prices an employee read off public comparison pages (#109, v0.1.44): one row per
+ * product, shop and moment, exactly as the page showed it. The watch list itself is the business
+ * data file named `price-watch`.
+ */
+export const priceObservations = pgTable("price_observations", {
+  id: text("id").primaryKey(),
+  item: text("item").notNull(),
+  shop: text("shop").notNull(),
+  /** As the page wrote it, for example "14,90 €". */
+  price: text("price").notNull(),
+  /** Parsed, for comparing; null when it could not be read as a number. */
+  priceCents: integer("price_cents"),
+  url: text("url").notNull(),
+  seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+});

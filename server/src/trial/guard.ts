@@ -43,7 +43,11 @@ export function guardProfiles(
 /** The account's plan and whether it may run, with the trial's say added. */
 export function withTrialEntitlement(
   accounts: AccountStore,
-  trial: Pick<TrialService, "entitlement" | "current">,
+  trial: {
+    entitlement: TrialService["entitlement"];
+    /** The trial setup file's trial, for the period end shown. */
+    trialCurrent: TrialService["current"];
+  },
 ): AccountStore {
   return {
     ...accounts,
@@ -53,11 +57,13 @@ export function withTrialEntitlement(
     async summaryFor(userId) {
       const summary = await accounts.summaryFor(userId);
       const entitlement = await trial.entitlement(summary);
-      const current = await trial.current();
+      const current = await trial.trialCurrent();
       return {
         ...summary,
         ...entitlement,
-        ...(current && current.status !== "paid"
+        ...(current &&
+        current.status !== "paid" &&
+        entitlement.subscriptionStatus === "trialing"
           ? { currentPeriodEnd: current.endsAt }
           : {}),
       };
