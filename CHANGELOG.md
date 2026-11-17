@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Skroutz orders stay with the customer; Pylon exports load by themselves (#109, MD 16–17 Nov)
+
+- **No Skroutz order inbox at BlackArk.**
+  - **Amgad's decision (16 Nov):** Skroutz works only through the customer's own access, from their PC, and no order data passes through BlackArk.
+  - **Removed:** the inbox fields and the `new_orders` tool are gone from the app. The inbox pages are gone from the blackark.uk package.
+  - **New orders now:** an employee with both the Mailbox and Skroutz finds them from Skroutz's new-order emails, then reads each by its code. A Routine every few minutes keeps this close to live.
+- **Watched folder for exports.** On the desktop app, exports saved into `ArkAgent/data/in` load as business data files within a minute, for example from Pylon. Each is named after its file, so `stock.xlsx` becomes `stock`, and a newer export replaces the older one. Settings shows the folder.
+
 ## 0.1.44
 
 ### ELTA Courier, competitor prices, and FFmpeg in the Windows installer (#109, MD 17 Nov)

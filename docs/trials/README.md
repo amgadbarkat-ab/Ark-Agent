@@ -119,7 +119,7 @@ session, type in the customer's own details:
 
 | Connector | What to type | Where the customer gets it |
 |---|---|---|
-| Skroutz | API token; optionally the order inbox address and key | Skroutz merchant panel → Merchants → Services → Skroutz Marketplace. The inbox comes from BlackArk's `…/checkin/admin/skroutz.php` |
+| Skroutz | API token | Skroutz merchant panel → Merchants → Services → Skroutz Marketplace. New orders: give the same employee the Mailbox too; it finds them in Skroutz's emails |
 | WooCommerce | shop address, consumer key and secret | WordPress → WooCommerce → Settings → Advanced → REST API |
 | BOX NOW | API address (API_URL), client id, client secret | BOX NOW, after partner registration; stage first |
 | Business data files | upload each export under a short name (`stock`, `items`, `customers`) | Pylon's own export to Excel/CSV |
@@ -157,3 +157,14 @@ service address empty unless ELTA gives another one.
 
 **Skroutz's terms:** they forbid monitoring the site without written permission. BlackArk asks
 Skroutz first (Amgad, 16 Nov).
+
+## Pylon exports without uploading (from v0.1.45)
+
+**Where:** on the desktop app, save Pylon's exports (CSV or XLSX) into `ArkAgent\data\in` in the user's
+home folder. Settings → Connect your Data → Business data files shows the exact path.
+
+**What happens:**
+- Within a minute each file is loaded under its file name: `stock.xlsx` becomes `stock`, and
+  `Pylon Items.csv` becomes `pylon-items`.
+- A newer export with the same file name replaces the older one.
+- A file whose name is only Greek letters is skipped. Name exports in Latin letters.

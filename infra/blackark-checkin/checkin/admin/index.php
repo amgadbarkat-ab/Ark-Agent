@@ -137,7 +137,6 @@ $signedIn = !empty($_SESSION['signed_in']);
     <div>
       <h1>Trial check-ins</h1>
       <p class="note"><?= count($rows) ?> installs. Times are Athens time. Each install reports once a day; nothing about conversations is sent.</p>
-      <p class="note"><a href="skroutz.php">Skroutz order inboxes</a></p>
     </div>
     <form method="post" action="./">
       <input type="hidden" name="action" value="logout">

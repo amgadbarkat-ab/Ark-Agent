@@ -135,41 +135,13 @@ describe("Skroutz", () => {
     expect(result.text).toContain("refused the API token");
   });
 
-  test("new orders come from the inbox with its key, once each", async () => {
-    vendor(() =>
-      Response.json({
-        events: [
-          { event_type: "new_order", event_time: "t1", order },
-          { event_type: "order_updated", event_time: "t2", order },
-        ],
-      }),
-    );
-    const result = await skroutz.callTool(
-      {
-        url: "builtin://skroutz",
-        token: JSON.stringify({
-          apiToken: "tok",
-          inboxUrl: "https://blackark.example/checkin/skroutz/?inbox=abc",
-          inboxSecret: "s3cret",
-        }),
-      },
-      "new_orders",
-      {},
-    );
-    expect(sent[0]?.headers.get("authorization")).toBe("Bearer s3cret");
-    expect(result.text.match(/Order 230811-1234567/g)).toHaveLength(1);
-  });
-
-  test("without an inbox, the employee is told to ask by code", async () => {
-    vendor(() => Response.json({}));
-    const result = await skroutz.callTool(
-      { url: "builtin://skroutz", token: skroutzToken },
-      "new_orders",
-      {},
-    );
-    expect(result.isError).toBe(true);
-    expect(result.text).toContain("by its code");
-    expect(sent).toHaveLength(0);
+  test("there is no inbox tool: new orders come from the Mailbox, customer-direct", async () => {
+    const names = (await skroutz.listTools()).map((tool) => tool.name);
+    expect(names).not.toContain("new_orders");
+    expect(
+      (await skroutz.listTools()).find((tool) => tool.name === "get_order")
+        ?.description,
+    ).toContain("Mailbox");
   });
 });
 

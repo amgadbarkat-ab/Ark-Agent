@@ -201,7 +201,15 @@ export function BusinessFilesSection() {
             )}
           </p>
         </div>
-        {(files.data ?? []).map((file) => (
+        {files.data?.folder ? (
+          <p className="mt-2 text-muted-foreground text-xs">
+            {t(
+              "Exports saved into {folder} are loaded here by themselves within a minute, named after the file (stock.xlsx becomes stock). A newer export replaces the older one.",
+              { folder: files.data.folder },
+            )}
+          </p>
+        ) : null}
+        {(files.data?.files ?? []).map((file) => (
           <div
             className="mt-3 flex items-center justify-between gap-2 text-sm"
             key={file.name}

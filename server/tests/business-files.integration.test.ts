@@ -100,3 +100,36 @@ test("a bad name or an empty file is refused, and a new upload replaces the old"
   );
   expect(stock).toMatchObject({ fileName: "new.csv", rows: 3 });
 });
+
+test("the watched folder loads each export by its file name, and again only when it changes (v0.1.45)", async () => {
+  const { mkdtemp, writeFile, utimes, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { importBusinessFolder, nameFromFile } = await import(
+    "../src/plugins/business-files"
+  );
+  expect(nameFromFile("Stock Export.xlsx")).toBe("stock-export");
+  expect(nameFromFile("ΑΠΟΘΕΜΑ.csv")).toBeNull();
+  const dir = await mkdtemp(join(tmpdir(), "ark-data-in-"));
+  try {
+    await writeFile(join(dir, "Pylon Items.csv"), "Κωδικός;Είδος\nA1;Κρασί\n");
+    await writeFile(join(dir, "notes.docx"), "not a table");
+    expect(await importBusinessFolder(dir)).toEqual(["pylon-items"]);
+    // Unchanged: nothing to do.
+    expect(await importBusinessFolder(dir)).toEqual([]);
+    // A newer export replaces it.
+    await writeFile(
+      join(dir, "Pylon Items.csv"),
+      "Κωδικός;Είδος\nA1;Κρασί\nA2;Ροζέ\n",
+    );
+    const later = new Date(Date.now() + 60_000);
+    await utimes(join(dir, "Pylon Items.csv"), later, later);
+    expect(await importBusinessFolder(dir)).toEqual(["pylon-items"]);
+    const items = (await listBusinessFiles()).find(
+      (file) => file.name === "pylon-items",
+    );
+    expect(items?.rows).toBe(2);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

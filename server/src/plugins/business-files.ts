@@ -200,3 +200,107 @@ export async function callTool(
     ].join("\n"),
   );
 }
+
+// ---- the watched folder (v0.1.45) -------------------------------------------------------------
+
+/**
+ * A file name as a data file's name: «Stock Export.xlsx» → "stock-export". Null when nothing usable
+ * is left, so a file named only in Greek letters is skipped rather than imported under a guess.
+ */
+export function nameFromFile(fileName: string): string | null {
+  const stem = fileName.replace(/\.[^.]+$/, "");
+  const name = stem
+    .toLowerCase()
+    .replace(/[\s_.]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  return NAME.test(name) ? name : null;
+}
+
+let watchedFolder: string | null = null;
+
+/** Where exports are picked up from on this install, or null where there is none. */
+export function businessFolder(): string | null {
+  return watchedFolder;
+}
+
+/**
+ * Imports each CSV/XLSX in `dir` that is new or changed since it was last imported, under the name
+ * its file name gives (`stock.xlsx` → `stock`), replacing the older one. The business's ERP (Pylon,
+ * for example) saves its exports there, so the data is as fresh as the last export with no upload by
+ * hand. One pass; `startBusinessFolderWatch` runs it every minute.
+ */
+export async function importBusinessFolder(dir: string): Promise<string[]> {
+  const { readdir, readFile, stat } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const known = new Map(
+    (await listBusinessFiles()).map((file) => [
+      file.name,
+      Date.parse(file.uploadedAt),
+    ]),
+  );
+  const imported: string[] = [];
+  for (const entry of entries.sort()) {
+    if (!/\.(csv|xlsx|txt)$/i.test(entry) || entry.startsWith("~$")) continue;
+    const name = nameFromFile(entry);
+    if (!name) continue;
+    const path = join(dir, entry);
+    let modified: number;
+    try {
+      const info = await stat(path);
+      if (!info.isFile() || info.size > MAX_FILE_BYTES) continue;
+      modified = info.mtimeMs;
+    } catch {
+      continue;
+    }
+    const last = known.get(name);
+    if (last !== undefined && last >= modified) continue;
+    try {
+      await saveBusinessFile({
+        name,
+        fileName: entry,
+        bytes: new Uint8Array(await readFile(path)),
+        by: null,
+      });
+      imported.push(name);
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          type: "business-folder-skipped",
+          file: entry,
+          reason: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  }
+  return imported;
+}
+
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
+
+export function startBusinessFolderWatch(dir: string): () => void {
+  watchedFolder = dir;
+  void import("node:fs/promises").then(({ mkdir }) =>
+    mkdir(dir, { recursive: true }).catch(() => undefined),
+  );
+  const tick = () => {
+    void importBusinessFolder(dir).catch(() => undefined);
+  };
+  const first = setTimeout(tick, 5_000);
+  const every = setInterval(tick, 60_000);
+  first.unref?.();
+  every.unref?.();
+  return () => {
+    clearTimeout(first);
+    clearInterval(every);
+    watchedFolder = null;
+  };
+}
