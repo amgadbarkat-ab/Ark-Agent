@@ -246,6 +246,8 @@ send_event "$settled" >/dev/null
 [[ "$before" == 0 && "$(field "$(balance)" balanceMils)" == 23400 && "$(field "$(balance)" state)" == '"ok"' ]] \
   && { pass=$((pass+1)); echo "ok   a top-up credits only once paid"; } || { fail=$((fail+1)); echo "FAIL top-up credit: $before / $(balance)"; }
 expect "the top-up thank-you page" 200 "$buy?done=1"
+[[ "$(php -r 'define("ARK_CHECKIN", true); $c = (require $argv[1])["countries"]; echo ($c["CY"] ?? "-") . ($c["GR"] ?? "-") . ($c["AE"] ?? "-") . ($c["FR"] ?? "-");' "$work/checkin/phone-emails.php")" == "elelen-" ]] \
+  && { pass=$((pass+1)); echo "ok   Cyprus and Greece get Greek then English, the GCC English only, any other country the English text"; } || { fail=$((fail+1)); echo "FAIL country map"; }
 
 # A GCC customer: English only.
 gulf='{"id":"evt_g1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_gulf1","client_reference_id":"demo-gulf","customer":"cus_3","subscription":"sub_3","payment_status":"paid","customer_details":{"email":"owner@gulf.example","address":{"country":"AE"}},"metadata":{"kind":"subscription","phone_blocks":"1"}}}}'

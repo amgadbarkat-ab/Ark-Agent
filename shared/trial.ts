@@ -46,6 +46,12 @@ export type RosterEntry = {
    * `boxnow`, `business-files`. The accounts themselves are connected at setup in Settings.
    */
   connectors?: RosterConnector[];
+  /**
+   * Test cases for this employee (#116): made-up questions with what a good answer must and must
+   * never do. `bun scripts/ark-eval.ts` scores a change to the standing instruction against them on
+   * BlackArk's computer; the app never runs them. 5 to 8 per employee, or none.
+   */
+  tests?: TrialTestCase[];
 };
 
 export const ROSTER_CONNECTORS = [
@@ -78,6 +84,11 @@ export type TrialProfile = {
    */
   addons?: TrialAddon[];
   roster: RosterEntry[];
+  /**
+   * BlackArk's notes on this version of the profile, oldest first, signed with the rest. A change
+   * that went live although it scored lower is recorded here with its written reason (#116).
+   */
+  notes?: string[];
 };
 
 export const TRIAL_ADDONS = ["phone"] as const;
@@ -270,6 +281,7 @@ export function readProfile(value: unknown): TrialProfile {
       ...(entry.priceList === true ? { priceList: true } : {}),
       ...(entry.video === true ? { video: true } : {}),
       ...connectorsFrom(entry.connectors, key),
+      ...testCasesFrom(entry.tests, key),
     };
   });
   return {
@@ -287,6 +299,7 @@ export function readProfile(value: unknown): TrialProfile {
     ...(raw.mailBlockAmka === true ? { mailBlockAmka: true } : {}),
     ...addonsFrom(raw.addons),
     roster,
+    ...notesFrom(raw.notes),
   };
 }
 
@@ -420,4 +433,229 @@ export function trialLengthDays(startsAt: string, endsAt: string): number {
 export function trialDaysLeftAt(endsAt: string, now: Date): number {
   const left = Date.parse(endsAt) - now.getTime();
   return left <= 0 ? 0 : Math.ceil(left / DAY);
+}
+
+// ---- test cases (#116) -------------------------------------------------------------------------
+
+/**
+ * One test case. Written by BlackArk as a made-up customer-style question, never copied from a real
+ * customer's mail or calls, because the question and the instruction are sent to the scoring model.
+ */
+export type TrialTestCase = {
+  /** Lower-case letters, numbers and hyphens, used once per employee. Names the case in the report. */
+  id: string;
+  /** The question, as a customer would ask it (Greek first). */
+  ask: string;
+  /** What a good answer does, each checked by the judge model, e.g. "asks for the order number". */
+  must: string[];
+  /** What it must never do, each checked by the judge model, e.g. "gives medical advice". */
+  mustNot: string[];
+  /** Checks done by plain code, not by a model. One hit fails the case. */
+  rules?: TrialTestRules;
+  /**
+   * What a tool answers in this test, by tool name. Tools never really run in a test: each call is
+   * recorded and answered with this text, or with a fixed "no data" line.
+   */
+  toolAnswers?: Record<string, string>;
+};
+
+export type TrialTestRules = {
+  /**
+   * The only prices the answer may give, as the price list writes them ("15,90 €"). Any other amount
+   * in euros fails the case. An empty list: the answer gives no price at all.
+   */
+  prices?: string[];
+  /** No AMKA-shaped (11-digit) number in the answer. Always on when the profile has `mailBlockAmka`. */
+  noAmka?: boolean;
+  /** The answer does not call itself an AI, a bot, a chatbot or a language model, in Greek or English. */
+  noAiWords?: boolean;
+  /** Tools it should call for this question; not calling one fails the case. */
+  toolsShould?: string[];
+  /** Tools it must never call for this question; calling one fails the case. */
+  toolsNever?: string[];
+};
+
+/** How many test cases an employee has, when it has any (Amgad's decision of 16 Nov, #116). */
+export const TEST_CASES_MIN = 5;
+export const TEST_CASES_MAX = 8;
+const TEST_RULES = [
+  "prices",
+  "noAmka",
+  "noAiWords",
+  "toolsShould",
+  "toolsNever",
+] as const;
+const TOOL_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function textList(
+  value: unknown,
+  what: string,
+  min: number,
+  max: number,
+  each: number,
+): string[] {
+  if (value === undefined && min === 0) return [];
+  if (!Array.isArray(value) || value.length < min || value.length > max) {
+    throw new TrialFormatError(
+      min > 0
+        ? `${what} needs ${min} to ${max} entries.`
+        : `${what} must be a list of at most ${max} entries.`,
+    );
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || !item.trim()) {
+      throw new TrialFormatError(`${what} has an empty entry.`);
+    }
+    if (item.length > each) {
+      throw new TrialFormatError(
+        `${what} has an entry longer than ${each} characters.`,
+      );
+    }
+    return item.trim();
+  });
+}
+
+function toolNames(value: unknown, what: string): string[] | undefined {
+  if (value === undefined) return undefined;
+  const names = textList(value, what, 0, 20, 64);
+  const bad = names.find((name) => !TOOL_NAME.test(name));
+  if (bad !== undefined) {
+    throw new TrialFormatError(
+      `${what} names "${bad}", which is not a tool name.`,
+    );
+  }
+  return names.length > 0 ? [...new Set(names)] : undefined;
+}
+
+function testRules(value: unknown, where: string): TrialTestRules | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    throw new TrialFormatError(`${where} has rules that are not valid.`);
+  }
+  const unknown = Object.keys(value).find(
+    (name) => !TEST_RULES.includes(name as (typeof TEST_RULES)[number]),
+  );
+  if (unknown !== undefined) {
+    throw new TrialFormatError(
+      `${where} has a rule called "${unknown}". Known: ${TEST_RULES.join(", ")}.`,
+    );
+  }
+  for (const flag of ["noAmka", "noAiWords"] as const) {
+    if (value[flag] !== undefined && typeof value[flag] !== "boolean") {
+      throw new TrialFormatError(
+        `${where}'s rule ${flag} must be true or false.`,
+      );
+    }
+  }
+  const prices =
+    value.prices === undefined
+      ? undefined
+      : textList(value.prices, `${where}'s prices`, 0, 50, 40);
+  const toolsShould = toolNames(value.toolsShould, `${where}'s toolsShould`);
+  const toolsNever = toolNames(value.toolsNever, `${where}'s toolsNever`);
+  const both = toolsShould?.find((name) => toolsNever?.includes(name));
+  if (both !== undefined) {
+    throw new TrialFormatError(
+      `${where} says the tool ${both} both should and must never be called.`,
+    );
+  }
+  const rules: TrialTestRules = {
+    ...(prices ? { prices } : {}),
+    ...(value.noAmka === true ? { noAmka: true } : {}),
+    ...(value.noAiWords === true ? { noAiWords: true } : {}),
+    ...(toolsShould ? { toolsShould } : {}),
+    ...(toolsNever ? { toolsNever } : {}),
+  };
+  return Object.keys(rules).length > 0 ? rules : undefined;
+}
+
+function toolAnswersFrom(
+  value: unknown,
+  where: string,
+): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    throw new TrialFormatError(`${where} has toolAnswers that are not valid.`);
+  }
+  const answers: Record<string, string> = {};
+  for (const [name, answer] of Object.entries(value)) {
+    if (!TOOL_NAME.test(name)) {
+      throw new TrialFormatError(
+        `${where}'s toolAnswers names "${name}", which is not a tool name.`,
+      );
+    }
+    if (typeof answer !== "string" || answer.length > 4000) {
+      throw new TrialFormatError(
+        `${where}'s answer for the tool ${name} must be text of at most 4000 characters.`,
+      );
+    }
+    answers[name] = answer;
+  }
+  return Object.keys(answers).length > 0 ? answers : undefined;
+}
+
+/**
+ * An employee's test cases, checked. Each refusal is one sentence naming the employee and the case,
+ * so whoever wrote the draft can find the line to fix.
+ */
+export function testCasesFrom(
+  value: unknown,
+  key: string,
+): { tests?: TrialTestCase[] } {
+  if (value === undefined) return {};
+  if (
+    !Array.isArray(value) ||
+    value.length < TEST_CASES_MIN ||
+    value.length > TEST_CASES_MAX
+  ) {
+    throw new TrialFormatError(
+      `The test cases for "${key}" must be a list of ${TEST_CASES_MIN} to ${TEST_CASES_MAX} cases.`,
+    );
+  }
+  const ids = new Set<string>();
+  const tests = value.map((item: unknown, index): TrialTestCase => {
+    if (!isRecord(item)) {
+      throw new TrialFormatError(
+        `Test case ${index + 1} for "${key}" is not a case.`,
+      );
+    }
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!KEY.test(id) || ids.has(id)) {
+      throw new TrialFormatError(
+        `Test case ${index + 1} for "${key}" needs an id of lower-case letters, numbers and hyphens, used once.`,
+      );
+    }
+    ids.add(id);
+    const where = `Test case "${id}" for "${key}"`;
+    if (typeof item.ask !== "string" || !item.ask.trim()) {
+      throw new TrialFormatError(`${where} has no question (ask).`);
+    }
+    if (item.ask.length > 2000) {
+      throw new TrialFormatError(
+        `${where} has a question longer than 2000 characters.`,
+      );
+    }
+    const rules = testRules(item.rules, where);
+    const toolAnswers = toolAnswersFrom(item.toolAnswers, where);
+    return {
+      id,
+      ask: item.ask.trim(),
+      must: textList(item.must, `${where}'s "must" list`, 1, 10, 300),
+      mustNot: textList(item.mustNot, `${where}'s "mustNot" list`, 0, 10, 300),
+      ...(rules ? { rules } : {}),
+      ...(toolAnswers ? { toolAnswers } : {}),
+    };
+  });
+  return { tests };
+}
+
+/** BlackArk's notes on the profile, each kept as written. */
+function notesFrom(value: unknown): { notes?: string[] } {
+  if (value === undefined) return {};
+  const notes = textList(value, "The trial profile's notes", 0, 200, 2000);
+  return notes.length > 0 ? { notes } : {};
 }
