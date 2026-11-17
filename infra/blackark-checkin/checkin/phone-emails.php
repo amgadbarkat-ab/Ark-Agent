@@ -19,9 +19,11 @@ if (!defined('ARK_CHECKIN')) {
 }
 
 return [
-    // Which text each country gets. Countries not listed: 'en', logged.
+    // Which text each country gets. Countries not listed get the English text (Amgad, 17 Nov 13:42),
+    // and the server log names the country.
     'countries' => [
         'GR' => 'el',
+        'CY' => 'el', // Amgad, 17 Nov 13:42: Cyprus gets the approved Greek text.
         'AE' => 'en', 'SA' => 'en', 'QA' => 'en', 'KW' => 'en', 'BH' => 'en', 'OM' => 'en',
     ],
     'texts' => [
