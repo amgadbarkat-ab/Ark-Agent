@@ -12,6 +12,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 - **Desktop, local model:** another program that happened to take the model's port while it was starting no longer counts as the model being up. The app now waits until the program it started answers to the key it was given. Before, the bots could be handed an address that was not their model.
 
+- **Conversations opened while a run had just finished:** the "nothing is running" signal could reach the browser before the signal that the history was fully loaded. The browser could then treat a conversation as idle before its history had finished arriving. The two now always arrive in that order.
+
 ## 0.1.47
 
 ### Prepaid phone balance (#109, MD 17 Nov)
