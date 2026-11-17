@@ -13,16 +13,11 @@ export const EL_BUSINESS: Record<string, string> = {
   // Skroutz
   "Skroutz (Smart Cart orders and Skroutz Last Mile)":
     "Skroutz (παραγγελίες Smart Cart και Skroutz Last Mile)",
-  "Read Smart Cart orders, their state and their Skroutz Last Mile or courier tracking. Accepting, rejecting or marking an order ready waits for your approval.":
-    "Ανάγνωση παραγγελιών Smart Cart, της κατάστασής τους και της παρακολούθησης Skroutz Last Mile ή courier. Η αποδοχή, η απόρριψη ή η σήμανση «έτοιμη» μιας παραγγελίας περιμένει την έγκρισή σας.",
+  "Read Smart Cart orders by their code, with their state and their Skroutz Last Mile or courier tracking. New orders are found from Skroutz's emails in the Mailbox. Accepting, rejecting or marking an order ready waits for your approval.":
+    "Ανάγνωση παραγγελιών Smart Cart με τον κωδικό τους, με την κατάσταση και την παρακολούθηση Skroutz Last Mile ή courier. Οι νέες παραγγελίες βρίσκονται από τα email του Skroutz στο Mailbox. Η αποδοχή, η απόρριψη ή η σήμανση «έτοιμη» μιας παραγγελίας περιμένει την έγκρισή σας.",
   "In the Skroutz merchant panel: Merchants, then Services, then Skroutz Marketplace, then the API token. Making a new token cancels the old one.":
     "Στο Skroutz merchant panel: Merchants, Υπηρεσίες, Skroutz Marketplace, API token. Ένα νέο token ακυρώνει το παλιό.",
   "API token": "API token",
-  "Order inbox address (optional)":
-    "Διεύθυνση θυρίδας παραγγελιών (προαιρετικό)",
-  "From BlackArk. Paste the same address into the Skroutz panel as the webhook, so new orders reach this computer.":
-    "Από την BlackArk. Βάλτε την ίδια διεύθυνση στο Skroutz panel ως webhook, ώστε οι νέες παραγγελίες να φτάνουν σε αυτόν τον υπολογιστή.",
-  "Order inbox key (optional)": "Κλειδί θυρίδας παραγγελιών (προαιρετικό)",
 
   // WooCommerce
   "WooCommerce (orders and stock)": "WooCommerce (παραγγελίες και απόθεμα)",
@@ -80,4 +75,6 @@ export const EL_BUSINESS: Record<string, string> = {
   "ELTA's service did not answer as expected ({status}).":
     "Η υπηρεσία της ΕΛΤΑ δεν απάντησε όπως αναμενόταν ({status}).",
   "ELTA refused the request: {reason}.": "Η ΕΛΤΑ απέρριψε το αίτημα: {reason}.",
+  "Exports saved into {folder} are loaded here by themselves within a minute, named after the file (stock.xlsx becomes stock). A newer export replaces the older one.":
+    "Οι εξαγωγές που αποθηκεύονται στο {folder} φορτώνονται εδώ μόνες τους μέσα σε ένα λεπτό, με το όνομα του αρχείου (το stock.xlsx γίνεται stock). Μια νεότερη εξαγωγή αντικαθιστά την παλαιότερη.",
 };

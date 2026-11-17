@@ -35,26 +35,10 @@ export const BUSINESS_CONNECTORS: readonly BusinessConnector[] = [
     key: "skroutz",
     title: "Skroutz (Smart Cart orders and Skroutz Last Mile)",
     summary:
-      "Read Smart Cart orders, their state and their Skroutz Last Mile or courier tracking. Accepting, rejecting or marking an order ready waits for your approval.",
+      "Read Smart Cart orders by their code, with their state and their Skroutz Last Mile or courier tracking. New orders are found from Skroutz's emails in the Mailbox. Accepting, rejecting or marking an order ready waits for your approval.",
     whereToGet:
       "In the Skroutz merchant panel: Merchants, then Services, then Skroutz Marketplace, then the API token. Making a new token cancels the old one.",
-    fields: [
-      { name: "apiToken", label: "API token", secret: true },
-      {
-        name: "inboxUrl",
-        label: "Order inbox address (optional)",
-        optional: true,
-        url: true,
-        placeholder: "https://blackark.uk/checkin/skroutz/?inbox=…",
-        help: "From BlackArk. Paste the same address into the Skroutz panel as the webhook, so new orders reach this computer.",
-      },
-      {
-        name: "inboxSecret",
-        label: "Order inbox key (optional)",
-        optional: true,
-        secret: true,
-      },
-    ],
+    fields: [{ name: "apiToken", label: "API token", secret: true }],
   },
   {
     key: "woocommerce",

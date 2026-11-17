@@ -91,23 +91,6 @@ page="$(curl -s -c "$jar" -b "$jar" "http://127.0.0.1:$port/checkin/admin/")"
 grep -q '0.1.37' <<<"$page" && grep -q 'verified' <<<"$page" && { pass=$((pass+1)); echo "ok   signed in: installs listed, verified shown"; } || { fail=$((fail+1)); echo "FAIL listing"; }
 grep -q 'second install' <<<"$page" && { pass=$((pass+1)); echo "ok   a second install of demo-shop is flagged"; } || { fail=$((fail+1)); echo "FAIL second-install flag"; }
 
-# The Skroutz order inbox (v0.1.43): created by staff, fed by Skroutz, collected once by the install.
-sk="http://127.0.0.1:$port/checkin/skroutz/"
-page="$(curl -s -c "$jar" -b "$jar" -X POST --data "action=create&label=demo-shop&csrf=$csrf" "http://127.0.0.1:$port/checkin/admin/skroutz.php")"
-hook="$(grep -o 'checkin/skroutz/?inbox=[A-Za-z0-9_-]*' <<<"$page" | head -1 | sed 's/.*inbox=//')"
-key="$(grep -o 'Inbox key[^<]*<br><code>[A-Za-z0-9_-]*' <<<"$page" | sed 's/.*<code>//')"
-[[ -n "$hook" && -n "$key" ]] && { pass=$((pass+1)); echo "ok   staff create an inbox and see its address and key once"; } || { fail=$((fail+1)); echo "FAIL inbox create"; }
-expect "an unknown inbox is refused" 404 -X POST -H 'content-type: application/json' --data '{"order":{"code":"x"}}' "${sk}?inbox=AAAAAAAAAAAAAAAAAAAAAAAA"
-expect "something that is not an order event is refused" 400 -X POST -H 'content-type: application/json' --data '{"hello":1}' "${sk}?inbox=$hook"
-expect "Skroutz delivers an order event" 200 -X POST -H 'content-type: application/json' --data '{"event_type":"new_order","event_time":"t","order":{"code":"230811-1","state":"open"}}' "${sk}?inbox=$hook"
-expect "a wrong key collects nothing" 403 -X POST -H "authorization: Bearer wrongwrongwrongwrongwrong" "$sk"
-got="$(curl -s -X POST -H "authorization: Bearer $key" "$sk")"
-grep -q '230811-1' <<<"$got" && { pass=$((pass+1)); echo "ok   the install collects the event"; } || { fail=$((fail+1)); echo "FAIL collect: $got"; }
-got="$(curl -s -X POST -H "authorization: Bearer $key" "$sk")"
-[[ "$got" == '{"events":[]}' ]] && { pass=$((pass+1)); echo "ok   and it is gone after collecting"; } || { fail=$((fail+1)); echo "FAIL not deleted: $got"; }
-signed_out="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/checkin/admin/skroutz.php")"
-[[ "$signed_out" == 302 ]] && { pass=$((pass+1)); echo "ok   the inbox page needs the staff sign-in"; } || { fail=$((fail+1)); echo "FAIL inbox page open: $signed_out"; }
-
 # Paid licence keys from Stripe (v0.1.44).
 stripe="http://127.0.0.1:$port/checkin/stripe/"
 send_event() { # json -> status; signed like Stripe: HMAC-SHA256 of "<t>.<body>" with the webhook secret

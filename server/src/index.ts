@@ -10,6 +10,8 @@ import "./no-telemetry";
 // application's graph without it failed about three times in ten.
 import "eventsource";
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   CopilotKitIntelligence,
   IntelligenceAgentRunner,
@@ -166,6 +168,7 @@ import { builtinOAuthClientsFrom } from "./plugins/builtin-oauth-clients";
 import { useRoutineTools } from "./plugins/builtin-routines";
 import {
   listTools as listBusinessFileTools,
+  startBusinessFolderWatch,
   useBusinessFilesDatabase,
 } from "./plugins/business-files";
 import { useComposioClient } from "./plugins/composio";
@@ -1618,6 +1621,13 @@ async function grantServerTools(
 // The price list lives in this database; video editing runs only in the desktop app (#109).
 usePriceListDatabase(database);
 useBusinessFilesDatabase(database);
+// On the desktop app, exports saved into ArkAgent/data/in are loaded as business data files (#109).
+if (config.singleUser) {
+  startBusinessFolderWatch(
+    process.env.ARK_DATA_IN_DIR?.trim() ||
+      join(homedir(), "ArkAgent", "data", "in"),
+  );
+}
 usePriceWatchDatabase(database);
 useVideoSetup(
   detectVideoSetup({

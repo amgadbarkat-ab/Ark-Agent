@@ -1,15 +1,14 @@
 /**
  * Skroutz Smart Cart orders and Skroutz Last Mile status (#109, v0.1.43), for every install.
  *
- * WHAT AN EMPLOYEE CAN DO. Read one order by its code; read the orders Skroutz announced since the
- * last look (when the install has an order inbox, below); and, each held on an approval card, accept
- * an order, reject it, or mark it ready for pickup. Nothing else: no invoices, no stock, no refunds.
+ * WHAT AN EMPLOYEE CAN DO. Read one order by its code and, each held on an approval card, accept an
+ * order, reject it, or mark it ready for pickup. Nothing else: no invoices, no stock, no refunds.
  *
- * WHY AN INBOX. Skroutz has no "list orders" call: it announces new and changed orders only by
- * webhook, to a public https address, and a computer behind the customer's router has none. So
- * BlackArk's receiver (infra/blackark-checkin/checkin/skroutz/) holds each announcement until this
- * install collects it, then deletes it (Amgad, 16 Nov, option a). Without an inbox, an employee can
- * still read any order it is given the code of.
+ * NEW ORDERS, CUSTOMER-DIRECT. Skroutz has no "list orders" call; it announces orders only by webhook
+ * to a public address, which a computer behind the customer's router does not have. Amgad (16 Nov
+ * 15:09): no receiver at BlackArk, the customer's own access only, nothing passes through us. So an
+ * employee finds new orders the way the merchant does: from Skroutz's new-order emails in the
+ * customer's Mailbox, then reads each one here by its code.
  *
  * API: https://developer.skroutz.gr/smart_cart/orders_api. Token from the merchant panel.
  */
@@ -18,7 +17,6 @@ import {
   BusinessError,
   businessFetch,
   call,
-  checkedBase,
   settingsFrom,
   text,
   vendorSaid,
@@ -46,18 +44,12 @@ const TOOLS: readonly McpTool[] = Object.freeze([
   {
     name: "get_order",
     description:
-      "Read one Skroutz Smart Cart order by its code: its state, the items, quantities and prices as Skroutz has them, the customer's name and delivery area, the courier (Skroutz Last Mile or another) and its tracking codes, and, while it can still be accepted, the pickup places and windows to choose from and the reasons it may be rejected for.",
+      "Read one Skroutz Smart Cart order by its code (to find new orders, look in the Mailbox for Skroutz's new-order emails and take the order code from each): its state, the items, quantities and prices as Skroutz has them, the customer's name and delivery area, the courier (Skroutz Last Mile or another) and its tracking codes, and, while it can still be accepted, the pickup places and windows to choose from and the reasons it may be rejected for.",
     inputSchema: {
       type: "object",
       properties: codeProperty,
       required: ["code"],
     },
-  },
-  {
-    name: "new_orders",
-    description:
-      "The Skroutz orders that were placed or changed since the last time anyone looked, from this install's order inbox. Each one is collected once: after this answer they are gone from the inbox, so note what matters.",
-    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "accept_order",
@@ -233,33 +225,6 @@ export async function checkSkroutzLogin(
   }
 }
 
-async function collectInbox(settings: Record<string, string>) {
-  if (!settings.inboxUrl || !settings.inboxSecret) {
-    throw new BusinessError(
-      "This install has no Skroutz order inbox, so new orders cannot be listed. Ask for an order by its code instead, or add the inbox in Settings, then Connect your Data.",
-    );
-  }
-  const base = checkedBase(settings.inboxUrl, "The order inbox address");
-  const result = await call(businessFetch(), base.toString(), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${settings.inboxSecret}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ collect: true }),
-  });
-  if (result.status === 401 || result.status === 403) {
-    throw new BusinessError(
-      "The order inbox refused this install's key. Connect Skroutz again in Settings with the inbox details from BlackArk.",
-    );
-  }
-  if (result.status >= 400) {
-    throw new BusinessError(`The order inbox said no (${result.status}).`);
-  }
-  const events = (result.body as { events?: unknown[] } | null)?.events ?? [];
-  return Array.isArray(events) ? events : [];
-}
-
 export async function callTool(
   connection: { url: string; token?: string },
   toolName: string,
@@ -268,23 +233,6 @@ export async function callTool(
   try {
     const settings = settingsFrom(connection.token, TITLE);
     const token = settings.apiToken ?? "";
-    if (toolName === "new_orders") {
-      const events = await collectInbox(settings);
-      if (events.length === 0) return answer("No new Skroutz orders.");
-      const seen = new Set<string>();
-      const parts: string[] = [];
-      for (const raw of events) {
-        const event = raw as Record<string, unknown>;
-        const order = (event.order ?? {}) as Order;
-        const code = text(order.code, 40);
-        if (!code || seen.has(code)) continue;
-        seen.add(code);
-        parts.push(
-          `${text(event.event_type, 40) || "update"} at ${text(event.event_time, 40) || "?"}:\n${describeOrder(order)}`,
-        );
-      }
-      return answer(parts.join("\n\n"));
-    }
     const code = text(args.code, 40);
     if (!CODE.test(code)) {
       return answer("Give the Skroutz order code.", true);

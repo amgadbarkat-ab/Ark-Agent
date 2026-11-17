@@ -16,13 +16,14 @@ export const businessFileKeys = {
 export function businessFilesQueryOptions() {
   return queryOptions({
     queryKey: businessFileKeys.all,
-    queryFn: async (): Promise<BusinessFile[]> =>
-      (
-        (await (
-          await client("/api/business-files", {
-            fallback: "Could not load the data files",
-          })
-        ).json()) as { files: BusinessFile[] }
-      ).files,
+    queryFn: async (): Promise<{
+      files: BusinessFile[];
+      folder: string | null;
+    }> =>
+      (await (
+        await client("/api/business-files", {
+          fallback: "Could not load the data files",
+        })
+      ).json()) as { files: BusinessFile[]; folder: string | null },
   });
 }

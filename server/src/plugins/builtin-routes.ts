@@ -10,6 +10,7 @@ import { bodyLimit } from "hono/body-limit";
 import { type AppVariables, requireAdmin } from "../auth/guards";
 import {
   BusinessFileRefusedError,
+  businessFolder,
   listBusinessFiles,
   removeBusinessFile,
   saveBusinessFile,
@@ -80,7 +81,10 @@ export function createBuiltinToolRoutes(
   routes.get("/business-files", requireUser, async (context) => {
     const denied = requireAdmin(context);
     if (denied) return denied;
-    return context.json({ files: await listBusinessFiles() });
+    return context.json({
+      files: await listBusinessFiles(),
+      folder: businessFolder(),
+    });
   });
 
   routes.put(
