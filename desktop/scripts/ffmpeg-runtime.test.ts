@@ -8,7 +8,8 @@ test("the Windows installer ships a pinned LGPL FFmpeg with its licence and sour
   expect(manifest.archive.name).not.toContain("gpl-shared");
   expect(manifest.archive.name).not.toMatch(/-gpl[-.]/);
   expect(manifest.archive.url).toEndWith(`/${manifest.archive.name}`);
-  expect(manifest.archive.sha256).toMatch(/^([0-9a-f]{64})?$/);
+  // Pinned from the first verified build (17 Nov, against BtbN's own checksums.sha256).
+  expect(manifest.archive.sha256).toMatch(/^[0-9a-f]{64}$/);
   const resources = windows.bundle.resources as Record<string, string>;
   for (const name of [
     "ffmpeg.exe",
