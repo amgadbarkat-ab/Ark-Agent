@@ -238,7 +238,7 @@ Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
 
   | Customer's country | The email |
   |---|---|
-  | Greece | Greek first, then the English copy |
+  | Greece, Cyprus | Greek first, then the English copy |
   | GCC (AE, SA, QA, KW, BH, OM) | English only |
   | any other country | the English text, and the server log names the country |
 

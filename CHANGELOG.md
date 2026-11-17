@@ -18,6 +18,10 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **`bun scripts/ark-eval.ts tune`** (needs Amgad's yes for the proposer): a proposer model suggests better instructions. Only one that scores higher is shown, and a person approves each one before it is written as a proposed-change file.
 - **What is sent:** the key comes only from `ARK_EVAL_API_KEY` or a hidden prompt. Only the made-up questions and our own instruction text are sent. Nothing changes on a customer's computer. See `docs/trials/README.md`.
 
+### Fixed
+
+- **Conversations opened while a run had just finished:** the "nothing is running" signal could reach the browser before the signal that the history was fully loaded. The browser could then treat a conversation as idle before its history had finished arriving. The two now always arrive in that order.
+
 ## 0.1.47
 
 ### Prepaid phone balance (#109, MD 17 Nov)
