@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.44
+
 ### ELTA Courier, competitor prices, and FFmpeg in the Windows installer (#109, MD 17 Nov)
 
 - **ELTA Courier tracking**, in **Settings → Connect your Data → Shop and delivery**:
