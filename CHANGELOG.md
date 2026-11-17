@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.48
+
 ### `ark-eval` uses OpenRouter's free tier (#116)
 
 - **The default provider** is now OpenRouter's free tier: BlackArk's key "ArkAgent-116", since Groq's signup was blocked. Groq and Cerebras remain as alternatives.
