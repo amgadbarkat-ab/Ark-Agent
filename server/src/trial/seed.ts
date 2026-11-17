@@ -126,3 +126,47 @@ export async function seedTrialRoster(
   }
   return made;
 }
+
+/**
+ * Writes a newer signed profile's role description and standing instruction onto the roster's
+ * employees already set up (#116). They are read-only on this computer, so this is the one way a
+ * change BlackArk accepted (from "Propose a change") reaches them: the new profile is imported, and
+ * each employee whose text differs gets the profile's. Names, titles and pictures are left as the
+ * customer set them; an employee somebody deleted stays deleted. Returns how many changed.
+ */
+export async function applyProfileInstructions(
+  actor: AgentActor,
+  dependencies: {
+    trial: Pick<TrialService, "roster" | "rosterAgents" | "asProfile">;
+    profiles: AgentProfileStore;
+  },
+): Promise<number> {
+  const { trial, profiles } = dependencies;
+  const roster = new Map(
+    (await trial.roster()).map((entry) => [entry.key, entry]),
+  );
+  let changed = 0;
+  for (const { key, agentId } of await trial.rosterAgents()) {
+    const entry = roster.get(key);
+    if (!entry) continue;
+    const current = await profiles.get(actor, agentId);
+    if (!current || current.deletedAt) continue;
+    if (
+      current.roleDescription === entry.roleDescription &&
+      (current.persona ?? null) === entry.instructions
+    ) {
+      continue;
+    }
+    await trial.asProfile(() =>
+      profiles.update(actor, agentId, {
+        name: current.name,
+        title: current.title,
+        roleDescription: entry.roleDescription,
+        visibility: current.visibility,
+        persona: entry.instructions,
+      }),
+    );
+    changed += 1;
+  }
+  return changed;
+}
