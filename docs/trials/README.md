@@ -171,9 +171,23 @@ home folder. Settings → Connect your Data → Business data files shows the ex
 
 ## Test cases and scoring an instruction change (#116)
 
-Runs on Amgad's computer only, with one of BlackArk's free keys: **Groq** by default, **Cerebras** as
-the alternative. Never the local model, never an Anthropic key, never DeepSeek. Only the made-up test
-questions and our own instruction text are sent.
+Runs on Amgad's computer only, with BlackArk's free key.
+- **Provider:** **OpenRouter**'s free tier by default (the key "ArkAgent-116", 17 Nov). **Groq** and **Cerebras** are alternatives.
+- **Never used:** the local model, an Anthropic key or model, DeepSeek. `ark-eval` also refuses Anthropic and DeepSeek model names, which OpenRouter could otherwise route to.
+- **What is sent:** only the made-up test questions and our own instruction text. OpenRouter's free models may be served by providers that keep prompts, so nothing else may go there.
+
+**Getting the key onto Amgad's PC:**
+- **Never** on GitHub, in a chat, in a script or on a trial PC.
+- **Copying it:** COO copies it from the COO box into BlackArk's password manager, or hands it over in person. Amgad copies it from there.
+- **Using it, Windows PowerShell:** the key lives only for that window, and is not stored or shown:
+
+  ```
+  $env:ARK_EVAL_API_KEY = Read-Host -MaskInput "OpenRouter key"
+  bun scripts/ark-eval.ts run --profile customer.json --proposed change.json
+  ```
+
+- **The simplest way:** leave `ARK_EVAL_API_KEY` unset. `ark-eval` then asks for the key at a hidden prompt each time.
+- **Don't use `setx`:** it would store the key permanently in the user's settings.
 
 ### The test cases, in the profile
 
@@ -222,7 +236,7 @@ bun scripts/ark-eval.ts run --profile example-customer.json --proposed change.js
 - **Profile:** the draft JSON or the signed `.arktrial` file.
 - **Key:** only from `ARK_EVAL_API_KEY` or the hidden prompt. It is refused on the command line, never
   printed and never written to a file.
-- **Options:** `--provider groq|cerebras`, `--model <id>` (or `ARK_EVAL_MODEL`), `--judge-model <id>`,
+- **Options:** `--provider openrouter|groq|cerebras` (OpenRouter by default), `--model <id>` (or `ARK_EVAL_MODEL`), `--judge-model <id>`,
   `--employee <key>`, `--report <file.md>`, `--out <draft.json>`. Model names change on the free tiers:
   check the provider's list if the default is refused.
 

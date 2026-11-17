@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### `ark-eval` uses OpenRouter's free tier (#116)
+
+- **The default provider** is now OpenRouter's free tier: BlackArk's key "ArkAgent-116", since Groq's signup was blocked. Groq and Cerebras remain as alternatives.
+- **Refused models:** Anthropic and DeepSeek models, which OpenRouter could otherwise route to.
+- **The key** still comes only from `ARK_EVAL_API_KEY` or the hidden prompt, on Amgad's computer.
+
 ### Test cases for trial employees, and scoring an instruction change before it is signed (#116)
 
 - **Test cases in the trial profile.** Each employee can have 5 to 8 made-up questions, each with what a good answer must do and must never do. Optional plain-code rules cover prices, AMKA numbers, calling itself an AI or a bot, and tools. `sign-profile` refuses a malformed case with a sentence naming it. The profile also gains `notes`.

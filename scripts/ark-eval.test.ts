@@ -16,7 +16,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readProfile } from "../shared/trial";
 import { type Deps, main } from "./ark-eval";
-import { assertAllowedEndpoint, makeClient, redact } from "./eval/model";
+import {
+  assertAllowedEndpoint,
+  assertAllowedModel,
+  makeClient,
+  PROVIDERS,
+  redact,
+} from "./eval/model";
 import { aiWordIn, checkRules, pricesIn } from "./eval/rules";
 
 const KEY = "gsk_test_ONLY_not_a_real_key_7f3a9c";
@@ -504,6 +510,22 @@ describe("the endpoint", () => {
         label: "Groq",
       }),
     ).toThrow("Anthropic key");
+  });
+
+  test("OpenRouter is the default, and its Anthropic and DeepSeek models are refused", () => {
+    expect(PROVIDERS.openrouter.baseUrl).toBe("https://openrouter.ai/api/v1");
+    expect(PROVIDERS.openrouter.defaultModel).toEndWith(":free");
+    expect(() =>
+      assertAllowedModel(PROVIDERS.openrouter.defaultModel),
+    ).not.toThrow();
+    for (const model of [
+      "anthropic/claude-3.5-sonnet",
+      "Anthropic/Claude-Haiku",
+      "deepseek/deepseek-chat-v3:free",
+      "tngtech/deepseek-r1t-chimera:free",
+    ]) {
+      expect(() => assertAllowedModel(model)).toThrow("never");
+    }
   });
 
   test("redact hides every copy of the key", () => {

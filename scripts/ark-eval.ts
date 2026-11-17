@@ -5,7 +5,7 @@
  *
  *   bun scripts/ark-eval.ts run --profile <profile.json | customer.arktrial> [--employee <key>]
  *       [--proposed <change.json>] [--reason "<text>"] [--report <file.md>] [--out <draft.json>]
- *       [--provider groq|cerebras] [--model <id>] [--judge-model <id>]
+ *       [--provider openrouter|groq|cerebras] [--model <id>] [--judge-model <id>]
  *     Runs every test case of the employee(s) with the CURRENT instruction and, with --proposed, the
  *     PROPOSED one, and prints a Markdown report (also written to a file). A change that scores lower
  *     or adds a rule failure is BLOCKED (exit code 2) unless --reason is given. A change that goes on
@@ -13,7 +13,7 @@
  *     signs it with `bun scripts/ark-trial.ts sign-profile` as today.
  *
  *   bun scripts/ark-eval.ts tune --profile <p> --employee <key> [--rounds 3] [--out-dir <dir>]
- *       [--provider groq|cerebras] [--model <id>] [--judge-model <id>] [--proposer-model <id>]
+ *       [--provider openrouter|groq|cerebras] [--model <id>] [--judge-model <id>] [--proposer-model <id>]
  *     Needs Amgad's yes for the proposer. A proposer model suggests a better instruction; one that
  *     beats the current version is shown, and written as a proposed-change file only after a person
  *     answers y. It never edits or signs a profile.
@@ -49,6 +49,7 @@ import {
 } from "./eval/evaluate";
 import {
   ArkEvalError,
+  assertAllowedModel,
   makeClient,
   PROVIDERS,
   type ProviderId,
@@ -81,7 +82,7 @@ const USAGE = [
   "Use:",
   '  bun scripts/ark-eval.ts run --profile <profile.json|.arktrial> [--employee <key>] [--proposed <change.json>] [--reason "<text>"] [--report <file.md>] [--out <draft.json>]',
   "  bun scripts/ark-eval.ts tune --profile <profile> --employee <key> [--rounds 3] [--out-dir <dir>]",
-  "Both take [--provider groq|cerebras] [--model <id>] [--judge-model <id>]; tune also [--proposer-model <id>].",
+  "Both take [--provider openrouter|groq|cerebras] [--model <id>] [--judge-model <id>]; tune also [--proposer-model <id>].",
   `The key comes from ${KEY_VARIABLE} or a masked prompt, never from the command line.`,
 ].join("\n");
 
@@ -178,10 +179,10 @@ async function apiKey(deps: Deps): Promise<string> {
 }
 
 async function setUp(options: Map<string, string>, deps: Deps) {
-  const providerId = options.get("--provider") ?? "groq";
+  const providerId = options.get("--provider") ?? "openrouter";
   if (!Object.hasOwn(PROVIDERS, providerId)) {
     throw new ArkEvalError(
-      "--provider is groq or cerebras. ark-eval uses only these free keys (#116).",
+      "--provider is openrouter, groq or cerebras. ark-eval uses only these free keys (#116).",
     );
   }
   const provider = PROVIDERS[providerId as ProviderId];
@@ -192,6 +193,7 @@ async function setUp(options: Map<string, string>, deps: Deps) {
     judge: options.get("--judge-model") ?? model,
     proposer: options.get("--proposer-model") ?? model,
   };
+  for (const name of Object.values(models)) assertAllowedModel(name);
   const now = deps.now ?? (() => new Date());
   const profilePath = options.get("--profile");
   if (!profilePath) throw new ArkEvalError(`Give --profile.\n${USAGE}`);
