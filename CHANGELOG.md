@@ -8,6 +8,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### A trial employee's instruction comes from BlackArk; "Propose a change" asks for a new one (#116)
+
+- **Read-only on a trial install.** For every digital employee from the signed trial profile, the role and standing instruction are shown in its General page but cannot be edited. The server refuses the change too, from the edit screen and from a colleague's approved request, with a sentence saying why (in Greek when chosen).
+  - **Still editable:** its name, title, picture, visibility and where it runs.
+  - **Not affected:** employees the customer made themselves, installs without a trial profile, and a trial converted to paid (by an unlock code or a paid licence key).
+- **Propose a change** (administrators): next to the read-only instruction. It shows the current text, an editable copy and a short "why", and downloads a small JSON file (or copies it) to send to BlackArk. The file holds only the employee's profile key and name, the current and proposed text, the reason, the date and the app version: no conversations, mail or files. Nothing on the computer changes.
+- **A newer signed profile applies the change.** When BlackArk has tested a proposal and signs a new profile with it, importing that profile writes the new role and instruction onto the employees already set up. Their names and pictures stay as the customer set them.
+- For BlackArk: the file format is `shared/instruction-proposal.ts` (version 1), for `ark-eval run --proposed <file>`.
+
 ## 0.1.46
 
 ### Paid licence keys from the payment pages are accepted (#109, MD 17 Nov)

@@ -33,6 +33,18 @@ export type TrialRouteDependencies = {
   service: TrialService;
   /** Sets up the roster for this person; how is index.ts's business. */
   seedFor: (actor: AgentActor) => Promise<number>;
+  /**
+   * Writes a newer profile's role and standing instruction onto the employees already set up (#116),
+   * after an import that changed the profile. Absent: an import sets up new employees only.
+   */
+  applyInstructionsFor?: (actor: AgentActor) => Promise<number>;
+  /**
+   * The profile employees whose role and standing instruction are read-only now (#116), with their
+   * key in the profile. The activation service's answer when there is one, so a paid licence lifts it.
+   */
+  lockedEmployees?: () => Promise<{ key: string; agentId: string }[]>;
+  /** This release, for the "Propose a change" file the app makes (#116). */
+  appVersion?: string;
   /** Whether this build can check a signature at all. */
   keyConfigured: boolean;
   audit?: TrialAudit;
@@ -97,7 +109,14 @@ export function trialRoutes(
       await seedQuietly(seedFor, context.var.actor);
       trial = await service.current();
     }
-    return context.json({ trial, keyConfigured: dependencies.keyConfigured });
+    return context.json({
+      trial,
+      keyConfigured: dependencies.keyConfigured,
+      lockedEmployees: trial
+        ? await (dependencies.lockedEmployees ?? service.lockedEmployees)()
+        : [],
+      appVersion: dependencies.appVersion ?? null,
+    });
   });
 
   app.post("/profile", async (context) => {
@@ -112,6 +131,9 @@ export function trialRoutes(
     try {
       const { trial, changed } = await service.importProfile(parsed.data.text);
       await seedQuietly(seedFor, context.var.actor);
+      if (changed && dependencies.applyInstructionsFor) {
+        await seedQuietly(dependencies.applyInstructionsFor, context.var.actor);
+      }
       if (changed) {
         await audit?.({
           eventType: "trial.profile_imported",
