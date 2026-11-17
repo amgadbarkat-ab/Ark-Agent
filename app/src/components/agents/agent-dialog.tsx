@@ -16,6 +16,7 @@ import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { AgentIconItem } from "@/components/agents/agent-icon-item";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
+import { LockedInstructionsItem } from "@/components/agents/locked-instructions";
 import { MemoriesSection } from "@/components/agents/memories-section";
 import { ShareDialog } from "@/components/marketplace/share-dialog";
 import { RoutinesList } from "@/components/routines/routines-list";
@@ -76,12 +77,14 @@ import {
   updateAgentMutationOptions,
 } from "@/lib/agents/mutations";
 import { type AgentProfile, agentQueryOptions } from "@/lib/agents/queries";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { cloudQueryOptions } from "@/lib/cloud/queries";
 import { isComposing } from "@/lib/composing";
 import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import { agentPluginsQueryOptions } from "@/lib/plugins/queries";
 import { readToolName } from "@/lib/plugins/tool-name";
 import { useCreateBlocked } from "@/lib/trial/use-create-blocked";
+import { useLockedInstructions } from "@/lib/trial/use-locked-instructions";
 
 /**
  * A coworker, in a dialog with its own sidebar.
@@ -266,6 +269,9 @@ function GeneralSection({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const updateAgent = useMutation(updateAgentMutationOptions(queryClient));
+  // A trial profile's employee: its role and instruction are BlackArk's, read-only here (#116).
+  const locked = useLockedInstructions(agentId);
+  const { data: currentUser } = useQuery(currentUserQueryOptions());
 
   /*
    * One field at a time, over the whole update endpoint: the API takes the full profile, so the
@@ -316,14 +322,21 @@ function GeneralSection({
           value={profile.title}
         />
         <EditableTextItem
-          canManage={profile.canManage}
+          canManage={profile.canManage && !locked}
           label={t("Role")}
           multiline
           onSave={(roleDescription) => save({ roleDescription })}
           schema={agentFormSchema.shape.roleDescription}
           value={profile.roleDescription}
         />
-        {profile.canManage && !profile.systemOwned ? (
+        {profile.canManage && !profile.systemOwned && locked ? (
+          <LockedInstructionsItem
+            appVersion={locked.appVersion}
+            canPropose={currentUser?.role === "admin"}
+            current={profile.persona ?? profile.roleDescription}
+            employee={{ key: locked.key, name: profile.name }}
+          />
+        ) : profile.canManage && !profile.systemOwned ? (
           <EditableTextItem
             canManage
             label={t("Instructions")}

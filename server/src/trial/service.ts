@@ -43,6 +43,20 @@ export class TrialCreateBlockedError extends Error {
   }
 }
 
+/**
+ * Said when a change to a profile employee's role or standing instruction is refused during a trial
+ * (#116). The app shows it, in Greek when chosen, and offers "Propose a change" next to it.
+ */
+export const INSTRUCTIONS_LOCKED_MESSAGE =
+  "This digital employee's role and standing instruction come from BlackArk's signed trial profile, so they cannot be changed on this computer. Use Propose a change to send BlackArk the new text.";
+
+export class TrialInstructionsLockedError extends Error {
+  constructor() {
+    super(INSTRUCTIONS_LOCKED_MESSAGE);
+    this.name = "TrialInstructionsLockedError";
+  }
+}
+
 /** A profile or code that was refused, in words the person is shown. */
 export class TrialRefusedError extends Error {
   constructor(message: string) {
@@ -222,6 +236,34 @@ export function createTrialService(
     ).profile.roster;
   }
 
+  /** Whether this employee is one of the roster's. */
+  async function onRoster(agentId: string): Promise<boolean> {
+    const [row] = await database
+      .select({ key: trialRoster.key })
+      .from(trialRoster)
+      .where(eq(trialRoster.agentId, agentId))
+      .limit(1);
+    return Boolean(row);
+  }
+
+  /** The roster's agent ids, in roster order, for the employees set up so far. */
+  async function rosterAgents(): Promise<{ key: string; agentId: string }[]> {
+    return database
+      .select({ key: trialRoster.key, agentId: trialRoster.agentId })
+      .from(trialRoster);
+  }
+
+  /**
+   * Whether the signed profile owns the role and standing instruction of the roster's employees now
+   * (#116): from import until the trial is converted to paid, an ended trial included. Never while
+   * the roster is being set up or a newer profile's text is being applied.
+   */
+  async function instructionsLocked(): Promise<boolean> {
+    if (seeding.getStore()) return false;
+    const row = await load();
+    return row !== undefined && row.status !== "paid";
+  }
+
   /** Reports status and days left to the profile's check-in address, if it names one. */
   async function checkIn(): Promise<"sent" | "none" | "failed"> {
     const row = await load();
@@ -329,14 +371,28 @@ export function createTrialService(
       };
     },
 
-    /** Whether this employee is one of the roster's. */
-    async onRoster(agentId: string): Promise<boolean> {
-      const [row] = await database
-        .select({ key: trialRoster.key })
-        .from(trialRoster)
-        .where(eq(trialRoster.agentId, agentId))
-        .limit(1);
-      return Boolean(row);
+    onRoster,
+
+    /**
+     * Whether this employee's role and standing instruction may not be changed here (#116): it is one
+     * of the signed profile's, and the profile still owns them. An employee the customer made is
+     * never locked, and nothing is without a trial profile.
+     */
+    async instructionsLocked(agentId: string): Promise<boolean> {
+      return (await instructionsLocked()) && (await onRoster(agentId));
+    },
+
+    /** The profile's employees whose instruction is locked now, with their profile key (#116). */
+    async lockedEmployees(): Promise<{ key: string; agentId: string }[]> {
+      return (await instructionsLocked()) ? rosterAgents() : [];
+    },
+
+    /**
+     * Runs `apply` as the profile itself (#116), so the lock does not refuse it: for writing a newer
+     * signed profile's text onto the employees it already set up.
+     */
+    asProfile<T>(apply: () => Promise<T>): Promise<T> {
+      return seeding.run(true, apply);
     },
 
     /**
@@ -469,12 +525,7 @@ export function createTrialService(
       return next;
     },
 
-    /** The roster's agent ids, in roster order, for the employees set up so far. */
-    async rosterAgents(): Promise<{ key: string; agentId: string }[]> {
-      return database
-        .select({ key: trialRoster.key, agentId: trialRoster.agentId })
-        .from(trialRoster);
-    },
+    rosterAgents,
 
     /**
      * Applies an unlock code: a later end, an end now, or paid. Each code works once, and only for

@@ -24,6 +24,14 @@ export type TrialOverview = {
   trial: Trial | null;
   /** Whether this version can check a BlackArk signature at all. */
   keyConfigured: boolean;
+  /**
+   * The trial profile's employees whose role and standing instruction are read-only now (#116), with
+   * their key in the profile. The server's verdict: it refuses a change to them anyway. Absent from a
+   * server that predates it.
+   */
+  lockedEmployees?: { key: string; agentId: string }[];
+  /** The release the server is, for the "Propose a change" file (#116). */
+  appVersion?: string | null;
 };
 
 /** What installs reported, on BlackArk's own server. */
