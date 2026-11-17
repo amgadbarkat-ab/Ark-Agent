@@ -183,6 +183,30 @@ describe("a proposed change", () => {
     });
   });
 
+  test("the file the app's Propose a change makes is read too, for the profile it is scored against", () => {
+    const fromApp = {
+      v: 1,
+      employee: { id: "orders", name: "Orders" },
+      current: "Ask for the order number.",
+      proposed: "Ask for the order number and the business name.",
+      reason: "Customers often forget to say who they are.",
+      createdAt: "2026-11-17T12:00:00.000Z",
+      appVersion: "0.1.47",
+    };
+    expect(readProposedChange(fromApp, profile)).toEqual({
+      ...change,
+      source: "person",
+      summary: "Customers often forget to say who they are.",
+      createdAt: "2026-11-17T12:00:00.000Z",
+    });
+    expect(() =>
+      readProposedChange(
+        { ...fromApp, employee: { id: "nobody", name: "x" } },
+        profile,
+      ),
+    ).toThrow("who is not in the profile");
+  });
+
   test("for another customer, an unknown employee or the same text, is refused", () => {
     expect(() =>
       readProposedChange({ ...change, customer: "other-shop" }, profile),

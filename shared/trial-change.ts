@@ -29,6 +29,37 @@ export type ProposedChange = {
   createdAt?: string;
 };
 
+/**
+ * The file an administrator makes on a trial PC with "Propose a change" (the app's format,
+ * `{ v: 1, employee: { id, name }, current, proposed, reason, createdAt, appVersion }`, where
+ * `employee.id` is the roster key), read as a change for this profile. It carries no customer id:
+ * BlackArk scores it against the profile of the customer who sent it. Anything else passes through.
+ */
+function fromAppProposal(
+  raw: Record<string, unknown>,
+  profile: TrialProfile,
+): Record<string, unknown> {
+  const employee = raw.employee as Record<string, unknown> | undefined;
+  if (
+    raw.v !== 1 ||
+    raw.format !== undefined ||
+    !employee ||
+    typeof employee !== "object" ||
+    typeof employee.id !== "string"
+  ) {
+    return raw;
+  }
+  return {
+    format: CHANGE_FORMAT,
+    customer: profile.customer.id,
+    employee: employee.id,
+    instructions: raw.proposed,
+    source: "person",
+    summary: raw.reason,
+    createdAt: raw.createdAt,
+  };
+}
+
 /** A change file's contents, checked against the profile it is meant for. */
 export function readProposedChange(
   value: unknown,
@@ -37,7 +68,7 @@ export function readProposedChange(
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new TrialFormatError("This is not a proposed change.");
   }
-  const raw = value as Record<string, unknown>;
+  const raw = fromAppProposal(value as Record<string, unknown>, profile);
   if (raw.format !== CHANGE_FORMAT) {
     throw new TrialFormatError(
       `This is not a proposed change: its format should be "${CHANGE_FORMAT}".`,

@@ -209,6 +209,8 @@ that names the employee and the case.
 A proposed change is a small JSON file, as in `eval-change-example.json`:
 `{"format": "arkchange/1", "customer": "<customer id>", "employee": "<key>", "instructions": "<the whole new text>"}`,
 optionally with `summary` and `source` (`person` or `tune`).
+The file an administrator makes on a trial PC with **Propose a change** (`{"v": 1, "employee": {"id": "<key>", "name": …}, "current": …, "proposed": …, "reason": …}`)
+is read the same way: score it against the profile of the customer who sent it, and its reason becomes the summary.
 
 ```
 export ARK_EVAL_API_KEY=…            # or leave it unset and type it at the hidden prompt
