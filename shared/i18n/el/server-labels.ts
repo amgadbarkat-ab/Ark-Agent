@@ -15,6 +15,21 @@ export const EL_SERVER_LABELS: Record<string, string> = {
   "Discovery questions": "Ερωτήσεις διερεύνησης",
   "The questions for a first call, ordered, with what each one is meant to find out.":
     "Οι ερωτήσεις για μια πρώτη κλήση, με σειρά, και τι θέλει να μάθει η καθεμία.",
+  "Call prep": "Προετοιμασία κλήσης",
+  "A one-page brief before a call: who is in the room, what has happened so far, the goal and the questions.":
+    "Μία σελίδα ενημέρωσης πριν από μια κλήση: ποιοι θα συμμετέχουν, τι έχει γίνει ως τώρα, ο στόχος και οι ερωτήσεις.",
+  "Call summary": "Σύνοψη κλήσης",
+  "Turns call notes or a transcript into a recap, a follow-up draft, a team summary and proposed CRM changes.":
+    "Μετατρέπει τις σημειώσεις ή την απομαγνητοφώνηση μιας κλήσης σε ανακεφαλαίωση, προσχέδιο μηνύματος συνέχειας, σύνοψη για την ομάδα και προτεινόμενες αλλαγές στο CRM.",
+  "Deal review": "Ανασκόπηση ευκαιρίας πώλησης",
+  "Where one deal really is, what is missing to move it on, and the shortest path to the next stage.":
+    "Πού βρίσκεται πραγματικά μια ευκαιρία πώλησης, τι λείπει για να προχωρήσει και ο συντομότερος δρόμος προς το επόμενο στάδιο.",
+  "Stakeholder map": "Χάρτης εμπλεκομένων",
+  "Who is involved in a deal, the part each one plays, who is missing and how to reach them.":
+    "Ποιοι εμπλέκονται σε μια ευκαιρία πώλησης, τι ρόλο παίζει ο καθένας, ποιος λείπει και πώς να τον προσεγγίσετε.",
+  "Forecast narrative": "Αφήγηση πρόβλεψης πωλήσεων",
+  "The story behind the sales number for a period: what is won, what is likely, what changed and where the risk is.":
+    "Η ιστορία πίσω από τον αριθμό πωλήσεων μιας περιόδου: τι έχει κλείσει, τι είναι πιθανό, τι άλλαξε και πού βρίσκεται ο κίνδυνος.",
   "Front Desk": "Υποδοχή",
   "Greets visitors and enquiries, answers common questions from what you tell it, takes messages and routes the rest.":
     "Υποδέχεται επισκέπτες και ερωτήματα, απαντά σε συνηθισμένες ερωτήσεις από όσα του λέτε, κρατά μηνύματα και προωθεί τα υπόλοιπα.",
@@ -53,6 +68,15 @@ export const EL_SERVER_LABELS: Record<string, string> = {
     "Βρίσκει τι υπάρχει στη μία λίστα και όχι στην άλλη, και ποσά που δεν συμφωνούν.",
   "Payment reminder": "Υπενθύμιση πληρωμής",
   "Month-end checklist": "Λίστα ελέγχου τέλους μήνα",
+  "Close sequence": "Σειρά κλεισίματος μήνα",
+  "The month-end close in order: which step waits for which, who does it, and by which working day.":
+    "Το κλείσιμο του μήνα με τη σειρά: ποιο βήμα περιμένει ποιο, ποιος το κάνει και μέχρι ποια εργάσιμη ημέρα.",
+  "Unmatched items by age": "Μη συμφωνημένα στοιχεία κατά παλαιότητα",
+  "Every item that has not matched in a reconciliation, grouped by age, with the next step for each.":
+    "Κάθε στοιχείο που δεν συμφώνησε σε μια συμφωνία λογαριασμών, ομαδοποιημένο κατά παλαιότητα, με το επόμενο βήμα για το καθένα.",
+  "Month-on-month changes": "Μεταβολές από μήνα σε μήνα",
+  "The changes that matter between this period and another, with the numbers and the likely reasons in plain words.":
+    "Οι μεταβολές που μετράνε ανάμεσα σε αυτή την περίοδο και μια άλλη, με τους αριθμούς και τις πιθανές αιτίες σε απλά λόγια.",
   "Customer Support": "Εξυπηρέτηση πελατών",
   "Drafts clear, kind replies from your policies, sorts requests by urgency, and escalates what it cannot answer.":
     "Συντάσσει σαφείς, ευγενικές απαντήσεις από τις πολιτικές σας, ταξινομεί αιτήματα κατά επείγον και κλιμακώνει ό,τι δεν μπορεί να απαντήσει.",
@@ -126,6 +150,30 @@ export const EL_SERVER_LABELS: Record<string, string> = {
   "Decision summary": "Σύνοψη απόφασης",
   "One page for a spending or pricing decision: options, numbers, risks, recommendation.":
     "Μία σελίδα για απόφαση δαπάνης ή τιμολόγησης: επιλογές, αριθμοί, κίνδυνοι, σύσταση.",
+  "Legal Helper": "Βοηθός νομικών θεμάτων",
+  "Prepares contracts for your lawyer: checks NDAs and contracts against your own playbook and flags what needs counsel. Not a lawyer.":
+    "Προετοιμάζει τις συμβάσεις για τον δικηγόρο σας: ελέγχει συμφωνητικά εμπιστευτικότητας (NDA) και συμβάσεις με βάση τον δικό σας οδηγό θέσεων και επισημαίνει ό,τι χρειάζεται δικηγόρο. Δεν είναι δικηγόρος.",
+  "Your legal helper, not your lawyer. Give it an NDA or a contract and it reads it against your business's own playbook: the terms you prefer, the ones you can accept and the ones a lawyer must see. It summarises the document in plain words, marks each point green, yellow or red, and prepares the questions and suggested wording for your lawyer.\n\nIt gives no legal advice. Every output is marked as a draft for review by a qualified lawyer, and nothing is signed, sent or agreed on its word. The playbook starts blank or from a starter for EU, Greek or UK contracts, which you and your lawyer confirm before relying on it.":
+    "Ο βοηθός σας για νομικά θέματα, όχι ο δικηγόρος σας. Δώστε του ένα συμφωνητικό εμπιστευτικότητας (NDA) ή μια σύμβαση και τα διαβάζει με βάση τον οδηγό θέσεων της επιχείρησής σας: τους όρους που προτιμάτε, αυτούς που μπορείτε να δεχτείτε και αυτούς που πρέπει να δει δικηγόρος. Συνοψίζει το έγγραφο σε απλά λόγια, σημειώνει κάθε σημείο πράσινο, κίτρινο ή κόκκινο και ετοιμάζει τις ερωτήσεις και την προτεινόμενη διατύπωση για τον δικηγόρο σας.\n\nΔεν δίνει νομικές συμβουλές. Κάθε αποτέλεσμα σημειώνεται ως προσχέδιο για έλεγχο από αρμόδιο δικηγόρο, και τίποτα δεν υπογράφεται, δεν στέλνεται και δεν συμφωνείται μόνο με τη δική του γνώμη. Ο οδηγός θέσεων ξεκινά κενός ή από πρότυπο για συμβάσεις στην ΕΕ, την Ελλάδα ή το Ηνωμένο Βασίλειο, το οποίο επιβεβαιώνετε εσείς και ο δικηγόρος σας πριν βασιστείτε σε αυτό.",
+  "The legal helper of your digital team, not a lawyer. Keeps your contract playbook, triages NDAs, reviews contracts against that playbook and summarises them for your lawyer. Gives no legal advice; every output is marked for review by a qualified lawyer.":
+    "Ο βοηθός νομικών θεμάτων της ψηφιακής σας ομάδας, όχι δικηγόρος. Τηρεί τον οδηγό θέσεων για τις συμβάσεις σας, κάνει πρώτη αξιολόγηση στα NDA, ελέγχει συμβάσεις με βάση αυτόν τον οδηγό και τις συνοψίζει για τον δικηγόρο σας. Δεν δίνει νομικές συμβουλές· κάθε αποτέλεσμα σημειώνεται για έλεγχο από αρμόδιο δικηγόρο.",
+  "Contract playbook": "Οδηγός θέσεων για συμβάσεις",
+  "Your own positions for NDAs and contracts, written down once, from a blank starter or an EU, Greek or UK starter.":
+    "Οι δικές σας θέσεις για NDA και συμβάσεις, γραμμένες μία φορά, από κενό πρότυπο ή από πρότυπο για ΕΕ, Ελλάδα ή Ηνωμένο Βασίλειο.",
+  "NDA triage": "Πρώτη αξιολόγηση NDA",
+  "An incoming NDA checked against your playbook and marked green, yellow or red, with what to ask your lawyer.":
+    "Ένα εισερχόμενο NDA ελεγμένο με βάση τον οδηγό θέσεών σας και σημειωμένο πράσινο, κίτρινο ή κόκκινο, με όσα πρέπει να ρωτήσετε τον δικηγόρο σας.",
+  "Contract review": "Έλεγχος σύμβασης",
+  "A contract read clause by clause against your playbook, with a plain summary, flagged points and wording for your lawyer to check.":
+    "Μια σύμβαση διαβασμένη άρθρο προς άρθρο με βάση τον οδηγό θέσεών σας, με απλή σύνοψη, επισημασμένα σημεία και διατύπωση για έλεγχο από τον δικηγόρο σας.",
+  "to read NDAs and contracts sent to you and draft notes to your lawyer":
+    "για να διαβάζει NDA και συμβάσεις που σας στέλνονται και να συντάσσει σημειώσεις για τον δικηγόρο σας",
+  "to read contract drafts and write the review beside them":
+    "για να διαβάζει σχέδια συμβάσεων και να γράφει τον έλεγχο δίπλα τους",
+  "to keep the playbook and read the contracts you store there":
+    "για να τηρεί τον οδηγό θέσεων και να διαβάζει τις συμβάσεις που αποθηκεύετε εκεί",
+  "to keep the playbook if your business works in Notion":
+    "για να τηρεί τον οδηγό θέσεων αν η επιχείρησή σας δουλεύει στο Notion",
   Programmer: "Προγραμματιστής",
   "Writes, explains and debugs code, proposes a plan before large changes, and tests what it writes.":
     "Γράφει, εξηγεί και διορθώνει κώδικα, προτείνει σχέδιο πριν από μεγάλες αλλαγές και ελέγχει ό,τι γράφει.",

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { EL } from "../../shared/i18n/el";
 import { CATEGORIES, LIMITS } from "../../shared/marketplace";
 import {
   composeInstruction,
@@ -111,5 +112,113 @@ describe("Ark's digital employees", () => {
         expect(text).not.toContain("Outreach rules");
       }
     }
+  });
+});
+
+/** What #127 added: Sales call and deal skills, the Legal Helper, and the Accounting close skills. */
+const SALES_127 = [
+  "sales-call-prep",
+  "sales-call-summary",
+  "sales-deal-review",
+  "sales-stakeholder-map",
+  "sales-forecast-narrative",
+];
+const ACCOUNTING_127 = [
+  "accounting-close-sequence",
+  "accounting-unmatched-aging",
+  "accounting-flux-narrative",
+];
+const COUNSEL = "Draft for review by a qualified lawyer. Not legal advice.";
+
+function listing(slug: string) {
+  const found = OFFICIAL_LISTINGS.find((l) => l.slug === slug);
+  if (!found) throw new Error(`No official role ${slug}`);
+  return found;
+}
+
+function skillsOf(slug: string, wanted: string[]) {
+  const skills = listing(slug).role.skills.filter((s) =>
+    wanted.includes(s.slug),
+  );
+  expect(skills.map((s) => s.slug).sort()).toEqual([...wanted].sort());
+  return skills;
+}
+
+describe("the roles added from the knowledge-work plugins (#127)", () => {
+  test("the marketplace has 18 roles, Legal Helper among them, and Sales and Accounting carry the new skills", () => {
+    expect(OFFICIAL_LISTINGS.length).toBe(18);
+    expect(listing("legal-helper").title).toBe("Legal Helper");
+    expect(listing("sales").version).toBe(3);
+    expect(listing("accounting").version).toBe(2);
+    skillsOf("sales", SALES_127);
+    skillsOf("accounting", ACCOUNTING_127);
+  });
+
+  test("every text the role page shows for them has its Greek", () => {
+    const legal = listing("legal-helper");
+    const shown = [
+      legal.title,
+      legal.summary,
+      legal.description,
+      legal.install.roleDescription,
+      ...legal.role.skills.flatMap((s) => [s.title, s.summary]),
+      ...[...legal.role.connections, ...legal.role.mcpServers].map(
+        (r) => r.why,
+      ),
+      ...skillsOf("sales", SALES_127).flatMap((s) => [s.title, s.summary]),
+      ...skillsOf("accounting", ACCOUNTING_127).flatMap((s) => [
+        s.title,
+        s.summary,
+      ]),
+    ];
+    expect(shown.filter((text) => !EL[text])).toEqual([]);
+  });
+
+  test("the Legal Helper is not a lawyer: it says so, and marks every output for a lawyer", () => {
+    const legal = listing("legal-helper");
+    const text = composeInstruction(legal, null);
+    expect(text).toContain("give no legal advice: I am not a lawyer");
+    expect(legal.install.roleDescription).toContain("not a lawyer");
+    for (const skill of legal.role.skills) {
+      expect(skill.instructions, skill.slug).toContain(COUNSEL);
+    }
+    expect(legal.role.outreach).toBeUndefined();
+  });
+
+  test("the playbook starts blank or from an EU, Greek or UK starter, with no US default", () => {
+    const playbook = listing("legal-helper").role.skills.find(
+      (s) => s.slug === "legal-playbook",
+    )?.instructions as string;
+    expect(playbook).toContain("blank, EU, Greek or UK");
+    expect(playbook).toContain("no US default position");
+    expect(playbook).toContain("to confirm with your lawyer");
+    const legal = JSON.stringify(listing("legal-helper"));
+    expect(legal).not.toMatch(/Delaware|New York|California|\bU\.S\./);
+  });
+
+  test("the Sales skills draft and propose, and never write to the CRM themselves", () => {
+    const draftOnly: Record<string, string> = {
+      "sales-call-prep": "list it for the user instead of doing it",
+      "sales-call-summary":
+        "You never update the CRM or send anything yourself",
+      "sales-deal-review": "you never apply them",
+      "sales-stakeholder-map": "for the user to add",
+      "sales-forecast-narrative": "you change nothing in the CRM yourself",
+    };
+    for (const skill of skillsOf("sales", SALES_127)) {
+      expect(skill.instructions, skill.slug).toContain(
+        draftOnly[skill.slug] as string,
+      );
+    }
+  });
+
+  test("the close skills work from uploaded statements, with no US frameworks or products", () => {
+    for (const skill of skillsOf("accounting", ACCOUNTING_127)) {
+      expect(skill.instructions, skill.slug).toMatch(/upload/);
+      expect(skill.instructions, skill.slug).toMatch(
+        /[Cc]orrect nothing|no tax|Give no tax/,
+      );
+    }
+    expect(everything).not.toMatch(/\bSOX\b|Sarbanes|GAAP|NetSuite/);
   });
 });

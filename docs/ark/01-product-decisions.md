@@ -147,7 +147,7 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
   a light accent. The ArkAgent character's face is the application icon, the top-left logo and every coworker's
   default picture; a coworker's owner can replace its picture.
 - **Digital employee, never "bot" (2026-10-18, from the owner).** Product copy says "digital employee" and "digital
-  team". The marketplace lists 17 roles, each with a persona, skills and requests (docs/ark/23-digital-employees.md).
+  team". The marketplace lists 18 roles (17 until #127 added Legal Helper), each with a persona, skills and requests (docs/ark/23-digital-employees.md).
 - **A primary digital employee per person (2026-10-18, from the owner).** The first one made leads the team; the owner can
   choose another. Scoped to the person, not the company account, so one person's team never shows in another's. Management
   powers over colleagues are not built yet and wait on two decisions: how a running agent calls back to reach a colleague, and

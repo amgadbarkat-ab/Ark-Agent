@@ -17,6 +17,33 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **A newer signed profile applies the change.** When BlackArk has tested a proposal and signs a new profile with it, importing that profile writes the new role and instruction onto the employees already set up. Their names and pictures stay as the customer set them.
 - For BlackArk: the file format is `shared/instruction-proposal.ts` (version 1), for `ark-eval run --proposed <file>`.
 
+### A Legal Helper, and new Sales and Accounting skills (#127)
+
+- **Legal Helper, a new role in the marketplace (18 roles now).** It is optional: nothing is added to anyone's team until a person adds it.
+  - **Contract playbook:** the business writes down its own positions for NDAs and contracts once. It starts blank or from an EU, Greek or UK starter; there are no US defaults. Each starter position says "to confirm with your lawyer" until the lawyer has confirmed it.
+  - **NDA triage:** an incoming NDA is marked green, yellow or red against the playbook, with the points to ask the lawyer.
+  - **Contract review:** a plain summary, then each clause against the playbook, with suggested wording for the lawyer to check.
+  - **Not a lawyer:** it gives no legal advice, says so, and starts and ends every output with "Draft for review by a qualified lawyer. Not legal advice." It never signs, sends or agrees anything.
+- **Sales gets five skills for the day and the deal:** Call prep, Call summary, Deal review, Stakeholder map and Forecast narrative. They draft and propose. CRM changes come back as a list for you to apply; the employee never writes to the CRM itself.
+- **Accounting gets three skills for the month-end close:** Close sequence (the close in order, with who waits for what), Unmatched items by age, and Month-on-month changes. They work from the statements and exports you upload, and list tax questions for your accountant instead of answering them.
+- **Who gets the new skills:** a Sales or Accounting employee added from this release on. One added earlier keeps the skills it has; nothing on an existing install changes by itself, trial installs included. A trial profile imported later whose employee is `basedOn` `sales` or `accounting` does bring the new skills.
+- **In Greek:** the new role's name, summary, description and role, and every new skill's name and summary.
+- **Source:** adapted from Anthropic's knowledge-work-plugins, Apache-2.0. The licence and what was changed are in `server/src/marketplace/LICENSE-knowledge-work-plugins.txt`.
+
+### Test cases for trial employees, and scoring an instruction change before it is signed (#116)
+
+- **Test cases in the trial profile.** Each employee can have 5 to 8 made-up questions, each with what a good answer must do and must never do. Optional plain-code rules cover prices, AMKA numbers, calling itself an AI or a bot, and tools. `sign-profile` refuses a malformed case with a sentence naming it. The profile also gains `notes`.
+- **`bun scripts/ark-eval.ts run`**, on BlackArk's computer with the free Groq key (or Cerebras):
+  - **Scoring:** it scores the current and a proposed standing instruction, case by case, with a judge model and the rule checks.
+  - **Blocking:** a change that scores lower or adds a rule failure is blocked unless a written reason is given. The reason goes into the report and into the new unsigned draft's notes.
+  - **Signing:** stays the manual `sign-profile` step.
+- **`bun scripts/ark-eval.ts tune`** (needs Amgad's yes for the proposer): a proposer model suggests better instructions. Only one that scores higher is shown, and a person approves each one before it is written as a proposed-change file.
+- **What is sent:** the key comes only from `ARK_EVAL_API_KEY` or a hidden prompt. Only the made-up questions and our own instruction text are sent. Nothing changes on a customer's computer. See `docs/trials/README.md`.
+
+### Fixed
+
+- **Conversations opened while a run had just finished:** the "nothing is running" signal could reach the browser before the signal that the history was fully loaded. The browser could then treat a conversation as idle before its history had finished arriving. The two now always arrive in that order.
+
 ## 0.1.47
 
 ### Prepaid phone balance (#109, MD 17 Nov)
