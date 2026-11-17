@@ -13,13 +13,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { agentListQueryOptions } from "@/lib/agents/queries";
-import { useT } from "@/lib/i18n";
+import { dateLocale, useT } from "@/lib/i18n";
 import {
   callbackDoneMutationOptions,
   removePhoneLineMutationOptions,
   savePhoneLineMutationOptions,
 } from "@/lib/phone-line/mutations";
 import {
+  type PhoneBalance,
   type PhoneLine,
   type PhoneLineHours,
   phoneCallsQueryOptions,
@@ -174,6 +175,9 @@ function PhoneLineSettings() {
             </p>
             {held?.problem ? (
               <p className="mt-1 text-destructive text-xs">{t(held.problem)}</p>
+            ) : null}
+            {held?.balance ? (
+              <PhoneBalanceNotice balance={held.balance} />
             ) : null}
             <p className="mt-1 text-muted-foreground text-xs">
               {t(
@@ -396,5 +400,57 @@ function PhoneLineSettings() {
         ) : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * The prepaid phone balance (#109, v0.1.47): what is left, and in the last hour or once used up, a
+ * button to buy 5 more hours on BlackArk's page (a Stripe checkout, in the browser).
+ */
+export function PhoneBalanceNotice({ balance }: { balance: PhoneBalance }) {
+  const t = useT();
+  const euros = (Math.max(0, balance.balanceMils) / 1000).toLocaleString(
+    dateLocale(),
+    { style: "currency", currency: "EUR" },
+  );
+  const sentence =
+    balance.state === "ok"
+      ? t("Phone balance: {amount}, at least {minutes} minutes.", {
+          amount: euros,
+          minutes: balance.minutesLeftAtLeast,
+        })
+      : balance.state === "low"
+        ? t(
+            "Less than one hour of phone balance is left ({amount}, at least {minutes} minutes). Add 5 hours so the employee keeps answering.",
+            { amount: euros, minutes: balance.minutesLeftAtLeast },
+          )
+        : t(
+            "The phone balance is used up, so calls are not answered. Add 5 hours to start again.",
+          );
+  const urgent = balance.state !== "ok";
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <p
+        className={urgent ? "text-destructive text-xs" : "text-xs"}
+        role={urgent ? "alert" : undefined}
+      >
+        {sentence}
+      </p>
+      {urgent && balance.topUpUrl.startsWith("https://") ? (
+        <Button
+          render={
+            <a
+              href={balance.topUpUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            />
+          }
+          size="sm"
+          variant="outline"
+        >
+          {t("Add 5 hours")}
+        </Button>
+      ) : null}
+    </div>
   );
 }
