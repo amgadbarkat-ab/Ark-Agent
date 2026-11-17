@@ -18,6 +18,15 @@
  * - An install only with its line token, compared by SHA-256 against the lines file.
  * - The number a call is handed over to comes from the lines file, never from the install.
  *
+ * PREPAID BALANCE (v0.1.47). A line with a `customerId` is billed from that customer's prepaid
+ * phone balance on blackark.uk (`BILLING_URL`, requests signed with `BILLING_SECRET`). Before a call
+ * is answered the relay asks for the balance: used up ("empty") sends the caller straight to the
+ * business's own number, past the debt cap ("blocked") says that number and hangs up, and anything
+ * else is answered as usual, including when blackark.uk cannot be reached. A call in progress is
+ * never cut off. When a call ends the relay reports its parts and their seconds, never the caller's
+ * number, keyed by Twilio's call id so a repeat is charged once, and passes the new balance to the
+ * install. A line without a `customerId` (a demo or trial line) is not billed.
+ *
  * ONE PROCESS. The relay is a single process by design (a few calls at once need 1 vCPU); its state
  * is per process. Run one copy per line set, not several behind a load balancer.
  */
@@ -39,6 +48,25 @@ export type Line = {
   tokenSha256: string;
   /** Where a call goes when the install hands it over, or is not connected. E.164. Optional. */
   fallback?: string;
+  /** The ArkAgent customer whose prepaid phone balance pays for this line. None: not billed. */
+  customerId?: string;
+};
+
+/** Where the prepaid phone balance is kept (blackark.uk/checkin/phone/), and the shared secret. */
+export type Billing = { url: string; secret: string };
+
+/** The balance as blackark.uk answers it, and as the install is told. */
+export type BalanceView = {
+  customerId: string;
+  balanceMils: number;
+  state: "ok" | "low" | "empty" | "blocked";
+  minutesLeftAtLeast: number;
+  topUpUrl: string;
+};
+
+export type CallPart = {
+  kind: "incoming" | "landline" | "mobile";
+  seconds: number;
 };
 
 export type RelayConfig = {
@@ -47,7 +75,9 @@ export type RelayConfig = {
   /** e.g. "https://phone.blackark.uk", with no trailing slash. */
   publicBaseUrl: string;
   lines: () => Line[];
-  /** Twilio's REST API, swapped in tests. */
+  /** The prepaid phone balance. Without it no line is billed. */
+  billing?: Billing;
+  /** Twilio's REST API and blackark.uk, swapped in tests. */
   fetch?: typeof fetch;
   log?: (line: string) => void;
 };
@@ -117,11 +147,33 @@ function twiml(body: string): Response {
 const SORRY =
   '<Say language="el-GR">Λυπούμαστε, η γραμμή δεν είναι διαθέσιμη αυτή τη στιγμή. Παρακαλούμε καλέστε ξανά αργότερα.</Say><Hangup/>';
 
-function handOver(line: Line | undefined): string {
-  return line?.fallback && E164.test(line.fallback)
-    ? `<Dial>${xml(line.fallback)}</Dial>`
-    : SORRY;
+/** Dials the line's fallback. `action`, when billed, is where Twilio reports the forwarded minutes. */
+function handOver(line: Line | undefined, action?: string): string {
+  if (!line?.fallback || !E164.test(line.fallback)) return SORRY;
+  return action
+    ? `<Dial action="${xml(action)}">${xml(line.fallback)}</Dial>`
+    : `<Dial>${xml(line.fallback)}</Dial>`;
 }
+
+/** Greek landlines start +302; anything else is charged at the mobile rate, the higher one. */
+export function forwardKind(number: string): "landline" | "mobile" {
+  return /^\+302\d{9}$/.test(number) ? "landline" : "mobile";
+}
+
+/** The balance is used up past the debt cap: say the business's own number, then hang up. */
+function usedUp(line: Line): string {
+  if (!line.fallback || !E164.test(line.fallback)) return SORRY;
+  const national = line.fallback.startsWith("+30")
+    ? line.fallback.slice(3)
+    : line.fallback.slice(1);
+  const spoken = national.split("").join(" ");
+  return `<Say language="el-GR">Η ψηφιακή γραμμή δεν είναι διαθέσιμη αυτή τη στιγμή. Παρακαλούμε καλέστε στο ${xml(spoken)}.</Say><Hangup/>`;
+}
+
+const CUSTOMER_ID = /^[a-z0-9][a-z0-9-]{1,63}$/;
+const STATES = new Set(["ok", "low", "empty", "blocked"]);
+const RETRY_MS = 60_000;
+const GIVE_UP_MS = 24 * 3600_000;
 
 /** Reads the lines file, again only when it changes. */
 export function linesFromFile(path: string): () => Line[] {
@@ -145,7 +197,10 @@ export function linesFromFile(path: string): () => Line[] {
         typeof line?.tokenSha256 === "string" &&
         /^[0-9a-f]{64}$/.test(line.tokenSha256) &&
         (line.fallback === undefined ||
-          (typeof line.fallback === "string" && E164.test(line.fallback))),
+          (typeof line.fallback === "string" && E164.test(line.fallback))) &&
+        (line.customerId === undefined ||
+          (typeof line.customerId === "string" &&
+            CUSTOMER_ID.test(line.customerId))),
     );
     seen = mtime;
     return cached;
@@ -171,6 +226,123 @@ export function createRelay(config: RelayConfig) {
   function lineFor(number: string): Line | undefined {
     return config.lines().find((line) => line.number === number);
   }
+
+  // ---- the prepaid balance ---------------------------------------------------------------------
+
+  /** Charges blackark.uk could not take yet, retried every minute for a day. */
+  const unsent: {
+    line: Line;
+    callId: string;
+    parts: CallPart[];
+    firstAt: number;
+  }[] = [];
+
+  function billed(
+    line: Line | undefined,
+  ): line is Line & { customerId: string } {
+    return Boolean(config.billing && line?.customerId);
+  }
+
+  /** The fallback dial, reporting its minutes back here when the line is billed. */
+  function forward(line: Line | undefined): string {
+    return handOver(
+      line,
+      billed(line) ? `${config.publicBaseUrl}/twilio/dialed` : undefined,
+    );
+  }
+
+  async function billing(
+    body: Record<string, unknown>,
+  ): Promise<BalanceView | null> {
+    if (!config.billing) return null;
+    const text = JSON.stringify(body);
+    const time = Math.floor(Date.now() / 1000);
+    const signature = createHmac("sha256", config.billing.secret)
+      .update(`${time}.${text}`)
+      .digest("hex");
+    const response = await send(config.billing.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ark-time": String(time),
+        "x-ark-signature": signature,
+      },
+      body: text,
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => null);
+    if (!response?.ok) return null;
+    const view = (await response
+      .json()
+      .catch(() => null)) as BalanceView | null;
+    return view &&
+      typeof view.balanceMils === "number" &&
+      STATES.has(view.state) &&
+      typeof view.topUpUrl === "string"
+      ? view
+      : null;
+  }
+
+  function tellDesk(line: Line, view: BalanceView) {
+    toDesk(line, {
+      type: "phone.balance",
+      balanceMils: view.balanceMils,
+      state: view.state,
+      minutesLeftAtLeast: view.minutesLeftAtLeast,
+      topUpUrl: view.topUpUrl,
+    });
+  }
+
+  async function balanceFor(line: Line): Promise<BalanceView | null> {
+    if (!billed(line)) return null;
+    const view = await billing({
+      action: "balance",
+      customerId: line.customerId,
+    });
+    if (!view) log(`line=${line.name}: balance unreachable, answering anyway`);
+    return view;
+  }
+
+  async function charge(line: Line, callId: string, parts: CallPart[]) {
+    if (!billed(line)) return;
+    const view = await billing({
+      action: "charge",
+      customerId: line.customerId,
+      callId,
+      parts,
+    });
+    if (view) {
+      tellDesk(line, view);
+      log(
+        `call ${callId} line=${line.name} charged ${parts.map((part) => `${part.kind} ${part.seconds}s`).join(", ")}`,
+      );
+      return;
+    }
+    unsent.push({ line, callId, parts, firstAt: Date.now() });
+    log(`call ${callId} line=${line.name}: charge not taken yet, will retry`);
+  }
+
+  /** One pass over the charges not yet taken. Runs every minute; tests call it directly. */
+  async function retryCharges() {
+    const now = Date.now();
+    for (const entry of unsent.splice(0)) {
+      if (now - entry.firstAt > GIVE_UP_MS) {
+        log(
+          `call ${entry.callId} line=${entry.line.name}: CHARGE DROPPED after a day: ${JSON.stringify(entry.parts)}`,
+        );
+        continue;
+      }
+      const view = await billing({
+        action: "charge",
+        customerId: entry.line.customerId,
+        callId: entry.callId,
+        parts: entry.parts,
+      });
+      if (view) tellDesk(entry.line, view);
+      else unsent.push(entry);
+    }
+  }
+  if (config.billing)
+    setInterval(() => void retryCharges(), RETRY_MS).unref?.();
 
   async function signedForm(
     request: Request,
@@ -279,17 +451,26 @@ export function createRelay(config: RelayConfig) {
       const callId = form.CallSid ?? "";
       const line = lineFor(form.To ?? "");
       if (!line || !CALL_SID.test(callId)) return twiml(SORRY);
+      const balance = await balanceFor(line);
+      if (balance?.state === "blocked") {
+        log(`call ${callId} line=${line.name}: balance used up past the cap`);
+        return twiml(usedUp(line));
+      }
+      if (balance?.state === "empty") {
+        log(`call ${callId} line=${line.name}: balance used up, handed over`);
+        return twiml(forward(line));
+      }
       if (!desks.has(line.name)) {
         log(
           `call ${callId} line=${line.name}: install not connected, handed over`,
         );
-        return twiml(handOver(line));
+        return twiml(forward(line));
       }
       const key = randomBytes(24).toString("base64url");
       pending.set(key, { callId, line, from: form.From ?? "", at: Date.now() });
       const host = new URL(config.publicBaseUrl).host;
       return twiml(
-        `<Connect><Stream url="wss://${xml(host)}/twilio/media"><Parameter name="key" value="${xml(key)}"/></Stream></Connect>${handOver(line)}`,
+        `<Connect><Stream url="wss://${xml(host)}/twilio/media"><Parameter name="key" value="${xml(key)}"/></Stream></Connect>${forward(line)}`,
       );
     }
 
@@ -304,8 +485,28 @@ export function createRelay(config: RelayConfig) {
           status: form.CallStatus ?? "",
           duration: Number(form.CallDuration ?? 0) || 0,
         });
+        const seconds = Math.trunc(Number(form.CallDuration ?? 0)) || 0;
+        if (form.CallStatus === "completed" && seconds > 0) {
+          void charge(line, form.CallSid ?? "", [
+            { kind: "incoming", seconds },
+          ]);
+        }
       }
       return new Response(null, { status: 204 });
+    }
+
+    if (url.pathname === "/twilio/dialed") {
+      // Twilio reports here when a forwarded leg ends (only billed lines dial with this action).
+      const form = await signedForm(request, "/twilio/dialed");
+      if (!form) return new Response("Forbidden", { status: 403 });
+      const line = lineFor(form.To ?? "");
+      const seconds = Math.trunc(Number(form.DialCallDuration ?? 0)) || 0;
+      if (line?.fallback && CALL_SID.test(form.CallSid ?? "") && seconds > 0) {
+        void charge(line, form.CallSid ?? "", [
+          { kind: forwardKind(line.fallback), seconds },
+        ]);
+      }
+      return twiml("<Hangup/>");
     }
 
     return new Response("Not found", { status: 404 });
@@ -367,7 +568,7 @@ export function createRelay(config: RelayConfig) {
         }
         return;
       case "transfer":
-        void redirect(message.callId, handOver(call.line)).then((ok) =>
+        void redirect(message.callId, forward(call.line)).then((ok) =>
           log(
             `call ${message.callId} line=${call.line.name}: hand-over ${ok ? "sent" : "failed"}`,
           ),
@@ -438,7 +639,7 @@ export function createRelay(config: RelayConfig) {
           })
         ) {
           // The install went away between the webhook and the stream: hand the caller over.
-          void redirect(entry.callId, handOver(entry.line));
+          void redirect(entry.callId, forward(entry.line));
           socket.close(1000, "no install");
           return;
         }
@@ -503,6 +704,9 @@ export function createRelay(config: RelayConfig) {
           }),
         );
         log(`line=${line.name}: install connected`);
+        void balanceFor(line).then((view) => {
+          if (view && desks.get(line.name) === socket) tellDesk(line, view);
+        });
       }
     },
     message(socket: ServerWebSocket<SocketData>, raw: string | Buffer) {
@@ -519,7 +723,7 @@ export function createRelay(config: RelayConfig) {
         // Calls the install was answering go to the fallback rather than to silence.
         for (const [callId, call] of calls) {
           if (call.line.name === line.name)
-            void redirect(callId, handOver(line));
+            void redirect(callId, forward(line));
         }
         return;
       }
@@ -528,7 +732,12 @@ export function createRelay(config: RelayConfig) {
     },
   };
 
-  return { fetch: fetchHandler, websocket, state: { desks, pending, calls } };
+  return {
+    fetch: fetchHandler,
+    websocket,
+    retryCharges,
+    state: { desks, pending, calls, unsent },
+  };
 }
 
 if (import.meta.main) {
@@ -547,6 +756,13 @@ if (import.meta.main) {
     lines: linesFromFile(
       process.env.RELAY_LINES_FILE?.trim() || "/data/lines.json",
     ),
+    billing:
+      process.env.BILLING_URL?.trim() && process.env.BILLING_SECRET?.trim()
+        ? {
+            url: process.env.BILLING_URL.trim(),
+            secret: process.env.BILLING_SECRET.trim(),
+          }
+        : undefined,
   });
   const server = Bun.serve({
     port: Number(process.env.PORT ?? 8080),

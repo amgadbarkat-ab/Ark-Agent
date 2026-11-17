@@ -51,6 +51,8 @@ If the install is not connected, or drops mid-call, the caller goes to the line'
 | `TWILIO_AUTH_TOKEN` | | **yes**: type it at the hidden prompt and never post it |
 | `RELAY_LINES_FILE` | `/data/lines.json` (default) | no |
 | `PORT` | `8080` (default, behind Caddy) | no |
+| `BILLING_URL` | `https://blackark.uk/checkin/phone/` (written by `./deploy.sh billing`) | no |
+| `BILLING_SECRET` | | **yes**: the same as `relay_secret` on blackark.uk; typed at a hidden prompt |
 
 ### Endpoints
 
@@ -58,6 +60,7 @@ If the install is not connected, or drops mid-call, the caller goes to the line'
 |---|---|
 | Twilio → relay | `POST /twilio/voice`: the "A call comes in" webhook, HTTP POST |
 | Twilio → relay | `POST /twilio/status`: the call status callback |
+| Twilio → relay | `POST /twilio/dialed`: where a billed line's forwarded leg reports its minutes (set by the relay itself in the `<Dial>`; nothing to configure in Twilio) |
 | Twilio ↔ relay | `wss /twilio/media`: Media Streams, bidirectional, `audio/x-mulaw` 8000 Hz |
 | install ↔ relay | `wss /line` with `Authorization: Bearer <line token>` |
 | anyone | `GET /health` → `ok` |
@@ -97,3 +100,22 @@ The test checks that:
 - audio goes both ways;
 - the hand-over uses the fallback from `lines.json`, not a number sent by the install;
 - no caller number appears in the logs.
+
+## Prepaid phone balance (v0.1.47)
+
+**Which lines:** a line with a `customerId` (`./deploy.sh bill-line <line> <customer-id>`) is paid from that customer's prepaid balance on blackark.uk. See `infra/blackark-checkin/README.md`.
+
+**Before a call is answered**, the relay asks blackark.uk for the balance:
+
+| Balance | What happens |
+|---|---|
+| used up (`empty`) | the caller goes straight to the line's fallback number |
+| past the debt cap (`blocked`) | the caller hears that number and the call ends |
+| anything else | the employee answers as usual |
+| blackark.uk unreachable | the employee answers as usual |
+
+**When a call ends**, the relay reports it:
+- **What is sent:** the call id, each part (incoming, or forwarded to a landline or a mobile) and its seconds. **Never the caller's number.**
+- **If it fails:** a report blackark.uk did not take is sent again every minute, for a day.
+- **The install:** gets the new balance on its line connection, and the app shows it under Settings → Phone line, with **Add 5 hours** in the last hour.
+

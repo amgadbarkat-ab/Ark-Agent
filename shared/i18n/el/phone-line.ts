@@ -6,6 +6,15 @@ export const EL_PHONE_LINE: Record<string, string> = {
   "Phone line": "Τηλεφωνική γραμμή",
   "Not set up.": "Δεν έχει ρυθμιστεί.",
   "Answering calls.": "Απαντά στις κλήσεις.",
+  "Phone balance: {amount}, at least {minutes} minutes.":
+    "Υπόλοιπο τηλεφωνίας: {amount}, τουλάχιστον {minutes} λεπτά.",
+  "Less than one hour of phone balance is left ({amount}, at least {minutes} minutes). Add 5 hours so the employee keeps answering.":
+    "Απομένει λιγότερο από μία ώρα υπολοίπου τηλεφωνίας ({amount}, τουλάχιστον {minutes} λεπτά). Προσθέστε 5 ώρες για να συνεχίσει ο υπάλληλος να απαντά.",
+  "The phone balance is used up. Calls go to the business's own number until you add 5 hours.":
+    "Το υπόλοιπο τηλεφωνίας εξαντλήθηκε. Οι κλήσεις πηγαίνουν στον αριθμό της επιχείρησης μέχρι να προσθέσετε 5 ώρες.",
+  "The phone balance is used up. Callers hear the business's number and the call ends, until you add 5 hours.":
+    "Το υπόλοιπο τηλεφωνίας εξαντλήθηκε. Οι καλούντες ακούν τον αριθμό της επιχείρησης και η κλήση τερματίζεται, μέχρι να προσθέσετε 5 ώρες.",
+  "Add 5 hours": "Προσθήκη 5 ωρών",
   "Connecting to the relay…": "Σύνδεση με τον αναμεταδότη…",
   "Not answering.": "Δεν απαντά.",
   "Switched off.": "Απενεργοποιημένη.",

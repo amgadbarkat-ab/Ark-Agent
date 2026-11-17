@@ -16,6 +16,17 @@ export type PhoneLine = {
   enabled: boolean;
   status: "connected" | "connecting" | "off" | "refused";
   problem: string | null;
+  /** The prepaid phone balance (v0.1.47) as the relay last reported it. Null: not billed. */
+  balance: PhoneBalance | null;
+};
+
+export type PhoneBalance = {
+  /** 1/1000 euro, excl. VAT. */
+  balanceMils: number;
+  state: "ok" | "low" | "empty" | "blocked";
+  minutesLeftAtLeast: number;
+  topUpUrl: string;
+  receivedAt: string;
 };
 
 export type PhoneCall = {

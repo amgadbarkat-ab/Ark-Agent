@@ -57,7 +57,62 @@ export type PhoneLineView = {
   status: "connected" | "connecting" | "off" | "refused";
   /** A sentence for the settings page when the relay refused or could not be reached. */
   problem: string | null;
+  /** The prepaid phone balance (v0.1.47), as the relay last reported it. Null: not billed. */
+  balance: PhoneBalanceView | null;
 };
+
+/**
+ * The prepaid phone balance (#109, v0.1.47), kept by BlackArk and passed on by the relay after each
+ * call and when this install connects. Money in mils (1/1000 euro, excl. VAT).
+ */
+export type PhoneBalanceView = {
+  balanceMils: number;
+  /** ok; low: the last hour; empty: calls go to the business's own number; blocked: not even that. */
+  state: "ok" | "low" | "empty" | "blocked";
+  /** At the mobile rate, so never more than what is left. */
+  minutesLeftAtLeast: number;
+  /** BlackArk's page that opens a Stripe checkout for 5 more hours. */
+  topUpUrl: string;
+  receivedAt: string;
+};
+
+/** A `phone.balance` message from the relay, or null when it is not one. */
+export function phoneBalanceFrom(
+  message: Record<string, unknown>,
+  now = new Date(),
+): PhoneBalanceView | null {
+  const state = message.state;
+  if (
+    typeof message.balanceMils !== "number" ||
+    !Number.isInteger(message.balanceMils) ||
+    (state !== "ok" &&
+      state !== "low" &&
+      state !== "empty" &&
+      state !== "blocked") ||
+    typeof message.topUpUrl !== "string"
+  ) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(message.topUpUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") return null;
+  const minutes =
+    typeof message.minutesLeftAtLeast === "number" &&
+    Number.isFinite(message.minutesLeftAtLeast)
+      ? Math.max(0, Math.floor(message.minutesLeftAtLeast))
+      : 0;
+  return {
+    balanceMils: message.balanceMils,
+    state,
+    minutesLeftAtLeast: minutes,
+    topUpUrl: url.toString(),
+    receivedAt: now.toISOString(),
+  };
+}
 
 export type PhoneCallView = {
   id: string;
@@ -151,6 +206,7 @@ export function createPhoneLineService(
   const { credentials, encryptionKey, auditStore } = dependencies;
   let status: PhoneLineView["status"] = "off";
   let problem: string | null = null;
+  let balance: PhoneBalanceView | null = null;
   let socket: WebSocket | null = null;
   let stopped = true;
   let retry: ReturnType<typeof setTimeout> | null = null;
@@ -206,6 +262,7 @@ export function createPhoneLineService(
       enabled: row.enabled,
       status: row.enabled ? status : "off",
       problem: row.enabled ? problem : null,
+      balance,
     };
   }
 
@@ -456,6 +513,9 @@ export function createPhoneLineService(
         return;
       case "call.end":
         bridges.get(callId)?.ended();
+        return;
+      case "phone.balance":
+        balance = phoneBalanceFrom(message) ?? balance;
         return;
       case "call.status":
         if (

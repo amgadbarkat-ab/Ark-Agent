@@ -8,6 +8,19 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Prepaid phone balance (#109, MD 17 Nov)
+
+- **Buying:** the phone add-on now comes with 5 prepaid hours. One page on blackark.uk opens a single Stripe checkout with the plan, the add-on and the first 5 hours, so every price is shown before paying.
+- **The balance is kept as money:**
+  - A block is EUR 41.70 excl. VAT, which is 5 hours at the mobile rate.
+  - Each call takes off its whole minutes at the rate of each part: incoming EUR 0.078, forwarded to a landline EUR 0.088, forwarded to a mobile EUR 0.139.
+- **In the last hour:** Settings → Phone line shows the balance and an **Add 5 hours** button.
+- **When it is used up:**
+  - Calls go to the business's own number.
+  - Past EUR 10 of debt, callers hear that number and the call ends.
+  - A call in progress is never cut off.
+- **Not billed:** lines with no customer, such as demo and trial lines, work as before.
+
 ## 0.1.46
 
 ### Paid licence keys from the payment pages are accepted (#109, MD 17 Nov)

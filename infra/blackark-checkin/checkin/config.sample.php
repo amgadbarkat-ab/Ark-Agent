@@ -41,4 +41,31 @@ return [
     //   'price_1AbC…' => ['plan' => 'team', 'seats' => 1, 'addons' => []],
     //   'price_1Phone…' => ['addon' => 'phone'],   // the phone add-on as its own price
     'stripe_prices' => [],
+
+    // ---- The buy page and the prepaid phone balance (v0.1.47) ----------------------------------
+    // Where these pages are, for the links Stripe returns to. Leave as is on blackark.uk.
+    'public_base_url' => 'https://blackark.uk/checkin',
+    'buy_url' => 'https://blackark.uk/checkin/buy/',
+    'buy_cancel_url' => 'https://blackark.uk/',
+    // A RESTRICTED Stripe key (rk_live_…) that can only write Checkout Sessions. Never post it.
+    'stripe_api_key' => '',
+    // The price ids the buy page puts in a checkout: the team plan (monthly), the phone add-on
+    // (monthly), and one prepaid 5-hour phone block (a one-off price of EUR 41.70).
+    'stripe_buy' => ['plan' => '', 'phone' => '', 'block' => ''],
+    // Let Stripe add VAT at checkout (Stripe Tax must be set up in the dashboard first).
+    'stripe_automatic_tax' => false,
+    // The secret the phone relay signs its balance and charge requests with: 32+ random characters,
+    // the same as BILLING_SECRET in the relay's .env. Make it with: php -r 'echo bin2hex(random_bytes(32));'
+    'relay_secret' => '',
+    // Prices in mils (1/1000 euro), excl. VAT. A block is 5 hours at the mobile rate.
+    'phone_rates_mils' => ['incoming' => 78, 'landline' => 88, 'mobile' => 139],
+    'phone_block_mils' => 41700,
+    // "Low" is the last hour at the mobile rate; past this debt, calls are no longer forwarded.
+    'phone_low_mils' => 8340,
+    'phone_debt_cap_mils' => 10000,
+    // The one email when the last hour starts. OFF until Amgad approves the text below.
+    'phone_low_email' => false,
+    'phone_low_email_from' => 'no-reply@blackark.uk',
+    'phone_low_email_subject' => 'ArkAgent: απομένει λιγότερο από μία ώρα τηλεφωνίας',
+    'phone_low_email_text' => "Καλησπέρα,\n\nΣτο υπόλοιπο τηλεφωνίας του ArkAgent απομένουν περίπου {minutes} λεπτά.\nΓια να συνεχίσει ο ψηφιακός υπάλληλος να απαντά στις κλήσεις, προσθέστε 5 ώρες εδώ:\n{topup}\n\nBlackArk",
 ];

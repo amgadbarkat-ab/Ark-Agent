@@ -139,3 +139,79 @@ itself.
 
 **Keys after cancelling:** when a subscription is cancelled, no new key is made. The last key runs
 out on its own, at its period end plus 7 days.
+
+## The buy page and the prepaid phone balance (v0.1.47)
+
+Amgad decided on 17 Nov:
+- **One checkout for everything:** a buy page on blackark.uk opens one Stripe Checkout showing every price before payment.
+- **Prepaid phone time:** the phone add-on comes with **5 prepaid hours**.
+- **Warning and top-up:** when one hour is left the customer is told, and can buy 5 more with one click.
+
+**The balance is money, not minutes.**
+- **The 5-hour block:** EUR 41.70 excl. VAT, which is 5 hours at the mobile rate, the highest. It is credited as EUR 41.70.
+- **What a call costs:** each part of a call takes off its own **whole minutes** at its own rate:
+
+  | Part | Rate excl. VAT |
+  |---|---|
+  | incoming | EUR 0.078/min |
+  | forwarded to a Greek landline (+302…) | EUR 0.088/min |
+  | forwarded to any other number | EUR 0.139/min |
+
+- **Units:** amounts are kept in mils (1/1000 euro), so every rate is a whole number.
+
+| State | When | What callers get |
+|---|---|---|
+| `ok` | more than one hour (EUR 8.34) left | the employee answers |
+| `low` | the last hour | the employee answers; the app shows **Add 5 hours** |
+| `empty` | used up, up to EUR 10 of debt | the business's own number (the line's fallback) |
+| `blocked` | more than EUR 10 of debt | a sentence with the business's number, then the call ends |
+
+- **Calls in progress:** a call already in progress is never cut off.
+- **Debt:** it is paid off first by the next top-up.
+- **If blackark.uk cannot be reached:** the relay answers calls as usual and sends the charges later.
+
+**What is kept**, beyond the licence rows:
+- One balance per customer.
+- One ledger row per credit or charge, with:
+  - the customer id;
+  - a reference: the Stripe checkout session, or the Twilio call id and part;
+  - the kind;
+  - the minutes;
+  - the amount.
+- **Never kept:** the caller's number. It never reaches this server.
+- **The customer's email:** kept only while the low-balance email is switched on, and only to send it.
+
+**Endpoints:**
+- `…/checkin/buy/?customer=<id>&phone=1`: the team plan, the phone add-on and the first 5-hour block, in one Stripe Checkout.
+  - Without `phone=1`: the plan alone.
+  - After paying, Stripe returns to the key page.
+- `…/checkin/buy/?customer=<id>&topup=1`: one more 5-hour block, as a one-off payment. Only for a customer who has the phone add-on.
+- `…/checkin/phone/`: only the phone relay calls this.
+  - What it does: answers the balance, or takes a call's charges.
+  - Signing: each request is signed with the shared `relay_secret` (`X-Ark-Time`, and `X-Ark-Signature` = HMAC-SHA256 of `<time>.<body>`, within 5 minutes).
+  - No double charges: each part of a call is charged once, keyed by Twilio's call id and the part.
+- `…/checkin/stripe/` also credits a block when a checkout from the buy page is paid, on these events:
+  - `checkout.session.completed` with payment status `paid`;
+  - or `checkout.session.async_payment_succeeded`.
+
+  The checkout session id is the reference, so a repeated event credits nothing.
+
+**Setup, once, after Amgad's yes on this exact build:**
+1. **In Stripe**, create a one-off price "Phone: 5 hours" at EUR 41.70.
+2. **In Stripe**, create a **restricted key** that can only write Checkout Sessions.
+3. **In `config.php`:**
+   - Put that key in `'stripe_api_key'`. Never post it.
+   - Put the three price ids in `'stripe_buy'` (`plan`, `phone`, `block`).
+   - Make a secret with `php -r 'echo bin2hex(random_bytes(32));'` and put it in `'relay_secret'`.
+4. **In Stripe → Webhooks**, add the event `checkout.session.async_payment_succeeded` to the existing endpoint.
+5. **On the relay server**, enable billing and bill each line:
+
+   ```bash
+   ./deploy.sh billing                          # type the same secret at the hidden prompt
+   ./deploy.sh bill-line <line> <customer-id>   # billed from that customer's balance
+   ```
+
+   A line that is not billed (a demo or trial line) works as before.
+6. **Send customers** `https://blackark.uk/checkin/buy/?customer=<id>&phone=1` instead of a Payment Link.
+
+**The low-balance email is off** (`'phone_low_email' => false`) until Amgad approves the text in `config.php`. The app's notice works without it.
