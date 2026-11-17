@@ -2,6 +2,7 @@ import * as boxnow from "./boxnow";
 import * as builtinRoutines from "./builtin-routines";
 import * as businessFiles from "./business-files";
 import * as composio from "./composio";
+import * as elta from "./elta";
 import * as gmailRest from "./gmail-rest";
 import * as driveRest from "./google-drive-rest";
 import * as mailbox from "./mailbox";
@@ -9,6 +10,7 @@ import type { ListedTool, McpCallResult } from "./mcp";
 import * as mcp from "./mcp";
 import * as graphRest from "./microsoft-graph-rest";
 import * as priceList from "./price-list";
+import * as priceWatch from "./price-watch";
 import * as skroutz from "./skroutz";
 import * as video from "./video";
 import * as woocommerce from "./woocommerce";
@@ -163,10 +165,12 @@ export type TransportKind =
   | "builtin-price-list"
   | "builtin-video"
   | "builtin-business-files"
+  | "builtin-price-watch"
   | "imap-smtp"
   | "skroutz-rest"
   | "woocommerce-rest"
   | "boxnow-rest"
+  | "elta-soap"
   | "composio";
 
 /**
@@ -197,10 +201,12 @@ const TRANSPORTS: Record<TransportKind, VendorTransport> = {
   "builtin-price-list": priceList,
   "builtin-video": video,
   "builtin-business-files": businessFiles,
+  "builtin-price-watch": priceWatch,
   "imap-smtp": mailbox,
   "skroutz-rest": skroutz,
   "woocommerce-rest": woocommerce,
   "boxnow-rest": boxnow,
+  "elta-soap": elta,
   composio,
 };
 

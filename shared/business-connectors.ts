@@ -17,10 +17,12 @@ export type BusinessField = {
   help?: string;
   /** Must be an https:// address. */
   url?: boolean;
+  /** For a `url` field: plain http:// is allowed too (ELTA serves only http). */
+  allowHttp?: boolean;
 };
 
 export type BusinessConnector = {
-  key: "skroutz" | "woocommerce" | "boxnow";
+  key: "skroutz" | "woocommerce" | "boxnow" | "elta";
   title: string;
   summary: string;
   /** Where the customer gets what the form asks for. */
@@ -95,6 +97,28 @@ export const BUSINESS_CONNECTORS: readonly BusinessConnector[] = [
       { name: "clientSecret", label: "Client secret", secret: true },
     ],
   },
+  {
+    key: "elta",
+    title: "ELTA Courier (shipment tracking)",
+    summary:
+      "Read where each ELTA Courier shipment is, its tracking events, and when and to whom it was delivered. Read only.",
+    whereToGet:
+      "From ELTA Courier, for a contract customer: ask the branch, 210 607 3000 or info@elta-courier.gr for web service access. They give the customer code, the user code and the password. ELTA's service uses plain http.",
+    fields: [
+      { name: "customerCode", label: "Customer code" },
+      { name: "userCode", label: "User code", placeholder: "123456" },
+      { name: "password", label: "Password", secret: true },
+      {
+        name: "serviceUrl",
+        label: "Service address (optional)",
+        optional: true,
+        url: true,
+        allowHttp: true,
+        placeholder: "http://212.205.47.226:9003",
+        help: "Leave empty for ELTA's usual address. Change it only if ELTA gives you another one.",
+      },
+    ],
+  },
 ];
 
 export type BusinessConnectorKey = BusinessConnector["key"];
@@ -125,7 +149,10 @@ export function businessSettingsFrom(
       } catch {
         throw new Error(`${field.label} is not an address.`);
       }
-      if (parsed.protocol !== "https:") {
+      if (
+        parsed.protocol !== "https:" &&
+        !(field.allowHttp && parsed.protocol === "http:")
+      ) {
         throw new Error(`${field.label} must start with https://.`);
       }
       settings[field.name] = parsed.toString().replace(/\/$/, "");

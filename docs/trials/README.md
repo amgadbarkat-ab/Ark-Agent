@@ -129,3 +129,31 @@ session, type in the customer's own details:
 ```json
 "connectors": ["skroutz", "boxnow", "business-files"]
 ```
+
+## ELTA Courier and competitor prices (from v0.1.44)
+
+**ELTA Courier:** in **Settings → Connect your Data → Shop and delivery**, type in the customer code,
+user code and password that ELTA Courier gives a contract customer for its web service. Leave the
+service address empty unless ELTA gives another one.
+
+**Competitor prices:**
+1. **Upload the watch list** as a business data file named `price-watch`, for example:
+   ```
+   Προϊόν;SKU;Our price;Skroutz;BestPrice
+   Λευκό κρασί 750ml;W-101;15,90 €;https://www.skroutz.gr/s/…;https://www.bestprice.gr/item/…
+   ```
+2. **Give the employee** the tools "Competitor prices", "Business data files" and, for price
+   changes, WooCommerce. In the setup file: `"connectors": ["price-watch", "business-files", "woocommerce"]`.
+3. **Add a Routine** for that employee, daily or hourly as the customer chooses, for example:
+   «Κάθε πρωί: διάβασε τη λίστα παρακολούθησης, άνοιξε μία μία τις σελίδες, κατέγραψε τις τιμές
+   και στείλε μου την αναφορά. Αν μια τιμή μας είναι ακριβότερη, πρότεινε νέα τιμή για έγκριση.»
+   ("Every morning: read the watch list, open the pages one by one, record the prices and send me
+   the report. If one of our prices is higher, propose a new price for approval.")
+
+**The rules for the employee:**
+- one page at a time;
+- it stops at any CAPTCHA or block;
+- every price change waits on an approval card.
+
+**Skroutz's terms:** they forbid monitoring the site without written permission. BlackArk asks
+Skroutz first (Amgad, 16 Nov).

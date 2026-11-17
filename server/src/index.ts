@@ -170,6 +170,7 @@ import {
 } from "./plugins/business-files";
 import { useComposioClient } from "./plugins/composio";
 import { createComposioClient } from "./plugins/composio-adapter";
+import { listTools as listEltaTools } from "./plugins/elta";
 import { backfillComposioLogos } from "./plugins/logos";
 import {
   listTools as listMailboxTools,
@@ -180,6 +181,10 @@ import {
   listTools as listPriceListTools,
   usePriceListDatabase,
 } from "./plugins/price-list";
+import {
+  listTools as listPriceWatchTools,
+  usePriceWatchDatabase,
+} from "./plugins/price-watch";
 import { listTools as listSkroutzTools } from "./plugins/skroutz";
 import { createPluginStore } from "./plugins/store";
 import { grantedSkills, grantedTools, REFUSAL_MARKER } from "./plugins/tools";
@@ -1613,6 +1618,7 @@ async function grantServerTools(
 // The price list lives in this database; video editing runs only in the desktop app (#109).
 usePriceListDatabase(database);
 useBusinessFilesDatabase(database);
+usePriceWatchDatabase(database);
 useVideoSetup(
   detectVideoSetup({
     enabled: config.singleUser,
@@ -1903,6 +1909,8 @@ const app = createApp(
               skroutz: listSkroutzTools,
               woocommerce: listWooCommerceTools,
               boxnow: listBoxNowTools,
+              elta: listEltaTools,
+              "price-watch": listPriceWatchTools,
               "business-files": listBusinessFileTools,
             }[key],
           ),

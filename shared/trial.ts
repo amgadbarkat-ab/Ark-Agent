@@ -52,7 +52,9 @@ export const ROSTER_CONNECTORS = [
   "skroutz",
   "woocommerce",
   "boxnow",
+  "elta",
   "business-files",
+  "price-watch",
 ] as const;
 export type RosterConnector = (typeof ROSTER_CONNECTORS)[number];
 

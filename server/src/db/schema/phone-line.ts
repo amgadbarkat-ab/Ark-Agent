@@ -112,3 +112,20 @@ export const businessFiles = pgTable("business_files", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * Competitor prices an employee read off public comparison pages (#109, v0.1.44): one row per
+ * product, shop and moment, exactly as the page showed it. The watch list itself is the business
+ * data file named `price-watch`.
+ */
+export const priceObservations = pgTable("price_observations", {
+  id: text("id").primaryKey(),
+  item: text("item").notNull(),
+  shop: text("shop").notNull(),
+  /** As the page wrote it, for example "14,90 €". */
+  price: text("price").notNull(),
+  /** Parsed, for comparing; null when it could not be read as a number. */
+  priceCents: integer("price_cents"),
+  url: text("url").notNull(),
+  seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+});

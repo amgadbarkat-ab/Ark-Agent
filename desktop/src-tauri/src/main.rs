@@ -1706,6 +1706,15 @@ async fn start_stack_inner<R: tauri::Runtime>(
             secrets.insert("LISTEN_HOSTS".into(), "127.0.0.1,::1".into());
         }
 
+        // The FFmpeg the Windows installer ships (#109, v0.1.44), for video editing. Elsewhere, or if
+        // it is missing, the server looks for an FFmpeg installed on the computer as before.
+        if let Ok(resources) = app.path().resource_dir() {
+            let ffmpeg = bundled_ffmpeg(&resources, std::env::consts::OS);
+            if ffmpeg.is_file() {
+                secrets.insert("ARK_FFMPEG".into(), ffmpeg.to_string_lossy().into_owned());
+            }
+        }
+
         let logs = root.join(".logs");
         (logs, bun, secrets, ports)
     };
@@ -10992,5 +11001,28 @@ fn main() {
         assert!(problem
             .said
             .contains("model on this computer is no longer running"));
+    }
+}
+
+/// Where the installer puts FFmpeg (`tauri.windows-node.conf.json`, `scripts/fetch-ffmpeg.ts`).
+fn bundled_ffmpeg(resource_dir: &Path, os: &str) -> PathBuf {
+    resource_dir.join("ffmpeg").join(if os == "windows" {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    })
+}
+
+#[cfg(test)]
+mod bundled_ffmpeg_tests {
+    use super::bundled_ffmpeg;
+    use std::path::Path;
+
+    #[test]
+    fn the_windows_installer_s_ffmpeg_is_beside_its_resources() {
+        assert_eq!(
+            bundled_ffmpeg(Path::new("C:/ArkAgent"), "windows"),
+            Path::new("C:/ArkAgent").join("ffmpeg").join("ffmpeg.exe")
+        );
     }
 }

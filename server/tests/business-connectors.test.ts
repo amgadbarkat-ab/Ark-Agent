@@ -7,6 +7,7 @@ import {
 import * as boxnow from "../src/plugins/boxnow";
 import { useBusinessFetch } from "../src/plugins/business-http";
 import { catalogueEntry as entryFor } from "../src/plugins/catalogue";
+import * as elta from "../src/plugins/elta";
 import * as skroutz from "../src/plugins/skroutz";
 import * as woocommerce from "../src/plugins/woocommerce";
 
@@ -366,6 +367,7 @@ describe("the setup form", () => {
       "skroutz",
       "woocommerce",
       "boxnow",
+      "elta",
     ]);
     const woo = businessConnector("woocommerce");
     if (!woo) throw new Error("missing");
@@ -395,5 +397,72 @@ describe("the setup form", () => {
       consumerKey: "a",
       consumerSecret: "b",
     });
+  });
+});
+
+describe("ELTA Courier", () => {
+  const eltaToken = JSON.stringify({
+    customerCode: "C123",
+    userCode: "456",
+    password: "p&ss<",
+  });
+  const tracked = `<?xml version="1.0"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body><ns:READResponse xmlns:ns="/PELTT01">
+<st_flag>0</st_flag><st_title>ΠΑΡΑΔΟΘΗΚΕ</st_title><pod_date>16/11/2026</pod_date><pod_time>12:40</pod_time><pod_name>Μ. ΠΑΠΑ</pod_name>
+<web_status><web_date>15/11/2026</web_date><web_time>09:10</web_time><web_station>ΑΘΗΝΑ</web_station><web_status_title>ΠΑΡΑΛΑΒΗ</web_status_title></web_status>
+<web_status><web_date>16/11/2026</web_date><web_time>12:40</web_time><web_station>ΘΕΣ/ΝΙΚΗ</web_station><web_status_title>ΠΑΡΑΔΟΣΗ</web_status_title></web_status>
+<web_status_counter>2</web_status_counter></ns:READResponse></SOAP-ENV:Body></SOAP-ENV:Envelope>`;
+
+  test("tracks by voucher with ELTA's READ call, the login escaped, and reads every event", async () => {
+    vendor(
+      () => new Response(tracked, { headers: { "content-type": "text/xml" } }),
+    );
+    const result = await elta.callTool(
+      { url: "builtin://elta", token: eltaToken },
+      "track_shipment",
+      { voucher: "WB123456789GR" },
+    );
+    expect(sent[0]?.url).toBe("http://212.205.47.226:9003/");
+    expect(sent[0]?.body).toContain("<ns:READ>");
+    expect(sent[0]?.body).toContain("<wpel_vg>WB123456789GR</wpel_vg>");
+    expect(sent[0]?.body).toContain("<wpel_flag>1</wpel_flag>");
+    expect(sent[0]?.body).toContain("<wpel_pass>p&amp;ss&lt;</wpel_pass>");
+    expect(result.isError).toBe(false);
+    expect(result.text).toContain("ΠΑΡΑΔΟΘΗΚΕ");
+    expect(result.text).toContain(
+      "Delivered 16/11/2026 12:40, received by Μ. ΠΑΠΑ.",
+    );
+    expect(result.text).toContain("15/11/2026 09:10: ΠΑΡΑΛΑΒΗ (ΑΘΗΝΑ)");
+    expect(entryFor("elta")?.writeTools).toEqual([]);
+  });
+
+  test("by the shop's reference, flag 2; a SOAP fault is said plainly", async () => {
+    vendor(
+      () =>
+        new Response(
+          '<soap:Envelope xmlns:soap="x"><soap:Body><soap:Fault><faultstring>Invalid user</faultstring></soap:Fault></soap:Body></soap:Envelope>',
+          { status: 500 },
+        ),
+    );
+    const result = await elta.callTool(
+      { url: "builtin://elta", token: eltaToken },
+      "track_shipment",
+      { reference: "W-5001" },
+    );
+    expect(sent[0]?.body).toContain("<wpel_flag>2</wpel_flag>");
+    expect(result.isError).toBe(true);
+    expect(result.text).toBe("ELTA refused the request: Invalid user.");
+  });
+
+  test("the setup form allows ELTA's plain http address, and only for ELTA", () => {
+    const form = businessConnector("elta");
+    if (!form) throw new Error("missing");
+    expect(
+      businessSettingsFrom(form, {
+        customerCode: "C1",
+        userCode: "1",
+        password: "x",
+        serviceUrl: "http://212.205.47.226:9003",
+      }).serviceUrl,
+    ).toBe("http://212.205.47.226:9003");
   });
 });

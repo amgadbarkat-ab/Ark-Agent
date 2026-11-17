@@ -49,7 +49,9 @@ export async function seedTrialRoster(
         | "skroutz"
         | "woocommerce"
         | "boxnow"
-        | "business-files",
+        | "elta"
+        | "business-files"
+        | "price-watch",
     ) => Promise<void>;
   },
 ): Promise<number> {

@@ -64,4 +64,20 @@ export const EL_BUSINESS: Record<string, string> = {
     "Η BOX NOW απέρριψε το client id ή το secret. Ελέγξτε τα με την BOX NOW και συνδεθείτε ξανά στις Ρυθμίσεις.",
   "Give the file a short name in lower-case letters, numbers and hyphens, for example stock or customers.":
     "Δώστε στο αρχείο ένα σύντομο όνομα με πεζά λατινικά, αριθμούς και παύλες, για παράδειγμα stock ή customers.",
+  // ELTA Courier (v0.1.44)
+  "ELTA Courier (shipment tracking)": "ΕΛΤΑ Courier (παρακολούθηση αποστολών)",
+  "Read where each ELTA Courier shipment is, its tracking events, and when and to whom it was delivered. Read only.":
+    "Ανάγνωση του πού βρίσκεται κάθε αποστολή ΕΛΤΑ Courier, των σταθμών της, και πότε και σε ποιον παραδόθηκε. Μόνο ανάγνωση.",
+  "From ELTA Courier, for a contract customer: ask the branch, 210 607 3000 or info@elta-courier.gr for web service access. They give the customer code, the user code and the password. ELTA's service uses plain http.":
+    "Από την ΕΛΤΑ Courier, για συμβεβλημένο πελάτη: ζητήστε πρόσβαση στο web service από το κατάστημα, στο 210 607 3000 ή στο info@elta-courier.gr. Δίνουν τον κωδικό πελάτη, τον κωδικό χρήστη και τον κωδικό πρόσβασης. Η υπηρεσία της ΕΛΤΑ χρησιμοποιεί απλό http.",
+  "Customer code": "Κωδικός πελάτη",
+  "User code": "Κωδικός χρήστη",
+  Password: "Κωδικός πρόσβασης",
+  "Service address (optional)": "Διεύθυνση υπηρεσίας (προαιρετικό)",
+  "Leave empty for ELTA's usual address. Change it only if ELTA gives you another one.":
+    "Αφήστε το κενό για τη συνήθη διεύθυνση της ΕΛΤΑ. Αλλάξτε το μόνο αν η ΕΛΤΑ σάς δώσει άλλη.",
+  "The ELTA user code is a number.": "Ο κωδικός χρήστη ΕΛΤΑ είναι αριθμός.",
+  "ELTA's service did not answer as expected ({status}).":
+    "Η υπηρεσία της ΕΛΤΑ δεν απάντησε όπως αναμενόταν ({status}).",
+  "ELTA refused the request: {reason}.": "Η ΕΛΤΑ απέρριψε το αίτημα: {reason}.",
 };

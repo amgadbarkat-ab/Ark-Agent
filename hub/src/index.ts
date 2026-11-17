@@ -1,8 +1,8 @@
+import { createDrain } from "../../shared/drain";
+import { serveMetrics } from "../../shared/metrics";
 import { HubConfigError, loadConfig } from "./config";
 import { hubMetrics } from "./metrics";
 import { startHub } from "./server";
-import { createDrain } from "../../shared/drain";
-import { serveMetrics } from "../../shared/metrics";
 
 try {
   const config = loadConfig();
