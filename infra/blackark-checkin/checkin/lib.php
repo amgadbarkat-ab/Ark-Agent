@@ -86,6 +86,9 @@ function ark_db(): PDO
         balance_mils INTEGER NOT NULL DEFAULT 0,
         email TEXT,
         low_notified_at TEXT,
+        auto_topup INTEGER NOT NULL DEFAULT 0,
+        stripe_customer TEXT,
+        auto_topup_at TEXT,
         updated_at TEXT NOT NULL
     )');
     $pdo->exec('CREATE TABLE IF NOT EXISTS phone_ledger (
@@ -95,6 +98,7 @@ function ark_db(): PDO
         kind TEXT NOT NULL,
         minutes INTEGER NOT NULL DEFAULT 0,
         mils INTEGER NOT NULL,
+        written_off_mils INTEGER NOT NULL DEFAULT 0,
         at TEXT NOT NULL
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS phone_ledger_customer ON phone_ledger (customer_id, id)');
@@ -200,10 +204,14 @@ function ark_sign_license(string $customerId, string $plan, int $seats, array $a
 
 // ---- Prepaid phone balance (v0.1.47; Amgad 17 Nov) ------------------------------------------------
 //
-// A money balance in mils (1/1000 euro, excl. VAT). A 5-hour block is bought at the mobile rate and
-// credited as money; each part of a call takes off its whole minutes at its own rate. Every credit
-// and charge has a reference (a Stripe checkout session, a Twilio call id and part) taken only once,
-// so a webhook or a relay report that arrives twice changes nothing the second time.
+// A money balance in mils (1/1000 euro, excl. VAT). A 5-hour block is priced at the incoming rate
+// (EUR 23.40) and credited as money; each part of a call takes off its whole minutes at its own rate.
+// Every credit and charge has a reference (a Stripe checkout session or invoice, a Twilio call id and
+// part) taken only once, so a webhook or a relay report that arrives twice changes nothing.
+//
+// NEVER BELOW ZERO (Amgad, 17 Nov 12:29). The relay ends a call before a minute the balance cannot
+// pay; if Twilio still reports a little more than was left, the balance stops at zero and the rest is
+// written off at BlackArk's cost, recorded on the ledger row, never carried as debt.
 
 const ARK_PHONE_KINDS = ['incoming', 'landline', 'mobile'];
 
@@ -219,7 +227,7 @@ function ark_phone_rates(): array
 
 function ark_phone_block_mils(): int
 {
-    return (int) ark_config('phone_block_mils', 41700);
+    return (int) ark_config('phone_block_mils', 23400);
 }
 
 /** What a part of a call costs: its seconds rounded up to whole minutes, at its rate. */
@@ -229,13 +237,10 @@ function ark_phone_cost(string $kind, int $seconds): array
     return ['minutes' => $minutes, 'mils' => $minutes * (ark_phone_rates()[$kind] ?? 0)];
 }
 
-/** ok, low (the last hour), empty (used up; calls go to the business's own number) or blocked. */
+/** ok; low (the last hour); empty (cannot pay one more minute: calls are not answered). */
 function ark_phone_state(int $balance): string
 {
-    if ($balance <= -(int) ark_config('phone_debt_cap_mils', 10000)) {
-        return 'blocked';
-    }
-    if ($balance <= 0) {
+    if ($balance < ark_phone_rates()['incoming']) {
         return 'empty';
     }
     return $balance <= (int) ark_config('phone_low_mils', 8340) ? 'low' : 'ok';
@@ -250,21 +255,33 @@ function ark_phone_balance(PDO $db, string $customerId): int
 }
 
 /**
- * Adds one ledger entry and moves the balance by it, once per reference. Returns false when the
+ * Adds one ledger entry and moves the balance by it, once per reference. A charge never takes the
+ * balance below zero: what it cannot cover is written off on the same row. Returns false when the
  * reference was already taken (nothing changes).
  */
 function ark_phone_post(PDO $db, string $customerId, string $ref, string $kind, int $minutes, int $mils): bool
 {
     $db->beginTransaction();
     try {
-        $insert = $db->prepare('INSERT OR IGNORE INTO phone_ledger (customer_id, ref, kind, minutes, mils, at) VALUES (?, ?, ?, ?, ?, ?)');
-        $insert->execute([$customerId, $ref, $kind, $minutes, $mils, ark_now()]);
+        $db->prepare('INSERT OR IGNORE INTO phone_accounts (customer_id, balance_mils, updated_at) VALUES (?, 0, ?)')
+            ->execute([$customerId, ark_now()]);
+        $writtenOff = 0;
+        if ($mils < 0) {
+            $balance = max(0, ark_phone_balance($db, $customerId));
+            if (-$mils > $balance) {
+                $writtenOff = -$mils - $balance;
+                $mils = -$balance;
+            }
+        }
+        $insert = $db->prepare('INSERT OR IGNORE INTO phone_ledger (customer_id, ref, kind, minutes, mils, written_off_mils, at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $insert->execute([$customerId, $ref, $kind, $minutes, $mils, $writtenOff, ark_now()]);
         if ($insert->rowCount() === 0) {
             $db->rollBack();
             return false;
         }
-        $db->prepare('INSERT OR IGNORE INTO phone_accounts (customer_id, balance_mils, updated_at) VALUES (?, 0, ?)')
-            ->execute([$customerId, ark_now()]);
+        if ($writtenOff > 0) {
+            error_log("ark-phone: $ref charged past the balance; $writtenOff mils written off");
+        }
         $db->prepare('UPDATE phone_accounts SET balance_mils = balance_mils + ?, updated_at = ? WHERE customer_id = ?')
             ->execute([$mils, ark_now(), $customerId]);
         if ($mils > 0 && ark_phone_balance($db, $customerId) > (int) ark_config('phone_low_mils', 8340)) {
@@ -279,11 +296,16 @@ function ark_phone_post(PDO $db, string $customerId, string $ref, string $kind, 
     }
 }
 
-/** Credits `blocks` 5-hour blocks for a paid checkout session. */
-function ark_phone_credit_blocks(PDO $db, string $customerId, string $sessionId, int $blocks): bool
+/** Credits `blocks` 5-hour blocks for a paid Stripe checkout session or invoice (its id is `ref`). */
+function ark_phone_credit_blocks(PDO $db, string $customerId, string $ref, int $blocks): bool
 {
     $blocks = max(1, min(10, $blocks));
-    return ark_phone_post($db, $customerId, 'stripe:' . $sessionId, 'block', $blocks * 300, $blocks * ark_phone_block_mils());
+    $credited = ark_phone_post($db, $customerId, 'stripe:' . $ref, 'block', $blocks * 300, $blocks * ark_phone_block_mils());
+    if ($credited) {
+        // A paid block: the next automatic top-up may start when this one runs low.
+        $db->prepare('UPDATE phone_accounts SET auto_topup_at = NULL WHERE customer_id = ?')->execute([$customerId]);
+    }
+    return $credited;
 }
 
 /** The top-up page for this customer, which opens a Stripe Checkout for one 5-hour block. */
@@ -305,7 +327,53 @@ function ark_phone_view(PDO $db, string $customerId): array
         // At the mobile rate, so it is never more than what is left.
         'minutesLeftAtLeast' => $balance > 0 ? intdiv($balance, max(1, $rates['mobile'])) : 0,
         'topUpUrl' => ark_phone_topup_url($customerId),
+        // The relay sets aside each minute at these rates before it starts, so calls stop at zero.
+        'rates' => $rates,
     ];
+}
+
+/**
+ * Automatic top-up (optional, chosen at checkout): when the last hour starts, charge the card saved
+ * with the subscription for one 5-hour block, through a Stripe invoice so VAT is added the same way.
+ * The block is credited only when Stripe says the invoice is paid (invoice.paid). At most one attempt
+ * per block: a declined card leaves the app's notice and the Add 5 hours button.
+ */
+function ark_phone_auto_topup(PDO $db, string $customerId): void
+{
+    $find = $db->prepare('SELECT auto_topup, stripe_customer, auto_topup_at FROM phone_accounts WHERE customer_id = ?');
+    $find->execute([$customerId]);
+    $row = $find->fetch();
+    if (!$row || !(int) $row['auto_topup'] || !$row['stripe_customer'] || $row['auto_topup_at']) {
+        return;
+    }
+    $block = (string) (((array) ark_config('stripe_buy', []))['block'] ?? '');
+    $sub = $db->prepare("SELECT subscription_id FROM licenses WHERE customer_id = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1");
+    $sub->execute([$customerId]);
+    $subscription = (string) ($sub->fetchColumn() ?: '');
+    if ($block === '' || $subscription === '') {
+        return;
+    }
+    $mark = $db->prepare('UPDATE phone_accounts SET auto_topup_at = ? WHERE customer_id = ? AND auto_topup_at IS NULL');
+    $mark->execute([ark_now(), $customerId]);
+    if ($mark->rowCount() === 0) {
+        return;
+    }
+    $customer = (string) $row['stripe_customer'];
+    $item = ark_stripe_api('/v1/invoiceitems', ['customer' => $customer, 'subscription' => $subscription, 'price' => $block]);
+    $invoice = is_array($item) && isset($item['id']) ? ark_stripe_api('/v1/invoices', array_merge([
+        'customer' => $customer,
+        'subscription' => $subscription,
+        'pending_invoice_items_behavior' => 'include',
+        'collection_method' => 'charge_automatically',
+        'metadata' => ['kind' => 'phone_topup', 'customer_id' => $customerId, 'phone_blocks' => '1'],
+    ], ark_config('stripe_automatic_tax', false) ? ['automatic_tax' => ['enabled' => 'true']] : [])) : null;
+    $id = is_array($invoice) ? (string) ($invoice['id'] ?? '') : '';
+    if (preg_match('/^in_[A-Za-z0-9_]+$/', $id) !== 1) {
+        error_log('ark-phone: automatic top-up for ' . $customerId . ' was not created');
+        return;
+    }
+    ark_stripe_api('/v1/invoices/' . $id . '/finalize', []);
+    ark_stripe_api('/v1/invoices/' . $id . '/pay', []);
 }
 
 /**

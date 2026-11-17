@@ -9,8 +9,9 @@
  *   {"action":"balance","customerId":"…"}
  *   {"action":"charge","customerId":"…","callId":"CA…","parts":[{"kind":"incoming","seconds":75}, …]}
  *
- * Both answer the balance (ark_phone_view). A charge takes each part of a call once, by call id and
- * kind, so a report the relay sends again changes nothing. No caller's number ever comes here.
+ * Both answer the balance (ark_phone_view), with the rates the relay sets each minute aside at. A
+ * charge takes each part of a call once, by call id and kind, so a report the relay sends again
+ * changes nothing, and never takes the balance below zero. No caller's number ever comes here.
  */
 
 declare(strict_types=1);
@@ -77,5 +78,6 @@ foreach ($parts as $part) {
 $view = ark_phone_view($db, $customer);
 if ($view['state'] !== 'ok') {
     ark_phone_low_email($db, $customer, $view);
+    ark_phone_auto_topup($db, $customer);
 }
 answer(200, $view);

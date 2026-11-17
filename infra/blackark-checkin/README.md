@@ -142,68 +142,80 @@ out on its own, at its period end plus 7 days.
 
 ## The buy page and the prepaid phone balance (v0.1.47)
 
-Amgad decided on 17 Nov:
+Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
 - **One checkout for everything:** a buy page on blackark.uk opens one Stripe Checkout showing every price before payment.
 - **Prepaid phone time:** the phone add-on comes with **5 prepaid hours**.
-- **Warning and top-up:** when one hour is left the customer is told, and can buy 5 more with one click.
+- **The last hour:** the customer is told and can buy 5 more, or have them bought automatically if they chose that at checkout.
+- **Never negative:** the balance never goes below zero.
 
 **The balance is money, not minutes.**
-- **The 5-hour block:** EUR 41.70 excl. VAT, which is 5 hours at the mobile rate, the highest. It is credited as EUR 41.70.
+- **The 5-hour block:** EUR 23.40 excl. VAT, which is 5 hours at the incoming rate. It is credited as EUR 23.40.
 - **What a call costs:** each part of a call takes off its own **whole minutes** at its own rate:
 
   | Part | Rate excl. VAT |
   |---|---|
   | incoming | EUR 0.078/min |
-  | forwarded to a Greek landline (+302…) | EUR 0.088/min |
-  | forwarded to any other number | EUR 0.139/min |
+  | put through to a Greek landline (+302…) | EUR 0.088/min |
+  | put through to any other number | EUR 0.139/min |
 
 - **Units:** amounts are kept in mils (1/1000 euro), so every rate is a whole number.
 
 | State | When | What callers get |
 |---|---|---|
-| `ok` | more than one hour (EUR 8.34) left | the employee answers |
-| `low` | the last hour | the employee answers; the app shows **Add 5 hours** |
-| `empty` | used up, up to EUR 10 of debt | the business's own number (the line's fallback) |
-| `blocked` | more than EUR 10 of debt | a sentence with the business's number, then the call ends |
+| `ok` | more than EUR 8.34 left (one hour at the mobile rate) | the employee answers |
+| `low` | EUR 8.34 or less | the employee answers. The app shows **Add 5 hours**, the email is sent if switched on, and an automatic top-up starts if chosen |
+| `empty` | less than one incoming minute (EUR 0.078) | **not answered**: a busy tone, which Twilio does not bill |
 
-- **Calls in progress:** a call already in progress is never cut off.
-- **Debt:** it is paid off first by the next top-up.
-- **If blackark.uk cannot be reached:** the relay answers calls as usual and sends the charges later.
+**Never below zero.** The phone relay sets each minute's cost aside **before** the minute starts, across all of a customer's live calls:
+- **The rate set aside:** the incoming rate, plus the landline or mobile rate once the caller is put through to a person.
+- **When the next minute can't be paid:** the caller hears one sentence and the call ends before that minute starts: «Ο διαθέσιμος χρόνος της γραμμής τελείωσε. Παρακαλούμε καλέστε ξανά αργότερα.» ("The line's available time has run out. Please call again later.")
+- **The last line of defence, here:** a charge never takes the balance below zero. If Twilio ever reports more than was left, the rest is **written off** at BlackArk's cost, in the ledger row's `written_off_mils`, and logged.
+
+**Automatic top-up (optional, off by default):**
+- **Opting in:** at checkout the customer can pick "Ναι" ("Yes") under «Αυτόματη προσθήκη 5 ωρών τηλεφωνίας» ("Automatic addition of 5 phone hours").
+- **When it charges:** when `low` starts, this server asks Stripe for an invoice of one block on the subscription. It is charged to the saved card, with VAT added the same way.
+- **When it's credited:** on `invoice.paid`.
+- **How often:** one attempt per block. A declined card leaves the app's notice and button.
+
+**Unused balance is not refunded** on cancellation (Amgad).
 
 **What is kept**, beyond the licence rows:
-- One balance per customer.
-- One ledger row per credit or charge, with:
+- **Per customer:** the balance, whether automatic top-up was chosen, and the Stripe customer id it needs.
+- **One ledger row per credit or charge**, with:
   - the customer id;
-  - a reference: the Stripe checkout session, or the Twilio call id and part;
+  - a reference: the Stripe checkout session or invoice, or the Twilio call id and part;
   - the kind;
   - the minutes;
-  - the amount.
+  - the amount;
+  - anything written off.
 - **Never kept:** the caller's number. It never reaches this server.
 - **The customer's email:** kept only while the low-balance email is switched on, and only to send it.
 
 **Endpoints:**
-- `…/checkin/buy/?customer=<id>&phone=1`: the team plan, the phone add-on and the first 5-hour block, in one Stripe Checkout.
+- `…/checkin/buy/?customer=<id>&phone=1`: the team plan, the phone add-on and the first 5-hour block, with the automatic top-up choice, in one Stripe Checkout.
   - Without `phone=1`: the plan alone.
   - After paying, Stripe returns to the key page.
 - `…/checkin/buy/?customer=<id>&topup=1`: one more 5-hour block, as a one-off payment. Only for a customer who has the phone add-on.
 - `…/checkin/phone/`: only the phone relay calls this.
-  - What it does: answers the balance, or takes a call's charges.
+  - What it does: answers the balance and the rates, or takes a call's charges.
   - Signing: each request is signed with the shared `relay_secret` (`X-Ark-Time`, and `X-Ark-Signature` = HMAC-SHA256 of `<time>.<body>`, within 5 minutes).
   - No double charges: each part of a call is charged once, keyed by Twilio's call id and the part.
-- `…/checkin/stripe/` also credits a block when a checkout from the buy page is paid, on these events:
-  - `checkout.session.completed` with payment status `paid`;
-  - or `checkout.session.async_payment_succeeded`.
+- `…/checkin/stripe/` also credits a block for:
+  - a paid checkout from the buy page: `checkout.session.completed` with payment status `paid`, or `checkout.session.async_payment_succeeded`;
+  - a paid automatic top-up invoice: `invoice.paid` with metadata `kind=phone_topup`.
 
-  The checkout session id is the reference, so a repeated event credits nothing.
+  Each is credited once.
 
 **Setup, once, after Amgad's yes on this exact build:**
-1. **In Stripe**, create a one-off price "Phone: 5 hours" at EUR 41.70.
-2. **In Stripe**, create a **restricted key** that can only write Checkout Sessions.
+1. **In Stripe**, create a one-off price "Phone: 5 hours" at EUR 23.40.
+2. **In Stripe**, create a **restricted key** with:
+   - Checkout Sessions: write;
+   - for automatic top-up, also Invoices: write and Customers: read.
 3. **In `config.php`:**
    - Put that key in `'stripe_api_key'`. Never post it.
    - Put the three price ids in `'stripe_buy'` (`plan`, `phone`, `block`).
    - Make a secret with `php -r 'echo bin2hex(random_bytes(32));'` and put it in `'relay_secret'`.
-4. **In Stripe → Webhooks**, add the event `checkout.session.async_payment_succeeded` to the existing endpoint.
+4. **In Stripe → Webhooks**, add the event `checkout.session.async_payment_succeeded` to the existing endpoint. `invoice.paid` is already there.
 5. **On the relay server**, enable billing and bill each line:
 
    ```bash

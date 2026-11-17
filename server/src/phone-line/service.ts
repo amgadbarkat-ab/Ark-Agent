@@ -67,8 +67,8 @@ export type PhoneLineView = {
  */
 export type PhoneBalanceView = {
   balanceMils: number;
-  /** ok; low: the last hour; empty: calls go to the business's own number; blocked: not even that. */
-  state: "ok" | "low" | "empty" | "blocked";
+  /** ok; low: the last hour; empty: cannot pay a minute, so calls are not answered. */
+  state: "ok" | "low" | "empty";
   /** At the mobile rate, so never more than what is left. */
   minutesLeftAtLeast: number;
   /** BlackArk's page that opens a Stripe checkout for 5 more hours. */
@@ -85,10 +85,7 @@ export function phoneBalanceFrom(
   if (
     typeof message.balanceMils !== "number" ||
     !Number.isInteger(message.balanceMils) ||
-    (state !== "ok" &&
-      state !== "low" &&
-      state !== "empty" &&
-      state !== "blocked") ||
+    (state !== "ok" && state !== "low" && state !== "empty") ||
     typeof message.topUpUrl !== "string"
   ) {
     return null;

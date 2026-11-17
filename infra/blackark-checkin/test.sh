@@ -58,15 +58,26 @@ return [
 ];
 PHP
 
-# A stand-in for Stripe's API on a second port: it keeps what it was sent and opens a fake checkout.
-mkdir -p "$work/fake/fakestripe/v1/checkout/sessions"
-cat > "$work/fake/fakestripe/v1/checkout/sessions/index.php" <<'FAKE'
+# A stand-in for Stripe's API on a second port: it keeps every request (path and body) and answers
+# a checkout with a fake checkout page, an invoice with a fake invoice id.
+mkdir -p "$work/fake"
+cat > "$work/fake/router.php" <<'FAKE'
 <?php
-file_put_contents(dirname(__DIR__, 4) . '/sent.txt', ($_SERVER['HTTP_AUTHORIZATION'] ?? '') . "\n" . file_get_contents('php://input'));
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+file_put_contents(__DIR__ . '/sent.log', $path . ' ' . ($_SERVER['HTTP_AUTHORIZATION'] ?? '') . ' ' . file_get_contents('php://input') . "\n", FILE_APPEND);
 header('Content-Type: application/json');
-echo json_encode(['id' => 'cs_test_fake', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_fake']);
+if ($path === '/fakestripe/v1/checkout/sessions') {
+    echo json_encode(['id' => 'cs_test_fake', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_fake']);
+} elseif ($path === '/fakestripe/v1/invoiceitems') {
+    echo json_encode(['id' => 'ii_test_1']);
+} elseif (preg_match('#^/fakestripe/v1/invoices(/in_test_1/(finalize|pay))?$#', $path)) {
+    echo json_encode(['id' => 'in_test_1']);
+} else {
+    http_response_code(404);
+    echo '{}';
+}
 FAKE
-php -S "127.0.0.1:18766" -t "$work/fake" >/dev/null 2>&1 & fake=$!
+php -S "127.0.0.1:18766" "$work/fake/router.php" >/dev/null 2>&1 & fake=$!
 trap 'kill "${server:-0}" "${fake:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 port=18765
@@ -149,61 +160,75 @@ got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2026-01-0
 page="$(curl -s "http://127.0.0.1:$port/checkin/key/?session_id=cs_unknownsession1")"
 grep -q 'ετοιμάζεται' <<<"$page" && { pass=$((pass+1)); echo "ok   an unknown session sees 'being prepared', no key"; } || { fail=$((fail+1)); echo "FAIL unknown session"; }
 
-# Prepaid phone balance (v0.1.47): the buy page, the credits from Stripe, and the relay's charges.
+# Prepaid phone balance (v0.1.47): the buy page, the credits from Stripe, the relay's charges, never
+# below zero, and the automatic top-up.
 buy="http://127.0.0.1:$port/checkin/buy/"
 location() { curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "$1"; }
-sent() { cat "$work/fake/sent.txt"; }
+last() { tail -n 1 "$work/fake/sent.log"; }
+sent_count() { grep -c "^$1 " "$work/fake/sent.log" || true; }
 expect "the buy page without a customer is refused" 400 "$buy"
 first="$(location "$buy?customer=demo-phone&phone=1")"
 [[ "$first" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
-  && grep -q 'Bearer rk_test_fake' <(sent) && grep -q 'mode=subscription' <(sent) && grep -q 'client_reference_id=demo-phone' <(sent) \
-  && grep -q 'price%5D=price_team' <(sent) && grep -q 'price%5D=price_phone' <(sent) && grep -q 'price%5D=price_block5h' <(sent) \
-  && grep -q 'phone_blocks%5D=1' <(sent) \
-  && { pass=$((pass+1)); echo "ok   buying with the phone add-on opens one checkout: plan, add-on and the first 5-hour block"; } || { fail=$((fail+1)); echo "FAIL buy page: $(sent)"; }
+  && grep -q 'Bearer rk_test_fake' <(last) && grep -q 'mode=subscription' <(last) && grep -q 'client_reference_id=demo-phone' <(last) \
+  && grep -q 'price%5D=price_team' <(last) && grep -q 'price%5D=price_phone' <(last) && grep -q 'price%5D=price_block5h' <(last) \
+  && grep -q 'phone_blocks%5D=1' <(last) && grep -q 'custom_fields%5B0%5D%5Bkey%5D=autotopup' <(last) \
+  && { pass=$((pass+1)); echo "ok   buying with the phone add-on opens one checkout: plan, add-on, first block, automatic top-up choice"; } || { fail=$((fail+1)); echo "FAIL buy page ($first): $(last)"; }
 expect "a top-up for a customer with no phone add-on is refused" 404 "$buy?customer=nobody-here&topup=1"
 
 phone="http://127.0.0.1:$port/checkin/phone/"
+sign_relay() { php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "relay-secret-for-tests-0123456789abcdef");' "$1" "$2"; }
 relay_call() { # json -> body; signed like the relay: HMAC-SHA256 of "<time>.<body>" with relay_secret
   local t; t="$(date +%s)"
-  local sig; sig="$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "relay-secret-for-tests-0123456789abcdef");' "$t" "$1")"
-  curl -s -X POST -H "x-ark-time: $t" -H "x-ark-signature: $sig" --data "$1" "$phone"
+  curl -s -X POST -H "x-ark-time: $t" -H "x-ark-signature: $(sign_relay "$t" "$1")" --data "$1" "$phone"
 }
 field() { php -r '$d = json_decode($argv[1], true); echo is_array($d) ? json_encode($d[$argv[2]] ?? null) : "none";' "$1" "$2"; }
 balance() { relay_call '{"action":"balance","customerId":"demo-phone"}'; }
 expect "an unsigned balance request is refused" 403 -X POST --data '{"action":"balance","customerId":"demo-phone"}' "$phone"
-[[ "$(field "$(balance)" state)" == '"empty"' ]] && { pass=$((pass+1)); echo "ok   before payment the balance is empty"; } || { fail=$((fail+1)); echo "FAIL empty before payment: $(balance)"; }
+[[ "$(field "$(balance)" state)" == '"empty"' && "$(field "$(balance)" rates)" == '{"incoming":78,"landline":88,"mobile":139}' ]] \
+  && { pass=$((pass+1)); echo "ok   before payment the balance is empty, and the rates come with it"; } || { fail=$((fail+1)); echo "FAIL empty before payment: $(balance)"; }
 
-paid='{"id":"evt_p1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_phone1","client_reference_id":"demo-phone","customer":"cus_2","subscription":"sub_2","payment_status":"paid","metadata":{"kind":"subscription","phone_blocks":"1"}}}}'
-again='{"id":"evt_p2","type":"checkout.session.completed","data":{"object":{"id":"cs_test_phone1","client_reference_id":"demo-phone","customer":"cus_2","subscription":"sub_2","payment_status":"paid","metadata":{"kind":"subscription","phone_blocks":"1"}}}}'
-send_event "$paid" >/dev/null; send_event "$again" >/dev/null
-[[ "$(field "$(balance)" balanceMils)" == 41700 && "$(field "$(balance)" state)" == '"ok"' ]] \
-  && { pass=$((pass+1)); echo "ok   a paid checkout credits one 5-hour block (EUR 41.70), once even if Stripe sends it twice"; } || { fail=$((fail+1)); echo "FAIL block credit: $(balance)"; }
+paid='{"id":"evt_p1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_phone1","client_reference_id":"demo-phone","customer":"cus_2","subscription":"sub_2","payment_status":"paid","metadata":{"kind":"subscription","phone_blocks":"1"},"custom_fields":[{"key":"autotopup","type":"dropdown","dropdown":{"value":"yes"}}]}}}'
+send_event "$paid" >/dev/null; send_event "${paid/evt_p1/evt_p2}" >/dev/null
+[[ "$(field "$(balance)" balanceMils)" == 23400 && "$(field "$(balance)" state)" == '"ok"' ]] \
+  && { pass=$((pass+1)); echo "ok   a paid checkout credits one 5-hour block (EUR 23.40), once even if Stripe sends it twice"; } || { fail=$((fail+1)); echo "FAIL block credit: $(balance)"; }
 
 call() { echo "{\"action\":\"charge\",\"customerId\":\"demo-phone\",\"callId\":\"CA$(printf '%032d' "$1")\",\"parts\":$2}"; }
 got="$(relay_call "$(call 1 '[{"kind":"incoming","seconds":75},{"kind":"mobile","seconds":61}]')")"
 relay_call "$(call 1 '[{"kind":"incoming","seconds":75},{"kind":"mobile","seconds":61}]')" >/dev/null
-[[ "$(field "$got" balanceMils)" == 41266 && "$(field "$(balance)" balanceMils)" == 41266 ]] \
+[[ "$(field "$got" balanceMils)" == 22966 && "$(field "$(balance)" balanceMils)" == 22966 ]] \
   && { pass=$((pass+1)); echo "ok   a call takes whole minutes at each part's rate (2 x 0.078 + 2 x 0.139), and only once"; } || { fail=$((fail+1)); echo "FAIL charge: $got / $(balance)"; }
-expect "a charge with an unknown kind is refused" 400 -X POST -H "x-ark-time: $(date +%s)" -H "x-ark-signature: $(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "relay-secret-for-tests-0123456789abcdef");' "$(date +%s)" "$(call 2 '[{"kind":"premium","seconds":60}]')")" --data "$(call 2 '[{"kind":"premium","seconds":60}]')" "$phone"
-got="$(relay_call "$(call 3 '[{"kind":"incoming","seconds":25600}]')")"
-[[ "$(field "$got" state)" == '"low"' && "$(field "$got" minutesLeftAtLeast)" == 57 ]] \
+bad="$(call 2 '[{"kind":"premium","seconds":60}]')"; t="$(date +%s)"
+expect "a charge with an unknown kind is refused" 400 -X POST -H "x-ark-time: $t" -H "x-ark-signature: $(sign_relay "$t" "$bad")" --data "$bad" "$phone"
+
+got="$(relay_call "$(call 3 '[{"kind":"incoming","seconds":11400}]')")"
+[[ "$(field "$got" state)" == '"low"' && "$(field "$got" minutesLeftAtLeast)" == 58 ]] \
   && { pass=$((pass+1)); echo "ok   in the last hour the state is low, with the minutes left at the mobile rate"; } || { fail=$((fail+1)); echo "FAIL low: $got"; }
-got="$(relay_call "$(call 4 '[{"kind":"landline","seconds":6000}]')")"
-[[ "$(field "$got" state)" == '"empty"' ]] && { pass=$((pass+1)); echo "ok   used up: empty (calls go to the business's own number)"; } || { fail=$((fail+1)); echo "FAIL empty: $got"; }
-got="$(relay_call "$(call 5 '[{"kind":"mobile","seconds":6000}]')")"
-[[ "$(field "$got" state)" == '"blocked"' && "$(field "$got" topUpUrl)" == '"https:\/\/blackark.example\/checkin\/buy\/?topup=1&customer=demo-phone"' ]] \
-  && { pass=$((pass+1)); echo "ok   past the EUR 10 cap: blocked, with the top-up link"; } || { fail=$((fail+1)); echo "FAIL blocked: $got"; }
+[[ "$(sent_count /fakestripe/v1/invoiceitems)" == 1 && "$(sent_count /fakestripe/v1/invoices)" == 1 && "$(sent_count /fakestripe/v1/invoices/in_test_1/pay)" == 1 ]] \
+  && grep '^/fakestripe/v1/invoices ' "$work/fake/sent.log" | grep -q 'subscription=sub_2' \
+  && grep '^/fakestripe/v1/invoices ' "$work/fake/sent.log" | grep -q 'kind%5D=phone_topup' \
+  && grep '^/fakestripe/v1/invoiceitems ' "$work/fake/sent.log" | grep -q 'customer=cus_2&subscription=sub_2&price=price_block5h' \
+  && { pass=$((pass+1)); echo "ok   automatic top-up (chosen at checkout): one invoice for one block on the saved card"; } || { fail=$((fail+1)); echo "FAIL auto top-up: $(cat "$work/fake/sent.log")"; }
+relay_call "$(call 4 '[{"kind":"incoming","seconds":60}]')" >/dev/null
+[[ "$(sent_count /fakestripe/v1/invoices)" == 1 ]] && { pass=$((pass+1)); echo "ok   and only once until it is paid"; } || { fail=$((fail+1)); echo "FAIL second auto top-up"; }
+send_event '{"id":"evt_i1","type":"invoice.paid","data":{"object":{"id":"in_test_1","subscription":"sub_2","metadata":{"kind":"phone_topup","customer_id":"demo-phone","phone_blocks":"1"},"lines":{"data":[{"price":{"id":"price_block5h"},"quantity":1}]}}}}' >/dev/null
+[[ "$(field "$(balance)" balanceMils)" == 31468 ]] && { pass=$((pass+1)); echo "ok   the paid top-up invoice credits one block"; } || { fail=$((fail+1)); echo "FAIL invoice credit: $(balance)"; }
+
+got="$(relay_call "$(call 5 '[{"kind":"mobile","seconds":86400}]')")"
+[[ "$(field "$got" balanceMils)" == 0 && "$(field "$got" state)" == '"empty"' ]] \
+  && { pass=$((pass+1)); echo "ok   a charge past the balance stops at zero, never below (the rest is written off)"; } || { fail=$((fail+1)); echo "FAIL clamp: $got"; }
+written="$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT mils, written_off_mils FROM phone_ledger WHERE ref LIKE \"call:%5:mobile\"")->fetch(PDO::FETCH_NUM) ? implode(" ", $db->query("SELECT mils, written_off_mils FROM phone_ledger WHERE ref LIKE \"call:%5:mobile\"")->fetch(PDO::FETCH_NUM)) : "none";' "$work/checkin/data/checkins.sqlite")"
+[[ "$written" == "-31468 168692" ]] && { pass=$((pass+1)); echo "ok   the ledger records what was charged and what was written off"; } || { fail=$((fail+1)); echo "FAIL ledger: $written"; }
 
 [[ "$(location "$buy?customer=demo-phone&topup=1")" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
-  && grep -q 'mode=payment' <(sent) && grep -q 'price%5D=price_block5h' <(sent) && ! grep -q 'price_team' <(sent) && grep -q 'kind%5D=phone_topup' <(sent) \
-  && { pass=$((pass+1)); echo "ok   a top-up opens a one-off checkout for one 5-hour block"; } || { fail=$((fail+1)); echo "FAIL top-up page: $(sent)"; }
+  && grep -q 'mode=payment' <(last) && grep -q 'price%5D=price_block5h' <(last) && ! grep -q 'price_team' <(last) && grep -q 'kind%5D=phone_topup' <(last) && ! grep -q 'custom_fields' <(last) \
+  && { pass=$((pass+1)); echo "ok   a top-up opens a one-off checkout for one 5-hour block"; } || { fail=$((fail+1)); echo "FAIL top-up page: $(last)"; }
 pending='{"id":"evt_t1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_topup1","client_reference_id":"demo-phone","payment_status":"unpaid","metadata":{"kind":"phone_topup","phone_blocks":"1"}}}}'
 settled='{"id":"evt_t2","type":"checkout.session.async_payment_succeeded","data":{"object":{"id":"cs_test_topup1","client_reference_id":"demo-phone","payment_status":"paid","metadata":{"kind":"phone_topup","phone_blocks":"1"}}}}'
 send_event "$pending" >/dev/null
 before="$(field "$(balance)" balanceMils)"
 send_event "$settled" >/dev/null
-[[ "$before" == -14740 && "$(field "$(balance)" balanceMils)" == 26960 && "$(field "$(balance)" state)" == '"ok"' ]] \
-  && { pass=$((pass+1)); echo "ok   a top-up credits only once paid, and pays off the debt first"; } || { fail=$((fail+1)); echo "FAIL top-up credit: $before / $(balance)"; }
+[[ "$before" == 0 && "$(field "$(balance)" balanceMils)" == 23400 && "$(field "$(balance)" state)" == '"ok"' ]] \
+  && { pass=$((pass+1)); echo "ok   a top-up credits only once paid"; } || { fail=$((fail+1)); echo "FAIL top-up credit: $before / $(balance)"; }
 expect "the top-up thank-you page" 200 "$buy?done=1"
 
 echo; echo "$pass passed, $fail failed"

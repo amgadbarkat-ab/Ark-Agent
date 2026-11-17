@@ -92,6 +92,19 @@ $form = [
 foreach (array_values($items) as $index => $price) {
     $form['line_items'][$index] = ['price' => $price, 'quantity' => 1];
 }
+if ($phone && !$topup) {
+    // Automatic top-up is the customer's choice, off unless they pick yes (Amgad, 17 Nov).
+    $form['custom_fields'][0] = [
+        'key' => 'autotopup',
+        'label' => ['type' => 'custom', 'custom' => 'Αυτόματη προσθήκη 5 ωρών τηλεφωνίας'],
+        'type' => 'dropdown',
+        'optional' => 'true',
+        'dropdown' => ['options' => [
+            ['label' => 'Όχι', 'value' => 'no'],
+            ['label' => 'Ναι, όταν απομένει 1 ώρα', 'value' => 'yes'],
+        ]],
+    ];
+}
 if (ark_config('stripe_automatic_tax', false)) {
     $form['automatic_tax'] = ['enabled' => 'true'];
 }

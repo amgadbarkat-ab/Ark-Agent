@@ -53,6 +53,7 @@ If the install is not connected, or drops mid-call, the caller goes to the line'
 | `PORT` | `8080` (default, behind Caddy) | no |
 | `BILLING_URL` | `https://blackark.uk/checkin/phone/` (written by `./deploy.sh billing`) | no |
 | `BILLING_SECRET` | | **yes**: the same as `relay_secret` on blackark.uk; typed at a hidden prompt |
+| `BILLING_WHEN_UNREACHABLE` | `busy` (default) or `answer` | no |
 
 ### Endpoints
 
@@ -103,19 +104,22 @@ The test checks that:
 
 ## Prepaid phone balance (v0.1.47)
 
-**Which lines:** a line with a `customerId` (`./deploy.sh bill-line <line> <customer-id>`) is paid from that customer's prepaid balance on blackark.uk. See `infra/blackark-checkin/README.md`.
+**Which lines:** a line with a `customerId` (`./deploy.sh bill-line <line> <customer-id>`) is paid from that customer's prepaid balance on blackark.uk. See `infra/blackark-checkin/README.md`. **The balance never goes below zero.**
 
-**Before a call is answered**, the relay asks blackark.uk for the balance:
+**When a call comes in**, the relay asks blackark.uk for the balance and the rates:
+- **If it can't pay a first minute:** the call is not answered (`<Reject reason="busy"/>`). Twilio does not bill a rejected call.
+- **If there is no install connected:** that first minute includes the forwarded leg to the fallback number.
+- **If blackark.uk can't be reached:** busy. With `BILLING_WHEN_UNREACHABLE=answer`, the relay answers on the last balance it knew, if it knows one.
 
-| Balance | What happens |
-|---|---|
-| used up (`empty`) | the caller goes straight to the line's fallback number |
-| past the debt cap (`blocked`) | the caller hears that number and the call ends |
-| anything else | the employee answers as usual |
-| blackark.uk unreachable | the employee answers as usual |
+**During a call:**
+- **Shortly before each minute ends** (12 seconds), the relay sets the next minute aside, out of what this customer's other live calls and any unsent charges have not already taken. The next minute is the incoming rate, plus the forwarded leg's rate once the caller is put through.
+- **If it can't:**
+  1. The install is told (`call.ending`).
+  2. The caller hears «Ο διαθέσιμος χρόνος της γραμμής τελείωσε. Παρακαλούμε καλέστε ξανά αργότερα.» ("The line's available time has run out. Please call again later.")
+  3. The call ends before the unpaid minute starts.
+- **Putting a caller through** sets the forwarded leg's first minute aside first. If that can't be paid, the call ends the same way.
 
 **When a call ends**, the relay reports it:
 - **What is sent:** the call id, each part (incoming, or forwarded to a landline or a mobile) and its seconds. **Never the caller's number.**
-- **If it fails:** a report blackark.uk did not take is sent again every minute, for a day.
+- **If it fails:** a report blackark.uk did not take is held against the balance and sent again every minute, for a day.
 - **The install:** gets the new balance on its line connection, and the app shows it under Settings → Phone line, with **Add 5 hours** in the last hour.
-

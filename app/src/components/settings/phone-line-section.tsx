@@ -424,13 +424,9 @@ export function PhoneBalanceNotice({ balance }: { balance: PhoneBalance }) {
             "Less than one hour of phone balance is left ({amount}, at least {minutes} minutes). Add 5 hours so the employee keeps answering.",
             { amount: euros, minutes: balance.minutesLeftAtLeast },
           )
-        : balance.state === "empty"
-          ? t(
-              "The phone balance is used up. Calls go to the business's own number until you add 5 hours.",
-            )
-          : t(
-              "The phone balance is used up. Callers hear the business's number and the call ends, until you add 5 hours.",
-            );
+        : t(
+            "The phone balance is used up, so calls are not answered. Add 5 hours to start again.",
+          );
   const urgent = balance.state !== "ok";
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">

@@ -23,7 +23,7 @@ export type PhoneLine = {
 export type PhoneBalance = {
   /** 1/1000 euro, excl. VAT. */
   balanceMils: number;
-  state: "ok" | "low" | "empty" | "blocked";
+  state: "ok" | "low" | "empty";
   minutesLeftAtLeast: number;
   topUpUrl: string;
   receivedAt: string;
