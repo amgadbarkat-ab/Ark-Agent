@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.46
+
 ### Paid licence keys from the payment pages are accepted (#109, MD 17 Nov)
 
 - This release trusts BlackArk's licence signing key, so a licence key the blackark.uk Stripe pages issue after payment activates the app. Its private half is only on BlackArk's signing computer and in the payment pages' config.
