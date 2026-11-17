@@ -10,6 +10,12 @@
  * - invoice.paid: the plan, seats and add-ons (from config's price table) and the paid period's end;
  *   a new key is signed, valid to that end plus the grace days.
  * - customer.subscription.deleted: no more keys; the last one runs out on its own.
+ * - Prepaid phone balance (v0.1.47): a checkout the buy page opened with the phone add-on, or a
+ *   top-up, credits a 5-hour block once Stripe says it is paid (checkout.session.completed with
+ *   payment_status "paid", or checkout.session.async_payment_succeeded). The checkout session id is
+ *   the reference, so a repeated event credits nothing. An automatic top-up is a Stripe invoice
+ *   (metadata kind "phone_topup"), credited on invoice.paid under the invoice id. A checkout where
+ *   the customer chose "automatic top-up: yes" remembers that choice and the Stripe customer.
  *
  * Kept: the customer id, the Stripe subscription and session ids, the plan, seats, add-ons, the
  * period end and the latest key. No card data, no name, no email, no address.
@@ -120,8 +126,41 @@ if ($subscription === '' && is_array($object['parent']['subscription_details'] ?
     $subscription = (string) ($object['parent']['subscription_details']['subscription'] ?? '');
 }
 
+/** Credits the prepaid phone block a paid checkout from the buy page carries. */
+function credit_phone(PDO $db, array $session): void
+{
+    $blocks = (int) ($session['metadata']['phone_blocks'] ?? 0);
+    $customer = strtolower(trim((string) ($session['client_reference_id'] ?? '')));
+    if ($blocks < 1 || ($session['payment_status'] ?? '') !== 'paid' || !is_string($session['id'] ?? null)
+        || preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1) {
+        return;
+    }
+    ark_phone_credit_blocks($db, $customer, $session['id'], $blocks);
+    foreach ((array) ($session['custom_fields'] ?? []) as $field) {
+        if (($field['key'] ?? '') === 'autotopup' && ($field['dropdown']['value'] ?? '') === 'yes'
+            && is_string($session['customer'] ?? null) && preg_match('/^cus_[A-Za-z0-9]+$/', $session['customer']) === 1) {
+            $db->prepare('UPDATE phone_accounts SET auto_topup = 1, stripe_customer = ? WHERE customer_id = ?')
+                ->execute([$session['customer'], $customer]);
+        }
+    }
+    $country = strtoupper((string) ($session['customer_details']['address']['country'] ?? ''));
+    if (preg_match('/^[A-Z]{2}$/', $country) === 1) {
+        // Only to choose the low-balance email's language (phone-emails.php).
+        $db->prepare('UPDATE phone_accounts SET country = ? WHERE customer_id = ?')->execute([$country, $customer]);
+    }
+    $email = (string) ($session['customer_details']['email'] ?? '');
+    if (ark_config('phone_low_email', false) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // Kept only while the low-balance email is on, and only to send that notice.
+        $db->prepare('UPDATE phone_accounts SET email = ? WHERE customer_id = ?')->execute([$email, $customer]);
+    }
+}
+
 switch ($event['type']) {
+    case 'checkout.session.async_payment_succeeded':
+        credit_phone($db, $object);
+        reply(200);
     case 'checkout.session.completed':
+        credit_phone($db, $object);
         if ($subscription === '') {
             reply(200, 'Not a subscription.');
         }
@@ -132,6 +171,14 @@ switch ($event['type']) {
         issue($db, $subscription);
         reply(200);
     case 'invoice.paid':
+        if (($object['metadata']['kind'] ?? '') === 'phone_topup') {
+            // An automatic top-up this server asked Stripe for: one block, credited once.
+            $customer = strtolower((string) ($object['metadata']['customer_id'] ?? ''));
+            if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) === 1 && is_string($object['id'] ?? null)) {
+                ark_phone_credit_blocks($db, $customer, $object['id'], (int) ($object['metadata']['phone_blocks'] ?? 1));
+            }
+            reply(200);
+        }
         if ($subscription === '') {
             reply(200, 'Not a subscription.');
         }
