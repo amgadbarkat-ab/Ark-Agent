@@ -181,7 +181,10 @@ Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
 **Unused balance is not refunded** on cancellation (Amgad).
 
 **What is kept**, beyond the licence rows:
-- **Per customer:** the balance, whether automatic top-up was chosen, and the Stripe customer id it needs.
+- **Per customer:**
+  - the balance;
+  - whether automatic top-up was chosen, and the Stripe customer id it needs;
+  - the billing **country**, only to choose the low-balance email's language.
 - **One ledger row per credit or charge**, with:
   - the customer id;
   - a reference: the Stripe checkout session or invoice, or the Twilio call id and part;
@@ -227,4 +230,17 @@ Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
    A line that is not billed (a demo or trial line) works as before.
 6. **Send customers** `https://blackark.uk/checkin/buy/?customer=<id>&phone=1` instead of a Payment Link.
 
-**The low-balance email is off** (`'phone_low_email' => false`) until Amgad approves the text in `config.php`. The app's notice works without it.
+**The low-balance email (approved by Amgad, 17 Nov 12:53).**
+- **When it is sent:** once, when the last hour starts. Again only after a top-up.
+- **Sender:** `no-reply@blackark.uk`, with Reply-To `General@blackark.uk`.
+- **Where the text is:** `checkin/phone-emails.php`, exactly as approved, which is denied to the web.
+- **Language rule:**
+
+  | Customer's country | The email |
+  |---|---|
+  | Greece | Greek first, then the English copy |
+  | GCC (AE, SA, QA, KW, BH, OM) | English only |
+  | any other country | the English text, and the server log names the country |
+
+- **Adding a language:** a new text is added to `phone-emails.php` in a pull request, and is used only after Amgad's yes on that text.
+- **Switching it on:** it is off (`'phone_low_email' => false`) until Amgad's yes at deploy. The app's notice works without it.

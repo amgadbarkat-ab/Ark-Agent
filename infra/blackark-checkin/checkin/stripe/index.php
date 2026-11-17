@@ -143,6 +143,11 @@ function credit_phone(PDO $db, array $session): void
                 ->execute([$session['customer'], $customer]);
         }
     }
+    $country = strtoupper((string) ($session['customer_details']['address']['country'] ?? ''));
+    if (preg_match('/^[A-Z]{2}$/', $country) === 1) {
+        // Only to choose the low-balance email's language (phone-emails.php).
+        $db->prepare('UPDATE phone_accounts SET country = ? WHERE customer_id = ?')->execute([$country, $customer]);
+    }
     $email = (string) ($session['customer_details']['email'] ?? '');
     if (ark_config('phone_low_email', false) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         // Kept only while the low-balance email is on, and only to send that notice.

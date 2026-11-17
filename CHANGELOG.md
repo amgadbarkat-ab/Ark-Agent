@@ -18,6 +18,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   - A block is EUR 23.40 excl. VAT, which is 5 hours at the incoming rate.
   - Each call takes off its whole minutes at the rate of each part: incoming EUR 0.078, put through to a landline EUR 0.088, put through to a mobile EUR 0.139.
 - **In the last hour:** Settings → Phone line shows the balance and an **Add 5 hours** button.
+- **The last-hour email:** once switched on, one email (the text Amgad approved), in the customer's country language first with the English copy below. GCC countries get English only.
 - **The balance never goes below zero:**
   - A call that cannot pay its first minute is not answered.
   - A call that cannot pay its next minute hears one sentence and ends before that minute starts.

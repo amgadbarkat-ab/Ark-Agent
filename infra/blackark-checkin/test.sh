@@ -8,6 +8,7 @@ work="$(mktemp -d)"
 trap 'kill "${server:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 cp -R "$here/checkin" "$work/checkin"
+mkdir -p "$work/outbox"
 
 # A test key pair and a profile signed with it, made with ArkAgent's own signing code.
 cat > "$work/sign.ts" <<'TS'
@@ -55,6 +56,10 @@ return [
   'stripe_api_base' => 'http://127.0.0.1:18766/fakestripe',
   'stripe_buy' => ['plan' => 'price_team', 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
+  // On here only, to test it; written to a folder instead of sent.
+  'phone_low_email' => true,
+  'phone_low_email_reply_to' => 'general@blackark.example',
+  'mail_outbox_dir' => __DIR__ . '/../outbox',
 ];
 PHP
 
@@ -187,7 +192,7 @@ expect "an unsigned balance request is refused" 403 -X POST --data '{"action":"b
 [[ "$(field "$(balance)" state)" == '"empty"' && "$(field "$(balance)" rates)" == '{"incoming":78,"landline":88,"mobile":139}' ]] \
   && { pass=$((pass+1)); echo "ok   before payment the balance is empty, and the rates come with it"; } || { fail=$((fail+1)); echo "FAIL empty before payment: $(balance)"; }
 
-paid='{"id":"evt_p1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_phone1","client_reference_id":"demo-phone","customer":"cus_2","subscription":"sub_2","payment_status":"paid","metadata":{"kind":"subscription","phone_blocks":"1"},"custom_fields":[{"key":"autotopup","type":"dropdown","dropdown":{"value":"yes"}}]}}}'
+paid='{"id":"evt_p1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_phone1","client_reference_id":"demo-phone","customer":"cus_2","subscription":"sub_2","payment_status":"paid","customer_details":{"email":"owner@shop.example","address":{"country":"GR"}},"metadata":{"kind":"subscription","phone_blocks":"1"},"custom_fields":[{"key":"autotopup","type":"dropdown","dropdown":{"value":"yes"}}]}}}'
 send_event "$paid" >/dev/null; send_event "${paid/evt_p1/evt_p2}" >/dev/null
 [[ "$(field "$(balance)" balanceMils)" == 23400 && "$(field "$(balance)" state)" == '"ok"' ]] \
   && { pass=$((pass+1)); echo "ok   a paid checkout credits one 5-hour block (EUR 23.40), once even if Stripe sends it twice"; } || { fail=$((fail+1)); echo "FAIL block credit: $(balance)"; }
@@ -208,7 +213,18 @@ got="$(relay_call "$(call 3 '[{"kind":"incoming","seconds":11400}]')")"
   && grep '^/fakestripe/v1/invoices ' "$work/fake/sent.log" | grep -q 'kind%5D=phone_topup' \
   && grep '^/fakestripe/v1/invoiceitems ' "$work/fake/sent.log" | grep -q 'customer=cus_2&subscription=sub_2&price=price_block5h' \
   && { pass=$((pass+1)); echo "ok   automatic top-up (chosen at checkout): one invoice for one block on the saved card"; } || { fail=$((fail+1)); echo "FAIL auto top-up: $(cat "$work/fake/sent.log")"; }
+eml="$work/outbox/demo-phone.eml"
+decoded() { php -r '$m = file_get_contents($argv[1]); [$h, $b] = explode("\r\n\r\n", $m, 2); echo base64_decode($b);' "$1"; }
+subject() { php -r '$m = file_get_contents($argv[1]); preg_match("/^Subject: =\\?UTF-8\\?B\\?([^?]+)\\?=/m", $m, $x); echo base64_decode($x[1] ?? "");' "$1"; }
+[[ -f "$eml" ]] && grep -q '^To: owner@shop.example' "$eml" && grep -q '^Reply-To: general@blackark.example' "$eml" \
+  && [[ "$(subject "$eml")" == "ArkAgent: απομένει λιγότερο από μία ώρα τηλεφωνίας / less than one hour of phone time left" ]] \
+  && decoded "$eml" | head -1 | grep -q '^Αγαπητέ πελάτη,' && decoded "$eml" | grep -q '^Dear customer,' \
+  && decoded "$eml" | grep -q 'περίπου 58 λεπτά' && decoded "$eml" | grep -q 'about 58 minutes' \
+  && decoded "$eml" | grep -q '^https://blackark.example/checkin/buy/?topup=1&customer=demo-phone$' \
+  && { pass=$((pass+1)); echo "ok   the last hour: one email, Greek first then English (GR), with Reply-To and the top-up link"; } || { fail=$((fail+1)); echo "FAIL low email: $(cat "$eml" 2>/dev/null | head -12)"; }
+rm -f "$eml"
 relay_call "$(call 4 '[{"kind":"incoming","seconds":60}]')" >/dev/null
+[[ ! -f "$eml" ]] && { pass=$((pass+1)); echo "ok   and only once until the next top-up"; } || { fail=$((fail+1)); echo "FAIL second low email"; }
 [[ "$(sent_count /fakestripe/v1/invoices)" == 1 ]] && { pass=$((pass+1)); echo "ok   and only once until it is paid"; } || { fail=$((fail+1)); echo "FAIL second auto top-up"; }
 send_event '{"id":"evt_i1","type":"invoice.paid","data":{"object":{"id":"in_test_1","subscription":"sub_2","metadata":{"kind":"phone_topup","customer_id":"demo-phone","phone_blocks":"1"},"lines":{"data":[{"price":{"id":"price_block5h"},"quantity":1}]}}}}' >/dev/null
 [[ "$(field "$(balance)" balanceMils)" == 31468 ]] && { pass=$((pass+1)); echo "ok   the paid top-up invoice credits one block"; } || { fail=$((fail+1)); echo "FAIL invoice credit: $(balance)"; }
@@ -230,6 +246,15 @@ send_event "$settled" >/dev/null
 [[ "$before" == 0 && "$(field "$(balance)" balanceMils)" == 23400 && "$(field "$(balance)" state)" == '"ok"' ]] \
   && { pass=$((pass+1)); echo "ok   a top-up credits only once paid"; } || { fail=$((fail+1)); echo "FAIL top-up credit: $before / $(balance)"; }
 expect "the top-up thank-you page" 200 "$buy?done=1"
+
+# A GCC customer: English only.
+gulf='{"id":"evt_g1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_gulf1","client_reference_id":"demo-gulf","customer":"cus_3","subscription":"sub_3","payment_status":"paid","customer_details":{"email":"owner@gulf.example","address":{"country":"AE"}},"metadata":{"kind":"subscription","phone_blocks":"1"}}}}'
+send_event "$gulf" >/dev/null
+gulfcall="{\"action\":\"charge\",\"customerId\":\"demo-gulf\",\"callId\":\"CA$(printf '%032d' 31)\",\"parts\":[{\"kind\":\"incoming\",\"seconds\":11700}]}"
+relay_call "$gulfcall" >/dev/null
+eml="$work/outbox/demo-gulf.eml"
+[[ "$(subject "$eml")" == "ArkAgent: less than one hour of phone time left" ]] && decoded "$eml" | head -1 | grep -q '^Dear customer,' && ! decoded "$eml" | grep -q 'Αγαπητέ' \
+  && { pass=$((pass+1)); echo "ok   a GCC customer (AE) gets the English text only"; } || { fail=$((fail+1)); echo "FAIL GCC email: $(subject "$eml") / $(decoded "$eml" | head -3)"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

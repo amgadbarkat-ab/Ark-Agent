@@ -85,6 +85,7 @@ function ark_db(): PDO
         customer_id TEXT PRIMARY KEY,
         balance_mils INTEGER NOT NULL DEFAULT 0,
         email TEXT,
+        country TEXT,
         low_notified_at TEXT,
         auto_topup INTEGER NOT NULL DEFAULT 0,
         stripe_customer TEXT,
@@ -403,16 +404,30 @@ function ark_stripe_api(string $path, array $form): ?array
 }
 
 
+/** Which approved text a customer's country gets (phone-emails.php), and whether it has its own. */
+function ark_phone_email_text(?string $country): array
+{
+    $emails = require __DIR__ . '/phone-emails.php';
+    $country = strtoupper((string) $country);
+    $language = $emails['countries'][$country] ?? null;
+    if ($language === null) {
+        error_log("ark-phone: no approved low-balance email for country '$country'; sent in English");
+        $language = 'en';
+    }
+    return $emails['texts'][$language] + ['language' => $language];
+}
+
 /**
  * The one email when the last hour starts (v0.1.47), only while `phone_low_email` is on in
- * config.php: Amgad approves the text first (no message reaches a customer without his yes).
+ * config.php (Amgad approved the text on 17 Nov; switching it on comes with his yes on the deploy).
+ * From no-reply@, Reply-To General@; once per block, again only after a top-up.
  */
 function ark_phone_low_email(PDO $db, string $customerId, array $view): void
 {
     if (!ark_config('phone_low_email', false)) {
         return;
     }
-    $find = $db->prepare('SELECT email, low_notified_at FROM phone_accounts WHERE customer_id = ?');
+    $find = $db->prepare('SELECT email, country, low_notified_at FROM phone_accounts WHERE customer_id = ?');
     $find->execute([$customerId]);
     $row = $find->fetch();
     if (!$row || $row['low_notified_at'] || !filter_var((string) $row['email'], FILTER_VALIDATE_EMAIL)) {
@@ -423,14 +438,23 @@ function ark_phone_low_email(PDO $db, string $customerId, array $view): void
     if ($mark->rowCount() === 0) {
         return;
     }
-    $text = strtr((string) ark_config('phone_low_email_text', ''), [
+    $text = ark_phone_email_text($row['country']);
+    $body = strtr($text['body'], [
         '{minutes}' => (string) $view['minutesLeftAtLeast'],
-        '{topup}' => $view['topUpUrl'],
+        '{link}' => $view['topUpUrl'],
     ]);
-    if ($text === '') {
+    $from = (string) ark_config('phone_low_email_from', 'no-reply@blackark.uk');
+    $replyTo = (string) ark_config('phone_low_email_reply_to', '');
+    $headers = "From: $from\r\n"
+        . ($replyTo !== '' ? "Reply-To: $replyTo\r\n" : '')
+        . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n";
+    $subject = '=?UTF-8?B?' . base64_encode($text['subject']) . '?=';
+    $encoded = chunk_split(base64_encode($body), 76, "\r\n");
+    $outbox = (string) ark_config('mail_outbox_dir', '');
+    if ($outbox !== '') {
+        // Tests only: the message is written to a folder instead of being sent.
+        file_put_contents($outbox . '/' . $customerId . '.eml', "To: {$row['email']}\r\nSubject: $subject\r\n$headers\r\n$encoded");
         return;
     }
-    $from = (string) ark_config('phone_low_email_from', 'no-reply@blackark.uk');
-    @mail((string) $row['email'], '=?UTF-8?B?' . base64_encode((string) ark_config('phone_low_email_subject', 'ArkAgent: υπόλοιπο τηλεφωνίας')) . '?=', $text,
-        "From: $from\r\nContent-Type: text/plain; charset=utf-8\r\n");
+    @mail((string) $row['email'], $subject, $encoded, $headers);
 }

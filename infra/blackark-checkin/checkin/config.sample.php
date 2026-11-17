@@ -64,9 +64,9 @@ return [
     'phone_block_mils' => 23400,
     // "Low" (the notice, the email, the automatic top-up) is the last hour at the mobile rate.
     'phone_low_mils' => 8340,
-    // The one email when the last hour starts. OFF until Amgad approves the text below.
+    // The one email when the last hour starts. Its text, per language, is in phone-emails.php, as
+    // Amgad approved it. Switch on only with his yes on the deploy.
     'phone_low_email' => false,
     'phone_low_email_from' => 'no-reply@blackark.uk',
-    'phone_low_email_subject' => 'ArkAgent: απομένει λιγότερο από μία ώρα τηλεφωνίας',
-    'phone_low_email_text' => "Καλησπέρα,\n\nΣτο υπόλοιπο τηλεφωνίας του ArkAgent απομένουν περίπου {minutes} λεπτά.\nΓια να συνεχίσει ο ψηφιακός υπάλληλος να απαντά στις κλήσεις, προσθέστε 5 ώρες εδώ:\n{topup}\n\nBlackArk",
+    'phone_low_email_reply_to' => 'General@blackark.uk',
 ];

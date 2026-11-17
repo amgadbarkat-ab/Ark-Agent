@@ -3,7 +3,7 @@ Options -Indexes
 DirectoryIndex index.php
 
 # Only the two entry points are reachable: index.php (the receiver) and admin/index.php.
-<FilesMatch "^(lib|config|config\.sample)\.php$">
+<FilesMatch "^(lib|config|config\.sample|phone-emails)\.php$">
   <IfModule mod_authz_core.c>
     Require all denied
   </IfModule>
