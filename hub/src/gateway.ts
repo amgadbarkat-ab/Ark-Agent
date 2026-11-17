@@ -1,13 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { Server, ServerWebSocket, WebSocketHandler } from "bun";
-import type { Hub } from "./hub";
-import {
-  bearerFromProtocols,
-  decodeFrame,
-  pushFrame,
-  replyFrame,
-} from "./phoenix";
 import { coalesce } from "./coalesce";
+import type { Hub } from "./hub";
 import {
   catchUps,
   eventsStored,
@@ -15,8 +9,14 @@ import {
   socketOpened,
   storageErrors,
 } from "./metrics";
+import {
+  bearerFromProtocols,
+  decodeFrame,
+  pushFrame,
+  replyFrame,
+} from "./phoenix";
 import { isTerminalEvent, type StoredEvent } from "./store";
-import { joinCodeFor, type JoinScope, verifyJoinToken } from "./tokens";
+import { type JoinScope, joinCodeFor, verifyJoinToken } from "./tokens";
 
 /** Capabilities offered to a runner when it joins. */
 const RUNNER_CAPABILITIES = ["runner_event_batch_v1"];

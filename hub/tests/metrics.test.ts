@@ -11,7 +11,7 @@ import {
 } from "@copilotkit/runtime/v2";
 import { Socket } from "phoenix";
 import { lastValueFrom, Observable } from "rxjs";
-import { HubConfigError, type HubConfig, loadConfig } from "../src/config";
+import { type HubConfig, HubConfigError, loadConfig } from "../src/config";
 import { hubMetrics } from "../src/metrics";
 import { type RunningHub, startHub } from "../src/server";
 import { createTestDatabase, type TestDatabase } from "./support";

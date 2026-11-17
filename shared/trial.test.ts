@@ -48,7 +48,7 @@ describe("trial profile", () => {
       readProfile(withConnectors(["skroutz", "boxnow", "skroutz"])).roster[0]
         ?.connectors,
     ).toEqual(["skroutz", "boxnow"]);
-    expect(() => readProfile(withConnectors(["elta"]))).toThrow("connectors");
+    expect(() => readProfile(withConnectors(["fax"]))).toThrow("connectors");
     expect(readProfile(draft).roster[0]?.connectors).toBeUndefined();
   });
 

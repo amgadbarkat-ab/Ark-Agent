@@ -8,6 +8,19 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### ELTA Courier, competitor prices, and FFmpeg in the Windows installer (#109, MD 17 Nov)
+
+- **ELTA Courier tracking**, in **Settings → Connect your Data → Shop and delivery**:
+  - **Reads:** a shipment's status, tracking events and delivery, by voucher number or by the shop's own reference.
+  - **Needs:** the customer's ELTA web-service login (customer code, user code, password), from ELTA Courier.
+  - **What to know:** ELTA's service uses plain http, and it gives no cash-on-delivery figures. It is checked for real once a customer's login exists.
+- **Competitor prices:**
+  - **The watch list:** a business data file named `price-watch`, with one row per product: name, SKU, own price, and its Skroutz and BestPrice page addresses.
+  - **How it runs:** on the schedule the customer chooses (a Routine), the employee opens each page in its browser, one at a time, at a person's pace. It records the shops and prices exactly as shown, and reports the cheapest against our own price.
+  - **What it never does:** get past a CAPTCHA or a block, or change a price. A price change goes through WooCommerce, on an approval card.
+- **Video editing on Windows works with nothing else to install.** The installer now ships FFmpeg 8.1.3: an LGPL build, pinned by its SHA-256, with its licence and source note beside it.
+- **The trial setup file** can give an employee `elta` and `price-watch` too.
+
 ## 0.1.43
 
 ### Shop and delivery connectors: Skroutz, WooCommerce, BOX NOW (#109, MD 16 Nov)

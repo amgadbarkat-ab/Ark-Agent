@@ -112,6 +112,8 @@ describe("which servers this deployment will talk to", () => {
           "builtin://video",
           // v0.1.43: the business's own data files (Pylon exports and the like).
           "builtin://business-files",
+          // v0.1.44: competitor prices, recorded by the employee from public pages.
+          "builtin://price-watch",
         ]).toContain(entry.host);
         expect(entry.host).toBe(`builtin://${entry.key}`);
       } else if (entry.auth.kind === "user-password") {
@@ -125,6 +127,7 @@ describe("which servers this deployment will talk to", () => {
           "builtin://skroutz": "skroutz-rest",
           "builtin://woocommerce": "woocommerce-rest",
           "builtin://boxnow": "boxnow-rest",
+          "builtin://elta": "elta-soap",
         };
         expect(Object.keys(transports)).toContain(entry.host);
         expect(entry.transport).toBe(transports[entry.host] as never);

@@ -26,6 +26,7 @@ import { isToolCallOutcome } from "./call-outcome";
 import { CATALOGUE, catalogueEntry } from "./catalogue";
 import { toolkitOf, vendorSentence } from "./composio";
 import { connectedAccount } from "./connected-account";
+import { checkEltaLogin } from "./elta";
 import { checkMailboxLogin, mailboxSettingsSchema } from "./mailbox";
 import { checkSkroutzLogin } from "./skroutz";
 import { checkWooCommerceLogin } from "./woocommerce";
@@ -37,6 +38,7 @@ const BUSINESS_CHECKS: Record<
   skroutz: checkSkroutzLogin,
   woocommerce: checkWooCommerceLogin,
   boxnow: checkBoxNowLogin,
+  elta: checkEltaLogin,
 };
 
 import {
@@ -1047,7 +1049,9 @@ export function createPluginRoutes(
         ? new URL(settings.siteUrl ?? "").host
         : connector.key === "boxnow"
           ? (settings.clientId ?? connector.key)
-          : "Skroutz shop";
+          : connector.key === "elta"
+            ? `ELTA customer ${settings.customerCode ?? ""}`
+            : "Skroutz shop";
     await store.recordConnection({
       serverId: connector.key,
       userId: actor.id,

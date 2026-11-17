@@ -483,6 +483,20 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     docsUrl:
       "https://github.com/amgadbarkat-ab/Ark-Agent/blob/main/docs/trials/README.md",
   },
+  {
+    key: "price-watch",
+    title: "Competitor prices",
+    vendor: "ArkAgent",
+    summary:
+      "Competitor prices read off Skroutz and BestPrice pages at a person's pace, kept as history and compared with the business's own price. Price changes go through the shop's own tool, on approval.",
+    host: "builtin://price-watch",
+    path: "/",
+    transport: "builtin-price-watch",
+    auth: Object.freeze({ kind: "builtin" }),
+    writeTools: Object.freeze([]),
+    docsUrl:
+      "https://github.com/amgadbarkat-ab/Ark-Agent/blob/main/docs/trials/README.md",
+  },
   /*
    * The business connectors (#109, v0.1.43). Each install's own account, typed at setup in Settings
    * and kept in the vault like the mailbox login; the hosts are the vendors' own (Skroutz) or the
@@ -530,6 +544,18 @@ export const CATALOGUE: readonly CatalogueEntry[] = Object.freeze([
     auth: Object.freeze({ kind: "user-password" }),
     writeTools: Object.freeze([]),
     docsUrl: "https://boxnow.gr/api",
+  },
+  {
+    key: "elta",
+    title: "ELTA Courier",
+    vendor: "ELTA Courier",
+    summary: "Shipment status and tracking events. Read only.",
+    host: "builtin://elta",
+    path: "/",
+    transport: "elta-soap",
+    auth: Object.freeze({ kind: "user-password" }),
+    writeTools: Object.freeze([]),
+    docsUrl: "https://www.elta-courier.gr",
   },
 ]);
 

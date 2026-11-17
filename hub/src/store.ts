@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { foldMessages, type ThreadMessage } from "./fold";
 import type { Sql } from "./db";
+import { foldMessages, type ThreadMessage } from "./fold";
 
 export interface ThreadSummary {
   id: string;

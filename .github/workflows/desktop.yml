@@ -125,7 +125,7 @@ jobs:
       - run: bun run typecheck
         working-directory: desktop
       - name: Desktop version regressions
-        run: bun test scripts/desktop-version.test.ts scripts/node-runtime.test.ts
+        run: bun test scripts/desktop-version.test.ts scripts/node-runtime.test.ts scripts/ffmpeg-runtime.test.ts
         working-directory: desktop
       - name: Prepare build version
         # bash on every platform: the Windows runner's default shell is PowerShell, which does not
@@ -149,6 +149,12 @@ jobs:
       - name: Node for the Windows installer
         if: matrix.platform.name == 'windows'
         run: bun scripts/fetch-node.ts
+        working-directory: desktop
+      # Video editing (#109, v0.1.44): an LGPL FFmpeg, pinned in ffmpeg-runtime.json, ships in the
+      # installer so a customer's PC needs nothing else installed.
+      - name: FFmpeg for the Windows installer
+        if: matrix.platform.name == 'windows'
+        run: bun scripts/fetch-ffmpeg.ts
         working-directory: desktop
       - run: bun run tauri build --config src-tauri/tauri.build-version.conf.json $EXTRA_CONFIG
         shell: bash

@@ -1,3 +1,4 @@
 target/
 # The pinned Node, fetched by scripts/fetch-node.ts for the Windows installer; never committed.
 node/
+ffmpeg/
