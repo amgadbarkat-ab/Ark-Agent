@@ -1,9 +1,13 @@
 /**
  * The one model endpoint `ark-eval` talks to (#116): an OpenAI-compatible chat-completions API on a
- * free key. Groq by default, Cerebras as the alternative (Amgad's decision of 16 Nov).
+ * free key. OpenRouter's free tier by default (COO, 17 Nov: Groq's signup was blocked, BlackArk's key
+ * is OpenRouter "ArkAgent-116"); Groq and Cerebras remain as alternatives.
  *
- * NEVER: the local model, an Anthropic key, DeepSeek. The CLI can only name the two providers below,
- * and `assertAllowedEndpoint` refuses an Anthropic or DeepSeek address on any path in.
+ * NEVER: the local model, an Anthropic key, DeepSeek. The CLI can only name the providers below,
+ * `assertAllowedEndpoint` refuses an Anthropic or DeepSeek address on any path in, and
+ * `assertAllowedModel` refuses Anthropic and DeepSeek models, which OpenRouter can otherwise route
+ * to. Only made-up test questions and BlackArk's own instruction text are ever sent: OpenRouter's
+ * free models may be served by providers that keep prompts, so nothing else may go there.
  *
  * THE KEY. Taken from `ARK_EVAL_API_KEY` or a masked prompt by the CLI, held in this closure, and
  * sent only in the Authorization header. Every error that could carry text from the endpoint is
@@ -11,6 +15,12 @@
  */
 
 export const PROVIDERS = {
+  openrouter: {
+    name: "OpenRouter (free tier)",
+    baseUrl: "https://openrouter.ai/api/v1",
+    // A free (":free") model; the list changes, so --model or ARK_EVAL_MODEL overrides it.
+    defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
+  },
   groq: {
     name: "Groq (free tier)",
     baseUrl: "https://api.groq.com/openai/v1",
@@ -74,6 +84,21 @@ export function redact(text: string, key: string): string {
 }
 
 /** Refuses the endpoints and keys #116 rules out, whichever way they arrive. */
+/** OpenRouter can route to any vendor's model: never Anthropic's or DeepSeek's (#116). */
+export function assertAllowedModel(model: string): void {
+  const id = model.trim().toLowerCase();
+  if (/(^|\/)(anthropic|claude)/.test(id) || id.includes("claude")) {
+    throw new ArkEvalError(
+      `ark-eval never uses Anthropic's models (#116): ${model}`,
+    );
+  }
+  if (id.includes("deepseek")) {
+    throw new ArkEvalError(
+      `ark-eval never sends anything to DeepSeek (#116): ${model}`,
+    );
+  }
+}
+
 export function assertAllowedEndpoint(baseUrl: string, apiKey: string): void {
   let host: string;
   try {

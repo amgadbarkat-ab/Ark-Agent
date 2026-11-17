@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### `ark-eval` uses OpenRouter's free tier (#116)
+
+- **The default provider** is now OpenRouter's free tier: BlackArk's key "ArkAgent-116", since Groq's signup was blocked. Groq and Cerebras remain as alternatives.
+- **Refused models:** Anthropic and DeepSeek models, which OpenRouter could otherwise route to.
+- **The key** still comes only from `ARK_EVAL_API_KEY` or the hidden prompt, on Amgad's computer.
+
 ### A trial employee's instruction comes from BlackArk; "Propose a change" asks for a new one (#116)
 
 - **Read-only on a trial install.** For every digital employee from the signed trial profile, the role and standing instruction are shown in its General page but cannot be edited. The server refuses the change too, from the edit screen and from a colleague's approved request, with a sentence saying why (in Greek when chosen).
