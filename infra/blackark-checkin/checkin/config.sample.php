@@ -41,4 +41,32 @@ return [
     //   'price_1AbC…' => ['plan' => 'team', 'seats' => 1, 'addons' => []],
     //   'price_1Phone…' => ['addon' => 'phone'],   // the phone add-on as its own price
     'stripe_prices' => [],
+
+    // ---- The buy page and the prepaid phone balance (v0.1.47) ----------------------------------
+    // Where these pages are, for the links Stripe returns to. Leave as is on blackark.uk.
+    'public_base_url' => 'https://blackark.uk/checkin',
+    'buy_url' => 'https://blackark.uk/checkin/buy/',
+    'buy_cancel_url' => 'https://blackark.uk/',
+    // A RESTRICTED Stripe key (rk_live_…). It needs: Checkout Sessions write; for automatic top-up
+    // also Invoices write and Customers read. Nothing else. Never post it.
+    'stripe_api_key' => '',
+    // The price ids the buy page puts in a checkout: the team plan (monthly), the phone add-on
+    // (monthly), and one prepaid 5-hour phone block (a one-off price of EUR 23.40).
+    'stripe_buy' => ['plan' => '', 'phone' => '', 'block' => ''],
+    // Let Stripe add VAT at checkout (Stripe Tax must be set up in the dashboard first).
+    'stripe_automatic_tax' => false,
+    // The secret the phone relay signs its balance and charge requests with: 32+ random characters,
+    // the same as BILLING_SECRET in the relay's .env. Make it with: php -r 'echo bin2hex(random_bytes(32));'
+    'relay_secret' => '',
+    // Prices in mils (1/1000 euro), excl. VAT. A block is 5 hours at the incoming rate (Amgad).
+    // The balance never goes below zero: calls stop before a minute it cannot pay.
+    'phone_rates_mils' => ['incoming' => 78, 'landline' => 88, 'mobile' => 139],
+    'phone_block_mils' => 23400,
+    // "Low" (the notice, the email, the automatic top-up) is the last hour at the mobile rate.
+    'phone_low_mils' => 8340,
+    // The one email when the last hour starts. Its text, per language, is in phone-emails.php, as
+    // Amgad approved it. Switch on only with his yes on the deploy.
+    'phone_low_email' => false,
+    'phone_low_email_from' => 'no-reply@blackark.uk',
+    'phone_low_email_reply_to' => 'General@blackark.uk',
 ];

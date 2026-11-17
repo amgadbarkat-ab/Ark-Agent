@@ -8,6 +8,26 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Prepaid phone balance (#109, MD 17 Nov)
+
+- **Buying:**
+  - The phone add-on now comes with 5 prepaid hours.
+  - One page on blackark.uk opens a single Stripe checkout with the plan, the add-on and the first 5 hours, so every price is shown before paying.
+  - The customer can choose automatic top-up there. It is off by default.
+- **The balance is kept as money:**
+  - A block is EUR 23.40 excl. VAT, which is 5 hours at the incoming rate.
+  - Each call takes off its whole minutes at the rate of each part: incoming EUR 0.078, put through to a landline EUR 0.088, put through to a mobile EUR 0.139.
+- **In the last hour:** Settings → Phone line shows the balance and an **Add 5 hours** button.
+- **The last-hour email:** once switched on, one email (the text Amgad approved), in the customer's country language first with the English copy below. GCC countries get English only.
+- **The balance never goes below zero:**
+  - A call that cannot pay its first minute is not answered.
+  - A call that cannot pay its next minute hears one sentence and ends before that minute starts.
+  - If blackark.uk cannot be reached:
+    - One call per customer is answered on the last balance known, then callers hear busy until it answers again.
+    - BlackArk gets one internal alert email.
+    - That call's cost beyond what is booked is BlackArk's.
+- **Not billed:** lines with no customer, such as demo and trial lines, work as before.
+
 ## 0.1.46
 
 ### Paid licence keys from the payment pages are accepted (#109, MD 17 Nov)
