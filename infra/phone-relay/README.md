@@ -38,6 +38,9 @@ If the install is not connected, or drops mid-call, the caller goes to the line'
 - **A public IPv4 address and a DNS name** pointing at it, for example an A record `phone.blackark.uk`.
 - **Ports 80 and 443 open.** Caddy gets the Let's Encrypt certificate on its own, because Twilio needs `https://` and `wss://` with a real certificate.
 - **Outbound HTTPS to `api.twilio.com`**, used only for hand-overs and hang-ups.
+- **With billing (v0.1.47):**
+  - outbound HTTPS to `blackark.uk`, for the balance and the charges;
+  - outbound SMTP over TLS to `send.one.com:465`, only for BlackArk's internal alert.
 - **Images:** `oven/bun:1.3.14-slim` and `caddy:2.10.2-alpine`. Nothing else is installed: there is no Twilio SDK, and signatures are checked with Bun's built-in crypto.
 - **Only one copy per set of lines.** The relay is a single process.
 
@@ -53,7 +56,10 @@ If the install is not connected, or drops mid-call, the caller goes to the line'
 | `PORT` | `8080` (default, behind Caddy) | no |
 | `BILLING_URL` | `https://blackark.uk/checkin/phone/` (written by `./deploy.sh billing`) | no |
 | `BILLING_SECRET` | | **yes**: the same as `relay_secret` on blackark.uk; typed at a hidden prompt |
-| `BILLING_WHEN_UNREACHABLE` | `busy` (default) or `answer` | no |
+| `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT` | `send.one.com`, `465` (written by `./deploy.sh alerts`) | no |
+| `ALERT_SMTP_USER`, `ALERT_FROM` | the BlackArk mailbox alerts are sent from | no |
+| `ALERT_SMTP_PASSWORD` | | **yes**: that mailbox's password, typed at a hidden prompt |
+| `ALERT_TO` | BlackArk's own addresses, comma-separated | no |
 
 ### Endpoints
 
@@ -109,7 +115,15 @@ The test checks that:
 **When a call comes in**, the relay asks blackark.uk for the balance and the rates:
 - **If it can't pay a first minute:** the call is not answered (`<Reject reason="busy"/>`). Twilio does not bill a rejected call.
 - **If there is no install connected:** that first minute includes the forwarded leg to the fallback number.
-- **If blackark.uk can't be reached:** busy. With `BILLING_WHEN_UNREACHABLE=answer`, the relay answers on the last balance it knew, if it knows one.
+- **If blackark.uk can't be reached** (Amgad, 17 Nov):
+  1. **ONE call per customer** is answered on the last balance the relay knew. It is still held to that balance minute by minute, so it can never go below it.
+  2. **Further calls** hear busy until blackark.uk answers again.
+  3. **The cost:** anything that one call costs beyond what is later booked is BlackArk's, never the customer's. blackark.uk writes it off.
+  4. **The alert:** BlackArk gets **one internal email** (`./deploy.sh alerts` sets the mailbox and the addresses) when an outage starts.
+     - Not again for that outage, and not again for a new outage within the hour.
+     - The relay logs when blackark.uk answers again.
+     - The email says what is happening, and nothing about any customer or caller.
+  5. **No relay mailbox set up:** the alert is only logged.
 
 **During a call:**
 - **Shortly before each minute ends** (12 seconds), the relay sets the next minute aside, out of what this customer's other live calls and any unsent charges have not already taken. The next minute is the incoming rate, plus the forwarded leg's rate once the caller is put through.

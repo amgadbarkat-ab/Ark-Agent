@@ -21,6 +21,10 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **The balance never goes below zero:**
   - A call that cannot pay its first minute is not answered.
   - A call that cannot pay its next minute hears one sentence and ends before that minute starts.
+  - If blackark.uk cannot be reached:
+    - One call per customer is answered on the last balance known, then callers hear busy until it answers again.
+    - BlackArk gets one internal alert email.
+    - That call's cost beyond what is booked is BlackArk's.
 - **Not billed:** lines with no customer, such as demo and trial lines, work as before.
 
 ## 0.1.46

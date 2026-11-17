@@ -24,8 +24,10 @@
  * across every live call of that customer, at the incoming rate plus the landline or mobile rate
  * once the caller is put through to a person. A call the balance cannot pay a first minute for is
  * not answered (busy, which Twilio does not bill); a call that cannot pay its next minute hears one
- * Greek sentence and ends before that minute starts. When blackark.uk cannot be reached the caller
- * hears busy, unless `whenUnreachable` is "answer" and a balance is known. When a call ends the
+ * Greek sentence and ends before that minute starts. When blackark.uk cannot be reached, ONE call
+ * per customer is answered on the last balance known (still ended before it would run out), then
+ * callers hear busy until blackark.uk answers again, and BlackArk gets one internal alert per outage
+ * (Amgad, 17 Nov 12:46: that call's cost beyond what is later booked is BlackArk's). When a call ends the
  * relay reports its parts and their seconds, never the caller's number, keyed by Twilio's call id so
  * a repeat is charged once, and passes the new balance to the install. A line without a
  * `customerId` (a demo or trial line) is not billed.
@@ -41,6 +43,7 @@ import {
 } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import type { Server, ServerWebSocket } from "bun";
+import { type SmtpConfig, sendMail } from "./smtp";
 
 export type Line = {
   /** A short name for logs, e.g. "demo-shop". */
@@ -59,11 +62,6 @@ export type Line = {
 export type Billing = {
   url: string;
   secret: string;
-  /**
-   * blackark.uk unreachable when a call comes in: "busy" (the default: nothing is spent that may not
-   * be there) or "answer", on the last balance known, if there is one.
-   */
-  whenUnreachable?: "busy" | "answer";
   /** A minute, and how long before its end the next one is set aside or the call ended. For tests. */
   minuteMs?: number;
   marginMs?: number;
@@ -97,6 +95,8 @@ export type RelayConfig = {
   /** Twilio's REST API and blackark.uk, swapped in tests. */
   fetch?: typeof fetch;
   log?: (line: string) => void;
+  /** BlackArk's internal alert (an email from its own mailbox). Without it, the alert is only logged. */
+  alert?: (subject: string, body: string) => Promise<void>;
 };
 
 /** Desk → relay messages. Anything else is dropped. */
@@ -196,6 +196,8 @@ export function costOf(parts: CallPart[], rates: Rates): number {
 const CUSTOMER_ID = /^[a-z0-9][a-z0-9-]{1,63}$/;
 const STATES = new Set(["ok", "low", "empty"]);
 const RETRY_MS = 60_000;
+/** Alerts about one outage, or the next one, are at least this far apart. */
+const ALERT_GAP_MS = 3600_000;
 const GIVE_UP_MS = 24 * 3600_000;
 /** No call is longer than this; a meter past it is let go (a lost end-of-call report). */
 const MAX_CALL_MS = 4 * 3600_000;
@@ -274,6 +276,45 @@ export function createRelay(config: RelayConfig) {
   /** The last balance blackark.uk gave, per customer. */
   const wallets = new Map<string, BalanceView>();
   const meters = new Map<string, Meter>();
+  /** blackark.uk is not answering; the customers whose one call it allows was already answered. */
+  let billingDown = false;
+  let lastAlertAt = 0;
+  const answeredWhileDown = new Set<string>();
+
+  /** blackark.uk failed to answer: the first time in an outage, BlackArk is told, at most hourly. */
+  function billingFailed() {
+    if (billingDown) return;
+    billingDown = true;
+    log("billing: blackark.uk is not answering");
+    if (Date.now() - lastAlertAt < ALERT_GAP_MS) return;
+    lastAlertAt = Date.now();
+    const subject = "ArkAgent phone relay: blackark.uk is not answering";
+    const body = [
+      `Since ${new Date().toISOString()} (UTC) the phone relay cannot reach ${config.billing?.url ?? "the balance page"}.`,
+      "",
+      "Until it answers again, on each billed line ONE call per customer is answered on the last balance the relay knew, and further calls hear busy. The cost of that one call beyond what is later booked is BlackArk's, never the customer's.",
+      "",
+      "Please check blackark.uk (the checkin/phone page and its config). No further alert is sent for this outage; the relay logs when it recovers.",
+    ].join("\n");
+    if (!config.alert) {
+      log("billing: ALERT (no mailbox set up): blackark.uk is not answering");
+      return;
+    }
+    void config.alert(subject, body).then(
+      () => log("billing: alert sent to BlackArk"),
+      (error) =>
+        log(
+          `billing: ALERT NOT SENT (${error instanceof Error ? error.message : String(error)})`,
+        ),
+    );
+  }
+
+  function billingAnswered() {
+    if (!billingDown) return;
+    billingDown = false;
+    answeredWhileDown.clear();
+    log("billing: blackark.uk answers again");
+  }
   /** Charges blackark.uk could not take yet, retried every minute for a day. */
   const unsent: {
     line: BilledLine;
@@ -314,21 +355,30 @@ export function createRelay(config: RelayConfig) {
       body: text,
       signal: AbortSignal.timeout(3000),
     }).catch(() => null);
-    if (!response?.ok) return null;
+    if (!response?.ok) {
+      billingFailed();
+      return null;
+    }
     const view = (await response
       .json()
       .catch(() => null)) as BalanceView | null;
     const rates = view?.rates;
-    return view &&
-      typeof view.balanceMils === "number" &&
-      STATES.has(view.state) &&
-      typeof view.topUpUrl === "string" &&
-      rates &&
-      [rates.incoming, rates.landline, rates.mobile].every(
-        (rate) => Number.isInteger(rate) && rate > 0,
-      )
-      ? view
-      : null;
+    const valid = Boolean(
+      view &&
+        typeof view.balanceMils === "number" &&
+        STATES.has(view.state) &&
+        typeof view.topUpUrl === "string" &&
+        rates &&
+        [rates.incoming, rates.landline, rates.mobile].every(
+          (rate) => Number.isInteger(rate) && rate > 0,
+        ),
+    );
+    if (!valid) {
+      billingFailed();
+      return null;
+    }
+    billingAnswered();
+    return view;
   }
 
   function tellDesk(line: Line, view: BalanceView) {
@@ -429,13 +479,19 @@ export function createRelay(config: RelayConfig) {
     forwarded: boolean,
   ): Promise<string | null> {
     const view = await balanceFor(line);
-    if (
-      !view &&
-      (config.billing?.whenUnreachable !== "answer" ||
-        !wallets.has(line.customerId))
-    ) {
-      log(`call ${callId} line=${line.name}: balance unknown, busy`);
-      return BUSY;
+    if (!view) {
+      // blackark.uk is not answering: one call per customer on the last balance known, then busy.
+      if (
+        !wallets.has(line.customerId) ||
+        answeredWhileDown.has(line.customerId)
+      ) {
+        log(`call ${callId} line=${line.name}: balance unknown, busy`);
+        return BUSY;
+      }
+      answeredWhileDown.add(line.customerId);
+      log(
+        `call ${callId} line=${line.name}: blackark.uk not answering; this one call on the last balance known`,
+      );
     }
     const rates = ratesFor(line);
     const kind =
@@ -961,6 +1017,28 @@ export function createRelay(config: RelayConfig) {
   };
 }
 
+/** BlackArk's internal alert mailbox, from .env (written by `./deploy.sh alerts`), or none. */
+function alertFromEnv():
+  | ((subject: string, body: string) => Promise<void>)
+  | undefined {
+  const env = (name: string) => process.env[name]?.trim() ?? "";
+  const to = env("ALERT_TO")
+    .split(",")
+    .map((address) => address.trim())
+    .filter(Boolean);
+  if (!env("ALERT_SMTP_USER") || !env("ALERT_SMTP_PASSWORD") || to.length === 0)
+    return undefined;
+  const smtp: SmtpConfig = {
+    host: env("ALERT_SMTP_HOST") || "send.one.com",
+    port: Number(env("ALERT_SMTP_PORT") || 465),
+    user: env("ALERT_SMTP_USER"),
+    password: env("ALERT_SMTP_PASSWORD"),
+    from: env("ALERT_FROM") || env("ALERT_SMTP_USER"),
+    to,
+  };
+  return (subject, body) => sendMail(smtp, subject, body);
+}
+
 if (import.meta.main) {
   const need = (name: string) => {
     const value = process.env[name]?.trim();
@@ -982,12 +1060,9 @@ if (import.meta.main) {
         ? {
             url: process.env.BILLING_URL.trim(),
             secret: process.env.BILLING_SECRET.trim(),
-            whenUnreachable:
-              process.env.BILLING_WHEN_UNREACHABLE?.trim() === "answer"
-                ? "answer"
-                : "busy",
           }
         : undefined,
+    alert: alertFromEnv(),
   });
   const server = Bun.serve({
     port: Number(process.env.PORT ?? 8080),

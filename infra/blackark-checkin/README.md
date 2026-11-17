@@ -169,6 +169,7 @@ Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
 **Never below zero.** The phone relay sets each minute's cost aside **before** the minute starts, across all of a customer's live calls:
 - **The rate set aside:** the incoming rate, plus the landline or mobile rate once the caller is put through to a person.
 - **When the next minute can't be paid:** the caller hears one sentence and the call ends before that minute starts: «Ο διαθέσιμος χρόνος της γραμμής τελείωσε. Παρακαλούμε καλέστε ξανά αργότερα.» ("The line's available time has run out. Please call again later.")
+- **If this server can't be reached**, the relay answers **one** call per customer on the last balance it knew, then busy until this server answers again. It also sends BlackArk one internal alert. That call's cost beyond what is booked is BlackArk's.
 - **The last line of defence, here:** a charge never takes the balance below zero. If Twilio ever reports more than was left, the rest is **written off** at BlackArk's cost, in the ledger row's `written_off_mils`, and logged.
 
 **Automatic top-up (optional, off by default):**

@@ -52,6 +52,7 @@ afterEach(() => {
 
 function setup(options: { balance: number; reachable?: boolean }) {
   const asked: Record<string, unknown>[] = [];
+  const alerts: { subject: string; body: string }[] = [];
   const twilio: string[] = [];
   const bank = {
     balance: options.balance,
@@ -104,6 +105,9 @@ function setup(options: { balance: number; reachable?: boolean }) {
       return Response.json(view());
     }) as typeof fetch,
     log: () => {},
+    alert: async (subject, body) => {
+      alerts.push({ subject, body });
+    },
   });
   const server = Bun.serve({
     port: 0,
@@ -151,7 +155,18 @@ function setup(options: { balance: number; reachable?: boolean }) {
     await until(() => received.some((m) => m.type === "phone.balance"));
     return received;
   }
-  return { relay, asked, twilio, bank, post, voice, status, desk, base };
+  return {
+    relay,
+    asked,
+    alerts,
+    twilio,
+    bank,
+    post,
+    voice,
+    status,
+    desk,
+    base,
+  };
 }
 
 const until = async (check: () => boolean, ms = 2000) => {
@@ -179,9 +194,34 @@ describe("the prepaid phone balance in the relay (#109)", () => {
     expect(t.relay.state.meters.size).toBe(0);
   });
 
-  test("blackark.uk unreachable: busy, since nothing may be spent that is not there", async () => {
+  test("blackark.uk unreachable and no balance known: busy, and BlackArk is alerted", async () => {
     const t = setup({ balance: 10000, reachable: false });
     expect(await t.voice(billedLine, 3)).toContain('<Reject reason="busy"/>');
+    await until(() => t.alerts.length === 1);
+    expect(t.alerts[0]?.subject).toContain("blackark.uk is not answering");
+  });
+
+  test("blackark.uk unreachable: ONE call on the last balance known, then busy until it answers again; one alert", async () => {
+    const t = setup({ balance: 10000 });
+    await t.desk(); // the relay now knows the balance
+    t.bank.reachable = false;
+    expect(await t.voice(billedLine, 20)).toContain("<Connect>");
+    // The one call is still held to that balance, minute by minute.
+    expect(t.relay.state.meters.get(callId(20))?.reserved).toBe(78);
+    expect(await t.voice(billedLine, 21)).toContain('<Reject reason="busy"/>');
+    expect(await t.voice(billedLine, 22)).toContain('<Reject reason="busy"/>');
+    await until(() => t.alerts.length === 1);
+    expect(t.alerts[0]?.body).toContain("ONE call per customer");
+    expect(t.alerts[0]?.body).not.toContain("+3069");
+    // blackark.uk answers again: calls are answered as usual, and no second alert.
+    t.bank.reachable = true;
+    expect(await t.voice(billedLine, 23)).toContain("<Connect>");
+    // A new outage within the hour is not alerted again.
+    t.bank.reachable = false;
+    expect(await t.voice(billedLine, 24)).toContain("<Connect>");
+    expect(await t.voice(billedLine, 25)).toContain('<Reject reason="busy"/>');
+    await Bun.sleep(30);
+    expect(t.alerts.length).toBe(1);
   });
 
   test("a line with no customer is not billed", async () => {
