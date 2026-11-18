@@ -267,6 +267,10 @@ describe("pairing", () => {
     const code = desk.last("pair.started")?.code;
     const first = await post("/_link/pair/claim", { code, deviceName: "A" });
     expect((await first.json()).status).toBe("pending");
+    // One origin carries every customer's desktop: what an earlier pairing left behind is cleared.
+    expect(first.headers.get("clear-site-data")).toBe(
+      '"cache", "cookies", "storage"',
+    );
     const again = await post("/_link/pair/claim", { code, deviceName: "B" });
     expect(again.status).toBe(404);
     expect(await again.json()).toEqual({

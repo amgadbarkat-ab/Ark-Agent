@@ -145,6 +145,13 @@ pairing. It is built not to (no bodies, paths or tokens logged or stored), but t
 BlackArk's code and server, not a property of the design. A compromised relay could also forge requests
 for a phone it has seen.
 
+**One origin for every customer.** All desktops are served on the link host, so a phone that pairs with
+a second desktop would carry the first one's sign-in cookies, service worker and storage to it. The
+relay clears the site's data on the phone when it claims a code (`Clear-Site-Data`), and the desktop can
+never set or overwrite the device cookie. Separate origins per install (`<install>.link.blackark.uk`, a
+wildcard certificate by DNS challenge) would make this structural rather than procedural; it is the
+next step if one phone is ever meant to reach two desktops.
+
 **Phase 2 (proposed, not built): end-to-end encryption between phone and desktop.** The relay keeps
 routing by device id and carries only ciphertext.
 

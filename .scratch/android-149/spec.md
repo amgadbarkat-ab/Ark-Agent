@@ -29,14 +29,24 @@ bump `ARK_LINK_PROTOCOL_VERSION` for any incompatible change.
   relay to hand to the phone (phase 1: the relay sees traffic anyway). The desktop checks the token on
   every forwarded request, so removing a device on the desktop cuts it even if the relay is behind.
 
-## A finding that needs a decision
+## Decided (Amgad, 18 Nov)
 
-A desktop install runs with **no sign-in** (`OPENBOT_SINGLE_USER=true`, set by the desktop shell):
-every request is the computer's one administrator. "Device pairing is not a sign-in" holds on a
-deployment with sign-in. On a desktop, a paired phone acts as that administrator, because there is no
-account to sign in to. The design keeps that safe enough for phase 1 (pairing needs a confirmation at
-the desktop, tokens are 256-bit and stored hashed, removal is immediate, per-device limits) and the
-Phones screen says it in a sentence. Whether to add a phone PIN or a desktop sign-in is for PE/Amgad.
+- 06:26: phase 1 (TLS to the relay) approved for the first test. Store accounts and signing on hold.
+- 06:40: **pairing requires sign-in** (option b). No-sign-in installs: Settings → Phones says so, the
+  server refuses, the connector never connects. Only a signed-in administrator confirms.
+- 06:40: OAuth connector sign-ins from a phone answer "Connect this on your computer", told by the
+  connector's secret mark (`server/src/ark-link/marker.ts`).
+- 06:40: hosting is an Oracle Always Free VM in the EU, behind one Caddy with the phone relay and the
+  Control Board. Not Cloudflare.
+
+## Open: phone sign-in through the link host
+
+Better Auth runs with a fixed `baseURL` (`BETTER_AUTH_URL`), so a Google or Microsoft sign-in started on
+a phone through the link host returns to the install's own address, which the phone cannot reach on an
+install that is not public. Proposed: a second Better Auth instance with `baseURL =
+https://<link host>/api/auth`, same database and secret, chosen for `/api/auth/*` when the request
+carries the Ark Link mark; the customer adds `https://<link host>/api/auth/callback/<provider>` to their
+identity provider's redirect URIs. Not built.
 
 ## Seams under test (from PE's M1 list)
 

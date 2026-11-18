@@ -633,11 +633,23 @@ export function createLinkRelay(config: LinkRelayConfig) {
       expiresAt: new Date(expiresAt).toISOString(),
     });
     record({ type: "pair.claimed", install: found.installId });
-    return json({
-      status: "pending",
-      pairingId,
-      expiresAt: new Date(expiresAt).toISOString(),
-    });
+    return json(
+      {
+        status: "pending",
+        pairingId,
+        expiresAt: new Date(expiresAt).toISOString(),
+      },
+      200,
+      {
+        /*
+         * Every customer's desktop is served on this one origin. A phone paired before with another
+         * desktop still holds that desktop's sign-in cookies, its service worker and its storage here,
+         * and would hand them to the next. Pairing starts the phone clean (the device cookie too; the
+         * new one arrives with the confirmation).
+         */
+        "clear-site-data": '"cache", "cookies", "storage"',
+      },
+    );
   }
 
   function endPairing(pairingId: string, reason: PairRefusal) {
