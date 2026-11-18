@@ -6,8 +6,34 @@ export const EL_PHONES: Record<string, string> = {
   Phones: "Κινητά",
   "Open this computer's ArkAgent on your phone, wherever you are. The phone connects through BlackArk's relay; you still see your own computer's app.":
     "Ανοίξτε το ArkAgent αυτού του υπολογιστή στο κινητό σας, όπου κι αν βρίσκεστε. Το κινητό συνδέεται μέσω του αναμεταδότη της BlackArk· βλέπετε πάντα την εφαρμογή του δικού σας υπολογιστή.",
-  "Only an administrator can pair phones.":
-    "Μόνο ένας διαχειριστής μπορεί να συνδέσει κινητά.",
+  "An administrator pairs phones, at a computer. A phone paired for you appears here for you to accept.":
+    "Τα κινητά τα συνδέει ένας διαχειριστής, από υπολογιστή. Ένα κινητό που συνδέθηκε για εσάς εμφανίζεται εδώ για να το αποδεχτείτε.",
+  "Your phones": "Τα κινητά σας",
+  Me: "Εγώ",
+  "This phone is for": "Το κινητό είναι για",
+  "The phone acts as {name}, with their role. It works once they accept it on their own computer.":
+    "Το κινητό ενεργεί ως {name}, με τον ρόλο του/της. Λειτουργεί όταν το αποδεχτεί στον δικό του/της υπολογιστή.",
+  "The phone acts as you, with your role.":
+    "Το κινητό ενεργεί ως εσείς, με τον ρόλο σας.",
+  you: "εσάς",
+  nobody: "κανέναν",
+  "For {name}. Waiting for them to accept it.":
+    "Για {name}. Περιμένει να το αποδεχτεί.",
+  "Acts as {name}.": "Ενεργεί ως {name}.",
+  Accept: "Αποδοχή",
+  "Could not load your phones": "Δεν φορτώθηκαν τα κινητά σας",
+  "The phone could not be accepted": "Η αποδοχή του κινητού απέτυχε",
+  "That person cannot have a phone here: they are not an active member of this install.":
+    "Αυτό το πρόσωπο δεν μπορεί να έχει κινητό εδώ: δεν είναι ενεργό μέλος αυτής της εγκατάστασης.",
+  "No such phone waits for you.": "Κανένα τέτοιο κινητό δεν περιμένει εσάς.",
+  "Pair and manage phones on your computer, not from a phone.":
+    "Η σύνδεση και η διαχείριση κινητών γίνεται από τον υπολογιστή σας, όχι από κινητό.",
+  "Sign in on your computer. This phone acts as the person it was paired for, and never signs in itself.":
+    "Συνδεθείτε από τον υπολογιστή σας. Αυτό το κινητό ενεργεί ως το πρόσωπο για το οποίο συνδέθηκε και δεν συνδέεται ποτέ μόνο του.",
+  "This phone is no longer paired with this computer.":
+    "Αυτό το κινητό δεν είναι πια συνδεδεμένο με αυτόν τον υπολογιστή.",
+  "This phone waits for the person it was paired for to accept it on their computer.":
+    "Αυτό το κινητό περιμένει να το αποδεχτεί, στον υπολογιστή του, το πρόσωπο για το οποίο συνδέθηκε.",
   "Not set up. BlackArk gives you an install token.":
     "Δεν έχει ρυθμιστεί. Η BlackArk σάς δίνει ένα διακριτικό εγκατάστασης.",
   "Off. No phone can reach this computer.":

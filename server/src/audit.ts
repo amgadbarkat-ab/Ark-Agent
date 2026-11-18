@@ -10,6 +10,7 @@ import {
   sql,
 } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
+import { currentLinkDevice } from "./ark-link/marker";
 import type { Database } from "./db/client";
 import { auditEvents } from "./db/schema";
 import { parsePageLimit } from "./paging";
@@ -431,6 +432,7 @@ export const auditEventTypes = [
   "ark_link.pairing_refused",
   "ark_link.device_paired",
   "ark_link.device_removed",
+  "ark_link.device_accepted",
 
   /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
   "team.action",
@@ -663,9 +665,15 @@ export async function recordAuditEvent(
   store: AuditStore,
   event: AuditEventInput,
 ) {
+  // A person acting from a paired phone (#149): the row says so, and which phone.
+  const device = currentLinkDevice();
+  const payload =
+    device && (!event.initiator || event.initiator.kind === "person")
+      ? { ...event.payload, arkLinkDevice: device }
+      : event.payload;
   await store.insert({
     ...event,
-    payload: redactAuditPayload(event.payload) as Record<string, unknown>,
+    payload: redactAuditPayload(payload) as Record<string, unknown>,
   });
 }
 

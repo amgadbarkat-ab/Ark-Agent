@@ -30,8 +30,15 @@ import {
 import { markLinkRequest } from "./marker";
 
 export type ArkLinkDevices = {
-  /** Whether this device id is paired here with a token of this SHA-256. */
-  verify(deviceId: string, tokenSha256: string): Promise<boolean>;
+  /**
+   * Whether this device id is paired here with a token of this SHA-256, and acts as a person who is
+   * still here: `ok`; paired for somebody who has not accepted it yet: `pending`; anything else:
+   * `refused` (no such device, a wrong token, its person removed).
+   */
+  verify(
+    deviceId: string,
+    tokenSha256: string,
+  ): Promise<"ok" | "pending" | "refused">;
   /** Every paired device, for the relay's routing list. */
   list(): Promise<{ id: string; tokenSha256: string }[]>;
   /** A request from this device was let through. */
@@ -107,10 +114,34 @@ type WsLocal = {
 };
 type Local = HttpLocal | WsLocal;
 
-const json401 = JSON.stringify({
-  error: "This phone is no longer paired with this computer.",
-  code: "ark_link_not_paired",
-});
+const REFUSALS = {
+  refused: {
+    status: 401,
+    code: "ark_link_not_paired",
+    en: "This phone is no longer paired with this computer.",
+    el: "Αυτό το κινητό δεν είναι πια συνδεδεμένο με αυτόν τον υπολογιστή.",
+  },
+  pending: {
+    status: 403,
+    code: "ark_link_pending",
+    en: "This phone waits for the person it was paired for to accept it on their computer.",
+    el: "Αυτό το κινητό περιμένει να το αποδεχτεί, στον υπολογιστή του, το πρόσωπο για το οποίο συνδέθηκε.",
+  },
+} as const;
+
+/** A page for a person's browser, JSON for a script: the phone sees a sentence, not a blob. */
+function refusalBody(reason: keyof typeof REFUSALS, navigation: boolean) {
+  const refusal = REFUSALS[reason];
+  if (!navigation)
+    return {
+      type: "application/json",
+      text: JSON.stringify({ error: refusal.en, code: refusal.code }),
+    };
+  return {
+    type: "text/html; charset=utf-8",
+    text: `<!doctype html><html lang="el"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ArkAgent</title><body style="font:16px/1.5 system-ui,sans-serif;max-width:28rem;margin:3rem auto;padding:0 16px"><p>${refusal.el}</p><p style="color:#666">${refusal.en}</p><p><a href="/_link/pair">Σύνδεση · Pair</a></p></body></html>`,
+  };
+}
 
 export function createArkLinkConnector(options: ConnectorOptions) {
   const maxRequestBytes =
@@ -174,39 +205,52 @@ export function createArkLinkConnector(options: ConnectorOptions) {
     }
   }
 
-  function refuse(s: number) {
+  function refuse(
+    s: number,
+    reason: keyof typeof REFUSALS = "refused",
+    headers: HeaderList = [],
+  ) {
+    const navigation = headers.some(
+      ([name, value]) =>
+        name.toLowerCase() === "sec-fetch-mode" && value === "navigate",
+    );
+    const body = refusalBody(reason, navigation);
     send({
       t: "res",
       s,
-      status: 401,
-      headers: [["content-type", "application/json"]],
+      status: REFUSALS[reason].status,
+      headers: [
+        ["content-type", body.type],
+        ["cache-control", "no-store"],
+      ],
     });
-    void sendData(DATA_KIND.body, s, new TextEncoder().encode(json401)).then(
+    void sendData(DATA_KIND.body, s, new TextEncoder().encode(body.text)).then(
       () => send({ t: "end", s }),
     );
   }
 
   /** The phone's headers, told where it came from, the way any reverse proxy tells it. */
-  function localHeaders(list: HeaderList): Headers {
+  function localHeaders(list: HeaderList, deviceId: string): Headers {
     const headers = new Headers();
     for (const [name, value] of list) headers.append(name, value);
     headers.set("x-forwarded-host", relayHost);
     headers.set("x-forwarded-proto", "https");
-    return markLinkRequest(headers);
+    // Last: it takes off anything the phone sent that names a person or forges the mark.
+    return markLinkRequest(headers, deviceId);
   }
 
   async function allowed(
     message: Extract<RelayMessage, { t: "req" }>,
-  ): Promise<boolean> {
+  ): Promise<"ok" | "pending" | "refused"> {
     try {
-      const ok = await options.devices.verify(
+      const answer = await options.devices.verify(
         message.device.id,
         await tokenHash(message.device.token),
       );
-      if (ok) options.devices.used(message.device.id);
-      return ok;
+      if (answer === "ok") options.devices.used(message.device.id);
+      return answer;
     } catch {
-      return false;
+      return "refused";
     }
   }
 
@@ -218,10 +262,16 @@ export function createArkLinkConnector(options: ConnectorOptions) {
         queue: [],
       };
       locals.set(message.s, local);
-      if (!(await allowed(message))) {
+      const answer = await allowed(message);
+      if (answer !== "ok") {
         locals.delete(message.s);
-        send({ t: "ws.close", s: message.s, code: 4401, reason: "not paired" });
-        void syncDevices();
+        send({
+          t: "ws.close",
+          s: message.s,
+          code: answer === "pending" ? 4403 : 4401,
+          reason: answer === "pending" ? "not accepted" : "not paired",
+        });
+        if (answer === "refused") void syncDevices();
         return;
       }
       openLocalSocket(message, local);
@@ -240,10 +290,11 @@ export function createArkLinkConnector(options: ConnectorOptions) {
   }
 
   async function respond(s: number, local: HttpLocal) {
-    if (!(await allowed(local.head))) {
+    const answer = await allowed(local.head);
+    if (answer !== "ok") {
       locals.delete(s);
-      refuse(s);
-      void syncDevices();
+      refuse(s, answer, local.head.headers);
+      if (answer === "refused") void syncDevices();
       return;
     }
     const head = local.head;
@@ -251,7 +302,7 @@ export function createArkLinkConnector(options: ConnectorOptions) {
     try {
       response = await fetch(`${localOrigin}${head.path}`, {
         method: head.method,
-        headers: localHeaders(head.headers),
+        headers: localHeaders(head.headers, head.device.id),
         body: local.body.length ? Buffer.concat(local.body) : undefined,
         redirect: "manual",
         signal: local.abort.signal,
@@ -307,7 +358,7 @@ export function createArkLinkConnector(options: ConnectorOptions) {
     local: WsLocal,
   ) {
     const headers: Record<string, string> = {};
-    localHeaders(message.headers).forEach((value, name) => {
+    localHeaders(message.headers, message.device.id).forEach((value, name) => {
       headers[name] = value;
     });
     let upstream: WebSocket;

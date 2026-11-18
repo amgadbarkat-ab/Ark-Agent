@@ -18,6 +18,11 @@ import type { AgentProfileStore } from "./agents/profile-store";
 import { createAgentRoutes } from "./agents/routes";
 import { createApprovalRoutes } from "./approvals/routes";
 import type { ApprovalStore } from "./approvals/store";
+import {
+  arkLinkRequestContext,
+  cameThroughArkLink,
+  SIGN_IN_ON_COMPUTER,
+} from "./ark-link/marker";
 import { createArkLinkRoutes } from "./ark-link/routes";
 import type { ArkLinkService } from "./ark-link/service";
 import {
@@ -504,6 +509,14 @@ export function createApp(
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
   app.use("*", requestObservability({ mode: config.requestLog }));
+  // A paired phone's request (#149): everything it leads to, audit rows included, knows which phone.
+  app.use("*", arkLinkRequestContext);
+  // And it never sees the sign-in page: it acts as its person already. `/sign` is the app's own page.
+  app.get("/sign", (context, next) =>
+    cameThroughArkLink(context.req.raw.headers)
+      ? context.redirect("/", 302)
+      : next(),
+  );
   // What a person is told when something throws that nobody expected; the detail goes to the log.
   app.onError(unhandledError());
   app.use(
@@ -630,6 +643,13 @@ export function createApp(
   };
 
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
+    // A paired phone acts as its person and never signs in (#149): no provider redirect, no session.
+    if (cameThroughArkLink(context.req.raw.headers)) {
+      return context.json(
+        { error: SIGN_IN_ON_COMPUTER, code: "sign_in_on_computer" },
+        409,
+      );
+    }
     if (
       context.req.method === "GET" &&
       new URL(context.req.url).pathname === "/api/auth/desktop" &&

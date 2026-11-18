@@ -58,6 +58,7 @@ import {
 } from "./approvals/held";
 import { createApprovalStore } from "./approvals/store";
 import { createArkLinkService } from "./ark-link/service";
+import { linkPersonResolver, withArkLinkSessions } from "./ark-link/sessions";
 import {
   type AuditInitiator,
   createAuditReader,
@@ -456,7 +457,7 @@ const auditShipping = {
     : {}),
 };
 const signInAuditStore = createAuditStore(database, auditShipping);
-const auth: AuthService | undefined = config.organizationAuthUrl
+const signInAuth: AuthService | undefined = config.organizationAuthUrl
   ? createOrganizationAuth({
       authorityUrl: config.organizationAuthUrl,
       materializeUser: organizationUserStore(database),
@@ -469,6 +470,16 @@ const auth: AuthService | undefined = config.organizationAuthUrl
         signInAuditStore,
       )
     : undefined;
+/*
+ * A paired phone (#149) is answered as the person it was paired for, never by a sign-in of its own:
+ * see ark-link/sessions.ts. Everything that does not come through Ark Link is answered as before.
+ */
+const auth: AuthService | undefined = signInAuth
+  ? withArkLinkSessions(
+      signInAuth,
+      linkPersonResolver(database, (email) => peopleStore.isRevoked(email)),
+    )
+  : undefined;
 /*
  * Running in Ark's cloud: what it may do, and the record of the time it uses (docs/ark/17-cloud-runtime.md).
  *
@@ -1684,6 +1695,8 @@ const arkLink = createArkLinkService(database, {
   localOrigin:
     process.env.ARK_LINK_LOCAL_ORIGIN?.trim() || `http://127.0.0.1:${port}`,
   noSignIn: config.singleUser,
+  isRevoked: (email) => peopleStore.isRevoked(email),
+  rolesFor: (userId) => roleRepository.rolesForUser(userId),
 });
 
 const app = createApp(

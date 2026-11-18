@@ -5,7 +5,7 @@ import {
   IconQrcode,
   IconServer,
 } from "@tabler/icons-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -35,9 +35,17 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import {
+  acceptPhoneMutationOptions,
   confirmPhoneMutationOptions,
   refusePhoneMutationOptions,
   removePhoneMutationOptions,
@@ -48,9 +56,11 @@ import {
   type ArkLinkDevice,
   type ArkLinkState,
   arkLinkQueryOptions,
+  myPhonesQueryOptions,
 } from "@/lib/ark-link/queries";
 import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { dateLocale, useT } from "@/lib/i18n";
+import { peopleListQueryOptions } from "@/lib/people/queries";
 import { queryClient } from "@/query-client";
 
 export const Route = createFileRoute("/_authed/settings/phones")({
@@ -73,12 +83,16 @@ const clock = (iso: string) =>
  * Settings → Phones (#149): reach this computer's ArkAgent from a phone, through BlackArk's relay
  * (Ark Link). Off until an administrator switches it on. Pairing a phone takes a code from here, the
  * phone's name confirmed here, and nothing else; removing a phone cuts it at once.
+ *
+ * A phone acts as one person (PE, 18 Nov): the administrator who confirmed it, or the person they
+ * paired it for, who accepts it here first. Everybody sees the phones that act as them.
  */
 export function PhonesPage() {
   const t = useT();
   const { data: user } = useQuery(currentUserQueryOptions());
   const isAdmin = user?.role === "admin";
   const link = useQuery({ ...arkLinkQueryOptions(), enabled: isAdmin });
+  const mine = useQuery({ ...myPhonesQueryOptions(), enabled: !isAdmin });
 
   return (
     <PageShell
@@ -87,8 +101,21 @@ export function PhonesPage() {
       )}
       title={t("Phones")}
     >
-      {!isAdmin ? (
-        <PageEmpty>{t("Only an administrator can pair phones.")}</PageEmpty>
+      {!user ? null : !isAdmin ? (
+        <>
+          <PageEmpty>
+            {t(
+              "An administrator pairs phones, at a computer. A phone paired for you appears here for you to accept.",
+            )}
+          </PageEmpty>
+          {mine.isSuccess ? (
+            <DevicesSection
+              devices={mine.data}
+              me={user.id}
+              title={t("Your phones")}
+            />
+          ) : null}
+        </>
       ) : link.isPending ? null : link.isError ? (
         <PageEmpty>{link.error.message}</PageEmpty>
       ) : (
@@ -111,7 +138,11 @@ export function PhonesPage() {
           {link.data.enabled && !link.data.noSignIn ? (
             <PairSection state={link.data} />
           ) : null}
-          <DevicesSection devices={link.data.devices} />
+          <DevicesSection
+            devices={link.data.devices}
+            me={user.id}
+            title={t("Paired phones")}
+          />
         </>
       )}
     </PageShell>
@@ -406,6 +437,19 @@ function ConfirmDialog({
   const t = useT();
   const confirm = useMutation(confirmPhoneMutationOptions(queryClient));
   const [name, setName] = useState(claim.deviceName);
+  const { data: user } = useQuery(currentUserQueryOptions());
+  const people = useInfiniteQuery(peopleListQueryOptions());
+  /** "" is the person confirming. */
+  const [forUserId, setForUserId] = useState("");
+  const others = (
+    people.data?.pages.flatMap((page) => page.people ?? []) ?? []
+  ).filter((person) => !person.revoked && person.id !== user?.id);
+  const labels: Record<string, string> = {
+    "": t("Me"),
+    ...Object.fromEntries(
+      others.map((person) => [person.id, person.name ?? person.email]),
+    ),
+  };
   return (
     <Dialog onOpenChange={(open) => (open ? undefined : onClose())} open>
       <DialogContent>
@@ -421,7 +465,11 @@ function ConfirmDialog({
           onSubmit={(event) => {
             event.preventDefault();
             confirm.mutate(
-              { pairingId: claim.pairingId, deviceName: name.trim() },
+              {
+                pairingId: claim.pairingId,
+                deviceName: name.trim(),
+                ...(forUserId ? { forUserId } : {}),
+              },
               { onSuccess: onClose },
             );
           }}
@@ -435,6 +483,42 @@ function ConfirmDialog({
               required
               value={name}
             />
+            {/*
+             * Who the phone acts as. Me by default; anybody else on this install accepts it on their
+             * own computer before it works, and the phone is then theirs, with their role.
+             */}
+            <Label className="pt-3" htmlFor="ark-link-device-for">
+              {t("This phone is for")}
+            </Label>
+            <Select
+              items={labels}
+              onValueChange={(next) => setForUserId(String(next ?? ""))}
+              value={forUserId}
+            >
+              <SelectTrigger
+                aria-label={t("This phone is for")}
+                className="w-full"
+                id="ark-link-device-for"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t("Me")}</SelectItem>
+                {others.map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
+                    {person.name ?? person.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-sm">
+              {forUserId
+                ? t(
+                    "The phone acts as {name}, with their role. It works once they accept it on their own computer.",
+                    { name: labels[forUserId] ?? "" },
+                  )
+                : t("The phone acts as you, with your role.")}
+            </p>
             {confirm.error ? (
               <p className="text-destructive text-sm" role="alert">
                 {t(confirm.error.message)}
@@ -455,12 +539,31 @@ function ConfirmDialog({
   );
 }
 
-function DevicesSection({ devices }: { devices: ArkLinkDevice[] }) {
+function DevicesSection({
+  devices,
+  me,
+  title,
+}: {
+  devices: ArkLinkDevice[];
+  me: string;
+  title: string;
+}) {
   const t = useT();
   const remove = useMutation(removePhoneMutationOptions(queryClient));
+  const accept = useMutation(acceptPhoneMutationOptions(queryClient));
   const [removing, setRemoving] = useState<ArkLinkDevice | null>(null);
+  const whose = (device: ArkLinkDevice) => {
+    const name = device.person
+      ? device.person.id === me
+        ? t("you")
+        : (device.person.name ?? device.person.email)
+      : t("nobody");
+    return device.pending
+      ? t("For {name}. Waiting for them to accept it.", { name })
+      : t("Acts as {name}.", { name });
+  };
   return (
-    <PageSection title={t("Paired phones")}>
+    <PageSection title={title}>
       {devices.length === 0 ? (
         <PageEmpty>{t("No phone is paired with this computer.")}</PageEmpty>
       ) : (
@@ -474,7 +577,8 @@ function DevicesSection({ devices }: { devices: ArkLinkDevice[] }) {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>{device.name}</ItemTitle>
-                  <ItemDescription>
+                  <ItemDescription className="line-clamp-none">
+                    {whose(device)}{" "}
                     {device.lastUsedAt
                       ? t("Paired {paired}. Last used {used}.", {
                           paired: when(device.pairedAt),
@@ -486,6 +590,15 @@ function DevicesSection({ devices }: { devices: ArkLinkDevice[] }) {
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
+                  {device.pending && device.person?.id === me ? (
+                    <Button
+                      disabled={accept.isPending}
+                      onClick={() => accept.mutate(device.id)}
+                      size="sm"
+                    >
+                      {t("Accept")}
+                    </Button>
+                  ) : null}
                   <Button
                     onClick={() => setRemoving(device)}
                     size="sm"

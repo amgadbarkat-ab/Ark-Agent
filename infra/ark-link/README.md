@@ -34,17 +34,31 @@ Settings → Phones (it is off by default).
 and replaces the relay's list. The desktop checks every request against its own list, so a removed
 phone is refused even if the relay is behind.
 
-**Pairing is not sign-in.** Every request still goes through the install's own sign-in, and the phone
-signs in with the person's own account. **Pairing needs sign-in** (Amgad, 18 Nov, option b): on an install
-that runs with no sign-in (`OPENBOT_SINGLE_USER=true`, every request its one administrator), Settings →
-Phones says in Greek and English that sign-in must be switched on first, the server refuses to switch
-Ark Link on or to start or confirm a pairing, and the connector never connects. Only a signed-in
-administrator confirms a phone.
+**A paired phone acts as one person, and never signs in** (PE, 18 Nov). Only a signed-in administrator, at
+a computer, confirms a phone. It acts as that administrator, or as another active person the
+administrator chose ("This phone is for"), who then accepts it in their own Settings → Phones before it
+does anything. On every request:
 
-**What a phone cannot do through the link:** start a connector's OAuth sign-in (Gmail, Outlook and the
-rest), because the consent returns to the computer's own address. The server tells a phone's request
-from the computer's own by a secret mark the connector adds (`server/src/ark-link/marker.ts`), never by
-anything the phone sends, and answers "Connect this on your computer" instead.
+- The connector checks the device token against the desktop's list, and that the device's person is
+  still here: not removed (deny list), holding a role, and the device accepted.
+- It then marks the request with this process's secret and the device id
+  (`server/src/ark-link/marker.ts`). It first takes off every `x-ark-link-*` header and every header
+  that names a person (`x-user-id`, `remote-user`, `x-forwarded-user`…), so a phone cannot choose its
+  person.
+- The server answers a marked request as the device's person (`server/src/ark-link/sessions.ts`),
+  built as a signed-in session is built: same id, roles read fresh from the database, same tenant and
+  boundaries, and every acting call through the gateway and audit. Cookies the phone carries are not
+  read. A demoted person is the lower role on the next request; a removed device or person is nobody
+  at once.
+- Every audit row written for the request carries `arkLinkDevice: <device id>`.
+- No OAuth and no Better Auth session ever exists for the phone. `/api/auth/*` answers 409 "Sign in on
+  your computer", `/sign` redirects to `/`, and a connector's OAuth start answers "Connect this on your
+  computer". Phones cannot pair or manage phones; they can only see and remove their own.
+
+**Pairing needs sign-in** (Amgad, 18 Nov, option b): on an install that runs with no sign-in
+(`OPENBOT_SINGLE_USER=true`, every request its one administrator), Settings → Phones says in Greek and
+English that sign-in must be switched on first, the server refuses to switch Ark Link on or to start or
+confirm a pairing, and the connector never connects.
 
 ## What it keeps
 

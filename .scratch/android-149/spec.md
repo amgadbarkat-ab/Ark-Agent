@@ -39,22 +39,11 @@ bump `ARK_LINK_PROTOCOL_VERSION` for any incompatible change.
 - 06:40: hosting is an Oracle Always Free VM in the EU, behind one Caddy with the phone relay and the
   Control Board. Not Cloudflare.
 
-## Open: phone sign-in through the link host
+## Decided: a phone acts as its person (PE, 18 Nov)
 
-Better Auth runs with a fixed `baseURL` (`BETTER_AUTH_URL`), so a Google or Microsoft sign-in started on
-a phone through the link host returns to the install's own address, which the phone cannot reach on an
-install that is not public. Proposed: a second Better Auth instance with `baseURL =
-https://<link host>/api/auth`, same database and secret, chosen for `/api/auth/*` when the request
-carries the Ark Link mark; the customer adds `https://<link host>/api/auth/callback/<provider>` to their
-identity provider's redirect URIs. Not built.
-
-## Seams under test (from PE's M1 list)
-
-| Seam | Catches | Misses |
-| --- | --- | --- |
-| `shared/ark-link.ts` pure functions (frames, codes, tokens) | encoding and validation mistakes C would also hit | nothing about sockets |
-| The relay through real `Bun.serve`, `fetch` and `WebSocket` | pairing, expired/reused code, routing, removed device, limits, bad token, WS pass-through, desktop offline | Caddy, TLS |
-| The connector against a real relay and a stand-in local server | off by default, forwarding, device check, removal, reconnect | the real app's routes |
-| `/api/ark-link` routes on the server, with the test database | admin only, settings saved, devices listed and removed | the UI |
-| Settings → Phones (happy-dom) | the screen renders the code, the list, the confirm step, in Greek too | layout on a real phone |
-| End to end: relay + stand-in desktop + fetch as the phone | the whole path | a real phone and Chrome |
+No second sign-in instance, no OAuth through the link host. A paired phone acts as the administrator
+who confirmed it, or another active person they chose (who accepts it first). The connector marks each
+request with its per-process secret and the device id; `server/src/ark-link/sessions.ts` answers it as
+that person, roles read fresh. `/api/auth/*` and `/sign` are refused to a phone. Audit rows carry
+`arkLinkDevice`. Tests: `server/tests/ark-link-person.integration.test.ts`, and the person cases in
+`ark-link.integration.test.ts` and `ark-link-end-to-end.test.ts`.

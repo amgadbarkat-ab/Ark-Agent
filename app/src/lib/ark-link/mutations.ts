@@ -39,15 +39,35 @@ export function startPairingMutationOptions(queryClient: QueryClient) {
   });
 }
 
+export function acceptPhoneMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (id: string) => {
+      await client(`/api/ark-link/devices/${encodeURIComponent(id)}/accept`, {
+        method: "POST",
+        fallback: "The phone could not be accepted",
+      });
+    },
+    onSuccess: refresh(queryClient),
+  });
+}
+
 export function confirmPhoneMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: async (input: { pairingId: string; deviceName: string }) =>
+    mutationFn: async (input: {
+      pairingId: string;
+      deviceName: string;
+      /** Who the phone is for; absent is the person confirming. */
+      forUserId?: string;
+    }) =>
       (
         await client(
           `/api/ark-link/pairing/${encodeURIComponent(input.pairingId)}/confirm`,
           {
             method: "POST",
-            body: { deviceName: input.deviceName },
+            body: {
+              deviceName: input.deviceName,
+              ...(input.forUserId ? { forUserId: input.forUserId } : {}),
+            },
             fallback: "The phone could not be paired",
           },
         )

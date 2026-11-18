@@ -18,7 +18,7 @@
  * ONE PROCESS per database holds the relay connection (a Postgres advisory lock), as the phone line
  * does.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   cleanDeviceName,
   formatPairingCode,
@@ -34,7 +34,7 @@ import {
   encryptSecret,
 } from "../credentials";
 import type { Database } from "../db/client";
-import { arkLink, arkLinkDevices } from "../db/schema";
+import { arkLink, arkLinkDevices, users } from "../db/schema";
 import {
   type ArkLinkConnector,
   type ConnectorOptions,
@@ -47,6 +47,15 @@ const LINK_ID = "link";
 const LOCK_KEY = 7_149_000_001;
 /** How often a device's "last used" is written, at most. */
 const USED_EVERY_MS = 60_000;
+/** How old an answer to "is this person still here" may be. Removal and demotion apply within it. */
+const PERSON_CHECK_MS = 2_000;
+
+type DeviceRow = {
+  id: string;
+  tokenSha256: string;
+  userId: string | null;
+  acceptedAt: Date | null;
+};
 
 export class ArkLinkRefusedError extends Error {}
 
@@ -69,6 +78,10 @@ export type ArkLinkDeviceView = {
   name: string;
   pairedAt: string;
   lastUsedAt: string | null;
+  /** Who the phone acts as. Null for a row from before phones were bound to a person. */
+  person: { id: string; name: string | null; email: string } | null;
+  /** True until that person accepts a phone an administrator paired for them. */
+  pending: boolean;
 };
 
 export type ArkLinkPairingView = {
@@ -104,11 +117,17 @@ export function createArkLinkService(
     localOrigin: string;
     /** Whether this install runs with no sign-in (`OPENBOT_SINGLE_USER`). Then Ark Link stays off. */
     noSignIn: boolean;
+    /** Whether a person is on the deny list (removed by an administrator). */
+    isRevoked: (email: string) => Promise<boolean>;
+    /** A person's roles, read fresh: no role is nobody. */
+    rolesFor: (userId: string) => Promise<string[]>;
     /** Tests only. */
     allowInsecureRelay?: boolean;
     openSocket?: ConnectorOptions["openSocket"];
     /** Tests only: skip the advisory lock. */
     skipLock?: boolean;
+    /** Tests only: how old an answer about a person may be (default 2 s). */
+    personCheckMs?: number;
   },
 ) {
   const { credentials, encryptionKey, auditStore } = dependencies;
@@ -116,8 +135,10 @@ export function createArkLinkService(
   let stopped = true;
   let releaseLock: (() => Promise<void>) | null = null;
   let pairing: ArkLinkPairingView | null = null;
-  let deviceCache: Map<string, string> | null = null;
+  let deviceCache: Map<string, DeviceRow> | null = null;
   const lastWritten = new Map<string, number>();
+  /** Whether a person may act, for a moment: every request asks, and the answer is at most this old. */
+  const activeFor = new Map<string, { active: boolean; at: number }>();
 
   async function load() {
     const [row] = await database
@@ -127,26 +148,53 @@ export function createArkLinkService(
     return row ?? null;
   }
 
-  async function deviceHashes(): Promise<Map<string, string>> {
+  async function deviceRows(): Promise<Map<string, DeviceRow>> {
     if (deviceCache) return deviceCache;
     const rows = await database
       .select({
         id: arkLinkDevices.id,
         tokenSha256: arkLinkDevices.tokenSha256,
+        userId: arkLinkDevices.userId,
+        acceptedAt: arkLinkDevices.acceptedAt,
       })
       .from(arkLinkDevices);
-    deviceCache = new Map(rows.map((row) => [row.id, row.tokenSha256]));
+    deviceCache = new Map(rows.map((row) => [row.id, row]));
     return deviceCache;
+  }
+
+  /** Whether a person is still here: their row, not on the deny list, and holding a role. */
+  async function personActive(userId: string): Promise<boolean> {
+    const known = activeFor.get(userId);
+    if (
+      known &&
+      Date.now() - known.at < (dependencies.personCheckMs ?? PERSON_CHECK_MS)
+    )
+      return known.active;
+    const [person] = await database
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const roles = person ? await dependencies.rolesFor(userId) : [];
+    const active =
+      Boolean(person) &&
+      !(await dependencies.isRevoked(person?.email ?? "")) &&
+      (roles.includes("admin") || roles.includes("user"));
+    activeFor.set(userId, { active, at: Date.now() });
+    return active;
   }
 
   const devices: ConnectorOptions["devices"] = {
     async verify(id, hash) {
-      return (await deviceHashes()).get(id) === hash;
+      const row = (await deviceRows()).get(id);
+      if (!row || row.tokenSha256 !== hash || !row.userId) return "refused";
+      if (!(await personActive(row.userId))) return "refused";
+      return row.acceptedAt ? "ok" : "pending";
     },
     async list() {
-      return [...(await deviceHashes())].map(([id, tokenSha256]) => ({
-        id,
-        tokenSha256,
+      return [...(await deviceRows()).values()].map((row) => ({
+        id: row.id,
+        tokenSha256: row.tokenSha256,
       }));
     },
     used(id) {
@@ -241,16 +289,23 @@ export function createArkLinkService(
     connector.start();
   }
 
-  async function listDevices(): Promise<ArkLinkDeviceView[]> {
+  async function listDevices(userId?: string): Promise<ArkLinkDeviceView[]> {
     const rows = await database
-      .select()
+      .select({
+        device: arkLinkDevices,
+        person: { id: users.id, name: users.name, email: users.email },
+      })
       .from(arkLinkDevices)
+      .leftJoin(users, eq(users.id, arkLinkDevices.userId))
+      .where(userId ? eq(arkLinkDevices.userId, userId) : undefined)
       .orderBy(arkLinkDevices.pairedAt);
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      pairedAt: row.pairedAt.toISOString(),
-      lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    return rows.map(({ device, person }) => ({
+      id: device.id,
+      name: device.name,
+      pairedAt: device.pairedAt.toISOString(),
+      lastUsedAt: device.lastUsedAt?.toISOString() ?? null,
+      person: person?.id ? person : null,
+      pending: device.acceptedAt === null,
     }));
   }
 
@@ -375,6 +430,8 @@ export function createArkLinkService(
     actorUserId: string,
     pairingId: string,
     name: string,
+    /** Who the phone is for. Absent or the confirming person: theirs at once; anyone else accepts it. */
+    forUserId?: string,
   ): Promise<ArkLinkDeviceView> {
     if (dependencies.noSignIn) throw new ArkLinkRefusedError(NEEDS_SIGN_IN);
     const claim = livePairing()?.claims.find(
@@ -386,12 +443,25 @@ export function createArkLinkService(
         "That phone is no longer waiting. Ask for a new code.",
       );
     if (!deviceName) throw new ArkLinkRefusedError("Give the phone a name.");
+    const owner = forUserId ?? actorUserId;
+    if (owner !== actorUserId && !(await personActive(owner)))
+      throw new ArkLinkRefusedError(
+        "That person cannot have a phone here: they are not an active member of this install.",
+      );
     const token = newDeviceToken();
     const tokenSha256 = await tokenHash(token);
     const id = crypto.randomUUID();
     const [row] = await database
       .insert(arkLinkDevices)
-      .values({ id, name: deviceName, tokenSha256, pairedBy: actorUserId })
+      .values({
+        id,
+        name: deviceName,
+        tokenSha256,
+        pairedBy: actorUserId,
+        userId: owner,
+        // The confirming person's own phone works at once; somebody else's waits for them.
+        acceptedAt: owner === actorUserId ? new Date() : null,
+      })
       .returning();
     deviceCache = null;
     connector.confirm(pairingId, { id, name: deviceName, tokenSha256 }, token);
@@ -408,14 +478,44 @@ export function createArkLinkService(
       targetType: "ark_link_device",
       targetId: id,
       actorUserId,
-      payload: { name: deviceName },
+      payload: { name: deviceName, for: owner },
     });
-    return {
-      id,
-      name: deviceName,
-      pairedAt: (row?.pairedAt ?? new Date()).toISOString(),
-      lastUsedAt: null,
-    };
+    const [view] = (await listDevices()).filter((device) => device.id === id);
+    return (
+      view ?? {
+        id,
+        name: deviceName,
+        pairedAt: (row?.pairedAt ?? new Date()).toISOString(),
+        lastUsedAt: null,
+        person: null,
+        pending: owner !== actorUserId,
+      }
+    );
+  }
+
+  /** The person a phone was paired for accepts it, on their own computer. Nobody else can. */
+  async function accept(userId: string, id: string): Promise<boolean> {
+    const accepted = await database
+      .update(arkLinkDevices)
+      .set({ acceptedAt: new Date() })
+      .where(
+        and(
+          eq(arkLinkDevices.id, id),
+          eq(arkLinkDevices.userId, userId),
+          isNull(arkLinkDevices.acceptedAt),
+        ),
+      )
+      .returning({ id: arkLinkDevices.id });
+    if (accepted.length === 0) return false;
+    deviceCache = null;
+    await recordAuditEvent(auditStore, {
+      eventType: "ark_link.device_accepted",
+      targetType: "ark_link_device",
+      targetId: id,
+      actorUserId: userId,
+      payload: {},
+    });
+    return true;
   }
 
   async function refuse(actorUserId: string, pairingId: string): Promise<void> {
@@ -442,10 +542,19 @@ export function createArkLinkService(
   async function removeDevice(
     actorUserId: string,
     id: string,
+    /** Set when the person removing it is not an administrator: only a phone of their own. */
+    onlyOwnedBy?: string,
   ): Promise<boolean> {
     const removed = await database
       .delete(arkLinkDevices)
-      .where(eq(arkLinkDevices.id, id))
+      .where(
+        onlyOwnedBy
+          ? and(
+              eq(arkLinkDevices.id, id),
+              eq(arkLinkDevices.userId, onlyOwnedBy),
+            )
+          : eq(arkLinkDevices.id, id),
+      )
       .returning({ id: arkLinkDevices.id, name: arkLinkDevices.name });
     if (removed.length === 0) return false;
     deviceCache = null;
@@ -465,6 +574,9 @@ export function createArkLinkService(
   return {
     view,
     save,
+    /** The phones that act as this person, theirs to accept or remove. */
+    mine: (userId: string) => listDevices(userId),
+    accept,
     /**
      * The Android app the relay vouches for, while connected. `/api/capabilities` names it, so a page
      * that app opened shows nothing to buy even though this install names no Android app of its own.

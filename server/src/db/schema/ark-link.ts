@@ -36,4 +36,17 @@ export const arkLinkDevices = pgTable("ark_link_devices", {
     .notNull()
     .defaultNow(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  /**
+   * Who the phone acts as (#149, PE 18 Nov): the person who confirmed it, or the person an
+   * administrator paired it for. Every request from the phone is that person's, with their role as it
+   * is at that moment. Removing the person removes the phone. Null on a row from before this column,
+   * which acts as nobody and is refused.
+   */
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  /**
+   * When that person accepted the phone. Set at once when they confirmed it themselves; for a phone an
+   * administrator paired for somebody else, null until that person accepts it on their own computer,
+   * and the phone does nothing until then.
+   */
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
 });

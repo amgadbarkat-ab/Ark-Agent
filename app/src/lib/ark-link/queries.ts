@@ -7,6 +7,10 @@ export type ArkLinkDevice = {
   name: string;
   pairedAt: string;
   lastUsedAt: string | null;
+  /** Who the phone acts as. Null for a phone from before phones were bound to a person. */
+  person: { id: string; name: string | null; email: string } | null;
+  /** Paired for this person by an administrator, and not accepted by them yet. */
+  pending: boolean;
 };
 
 export type ArkLinkPairing = {
@@ -34,7 +38,24 @@ export type ArkLinkState = {
 export const arkLinkKeys = {
   all: ["ark-link"] as const,
   state: () => [...arkLinkKeys.all, "state"] as const,
+  mine: () => [...arkLinkKeys.all, "mine"] as const,
 };
+
+/** The phones that act as the signed-in person: for everybody, administrator or not. */
+export function myPhonesQueryOptions() {
+  return queryOptions({
+    queryKey: arkLinkKeys.mine(),
+    queryFn: async (): Promise<ArkLinkDevice[]> =>
+      (
+        (await (
+          await client("/api/ark-link/mine", {
+            fallback: "Could not load your phones",
+          })
+        ).json()) as { devices: ArkLinkDevice[] }
+      ).devices,
+    refetchInterval: 15_000,
+  });
+}
 
 export function arkLinkQueryOptions() {
   return queryOptions({

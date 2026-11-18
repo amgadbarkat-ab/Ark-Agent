@@ -94,7 +94,7 @@ const connector = createArkLinkConnector({
   localOrigin: `http://127.0.0.1:${app.port}`,
   allowInsecureRelay: true,
   devices: {
-    verify: async (id, hash) => paired.get(id) === hash,
+    verify: async (id, hash) => (paired.get(id) === hash ? "ok" : "refused"),
     list: async () =>
       [...paired].map(([id, tokenSha256]) => ({ id, tokenSha256 })),
     used: (id) => used.push(id),
@@ -231,6 +231,41 @@ describe("Ark Link, relay to desktop to phone", () => {
     expect(await onTheComputer.text()).toBe("false");
   });
 
+  test("a phone cannot say who it is: headers naming a person never reach the desktop", async () => {
+    const phone = await pairPhone("Pretending phone");
+    await fetch(`${relayBase}/echo`, {
+      method: "POST",
+      headers: {
+        authorization: `ArkLink ${phone.token}`,
+        "x-user-id": "someone-else",
+        "x-openbot-user": "admin@example.test",
+        "x-forwarded-user": "admin",
+        "remote-user": "admin",
+        "x-ark-link-device": "another-device",
+      },
+      body: "hello",
+    });
+    const request = seen.at(-1) as Request;
+    for (const name of [
+      "x-user-id",
+      "x-openbot-user",
+      "x-forwarded-user",
+      "remote-user",
+    ])
+      expect(request.headers.get(name)).toBeNull();
+    // The device is the one the connector checked, not the one the phone named.
+    expect(request.headers.get("x-ark-link-device")).toBe(phone.id);
+    expect(request.headers.get("user-agent")).not.toBeNull();
+  });
+
+  test("everything here worked without the phone signing in anywhere", () => {
+    expect(
+      seen.some((request) =>
+        new URL(request.url).pathname.startsWith("/api/auth"),
+      ),
+    ).toBe(false);
+  });
+
   test("a WebSocket reaches the desktop's server and back", async () => {
     const phone = await pairPhone("Socket phone");
     const socket = new WebSocket(
@@ -283,7 +318,7 @@ describe("Ark Link, relay to desktop to phone", () => {
       localOrigin: `http://127.0.0.1:${app.port}`,
       allowInsecureRelay: true,
       devices: {
-        verify: async () => true,
+        verify: async () => "ok",
         list: async () => [],
         used: () => undefined,
       },

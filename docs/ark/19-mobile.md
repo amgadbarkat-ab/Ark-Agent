@@ -222,8 +222,13 @@ How a phone reaches the customer's own desktop. Built and tested locally, not de
   list of phones, then made again on the computer, so the phone gets the desktop's own app and version.
 - **Pairing**: an 8-character code (single use, 5 minutes) or its QR code; a signed-in administrator
   confirms the phone's name; the phone gets a device token, kept hashed on the desktop and the relay.
-  Removing a phone cuts it at once. **Only on an install where people sign in** (Amgad, 18 Nov): the phone
-  still signs in with the person's own account.
+  Removing a phone cuts it at once. **Only on an install where people sign in** (Amgad, 18 Nov).
+- **A phone acts as one person and never signs in** (PE, 18 Nov): the administrator who confirmed it,
+  or another active person they chose, who accepts it on their own computer first. Each request is
+  that person's, with their role as it is now (a demotion applies on the next request; a removed person
+  or device is cut at once), through the same gateway and audit, and the audit row names the device.
+  No OAuth or sign-in session exists for the phone: sign-in pages and calls answer "Sign in on your
+  computer".
 - **Not from a phone**: a connector's OAuth sign-in (Gmail, Outlook and the rest) says "Connect this on
   your computer", because it returns to the computer.
 - **Security**: phase 1 is TLS to the relay, which could read what passes; end-to-end encryption is

@@ -192,7 +192,7 @@ describe("connecting from a phone through Ark Link (#149)", () => {
   test("a request the connector made for a phone starts no sign-in and says to use the computer", async () => {
     const response = await vendor().request(
       "http://t/api/plugins/servers/gmail/connect",
-      { method: "POST", headers: markLinkRequest(new Headers()) },
+      { method: "POST", headers: markLinkRequest(new Headers(), "dev-1") },
     );
     expect(response.status).toBe(409);
     const body = (await response.json()) as { error: string; code: string };

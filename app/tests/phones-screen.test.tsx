@@ -67,6 +67,8 @@ const PAIRING: ArkLinkState = {
       name: "Old iPhone",
       pairedAt: "2026-11-01T10:00:00Z",
       lastUsedAt: null,
+      person: { id: "u1", name: "Admin", email: "a@example.test" },
+      pending: false,
     },
   ],
 };
@@ -98,6 +100,21 @@ function serve(
       });
     if (url.endsWith("/api/ark-link") && method === "GET")
       return Response.json(state);
+    if (url.endsWith("/api/ark-link/mine"))
+      return Response.json({
+        devices: [
+          {
+            id: "5c1d2e3f-1111-4222-8333-944455556666",
+            name: "Pixel for Nikos",
+            pairedAt: "2026-11-18T10:00:00Z",
+            lastUsedAt: null,
+            person: { id: "u1", name: "Nikos", email: "n@example.test" },
+            pending: true,
+          },
+        ],
+      });
+    if (url.includes("/api/admin/people"))
+      return Response.json({ people: [], nextCursor: null });
     if (url.includes("/confirm"))
       return Response.json({
         id: "d2",
@@ -125,16 +142,24 @@ function renderPhones() {
   );
 }
 
-test("only an administrator sees the phones, and nothing is asked of the server for anybody else", async () => {
+test("somebody who is not an administrator sees only the phones that act as them, and accepts one", async () => {
   const calls: Call[] = [];
   serve("user", OFF, calls);
+  const user = userEvent.setup({ document });
   const screen = renderPhones();
+  await screen.findByText("Pixel for Nikos");
+  expect(
+    screen.getByText(/An administrator pairs phones, at a computer/),
+  ).toBeTruthy();
+  expect(screen.getByText(/Waiting for them to accept it/)).toBeTruthy();
+  // The install's settings are an administrator's: never asked for.
+  expect(calls.some((call) => call.url.endsWith("/api/ark-link"))).toBe(false);
+  await user.click(screen.getByRole("button", { name: "Accept" }));
   await waitFor(() =>
-    expect(
-      screen.getByText("Only an administrator can pair phones."),
-    ).toBeTruthy(),
+    expect(calls.find((call) => call.url.endsWith("/accept"))?.url).toBe(
+      "/api/ark-link/devices/5c1d2e3f-1111-4222-8333-944455556666/accept",
+    ),
   );
-  expect(calls.some((call) => call.url.includes("/api/ark-link"))).toBe(false);
 });
 
 test("before it is set up, it says so, and that pairing is not signing in", async () => {
@@ -209,6 +234,10 @@ test("while pairing it shows the code and its QR code, and a person confirms the
   expect(screen.getByText("Pixel")).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Confirm" }));
   const dialog = await screen.findByRole("dialog");
+  // Who the phone acts as: the person confirming, unless they choose somebody else.
+  expect(
+    within(dialog).getByText("The phone acts as you, with your role."),
+  ).toBeTruthy();
   const name = within(dialog).getByLabelText("Phone's name");
   await user.clear(name);
   await user.type(name, "Μαρία's Pixel");

@@ -22,7 +22,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { tNow, useT } from "@/lib/i18n";
 import { phoneSettingsQueryOptions } from "@/lib/phone/queries";
 import { queryClient } from "@/query-client";
@@ -82,7 +81,7 @@ const ITEMS: {
     linkOptions: { to: "/settings/phone-approval" },
   },
   {
-    /* This computer's ArkAgent on a phone, through BlackArk's relay (#149). Administrators only. */
+    /* This computer's ArkAgent on a phone (#149): administrators pair; everybody sees their own phones. */
     title: tNow("Phones"),
     icon: IconDeviceMobile,
     linkOptions: { to: "/settings/phones" },
@@ -105,11 +104,9 @@ export function SettingsSidebar({
     { ...phoneSettingsQueryOptions(), retry: false },
     queryClient,
   );
-  const { data: user } = useQuery(currentUserQueryOptions(), queryClient);
   const items = ITEMS.filter(
     (item) =>
-      (item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess) &&
-      (item.linkOptions.to !== "/settings/phones" || user?.role === "admin"),
+      item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess,
   );
   return (
     <Sidebar {...props}>

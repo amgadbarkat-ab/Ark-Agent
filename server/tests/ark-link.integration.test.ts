@@ -5,17 +5,24 @@
  */
 import { afterAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createLinkRelay } from "../../infra/ark-link/relay";
 import { newInstallToken, tokenHash } from "../../shared/ark-link";
 import { createArkLinkRoutes } from "../src/ark-link/routes";
 import { createArkLinkService, NEEDS_SIGN_IN } from "../src/ark-link/service";
 import type { AuditEventInput } from "../src/audit";
-import type { AppVariables } from "../src/auth/guards";
+import { type AppVariables, createRoleRepository } from "../src/auth/guards";
+import { setRole } from "../src/auth/roles";
 import { createCredentialStore } from "../src/credentials";
 import { createDatabase } from "../src/db/client";
-import { arkLink, arkLinkDevices, users } from "../src/db/schema";
+import {
+  arkLink,
+  arkLinkDevices,
+  revokedAccess,
+  userRoles,
+  users,
+} from "../src/db/schema";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const database = createDatabase(testDatabaseUrl(), TEST_POOL);
@@ -42,6 +49,21 @@ const localApp = Bun.serve({
     new Response(`this install's app: ${new URL(request.url).pathname}`),
 });
 
+/** Who is still here, read from the database the way the server reads it. No caching in tests. */
+const roleRepository = createRoleRepository(database);
+const people = {
+  isRevoked: async (email: string) =>
+    (
+      await database
+        .select()
+        .from(revokedAccess)
+        .where(eq(revokedAccess.email, email))
+    ).length > 0,
+  rolesFor: (userId: string) => roleRepository.rolesForUser(userId),
+  personCheckMs: 0,
+};
+const colleagueId = `ark-link-colleague-${randomUUID()}`;
+
 const service = createArkLinkService(database, {
   credentials: createCredentialStore(database),
   encryptionKey: Buffer.alloc(32, 9).toString("base64"),
@@ -50,6 +72,7 @@ const service = createArkLinkService(database, {
   noSignIn: false,
   allowInsecureRelay: true,
   skipLock: true,
+  ...people,
 });
 service.start();
 
@@ -65,7 +88,7 @@ function appFor(arkLink: typeof service) {
         if (role === "anonymous")
           return context.json({ error: "Sign in first." }, 401);
         context.set("actor", {
-          id: adminId,
+          id: context.req.header("x-as") ?? adminId,
           role: role === "member" ? "member" : "admin",
         } as AppVariables["actor"]);
         await next();
@@ -82,10 +105,15 @@ const call = (
   body?: unknown,
   role = "admin",
   on = app,
+  as?: string,
 ) =>
   on.request(`/api/ark-link${path === "/" ? "" : path}`, {
     method,
-    headers: { "content-type": "application/json", "x-role": role },
+    headers: {
+      "content-type": "application/json",
+      "x-role": role,
+      ...(as ? { "x-as": as } : {}),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
@@ -102,9 +130,12 @@ const post = (path: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 
-await database
-  .insert(users)
-  .values({ id: adminId, email: `${adminId}@example.test`, name: "Admin" });
+await database.insert(users).values([
+  { id: adminId, email: `${adminId}@example.test`, name: "Admin" },
+  { id: colleagueId, email: `${colleagueId}@example.test`, name: "Colleague" },
+]);
+await setRole(database, adminId, "admin");
+await setRole(database, colleagueId, "user");
 
 afterAll(async () => {
   await service.stop();
@@ -113,7 +144,13 @@ afterAll(async () => {
   void localApp.stop(true);
   await database.delete(arkLinkDevices);
   await database.delete(arkLink);
-  await database.delete(users).where(eq(users.id, adminId));
+  await database
+    .delete(revokedAccess)
+    .where(eq(revokedAccess.email, `${colleagueId}@example.test`));
+  await database
+    .delete(userRoles)
+    .where(inArray(userRoles.userId, [adminId, colleagueId]));
+  await database.delete(users).where(inArray(users.id, [adminId, colleagueId]));
   await database.$client.close();
 });
 
@@ -301,6 +338,128 @@ describe("Settings → Phones (#149)", () => {
     expect((await (await call("GET", "/")).json()).devices).toHaveLength(1);
   });
 
+  test("a phone paired for another person waits for them to accept it, on their own computer", async () => {
+    const pairing = await (await call("POST", "/pairing")).json();
+    const claim = await (
+      await post("/_link/pair/claim", {
+        code: pairing.code,
+        deviceName: "Colleague's phone",
+      })
+    ).json();
+    await until(async () => {
+      const view = await (await call("GET", "/")).json();
+      return view.pairing?.claims?.length === 1;
+    });
+    // Nobody who is not a member here can have one.
+    expect(
+      (
+        await call("POST", `/pairing/${claim.pairingId}/confirm`, {
+          deviceName: "Ghost's phone",
+          forUserId: "nobody-here",
+        })
+      ).status,
+    ).toBe(409);
+    const confirmed = await call(
+      "POST",
+      `/pairing/${claim.pairingId}/confirm`,
+      {
+        deviceName: "Colleague's phone",
+        forUserId: colleagueId,
+      },
+    );
+    expect(confirmed.status).toBe(200);
+    const device = await confirmed.json();
+    expect(device.pending).toBe(true);
+    expect(device.person.id).toBe(colleagueId);
+    const token = (
+      await (
+        await post("/_link/pair/status", { pairingId: claim.pairingId })
+      ).json()
+    ).deviceToken;
+
+    // Until accepted, the phone reaches nothing, and says why.
+    const waiting = await fetch(`${relayBase}/api/me`, {
+      headers: { authorization: `ArkLink ${token}` },
+    });
+    expect(waiting.status).toBe(403);
+    expect((await waiting.json()).code).toBe("ark_link_pending");
+
+    // The colleague sees it among their own; the administrator cannot accept it for them.
+    const mine = await (
+      await call("GET", "/mine", undefined, "member", app, colleagueId)
+    ).json();
+    expect(mine.devices.map((d: { id: string }) => d.id)).toEqual([device.id]);
+    expect((await call("POST", `/devices/${device.id}/accept`)).status).toBe(
+      404,
+    );
+    expect(
+      (
+        await call(
+          "POST",
+          `/devices/${device.id}/accept`,
+          undefined,
+          "member",
+          app,
+          colleagueId,
+        )
+      ).status,
+    ).toBe(204);
+    const works = await fetch(`${relayBase}/settings`, {
+      headers: { authorization: `ArkLink ${token}` },
+    });
+    expect(await works.text()).toBe("this install's app: /settings");
+    expect(events.map((event) => event.eventType)).toContain(
+      "ark_link.device_accepted",
+    );
+
+    // A person removed, or left with no role, is cut off on the phone at once.
+    await database.delete(userRoles).where(eq(userRoles.userId, colleagueId));
+    expect(
+      (
+        await fetch(`${relayBase}/x`, {
+          headers: { authorization: `ArkLink ${token}` },
+        })
+      ).status,
+    ).toBe(401);
+    await setRole(database, colleagueId, "user");
+    await database.insert(revokedAccess).values({
+      email: `${colleagueId}@example.test`,
+      revokedBy: adminId,
+    });
+    expect(
+      (
+        await fetch(`${relayBase}/x`, {
+          headers: { authorization: `ArkLink ${token}` },
+        })
+      ).status,
+    ).toBe(401);
+    // And nobody but an administrator removes a phone that is not theirs.
+    expect(
+      (
+        await call(
+          "DELETE",
+          `/devices/${deviceId}`,
+          undefined,
+          "member",
+          app,
+          colleagueId,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await call(
+          "DELETE",
+          `/devices/${device.id}`,
+          undefined,
+          "member",
+          app,
+          colleagueId,
+        )
+      ).status,
+    ).toBe(204);
+  });
+
   test("removing a phone cuts it immediately", async () => {
     expect((await call("DELETE", `/devices/${deviceId}`)).status).toBe(204);
     const refused = await fetch(`${relayBase}/api/me`, {
@@ -331,6 +490,7 @@ describe("an install with no sign-in (Amgad, 18 Nov: option b)", () => {
     noSignIn: true,
     allowInsecureRelay: true,
     skipLock: true,
+    ...people,
   });
   const single = appFor(noSignIn);
   afterAll(() => noSignIn.stop());
