@@ -305,9 +305,190 @@ fn read_output(
     }
 }
 
+/// Where a set of image downloads has got to, for the setup window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImagesProgress {
+    /// Images finished, including those that were already on this computer.
+    pub done: usize,
+    pub total: usize,
+    /// Bytes downloaded so far across all images, when the engine reports them at all.
+    pub bytes: Option<u64>,
+}
+
+impl ImagesProgress {
+    /// The sentence the window shows. Its Greek is in `shared/i18n/el/desktop.ts`.
+    pub fn detail(&self) -> String {
+        format!(
+            "Downloading local software ({} of {} done).",
+            self.done, self.total
+        )
+    }
+}
+
+/// Pulls every image with a few workers taking the next one off a shared list, and reports progress.
+///
+/// Progress is reported when the work starts, whenever the byte count moves, and every time an image
+/// is finished, so the count moves even on an engine that reports no bytes at all (DT Lab, #109: 25
+/// minutes of nothing moving on Windows). `stop` is asked before each image: an error from it, or the
+/// first failed pull, stops anything new from starting and is what is returned. A pull already running
+/// is let finish, because stopping one half-way only leaves a partial layer behind.
+pub fn pull_all(
+    images: &[String],
+    workers: usize,
+    stop: impl Fn() -> Result<(), Problem> + Sync,
+    pull: impl Fn(&str, &mut dyn FnMut(u64)) -> Result<(), Problem> + Sync,
+    report: impl Fn(ImagesProgress) + Sync,
+) -> Result<(), Problem> {
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::SeqCst};
+    use std::sync::Mutex;
+    let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
+    let fetched: Vec<AtomicU64> = images.iter().map(|_| AtomicU64::new(0)).collect();
+    let any_bytes = AtomicBool::new(false);
+    let failure: Mutex<Option<Problem>> = Mutex::new(None);
+    // One report at a time, so the window never sees the count go backwards.
+    let reporting = Mutex::new(());
+    let tell = || {
+        let _one = reporting.lock().unwrap();
+        report(ImagesProgress {
+            done: done.load(SeqCst),
+            total: images.len(),
+            bytes: any_bytes
+                .load(SeqCst)
+                .then(|| fetched.iter().map(|part| part.load(SeqCst)).sum()),
+        });
+    };
+    let fail = |problem: Problem| {
+        let mut slot = failure.lock().unwrap();
+        if slot.is_none() {
+            *slot = Some(problem);
+        }
+    };
+    let stopped = || failure.lock().unwrap().is_some();
+
+    tell();
+    std::thread::scope(|scope| {
+        for _ in 0..workers.max(1).min(images.len()) {
+            scope.spawn(|| loop {
+                if stopped() {
+                    break;
+                }
+                if let Err(problem) = stop() {
+                    fail(problem);
+                    break;
+                }
+                let index = next.fetch_add(1, SeqCst);
+                let Some(image) = images.get(index) else {
+                    break;
+                };
+                let mut on_bytes = |bytes: u64| {
+                    fetched[index].store(bytes, SeqCst);
+                    any_bytes.store(true, SeqCst);
+                    tell();
+                };
+                match pull(image, &mut on_bytes) {
+                    Ok(()) => {
+                        done.fetch_add(1, SeqCst);
+                        tell();
+                    }
+                    Err(problem) => {
+                        fail(problem);
+                        break;
+                    }
+                }
+            });
+        }
+    });
+    match failure.into_inner().unwrap() {
+        Some(problem) => Err(problem),
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn images(n: usize) -> Vec<String> {
+        (0..n).map(|i| format!("image-{i}")).collect()
+    }
+
+    /// DT Lab (#109): the first start after an update from v0.1.40 pulled images for about 25
+    /// minutes on Windows with nothing moving, because the count was only ever sent along with a
+    /// byte counter, and that engine reported none.
+    #[test]
+    fn progress_is_reported_per_image_even_when_the_engine_reports_no_bytes() {
+        let reports = std::sync::Mutex::new(Vec::new());
+        pull_all(
+            &images(3),
+            1,
+            || Ok(()),
+            |_, _| Ok(()),
+            |progress| reports.lock().unwrap().push(progress),
+        )
+        .unwrap();
+        let reports = reports.into_inner().unwrap();
+        let counts: Vec<_> = reports.iter().map(|p| (p.done, p.total)).collect();
+        assert_eq!(counts, vec![(0, 3), (1, 3), (2, 3), (3, 3)]);
+        assert!(reports.iter().all(|p| p.bytes.is_none()));
+        assert_eq!(
+            reports[1].detail(),
+            "Downloading local software (1 of 3 done)."
+        );
+    }
+
+    #[test]
+    fn bytes_are_added_up_across_images_when_the_engine_reports_them() {
+        let reports = std::sync::Mutex::new(Vec::new());
+        pull_all(
+            &images(2),
+            1,
+            || Ok(()),
+            |image, on_bytes| {
+                on_bytes(if image == "image-0" { 100 } else { 50 });
+                Ok(())
+            },
+            |progress| reports.lock().unwrap().push(progress),
+        )
+        .unwrap();
+        let reports = reports.into_inner().unwrap();
+        let last = reports.last().unwrap();
+        assert_eq!((last.done, last.total, last.bytes), (2, 2, Some(150)));
+        assert!(reports.iter().any(|p| p.done == 0 && p.bytes == Some(100)));
+    }
+
+    #[test]
+    fn the_first_failure_is_returned_and_nothing_new_is_started() {
+        let started = std::sync::Mutex::new(Vec::new());
+        let result = pull_all(
+            &images(4),
+            1,
+            || Ok(()),
+            |image, _| {
+                started.lock().unwrap().push(image.to_string());
+                if image == "image-1" {
+                    Err(Problem::plain("no network"))
+                } else {
+                    Ok(())
+                }
+            },
+            |_| {},
+        );
+        assert_eq!(result.unwrap_err().said, "no network");
+        assert_eq!(started.into_inner().unwrap(), vec!["image-0", "image-1"]);
+    }
+
+    #[test]
+    fn a_start_that_was_replaced_stops_the_pulls() {
+        let result = pull_all(
+            &images(2),
+            2,
+            || Err(Problem::plain("replaced")),
+            |_, _| panic!("nothing should be pulled"),
+            |_| {},
+        );
+        assert_eq!(result.unwrap_err().said, "replaced");
+    }
 
     #[test]
     fn streams_download_bytes_before_the_child_exits() {

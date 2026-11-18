@@ -414,10 +414,6 @@ fn install_in_parallel(
     address: &engine::Address,
     images: &[String],
 ) -> Result<(), Problem> {
-    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst};
-    let next = AtomicUsize::new(0);
-    let finished = AtomicUsize::new(0);
-    let fetched: Vec<AtomicU64> = images.iter().map(|_| AtomicU64::new(0)).collect();
     let failure: std::sync::Mutex<Option<Problem>> = std::sync::Mutex::new(None);
     let fail = |problem: Problem| {
         let mut slot = failure.lock().unwrap();
@@ -444,51 +440,22 @@ fn install_in_parallel(
                 fail(problem);
             }
         });
-        let workers: Vec<_> = (0..PULLS_AT_ONCE.min(images.len()))
-            .map(|_| {
-                scope.spawn(|| loop {
-                    if stopped() {
-                        break;
-                    }
-                    if let Err(problem) = attempt.require_current() {
-                        fail(problem);
-                        break;
-                    }
-                    let index = next.fetch_add(1, SeqCst);
-                    let Some(image) = images.get(index) else {
-                        break;
-                    };
-                    let said = || {
-                        format!(
-                            "Downloading local software ({} of {} done).",
-                            finished.load(SeqCst),
-                            images.len()
-                        )
-                    };
-                    let outcome = pull_metrics::pull_image(
-                        address,
-                        image,
-                        |bytes| {
-                            fetched[index].store(bytes, SeqCst);
-                            let total: u64 = fetched.iter().map(|part| part.load(SeqCst)).sum();
-                            report_running(handle, "images", said(), Some(total));
-                        },
-                        |_| {},
-                    );
-                    match outcome {
-                        Ok(()) => {
-                            finished.fetch_add(1, SeqCst);
-                        }
-                        Err(problem) => {
-                            fail(problem);
-                            break;
-                        }
-                    }
-                })
-            })
-            .collect();
-        for worker in workers {
-            let _ = worker.join();
+        // The count is sent as each image starts and finishes, not only with a byte counter: an
+        // engine that reports no bytes showed nothing moving for 25 minutes (DT Lab, #109).
+        let pulled = pull_metrics::pull_all(
+            images,
+            PULLS_AT_ONCE,
+            || {
+                if stopped() {
+                    return Err(Problem::plain("stopped"));
+                }
+                attempt.require_current()
+            },
+            |image, on_bytes| pull_metrics::pull_image(address, image, on_bytes, |_| {}),
+            |progress| report_running(handle, "images", progress.detail(), progress.bytes),
+        );
+        if let Err(problem) = pulled {
+            fail(problem);
         }
         let _ = packages.join();
     });
