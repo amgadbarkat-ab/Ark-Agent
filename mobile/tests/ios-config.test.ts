@@ -201,6 +201,27 @@ describe("the Info.plist", () => {
     expect(patched.endsWith("</dict>\n</plist>\n")).toBe(true);
   });
 
+  test("says why it asks for the microphone and the camera, which the app's pages use", () => {
+    // Without these iOS ends the app the moment a page asks: dictation and voice ask for the
+    // microphone, and a file picker offers to take a photo.
+    const patched = patchInfoPlist(template, build());
+    expect(patched).toMatch(
+      /<key>NSMicrophoneUsageDescription<\/key>\n\t<string>[^<]*dictate[^<]*<\/string>/,
+    );
+    expect(patched).toMatch(
+      /<key>NSCameraUsageDescription<\/key>\n\t<string>[^<]*photo[^<]*<\/string>/,
+    );
+    expect(() =>
+      patchInfoPlist(
+        template.replace(
+          "</dict>",
+          "\t<key>NSCameraUsageDescription</key>\n\t<string>x</string>\n</dict>",
+        ),
+        build(),
+      ),
+    ).toThrow(/already has NSCameraUsageDescription/);
+  });
+
   test("gets the address scheme when one is given, and stays one valid plist", () => {
     const patched = patchInfoPlist(
       template,

@@ -176,13 +176,22 @@ const PLIST_END = /<\/dict>\s*<\/plist>\s*$/;
  *  - the address scheme, when one is given, so the system browser can open the app again after
  *    signing in;
  *  - the export-compliance answer: the app uses only the encryption in the system's own HTTPS, which
- *    is exempt, and without this App Store Connect asks on every upload.
+ *    is exempt, and without this App Store Connect asks on every upload;
+ *  - why it asks for the microphone and the camera. The desktop's pages ask for the microphone to
+ *    dictate and to talk to an employee, and a file picker offers to take a photo; Capacitor's web
+ *    view grants a page that, and iOS then ends the app on the spot if the reason is missing.
+ *    English only: a Greek reason needs an `el.lproj/InfoPlist.strings` in the Xcode project.
  *
- * Refuses a file that already has either key rather than adding a second one: an Info.plist with a
- * key twice is read by taking one of them, and which one is not something to leave to chance.
+ * Refuses a file that already has any of these keys rather than adding a second one: an Info.plist
+ * with a key twice is read by taking one of them, and which one is not something to leave to chance.
  */
 export function patchInfoPlist(xml: string, config: IosConfig): string {
-  for (const key of ["CFBundleURLTypes", "ITSAppUsesNonExemptEncryption"]) {
+  for (const key of [
+    "CFBundleURLTypes",
+    "ITSAppUsesNonExemptEncryption",
+    "NSMicrophoneUsageDescription",
+    "NSCameraUsageDescription",
+  ]) {
     if (xml.includes(`<key>${key}</key>`)) {
       throw new Error(`Info.plist already has ${key}; it was not edited.`);
     }
@@ -213,6 +222,10 @@ export function patchInfoPlist(xml: string, config: IosConfig): string {
     ...scheme,
     "\t<key>ITSAppUsesNonExemptEncryption</key>",
     "\t<false/>",
+    "\t<key>NSMicrophoneUsageDescription</key>",
+    "\t<string>ArkAgent uses the microphone when you dictate a message or talk to a digital employee.</string>",
+    "\t<key>NSCameraUsageDescription</key>",
+    "\t<string>ArkAgent uses the camera when you take a photo to attach to a message.</string>",
     "",
   ].join("\n");
   return xml.replace(PLIST_END, (end) => `${addition}${end}`);
