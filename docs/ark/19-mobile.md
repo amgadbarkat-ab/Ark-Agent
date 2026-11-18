@@ -147,10 +147,20 @@ relay's pair page, a paired one its own desktop's app through the relay.
 - **The token is kept in the web view's cookie store**, not the Keychain (Capacitor's core has no Keychain
   API). The store is persistent (`WKWebsiteDataStore.default()`), and a cookie the server sets with
   HttpOnly is not under WebKit's seven-day cap on script-written storage.
-- **No system-browser sign-in through Ark Link.** It exists because Google refuses a web view; a desktop
-  install has no sign-in (`OPENBOT_SINGLE_USER`), so there is nothing to hand off, and the build registers
-  no return scheme unless `ARK_IOS_URL_SCHEME` is given. The code below is unchanged and still serves a
-  hosted deployment.
+- **Signing in:** the person signs in with their ArkAgent account after pairing, on the desktop's own
+  sign-in page, inside the app (the owner's decision of 18 Nov: sign-in on the desktop is required
+  before pairing). A password checked by the desktop works in the web view as it is. Only if that
+  account signs in with Google would the system-browser hand-off below be needed, through the relay's
+  origin; the build registers no return scheme unless `ARK_IOS_URL_SCHEME` is given. The code below is
+  unchanged and still serves a hosted deployment.
+- **Checked against the relay** (claude/android-149, f2dc5ef), as the app's web view sends and keeps
+  things: an unpaired load of `/` lands on the relay's pair page; pairing leaves one `ark_link` cookie
+  (HttpOnly, Secure, SameSite=Lax, 400 days, renewed on page loads); the desktop's app then answers with
+  the cookie alone, sees `ArkStoreApp/ios` and never the token; a socket carries the cookie; an offline
+  desktop and a removed phone get the relay's own pages. 8 tests, in `.scratch/ios-149/` until the two
+  branches meet.
+- **Updates:** what comes from the desktop updates with the desktop; the shell needs an App Store build
+  only when something native changes (`.scratch/ios-149/updates.md`).
 - **When the host cannot be reached** the app shows its own page in Greek and English with "Try again",
   instead of a blank window. It says why it asks for the microphone and the camera (iOS ends an app whose
   page asks for either without a reason in `Info.plist`; dictation and voice ask for the microphone).

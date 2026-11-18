@@ -23,6 +23,22 @@ for Ark Link**, and the Ark Link build does not register a return scheme. The co
 What the shell still does for the web app: it appends `ArkStoreApp/ios` to the user agent, so the
 desktop's pages show nothing to buy inside the App Store app.
 
-Open (for PE/Amgad, also raised by B): pairing is the only gate on a single-user desktop.
+Open (for PE/Amgad, also raised by B): pairing is the only gate on a single-user desktop. Answered
+18 Nov: sign-in is required (below).
 
 ## Comments
+
+**18 Nov, after Amgad's decision (06:40): the desktop install requires sign-in before pairing (option b,
+built by B).** The person signs in with their ArkAgent account after pairing, on the desktop's own
+sign-in page, inside the app. What that means for the shell depends on how that account signs in:
+
+- **A password (or a code) the desktop checks itself:** works inside the web view as it is. Nothing to
+  build in the shell; the hand-off stays unused.
+- **Google:** Google refuses an embedded web view, so the hand-off would be needed again, and it would
+  have to come back through the relay's origin: the system browser signs in at
+  `https://<link host>/api/auth/native` (a relay-served path to the desktop's page, with the desktop
+  given `ARK_IOS_URL_SCHEME`), and the app is reopened by its scheme. The shell then needs
+  `ARK_IOS_URL_SCHEME` set at build time (already supported) and `allowNavigation` unchanged. Microsoft
+  works in a web view but is cleaner the same way.
+
+Question for B/PE: which is it? The answer decides whether the next shell build registers a scheme.
