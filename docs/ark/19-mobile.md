@@ -41,7 +41,7 @@ Rejected, and why:
 | `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`, from `ARK_ANDROID_APP_ID`, `ARK_ANDROID_CERT_SHA256`, `ARK_IOS_APP_ID` | `server/src/mobile/links.ts` | Built and tested. Nothing is served until the operator names the apps. |
 | Nothing to buy inside the store apps | `app/src/lib/store-app.ts`, the Plan screen, `server/src/accounts/run-gate.ts`, `server/src/cloud/gate.ts` | Built and tested (below). |
 | Android package (Trusted Web Activity), its build checks and release workflow | `mobile/android/`, `mobile/scripts/`, `.github/workflows/mobile-android.yml` | Built here with the real Android SDK; see "Android". |
-| iOS shell, system-browser sign-in, build checks and release workflow | `mobile/ios/`, `server/src/auth/native-browser.ts`, `app/src/lib/native/`, `.github/workflows/mobile-ios.yml` | Project made and configured here; **never compiled**. Sign-in tested end to end against Better Auth; see "iOS". |
+| iOS shell, system-browser sign-in, build checks and release workflow | `mobile/ios/`, `server/src/auth/native-browser.ts`, `app/src/lib/native/`, `.github/workflows/mobile-ios.yml` | Opens Ark Link (#149). **Compiles in CI for the simulator, unsigned**; never run on an iPhone. Sign-in tested end to end against Better Auth; see "iOS". |
 
 ## Store rules, and what the apps do about them
 
@@ -125,9 +125,37 @@ settings it needs and how the site vouches for it are in [mobile/README.md](../.
 
 ## iOS
 
-`mobile/ios/` makes a Capacitor shell: a native app whose window shows the deployment's own site (nothing
-of the web app is bundled). How to make and build it and the settings it needs are in
+`mobile/ios/` makes a Capacitor shell: a native app whose window shows a site (nothing of the web app is
+bundled). How to make and build it and the settings it needs are in
 [mobile/README.md](../../mobile/README.md).
+
+### Through Ark Link (#149, 2026-11-18)
+
+The app is now **one app for every customer**, bundle identifier `blackark.arkagent`, and its window is
+the Ark Link host (`ARK_LINK_URL`, such as `https://link.blackark.uk`): an unpaired phone is shown the
+relay's pair page, a paired one its own desktop's app through the relay.
+
+- **Compiles.** The first compile was the workflow's first run on GitHub
+  ([run 44235410278](https://github.com/amgadbarkat-ab/Ark-Agent/actions/runs/44235410278), Xcode on
+  `macos-latest`, simulator, unsigned, about a minute and a half). The built app was read back: bundle
+  identifier, start address and its own error page are the ones given.
+- **The pair screen is the relay's page**, not one inside the app. The device token has to become the
+  relay's `ark_link` cookie, because a web view cannot put a header on every request a page makes, and a
+  page inside the app (`capacitor://localhost`) would make it a third-party cookie, which WebKit blocks.
+  The code is typed: Capacitor's core has no camera or barcode reader and no plugin is added. Scanning the
+  desktop's QR with the iPhone's Camera opens Safari, not the app, until universal links are set up.
+- **The token is kept in the web view's cookie store**, not the Keychain (Capacitor's core has no Keychain
+  API). The store is persistent (`WKWebsiteDataStore.default()`), and a cookie the server sets with
+  HttpOnly is not under WebKit's seven-day cap on script-written storage.
+- **No system-browser sign-in through Ark Link.** It exists because Google refuses a web view; a desktop
+  install has no sign-in (`OPENBOT_SINGLE_USER`), so there is nothing to hand off, and the build registers
+  no return scheme unless `ARK_IOS_URL_SCHEME` is given. The code below is unchanged and still serves a
+  hosted deployment.
+- **When the host cannot be reached** the app shows its own page in Greek and English with "Try again",
+  instead of a blank window. It says why it asks for the microphone and the camera (iOS ends an app whose
+  page asks for either without a reason in `Info.plist`; dictation and voice ask for the microphone).
+
+The rest of this section is the hosted-deployment design, which still holds for that case.
 
 - **Signing in** is the part with design in it. Google refuses a web view, so the app opens the system
   browser at `/api/auth/native`; the browser signs in with the chosen provider; the person taps a button
@@ -155,10 +183,10 @@ of the web app is bundled). How to make and build it and the settings it needs a
   there is no second guess), accepts the right one once and sets a session of its own for the same person,
   and refuses the code again. With the app's user agent, the Plan screen shows the plan and how many are
   working and nothing to buy, and the sign-in screen offers Google and no company-address form.
-- **Not verified, and the largest gap in this document:** that the project **compiles** (no Xcode here),
-  that SFSafariViewController hands a custom-scheme address back to the app, that Google accepts the
-  sign-in in it, that the web view keeps the cookie, and everything about the App Store's review. The
-  build workflow's first run is the first compile.
+- **Not verified:** anything on a real iPhone. That the web view keeps the relay's cookie across
+  launches and sends it on the WebSocket upgrade, that SFSafariViewController hands a custom-scheme
+  address back to the app, that Google accepts the sign-in in it, and everything about the App Store's
+  review. The project compiles (above).
 - **Not in the app yet:** notifications (Apple does not allow Web Push in a web view, so they need APNs and
   a second sending path), an offline page, and links into the site opening the app.
 
