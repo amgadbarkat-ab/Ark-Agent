@@ -20,8 +20,10 @@ change it is still said below.
    Customers sign up and pay on the website. This is the default because it keeps the stores' share
    out of a EUR 50 to 250 a month subscription and keeps Paddle the only seller. It is the owner's
    decision to keep or change (see "Store rules", below).
-5. **A person's own desktop is not reachable from a phone yet.** The relay it would need is deferred
-   (see "Not built").
+5. **A person's own desktop is reached through Ark Link** (#149, 18 Nov 2026): the desktop holds one
+   outgoing connection to BlackArk's relay, and a paired phone reaches it there. Phase 1 (TLS to the
+   relay) is approved for the first test; pairing needs an install where people sign in. See "Ark
+   Link", below, and `infra/ark-link/README.md`.
 
 Rejected, and why:
 
@@ -103,8 +105,10 @@ Ark signs in with Google, Microsoft or the company's directory (decision D9).
 
 ## Android
 
-`mobile/android/` is a Gradle project with no code of our own: a manifest that opens the deployment's site
-in Chrome as a Trusted Web Activity, and Google's `androidbrowserhelper` library. How to build it, the
+`mobile/android/` is a Gradle project with no code of our own: a manifest that opens a site in Chrome as a
+Trusted Web Activity, and Google's `androidbrowserhelper` library. For BlackArk's app (`blackark.arkagent`)
+the site is the **Ark Link host** (#149): an unpaired phone lands on the relay's pairing page, a paired
+one sees its own desktop's ArkAgent, and the relay serves `assetlinks.json`. How to build it, the
 settings it needs and how the site vouches for it are in [mobile/README.md](../../mobile/README.md).
 
 - **Nothing about a deployment is in the repository.** The package name (permanent once published), the
@@ -195,9 +199,8 @@ account and key is in 20-accounts-and-keys.md.**
 
 ## Not built
 
-- **Reaching a person's own desktop from a phone.** It needs a relay the desktop connects out to, with
-  its own authentication and abuse limits, and it is a security-sensitive piece of its own. Deferred
-  until there is a reason to take it on.
+- ~~Reaching a person's own desktop from a phone.~~ Built as Ark Link (#149); see below. Not deployed:
+  the relay waits for the Oracle VM.
 - **Native notifications in the iOS shell** (APNs), as above.
 - **Anything in the stores' own review process,** which can only be learned by submitting.
 
@@ -207,3 +210,26 @@ On a real Android phone and a real iPhone, with the owner's accounts: install fr
 track, sign in with Google, switch notifications on in Settings, have a routine finish with the app
 closed and see the notification, open it and land in the right conversation; and confirm that nothing
 in either app shows a price, a plan to choose, or a link to buy.
+
+## Ark Link (#149)
+
+How a phone reaches the customer's own desktop. Built and tested locally, not deployed.
+
+- **Relay** (`infra/ark-link/`): a Bun service at one host (`link.blackark.uk`). The desktop keeps one
+  outgoing WebSocket to it; each paired phone's requests and sockets pass over it to that desktop.
+- **Desktop** (`server/src/ark-link/`): off by default; an administrator switches it on in Settings →
+  Phones with the install token BlackArk issues. Each phone request is checked against the desktop's own
+  list of phones, then made again on the computer, so the phone gets the desktop's own app and version.
+- **Pairing**: an 8-character code (single use, 5 minutes) or its QR code; a signed-in administrator
+  confirms the phone's name; the phone gets a device token, kept hashed on the desktop and the relay.
+  Removing a phone cuts it at once. **Only on an install where people sign in** (Amgad, 18 Nov).
+- **A phone acts as one person and never signs in** (PE, 18 Nov): the administrator who confirmed it,
+  or another active person they chose, who accepts it on their own computer first. Each request is
+  that person's, with their role as it is now (a demotion applies on the next request; a removed person
+  or device is cut at once), through the same gateway and audit, and the audit row names the device.
+  No OAuth or sign-in session exists for the phone: sign-in pages and calls answer "Sign in on your
+  computer".
+- **Not from a phone**: a connector's OAuth sign-in (Gmail, Outlook and the rest) says "Connect this on
+  your computer", because it returns to the computer.
+- **Security**: phase 1 is TLS to the relay, which could read what passes; end-to-end encryption is
+  phase 2 (`infra/ark-link/README.md`).

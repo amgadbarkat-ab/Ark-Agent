@@ -16,6 +16,7 @@ import { EL_MORE } from "./more";
 import { EL_PACKAGE } from "./package";
 import { EL_PHONE_ESTIMATOR } from "./phone-estimator";
 import { EL_PHONE_LINE } from "./phone-line";
+import { EL_PHONES } from "./phones";
 import { EL_SCREENS } from "./screens";
 import { EL_SCREENS2 } from "./screens2";
 import { EL_SCREENS3 } from "./screens3";
@@ -42,6 +43,7 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_PACKAGE,
   ...EL_TRIAL,
   ...EL_PHONE_LINE,
+  ...EL_PHONES,
   ...EL_PHONE_ESTIMATOR,
   ...EL_BUILTIN_TOOLS,
   ...EL_ACTIVATION,

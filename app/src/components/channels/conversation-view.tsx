@@ -467,7 +467,12 @@ export function ConversationView({
           {...(stopped ? { stopped } : {})}
         />
       </div>
-      <div className="max-w-2xl mx-auto w-full px-0 pb-4 shrink-0">
+      {/*
+       * Inset on a phone (#149): at phone width the column is the whole window, and with no padding
+       * the notices above the composer started at the screen's very edge and the composer's rounded
+       * corners touched it. From `sm` up the column is centred with room around it, as before.
+       */}
+      <div className="max-w-2xl mx-auto w-full px-3 pb-4 shrink-0 sm:px-0">
         {notice}
         <Composer
           agents={agents}

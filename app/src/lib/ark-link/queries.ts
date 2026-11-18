@@ -1,0 +1,72 @@
+import { queryOptions } from "@tanstack/react-query";
+import { client } from "@/lib/client";
+
+/** Ark Link (#149) as an administrator sees it in Settings → Phones. Never the install token. */
+export type ArkLinkDevice = {
+  id: string;
+  name: string;
+  pairedAt: string;
+  lastUsedAt: string | null;
+  /** Who the phone acts as. Null for a phone from before phones were bound to a person. */
+  person: { id: string; name: string | null; email: string } | null;
+  /** Paired for this person by an administrator, and not accepted by them yet. */
+  pending: boolean;
+};
+
+export type ArkLinkPairing = {
+  code: string;
+  /** `ABCD-EFGH`. */
+  display: string;
+  /** The pairing page's address, which the QR code holds. */
+  url: string;
+  expiresAt: string;
+  claims: { pairingId: string; deviceName: string; expiresAt: string }[];
+};
+
+export type ArkLinkState = {
+  configured: boolean;
+  relayUrl: string | null;
+  enabled: boolean;
+  status: "off" | "connecting" | "connected" | "refused";
+  problem: string | null;
+  /** This computer has no sign-in: a paired phone acts as its administrator. */
+  noSignIn: boolean;
+  pairing: ArkLinkPairing | null;
+  devices: ArkLinkDevice[];
+};
+
+export const arkLinkKeys = {
+  all: ["ark-link"] as const,
+  state: () => [...arkLinkKeys.all, "state"] as const,
+  mine: () => [...arkLinkKeys.all, "mine"] as const,
+};
+
+/** The phones that act as the signed-in person: for everybody, administrator or not. */
+export function myPhonesQueryOptions() {
+  return queryOptions({
+    queryKey: arkLinkKeys.mine(),
+    queryFn: async (): Promise<ArkLinkDevice[]> =>
+      (
+        (await (
+          await client("/api/ark-link/mine", {
+            fallback: "Could not load your phones",
+          })
+        ).json()) as { devices: ArkLinkDevice[] }
+      ).devices,
+    refetchInterval: 15_000,
+  });
+}
+
+export function arkLinkQueryOptions() {
+  return queryOptions({
+    queryKey: arkLinkKeys.state(),
+    queryFn: async (): Promise<ArkLinkState> =>
+      (
+        await client("/api/ark-link", {
+          fallback: "Could not load the phones",
+        })
+      ).json(),
+    // A phone claiming a code shows up here within a couple of seconds.
+    refetchInterval: (query) => (query.state.data?.pairing ? 2_000 : 15_000),
+  });
+}

@@ -6,6 +6,7 @@ import {
   businessSettingsFrom,
 } from "../../../shared/business-connectors";
 import type { BotAccessCheck } from "../agents/profile-policy";
+import { CONNECT_ON_COMPUTER, cameThroughArkLink } from "../ark-link/marker";
 import type { AppVariables } from "../auth/guards";
 import { requireAdmin } from "../auth/guards";
 import { reasonWithoutStatement } from "../db/query-failure";
@@ -1150,6 +1151,19 @@ export function createPluginRoutes(
    */
   routes.post("/servers/:id/connect", requireUser, async (context) => {
     const serverId = context.req.param("id");
+
+    /*
+     * FROM A PHONE THROUGH ARK LINK (#149), NOTHING IS STARTED. Every consent below returns to this
+     * computer's own address, which a phone reached through BlackArk's relay cannot open, so the
+     * sign-in would be left half done (Amgad, 18 Nov). Told on the server, from the connector's own
+     * mark, never from anything the phone sends about itself.
+     */
+    if (cameThroughArkLink(context.req.raw.headers)) {
+      return context.json(
+        { error: CONNECT_ON_COMPUTER, code: "connect_on_computer" },
+        409,
+      );
+    }
 
     /*
      * A BROKERED APP IS ANSWERED HERE AND GOES NO FURTHER DOWN THIS HANDLER.

@@ -13,16 +13,21 @@ mobile/
 
 ## Android
 
-The app is Chrome with no address bar, showing the deployment's own site. It is tied to one site and
-carries one package name, and neither is in the repository: a package name cannot be changed once it is
-published, so it is the owner's to give.
+The app is Chrome with no address bar. It is tied to one site and carries one package name, and neither
+is in the repository: a package name cannot be changed once it is published, so it is the owner's to give
+(BlackArk's is `blackark.arkagent`).
+
+**BlackArk's app opens the Ark Link host** (#149, for example `https://link.blackark.uk`), not one
+customer's site. A phone that is not paired lands on the relay's pairing page (Greek and English); once
+paired, the same app shows that customer's own desktop ArkAgent through the relay. The relay serves the
+app's `assetlinks.json`. See [infra/ark-link/README.md](../infra/ark-link/README.md).
 
 ### The names it needs
 
 | Setting | What it is |
 | --- | --- |
 | `ARK_ANDROID_APP_ID` | The package name, such as `com.example.ark`. Permanent once published. |
-| `ARK_APP_URL` | The site, `https://host`, with no path. A domain name, not an address. |
+| `ARK_APP_URL` | The site, `https://host`, with no path. A domain name, not an address. For BlackArk's app, the Ark Link host. |
 | `ARK_APP_NAME` | The name under the icon. Up to 30 letters, digits, spaces, dots, hyphens, underscores. |
 | `ARK_ANDROID_VERSION_CODE` | A whole number that goes up with every upload to Google Play. |
 | `ARK_ANDROID_VERSION_NAME` | Optional. Defaults to the repository's version. |
@@ -53,8 +58,10 @@ read each time and written nowhere.
 
 ### Making Android drop the address bar
 
-Android only removes it when the **site vouches for the app**. Set these on the server (docs/configuration.md)
-and the site publishes `/.well-known/assetlinks.json`:
+Android only removes it when the **site vouches for the app**. For BlackArk's app the site is the Ark Link
+host, and the relay publishes the file: set `ARK_ANDROID_APP_ID` and `ARK_ANDROID_CERT_SHA256` in the
+relay's `.env` (`infra/ark-link/deploy.sh setup` asks for them). For an app tied to a deployment's own
+site, set these on the server (docs/configuration.md) and the site publishes `/.well-known/assetlinks.json`:
 
 - `ARK_ANDROID_APP_ID`: the same package name.
 - `ARK_ANDROID_CERT_SHA256`: the SHA-256 fingerprint of each key the app may be signed with. For an app

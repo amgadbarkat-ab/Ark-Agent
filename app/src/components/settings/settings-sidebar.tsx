@@ -2,6 +2,7 @@ import {
   IconArrowLeft,
   IconCpu,
   IconCreditCard,
+  IconDeviceMobile,
   IconLayoutGrid,
   IconPhone,
   IconPlug,
@@ -78,6 +79,12 @@ const ITEMS: {
     title: tNow("Phone approval"),
     icon: IconPhone,
     linkOptions: { to: "/settings/phone-approval" },
+  },
+  {
+    /* This computer's ArkAgent on a phone (#149): administrators pair; everybody sees their own phones. */
+    title: tNow("Phones"),
+    icon: IconDeviceMobile,
+    linkOptions: { to: "/settings/phones" },
   },
   {
     /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */

@@ -1,0 +1,42 @@
+# Ark Link relay on Cloudflare Workers + Durable Objects (#149). NOT DEPLOYED: needs Amgad's yes.
+#
+# Written by hand: wrangler is not a dependency of this repository. Whoever deploys runs it from
+# outside the repository (for example `bunx wrangler@4 deploy --config infra/ark-link/worker/wrangler.toml`
+# on a machine Amgad has said yes to), with an API token scoped as infra/ark-link/README.md says.
+#
+# Free plan: SQLite-backed Durable Objects only (`new_sqlite_classes`). No R2, KV, Access or Zero
+# Trust: nothing here needs payment details on the account.
+
+name = "ark-link"
+main = "index.ts"
+compatibility_date = "2026-11-01"
+# The domain phones open. Its DNS must be on the same Cloudflare account (a proxied record).
+routes = [{ pattern = "link.blackark.uk", custom_domain = true }]
+workers_dev = false
+
+[vars]
+LINK_ORIGIN = "https://link.blackark.uk"
+# Hashes only, so a plain variable: [{"id":"demo-shop","tokenSha256":"<sha256 of the install token>"}].
+# `LINK_INSTALLS_FILE=./installs.json bun infra/ark-link/installs.ts add <id>` prints the token once and
+# writes its entry to that local file; copy the entry here.
+LINK_INSTALLS = "[]"
+# The store apps, for assetlinks.json and apple-app-site-association; empty until Play and Apple exist.
+ARK_ANDROID_APP_ID = ""
+ARK_ANDROID_CERT_SHA256 = ""
+ARK_IOS_APP_ID = ""
+
+[[durable_objects.bindings]]
+name = "INSTALL"
+class_name = "LinkInstall"
+
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "LinkDirectory"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LinkInstall", "LinkDirectory"]
+
+[observability]
+# Request logs would carry paths; the relay keeps none.
+enabled = false

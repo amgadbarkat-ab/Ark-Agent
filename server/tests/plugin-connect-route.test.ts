@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import {
+  CONNECT_ON_COMPUTER,
+  cameThroughArkLink,
+  markLinkRequest,
+} from "../src/ark-link/marker";
 import type { AppVariables } from "../src/auth/guards";
 import { createPluginRoutes } from "../src/plugins/routes";
 import {
@@ -174,5 +179,35 @@ describe("connecting a vendor this deployment has not added", () => {
     expect(body.error).toBe(
       "Notion has not been added to this deployment yet. An administrator has to add it first.",
     );
+  });
+});
+
+describe("connecting from a phone through Ark Link (#149)", () => {
+  const vendor = () =>
+    app({
+      oauthClientFor: async () => ({ clientId: "c-1", clientSecret: "s" }),
+      ensureOAuthClient: async () => null,
+    });
+
+  test("a request the connector made for a phone starts no sign-in and says to use the computer", async () => {
+    const response = await vendor().request(
+      "http://t/api/plugins/servers/gmail/connect",
+      { method: "POST", headers: markLinkRequest(new Headers(), "dev-1") },
+    );
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: string; code: string };
+    expect(body.code).toBe("connect_on_computer");
+    expect(body.error).toBe(CONNECT_ON_COMPUTER);
+  });
+
+  test("a header a client makes up is not the mark", async () => {
+    const forged = new Headers({ "x-ark-link-proof": "guess" });
+    expect(cameThroughArkLink(forged)).toBe(false);
+    const response = await vendor().request(
+      "http://t/api/plugins/servers/gmail/connect",
+      { method: "POST", headers: forged },
+    );
+    const body = (await response.json()) as { code?: string };
+    expect(body.code).not.toBe("connect_on_computer");
   });
 });

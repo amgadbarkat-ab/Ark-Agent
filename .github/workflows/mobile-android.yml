@@ -16,14 +16,23 @@ on:
     paths:
       - "mobile/android/**"
       - "mobile/scripts/**"
+      - "mobile/tests/**"
+      # The app opens the Ark Link host, and mobile's tests run the relay (#149).
+      - "infra/ark-link/**"
+      - "shared/ark-link.ts"
       - "app/public/manifest.webmanifest"
       - "app/public/icons/icon-192.png"
       - ".github/workflows/mobile-android.yml"
   push:
-    branches: [main]
+    # And the Android feature branches (#149), so the debug build is checked before a PR exists.
+    branches: [main, "claude/android-*"]
     paths:
       - "mobile/android/**"
       - "mobile/scripts/**"
+      - "mobile/tests/**"
+      # The app opens the Ark Link host, and mobile's tests run the relay (#149).
+      - "infra/ark-link/**"
+      - "shared/ark-link.ts"
       - "app/public/manifest.webmanifest"
       - "app/public/icons/icon-192.png"
       - ".github/workflows/mobile-android.yml"
@@ -61,7 +70,8 @@ jobs:
       - name: Prepare against made-up names
         env:
           ARK_ANDROID_APP_ID: test.example.ark
-          ARK_APP_URL: https://ark.example
+          # Shaped like the Ark Link host the real app opens (#149); made up all the same.
+          ARK_APP_URL: https://link.example
           ARK_APP_NAME: Ark Test
           ARK_ANDROID_VERSION_CODE: "1"
         run: bun mobile/scripts/prepare-android.ts

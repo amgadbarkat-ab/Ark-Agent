@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "types": ["bun"] },
+  "include": [".", "../../shared/ark-link.ts", "../../shared/ark-link.test.ts"]
+}

@@ -7,6 +7,11 @@
  * has a default, and a missing or wrong one stops the build here, in a sentence, instead of becoming a
  * Gradle error or an app that opens a browser tab with an address bar.
  *
+ * WHICH SITE (#149). For BlackArk's own app it is the Ark Link host (`https://link.blackark.uk`), not one
+ * customer's site: every customer's desktop is reached through it, the relay there serves the
+ * `assetlinks.json` that vouches for the app, and an unpaired phone lands on its pairing page. A
+ * deployment with a public site of its own can still build an app for that site, as before.
+ *
  * Pure: the environment and the web manifest go in, the checked values come out. `prepare-android.ts`
  * reads the environment and writes the file Gradle reads.
  */
@@ -26,7 +31,7 @@ export type AndroidConfig = {
   applicationId: string;
   /** The home-screen label. */
   appName: string;
-  /** `https://host`, no path. */
+  /** `https://host`, no path: the Ark Link host for BlackArk's app. */
   siteUrl: string;
   siteHost: string;
   themeColor: string;
