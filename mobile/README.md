@@ -93,7 +93,9 @@ is shown its desktop's own app, through the relay. Nothing of the web app is bun
 always shows the version its desktop is running. Apple has no equivalent of Android's Trusted Web
 Activity, so this is a native shell (Capacitor) around a web view.
 
-- **Signing in** happens inside the app, against the desktop's own account. The system-browser hand-off
+- **No sign-in on the phone.** The person signs in on the desktop before pairing; a paired phone acts as
+  the person who confirmed it there, with that person's role. Through Ark Link `/api/auth/*` answers
+  "Sign in on your computer", so the app never shows a sign-in. The system-browser hand-off
   (`/api/auth/native`, `<scheme>://signed-in`) is for a hosted deployment that signs in with Google,
   which refuses a web view; a build registers its scheme only when `ARK_IOS_URL_SCHEME` is given.
 - **Apple does not allow Web Push in a web view.** The app has no notifications yet. They would need

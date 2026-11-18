@@ -147,11 +147,11 @@ relay's pair page, a paired one its own desktop's app through the relay.
 - **The token is kept in the web view's cookie store**, not the Keychain (Capacitor's core has no Keychain
   API). The store is persistent (`WKWebsiteDataStore.default()`), and a cookie the server sets with
   HttpOnly is not under WebKit's seven-day cap on script-written storage.
-- **Signing in:** the person signs in with their ArkAgent account after pairing, on the desktop's own
-  sign-in page, inside the app (the owner's decision of 18 Nov: sign-in on the desktop is required
-  before pairing). A password checked by the desktop works in the web view as it is. Only if that
-  account signs in with Google would the system-browser hand-off below be needed, through the relay's
-  origin; the build registers no return scheme unless `ARK_IOS_URL_SCHEME` is given. The code below is
+- **No sign-in on the phone.** The person signs in on the desktop, which is required before pairing (the
+  owner's decision of 18 Nov). A paired phone then acts as the person who confirmed it there, with that
+  person's role. Google and Microsoft sign-in cannot finish through the relay, so through Ark Link
+  `/api/auth/*` answers "Sign in on your computer", and the iOS app never shows a sign-in. The build
+  registers no return scheme unless `ARK_IOS_URL_SCHEME` is given; the system-browser code below is
   unchanged and still serves a hosted deployment.
 - **Checked against the relay** (claude/android-149, f2dc5ef), as the app's web view sends and keeps
   things: an unpaired load of `/` lands on the relay's pair page; pairing leaves one `ark_link` cookie

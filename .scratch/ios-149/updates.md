@@ -7,8 +7,11 @@ in principle (18 Nov, 06:26); store accounts and signing are on hold until the a
 
 The iOS app is a window. Everything a person sees after pairing comes from **their own desktop**,
 through the relay: screens, wording, translations, fixes, layout. Nothing of the web app is bundled.
-The pair page and the "computer is not connected" page come from **the relay**. The person signs in
-with their ArkAgent account after pairing, on the desktop's own sign-in page, inside the app.
+The pair page and the "computer is not connected" page come from **the relay**. There is no sign-in on
+the phone: the person signs in with their ArkAgent account on the desktop, before pairing, and a paired
+phone acts as the person who confirmed it there, with that person's role. Through Ark Link
+`/api/auth/*` answers "Sign in on your computer", so no update of the shell ever needs to carry a
+sign-in.
 
 So there are three things that update, on three schedules:
 
