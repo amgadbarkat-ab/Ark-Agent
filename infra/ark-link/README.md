@@ -145,7 +145,7 @@ Other commands: `./deploy.sh installs | remove-install <id> | status | logs | re
 ## Test (on any machine with Bun)
 
 ```bash
-bun test infra/ark-link shared/ark-link.test.ts          # the relay, and the contract
+bun test infra/ark-link shared/ark-link.test.ts          # both relays (Bun, and Workers over stand-ins), and the contract
 bun test server/tests/ark-link-end-to-end.test.ts        # relay + stand-in desktop + fetch as the phone
 bun test server/tests/ark-link.integration.test.ts       # Settings → Phones routes (TEST_DATABASE_URL)
 ```
@@ -184,8 +184,9 @@ routing by device id and carries only ciphertext.
 
 ## What it needs from a host
 
-Decided (Amgad, 18 Nov): an **Oracle Always Free VM in an EU region**, with Ark Link, the phone relay and
-the Control Board in Docker behind **one Caddy**. This directory follows `infra/phone-relay/`: a plain
+For a VM (the Oracle plan of 18 Nov morning was dropped at 10:56; see "On Cloudflare Workers" for the
+proposal now on the table): Ark Link, the phone relay and the Control Board in Docker behind **one
+Caddy**. This directory follows `infra/phone-relay/`: a plain
 Bun service, a Dockerfile, and a compose service (`relay`) that can join that shared compose file (build
 context the repository root, `infra/ark-link/Dockerfile`, `./data` mounted at `/data`, port 8080 inside)
 or run beside it with its own Caddy as here. In a shared Caddyfile it is one more site block:
@@ -208,3 +209,83 @@ or run beside it with its own Caddy as here. In a shared Caddyfile it is one mor
   send their device list again, a pairing in progress is simply started again, and an open phone page
   reloads. No database.
 - **One process per host**, because desktops' sockets and the pairing codes are in its memory.
+
+## On Cloudflare Workers + Durable Objects (`worker/`)
+
+Oracle was dropped (its sign-up needs a credit card, Amgad 18 Nov 10:56). PE proposes Workers + Durable
+Objects on the **Free plan** for Ark Link; **not decided, not deployed**. Both relays exist and are
+tested: the Bun one (this directory, Docker) and the Workers one (`worker/`). They share the logic:
+`desk-link.ts` (one desktop's streams), `directory.ts` (routes and pairings) and `edge.ts` (the relay's
+own paths). The platform parts are thin:
+
+| Part | Bun | Workers |
+|---|---|---|
+| Desktop's socket | `Bun.serve` WebSocket, in memory | one **Install** Durable Object per install, socket held with the **Hibernation API** |
+| Phone requests | in-process | the Worker finds the install by the token's hash (asks the **Directory** object, caches 30 s), then the install object streams the request and answer through |
+| Phone sockets | `server.upgrade` | `WebSocketPair` accepted by the install object, stream id in the socket's attachment, so it survives hibernation |
+| Routes, codes, pairings | maps + `data/devices.json` | the **Directory** object's SQLite (SQLite-backed objects are the only kind on Free) |
+| Heartbeat | answered in-process | `{"t":"beat"}` answered by the runtime's auto-response: an idle desktop never wakes its object |
+| Installs | `data/installs.json` | `LINK_INSTALLS` variable (hashes only) |
+| Expiry | a 30 s timer | the Directory's alarm, once a minute while codes or pairings exist |
+
+No `wrangler` or `@cloudflare/workers-types` in the repository: `worker/types.ts` declares the few
+types used, and `worker/wrangler.toml` is written by hand. No R2, KV, Access or Zero Trust (those need
+payment details on the account). Tests: `bun test infra/ark-link/worker` runs the real connector against
+the Worker and both objects over stand-ins (`worker/stand-ins.ts`: namespaces, state with
+`bun:sqlite`, accepted sockets with tags and attachments, auto-response, eviction as hibernation).
+
+### Free plan, as Cloudflare's pages say (read 18 Nov 2026)
+
+Workers: 100,000 requests a day; 10 ms CPU per request; 50 subrequests; 128 MB. Durable Objects on Free:
+SQLite backend only; 100,000 requests a day; 13,000 GB-s of duration a day; incoming WebSocket messages
+billed 20 to 1 (outgoing free); auto-responses not billed and not woken; idle hibernating objects accrue
+no duration; SQLite 5 million rows read and 100,000 written a day, 5 GB stored. Limits reset 00:00 UTC;
+over a limit, that kind of operation **fails** until then (an outage, not a bill).
+
+### What Ark Link would use
+
+Per phone request: 1 Worker request, 1 Durable Object request (the install), the directory at most once
+per 30 s per isolate, and the desktop's answer as incoming messages (head, body frames, end: about 3,
+so 0.15 of a request). A streamed chat reply is one frame per chunk the desktop's server writes: say 500
+frames, 25 requests.
+
+| Usage | Workers requests | DO requests | DO duration |
+|---|---|---|---|
+| One phone, one hour of active use (≈400 requests: page loads, the 15 s polls, 20 chat replies) | ≈400 | ≈1,100 | ≈230 GB-s (awake about half the hour, 128 MB) |
+| **First test: 3 desktops, 3 phones, an hour a day each** | ≈1,200 (1.2 %) | ≈3,300 (3.3 %) | ≈700 GB-s (5 %) |
+| An idle desktop, all day | 0 | 0 (heartbeats are auto-responses) | 0 |
+| The Free ceiling | | ≈90 active phone-hours a day | ≈55 active phone-hours a day |
+
+So the first test uses a few percent of the day. Roughly 50 active phone-hours a day is where Free
+stops.
+
+### What does not fit, or fits awkwardly
+
+- **More than about 50 active phone-hours a day**, mostly from streamed chat replies (frame count).
+  Over it, requests fail until 00:00 UTC. Workers Paid lifts it.
+- **Rate limits per address and per device** live in an isolate's or an object's memory, so they are
+  approximate (per isolate, reset on eviction). The desktop still checks every token.
+- **A deploy drops every socket.** Desktops reconnect on their own; a pairing in progress starts again.
+  The directory's "connected" row can be stale until that desktop reconnects (a claim then waits and
+  expires).
+- **No logs.** Observability is off on purpose; nothing about traffic is kept.
+
+### Token scopes COO needs to create (for `wrangler deploy`, not stored here)
+
+One API token, from the "Edit Cloudflare Workers" template, narrowed to:
+
+- Account → **Workers Scripts: Edit** (the script and its Durable Object classes)
+- Account → **Account Settings: Read**
+- Zone `blackark.uk` → **Workers Routes: Edit** and **DNS: Edit** (the `link.blackark.uk` custom domain)
+- User → **User Details: Read** and **Memberships: Read** (wrangler checks who it is)
+
+No R2, KV, D1, Access, Zero Trust or Pages scopes. Check the template's current names before
+creating it.
+
+### The phone relay on Workers Free (estimate only, not built)
+
+A call's media socket carries about 50 messages a second from Twilio, and the install sends about as
+many back: about 100 incoming messages a second, so about 300 Durable Object requests a call-minute.
+100,000 a day is therefore about **5.5 call-hours a day** on Free; duration (128 MB awake for the
+call) would allow about 28. It fits a pilot, not a shop's phone line. Twilio's signature check and the
+billing calls fit the CPU limit; the SMTP alert would need `cloudflare:sockets`.
