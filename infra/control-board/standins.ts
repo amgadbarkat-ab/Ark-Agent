@@ -34,6 +34,11 @@ export function demoExport(now: number): CheckinExport {
         firstSeen: ago(10 * DAY),
         lastSeen: ago(1 * HOUR),
         checkins: 10,
+        people: 4,
+        activePeople7d: 3,
+        conversations7d: 27,
+        phoneLine: false,
+        os: "windows",
       },
       {
         customerId: "demo-clinic",

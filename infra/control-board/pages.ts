@@ -396,10 +396,10 @@ export function customerPage(
 </dl>
 <h2>${t(l, "Installs")}</h2>
 <div class="scroll"><table>
-<thead><tr><th>${t(l, "Install")}</th><th>${t(l, "Version")}</th><th>${t(l, "Status")}</th><th>${t(l, "Days left")}</th><th>${t(l, "Trial employees")}</th><th>${t(l, "Proof")}</th><th>${t(l, "First seen")}</th><th>${t(l, "Last seen")}</th><th>${t(l, "Check-ins")}</th></tr></thead>
+<thead><tr><th>${t(l, "Install")}</th><th>${t(l, "Version")}</th><th>${t(l, "Status")}</th><th>${t(l, "Days left")}</th><th>${t(l, "Trial employees")}</th><th>${t(l, "People")}</th><th>${t(l, "Active in 7 days")}</th><th>${t(l, "Conversations in 7 days")}</th><th>${t(l, "Phone line")}</th><th>${t(l, "System")}</th><th>${t(l, "Proof")}</th><th>${t(l, "First seen")}</th><th>${t(l, "Last seen")}</th><th>${t(l, "Check-ins")}</th></tr></thead>
 <tbody>${row.installs.map(
         (install) =>
-          html`<tr><td><code>${shortId(install)}</code></td><td>${install.version}</td><td>${statusWord(l, install.status)}</td><td>${install.daysLeft}</td><td>${install.employees ?? "–"}</td><td>${install.verified ? t(l, "verified") : t(l, "unverified")}</td><td>${when(l, install.firstSeen)}</td><td>${when(l, install.lastSeen)}</td><td>${install.checkins}</td></tr>`,
+          html`<tr><td><code>${shortId(install)}</code></td><td>${install.version}</td><td>${statusWord(l, install.status)}</td><td>${install.daysLeft}</td><td>${install.employees ?? "–"}</td><td>${install.people ?? "–"}</td><td>${install.activePeople7d ?? "–"}</td><td>${install.conversations7d ?? "–"}</td><td>${install.phoneLine == null ? "–" : t(l, install.phoneLine ? "yes" : "no")}</td><td>${install.os ?? "–"}</td><td>${install.verified ? t(l, "verified") : t(l, "unverified")}</td><td>${when(l, install.firstSeen)}</td><td>${when(l, install.lastSeen)}</td><td>${install.checkins}</td></tr>`,
       )}</tbody></table></div>`
     : html`<p>${t(l, "No check-in data for this customer.")}</p>`;
   return layout(

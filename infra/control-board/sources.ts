@@ -25,6 +25,12 @@ export type Install = {
   firstSeen: string;
   lastSeen: string;
   checkins: number;
+  /** Counts from v0.1.49 (never a name): absent or null for older installs. */
+  people?: number | null;
+  activePeople7d?: number | null;
+  conversations7d?: number | null;
+  phoneLine?: boolean | null;
+  os?: "windows" | "macos" | "linux" | null;
 };
 
 export type Licence = {

@@ -15,7 +15,8 @@
  * "<time>.<the request's nonce>.<answer>"), so the board knows it came from here, for its request:
  *   installs  per install: customer id, random install id, version, trial/ended/paid, days left,
  *             end date, the trial employee count, whether the proof was verified, first and last
- *             check-in, and the number of check-ins;
+ *             check-in, the number of check-ins, and (from v0.1.49) the counts: people, people
+ *             active in 7 days, conversations in 7 days, phone line yes/no, and the system;
  *   licences  per subscription: customer id, plan, seats, add-ons, active/canceled, period end,
  *             valid until, updated;
  *   phone     per customer: the balance in mils, its state (ok/low/empty), whether automatic
@@ -80,7 +81,7 @@ if ($take->rowCount() === 0) {
 }
 
 $installs = [];
-foreach ($db->query('SELECT customer_id, install_id, version, status, days_left, ends_at, employees, verified, first_seen, last_seen, checkins FROM installs ORDER BY customer_id, last_seen DESC LIMIT 5000') as $row) {
+foreach ($db->query('SELECT customer_id, install_id, version, status, days_left, ends_at, employees, verified, first_seen, last_seen, checkins, people, active_people_7d, conversations_7d, phone_line, os FROM installs ORDER BY customer_id, last_seen DESC LIMIT 5000') as $row) {
     $installs[] = [
         'customerId' => (string) $row['customer_id'],
         'installId' => (string) $row['install_id'],
@@ -93,6 +94,11 @@ foreach ($db->query('SELECT customer_id, install_id, version, status, days_left,
         'firstSeen' => (string) $row['first_seen'],
         'lastSeen' => (string) $row['last_seen'],
         'checkins' => (int) $row['checkins'],
+        'people' => $row['people'] === null ? null : (int) $row['people'],
+        'activePeople7d' => $row['active_people_7d'] === null ? null : (int) $row['active_people_7d'],
+        'conversations7d' => $row['conversations_7d'] === null ? null : (int) $row['conversations_7d'],
+        'phoneLine' => $row['phone_line'] === null ? null : (int) $row['phone_line'] === 1,
+        'os' => $row['os'] === null ? null : (string) $row['os'],
     ];
 }
 

@@ -186,6 +186,35 @@ describe("Customers", () => {
     });
   });
 
+  test("an install's counts (v0.1.49) show on the customer's page; an older install shows dashes", async () => {
+    const { browser } = await signedIn();
+    const bakery = (await browser.get("/customers/demo-bakery")).text;
+    expect(row(bakery, "aaaa1111")).toEqual([
+      "aaaa1111",
+      "0.1.48",
+      "trial",
+      "20",
+      "3",
+      "4",
+      "3",
+      "27",
+      "no",
+      "windows",
+      "verified",
+      "08/11/2026 12:00",
+      "18/11/2026 11:00",
+      "10",
+    ]);
+    const shop = (await browser.get("/customers/demo-shop")).text;
+    expect(row(shop, "cccc4444").slice(5, 10)).toEqual([
+      "–",
+      "–",
+      "–",
+      "–",
+      "–",
+    ]);
+  });
+
   test("an unknown customer has an empty page; a malformed id is not found", async () => {
     const { browser } = await signedIn();
     const unknown = await browser.get("/customers/demo-nobody");

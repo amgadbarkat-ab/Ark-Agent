@@ -75,4 +75,13 @@ return [
     // characters, the same as CHECKIN_EXPORT_SECRET on the board. Never the same as relay_secret.
     // Make it with: php -r 'echo bin2hex(random_bytes(32));'   Empty: the export answers 503.
     'export_secret' => '',
+
+    // ---- Help & support from the app (#149) -----------------------------------------------------
+    // Where checkin/support/ forwards a checked request: the Control Board's intake, through
+    // Cloudflare Tunnel (Access lets this one path through; it is signed instead).
+    'intake_url' => 'https://board.blackark.uk/intake/app',
+    // The secret it signs with: 32+ random characters, the same as INTAKE_SECRET on the board.
+    // Make it with: php -r 'echo bin2hex(random_bytes(32));'   Empty: Help & support answers 503
+    // and the app keeps the request until it is set.
+    'intake_secret' => '',
 ];
