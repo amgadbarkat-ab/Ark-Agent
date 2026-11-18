@@ -131,7 +131,12 @@ export function PageShell({
               aria-hidden="true"
               className="mb-1 h-1 w-9 rounded-full bg-[image:var(--ember-gradient)]"
             />
-            <div className="flex flex-row items-center justify-between gap-4">
+            {/*
+             * Wraps on a phone (#149): the Digital Team screen's three actions did not fit beside its
+             * title at 390px and the last one was cut off at the window's edge. Wrapped, the actions go
+             * under the title; on a wider window nothing moves.
+             */}
+            <div className="flex flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <h1 className="font-bold text-2xl tracking-tight">{title}</h1>
               {action}
             </div>
