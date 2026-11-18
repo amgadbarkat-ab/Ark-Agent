@@ -132,7 +132,9 @@ export function ApprovalItem({
       <ItemContent>
         <ItemTitle>
           {row.requestedBy.name ?? t("A digital employee")}
-          {row.target?.name ? ` · for ${row.target.name}` : ""}
+          {row.target?.name
+            ? ` · ${t("requests.for", { name: row.target.name })}`
+            : ""}
         </ItemTitle>
         <ItemDescription className="text-xs">
           {t(kindWords(row.kind))}

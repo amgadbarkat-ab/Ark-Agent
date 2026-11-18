@@ -10,6 +10,7 @@ import {
 import { cleanup, render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApprovalsList } from "@/components/approvals/approvals-list";
+import { setLanguage } from "@/lib/i18n";
 
 /**
  * The person's "Needs you" list: everything waiting on them, in one place.
@@ -159,4 +160,17 @@ test("with nothing waiting it says so, and offers no buttons", async () => {
   const view = draw();
   expect(await view.findByText("Nothing is waiting for you")).toBeTruthy();
   expect(view.queryByRole("button", { name: "Approve" })).toBeNull();
+});
+
+test("in Greek the request says for whom in Greek too, not half in English", async () => {
+  setLanguage("el");
+  try {
+    serve([pending]);
+    const view = draw();
+    expect(await view.findByText("Ana · για Ben")).toBeTruthy();
+    expect(view.queryByText(/ for Ben/)).toBeNull();
+    expect(view.getByRole("button", { name: "Έγκριση" })).toBeTruthy();
+  } finally {
+    setLanguage("en");
+  }
 });
