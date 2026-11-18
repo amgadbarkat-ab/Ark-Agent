@@ -1,0 +1,21 @@
+# The board on the phone relay's VPS. It has no Caddy of its own: the relay's Caddy, which holds
+# ports 80 and 443, serves it too, once the site in Caddyfile.board is added to the relay's
+# Caddyfile (README, "Deploy"). The board is reachable only on the relay's Docker network.
+services:
+  board:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    expose:
+      - "8080"
+    networks:
+      edge:
+        aliases:
+          - board
+networks:
+  edge:
+    # The default network of the relay's compose project (the folder infra/phone-relay).
+    name: phone-relay_default
+    external: true

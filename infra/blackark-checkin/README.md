@@ -244,3 +244,37 @@ Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
 
 - **Adding a language:** a new text is added to `phone-emails.php` in a pull request, and is used only after Amgad's yes on that text.
 - **Switching it on:** it is off (`'phone_low_email' => false`) until Amgad's yes at deploy. The app's notice works without it.
+
+## The Control Board's export (#149, not deployed)
+
+A read-only endpoint for the BlackArk Control Board (`infra/control-board/`). It changes nothing.
+Upload it only with Amgad's yes on this exact build, as before.
+
+**Endpoint:** `…/checkin/export/`, POST only.
+
+**Signing, both ways**, with `'export_secret'` in `config.php`, a separate secret from `relay_secret`:
+- **The request:**
+  - `X-Ark-Time`: the Unix time, accepted within 5 minutes;
+  - `X-Ark-Nonce`: new for each request;
+  - `X-Ark-Signature`: HMAC-SHA256 of `<time>.<nonce>.<body>`.
+- **Replays:** each nonce is taken once, so the same request sent again is refused (409).
+- **The answer** is signed the same way over `<time>.<nonce>.<answer>`, so the board knows it came from here, for its own request.
+
+**What it returns:**
+- **installs:** the check-in rows;
+- **licences:** plan, seats, add-ons, active or canceled, period end;
+- **phone:** each balance and its state;
+- **ledger:** the last 90 days of credits and charges.
+
+**Never in it:**
+- an IP address (none is kept);
+- a name, an email or a billing country;
+- a licence key or a Stripe id;
+- a ledger reference (a Twilio call id).
+
+**Setup, once, after Amgad's yes:**
+1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
+2. Put it in `'export_secret'` in `config.php`.
+3. Type the same secret at the board's hidden prompt (`./deploy.sh checkin`, in `infra/control-board/`).
+
+Until then the export answers 503.

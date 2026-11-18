@@ -56,6 +56,7 @@ return [
   'stripe_api_base' => 'http://127.0.0.1:18766/fakestripe',
   'stripe_buy' => ['plan' => 'price_team', 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
+  'export_secret' => 'export-secret-for-tests-0123456789abcdef',
   // On here only, to test it; written to a folder instead of sent.
   'phone_low_email' => true,
   'phone_low_email_reply_to' => 'general@blackark.example',
@@ -257,6 +258,50 @@ relay_call "$gulfcall" >/dev/null
 eml="$work/outbox/demo-gulf.eml"
 [[ "$(subject "$eml")" == "ArkAgent: less than one hour of phone time left" ]] && decoded "$eml" | head -1 | grep -q '^Dear customer,' && ! decoded "$eml" | grep -q 'Αγαπητέ' \
   && { pass=$((pass+1)); echo "ok   a GCC customer (AE) gets the English text only"; } || { fail=$((fail+1)); echo "FAIL GCC email: $(subject "$eml") / $(decoded "$eml" | head -3)"; }
+
+# The Control Board's read-only export (#149): signed both ways, each request taken once, nothing
+# personal in it.
+export_url="http://127.0.0.1:$port/checkin/export/"
+export_secret='export-secret-for-tests-0123456789abcdef'
+sign_export() { php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2] . "." . $argv[3], $argv[4]);' "$1" "$2" "$3" "$export_secret"; }
+want='{"want":"export"}'
+export_call() { # time nonce signature -> headers in $work/export.h, body in $work/export.b; prints the status
+  curl -s -D "$work/export.h" -o "$work/export.b" -w '%{http_code}' -X POST -H 'content-type: application/json' \
+    -H "x-ark-time: $1" -H "x-ark-nonce: $2" -H "x-ark-signature: $3" --data "$want" "$export_url"
+}
+expect "the export refuses GET" 405 "$export_url"
+expect "the export refuses an unsigned request" 403 -X POST --data "$want" "$export_url"
+t="$(date +%s)"; n="nonce-$(php -r 'echo bin2hex(random_bytes(8));')"
+[[ "$(export_call "$t" "$n" "$(sign_export "$t" "$n" '{"want":"other"}')")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   the export refuses a signature over another body"; } || { fail=$((fail+1)); echo "FAIL export bad signature"; }
+[[ "$(export_call "$t" "$n" "$(php -r 'echo hash_hmac("sha256", $argv[1], "not-the-export-secret-0123456789abcdef");' "$t.$n.$want")")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   the export refuses a request signed with another secret"; } || { fail=$((fail+1)); echo "FAIL export wrong secret"; }
+old=$(( $(date +%s) - 600 ))
+[[ "$(export_call "$old" "$n" "$(sign_export "$old" "$n" "$want")")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   the export refuses a signed request 10 minutes old"; } || { fail=$((fail+1)); echo "FAIL export stale"; }
+got="$(export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")")"
+answered_at="$(grep -i '^x-ark-time:' "$work/export.h" | tr -d '\r' | awk '{print $2}')"
+answer_sig="$(grep -i '^x-ark-signature:' "$work/export.h" | tr -d '\r' | awk '{print $2}')"
+[[ "$got" == 200 && "$answer_sig" == "$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2] . "." . file_get_contents($argv[3]), $argv[4]);' "$answered_at" "$n" "$work/export.b" "$export_secret")" ]] \
+  && { pass=$((pass+1)); echo "ok   a signed request gets the export, and the answer is signed for its nonce"; } || { fail=$((fail+1)); echo "FAIL export good: $got $(head -c 300 "$work/export.b")"; }
+summary="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); $b = []; foreach ($d["phone"] as $p) { $b[$p["customerId"]] = $p["balanceMils"] . "/" . $p["state"]; } $i = array_filter($d["installs"], fn($r) => $r["customerId"] === "demo-shop"); echo count($i), " ", $b["demo-phone"] ?? "-", " ", count($d["ledger"]) > 0 ? "ledger" : "none"; foreach ($d["licences"] as $l) { if ($l["customerId"] === "demo-shop") { echo " ", $l["status"], ":", $l["plan"], ":", implode("+", $l["addons"]); } }' "$work/export.b")"
+[[ "$summary" == "2 23400/ok ledger canceled:team:phone" ]] \
+  && { pass=$((pass+1)); echo "ok   the export carries installs, phone balances with their state, the ledger and licences"; } || { fail=$((fail+1)); echo "FAIL export content: $summary"; }
+! grep -q -e 'owner@shop.example' -e 'owner@gulf.example' -e 'ARK1-' -e 'cus_' -e 'sub_' -e 'cs_test' -e '"CA0' -e '"GR"' -e '"AE"' -e '127.0.0.1' "$work/export.b" \
+  && { pass=$((pass+1)); echo "ok   the export has no email, country, licence key, Stripe id, call id or IP"; } || { fail=$((fail+1)); echo "FAIL export leaks: $(grep -o -e 'owner@[a-z.]*' -e 'ARK1-.\{8\}' -e 'cus_[0-9]*' -e 'sub_[0-9]*' "$work/export.b" | head -3)"; }
+[[ "$(export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")")" == 409 ]] \
+  && { pass=$((pass+1)); echo "ok   the same signed request sent again is refused (replay)"; } || { fail=$((fail+1)); echo "FAIL export replay"; }
+cat > "$repo/.checkin-export.ts" <<'TS'
+import { checkinExport } from "./infra/control-board/sources";
+const [url, secret] = process.argv.slice(2);
+const data = await checkinExport({ url, secret }).load();
+console.log(`${data.installs.length} ${data.phone.length}`);
+const bad = await checkinExport({ url, secret: "a-different-secret-0123456789abcdefgh" }).load().then(() => "read", (e: Error) => e.message);
+console.log(bad);
+TS
+board="$(cd "$repo" && bun .checkin-export.ts "$export_url" "$export_secret" 2>&1)"; rm -f "$repo/.checkin-export.ts"
+[[ "$(head -1 <<<"$board")" =~ ^[0-9]+\ [1-9][0-9]*$ && "$(tail -1 <<<"$board")" == "The check-in export answered 403." ]] \
+  && { pass=$((pass+1)); echo "ok   the Control Board's own client reads the export, and is refused with a wrong secret"; } || { fail=$((fail+1)); echo "FAIL board client: $board"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

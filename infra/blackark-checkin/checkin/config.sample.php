@@ -69,4 +69,10 @@ return [
     'phone_low_email' => false,
     'phone_low_email_from' => 'no-reply@blackark.uk',
     'phone_low_email_reply_to' => 'General@blackark.uk',
+
+    // ---- The Control Board's read-only export (#149) -------------------------------------------
+    // The secret the board signs its export requests with, and this server its answers: 32+ random
+    // characters, the same as CHECKIN_EXPORT_SECRET on the board. Never the same as relay_secret.
+    // Make it with: php -r 'echo bin2hex(random_bytes(32));'   Empty: the export answers 503.
+    'export_secret' => '',
 ];
