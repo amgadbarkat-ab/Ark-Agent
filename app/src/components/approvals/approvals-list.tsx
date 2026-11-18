@@ -141,7 +141,9 @@ export function ApprovalItem({
           {sentenceNow(row.summary)}
         </ItemDescription>
         {row.details?.length ? (
-          <dl className="mt-1 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-4 gap-y-1 text-sm">
+          // On a phone each label sits above its value: side by side, a 9rem label column leaves
+          // an email body a few words wide.
+          <dl className="mt-1 grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[minmax(0,9rem)_1fr]">
             {row.details.map((detail, index) => (
               <div
                 className="contents"
@@ -180,8 +182,14 @@ export function ApprovalItem({
         </ItemDescription>
       </ItemContent>
       {row.status === "pending" ? (
-        <ItemActions>
+        /*
+         * On a phone the two answers take their own full-width row under the request, at a size a
+         * thumb can hit (44px, Apple's minimum), instead of squeezing the request into a column
+         * beside them.
+         */
+        <ItemActions className="max-sm:w-full">
           <Button
+            className="max-sm:h-11 max-sm:flex-1"
             disabled={deciding}
             onClick={() => onDecide("reject")}
             size="sm"
@@ -190,6 +198,7 @@ export function ApprovalItem({
             {t("requests.decline")}
           </Button>
           <Button
+            className="max-sm:h-11 max-sm:flex-1"
             disabled={deciding}
             onClick={() => onDecide("approve")}
             size="sm"
