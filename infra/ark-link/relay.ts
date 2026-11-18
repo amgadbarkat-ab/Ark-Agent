@@ -949,6 +949,9 @@ export function createLinkRelay(config: LinkRelayConfig) {
           v: ARK_LINK_PROTOCOL_VERSION,
           installId: data.installId,
           linkOrigin,
+          ...(config.apps?.android
+            ? { androidPackage: config.apps.android.appId }
+            : {}),
         });
         record({ type: "desk.connected", install: data.installId });
         return;

@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import { createLinkRelay } from "../../infra/ark-link/relay";
 import { newInstallToken, tokenHash } from "../../shared/ark-link";
 import { createArkLinkRoutes } from "../src/ark-link/routes";
-import { createArkLinkService } from "../src/ark-link/service";
+import { createArkLinkService, NEEDS_SIGN_IN } from "../src/ark-link/service";
 import type { AuditEventInput } from "../src/audit";
 import type { AppVariables } from "../src/auth/guards";
 import { createCredentialStore } from "../src/credentials";
@@ -47,29 +47,43 @@ const service = createArkLinkService(database, {
   encryptionKey: Buffer.alloc(32, 9).toString("base64"),
   auditStore: { insert: async (event) => void events.push(event) },
   localOrigin: `http://127.0.0.1:${localApp.port}`,
-  noSignIn: true,
+  noSignIn: false,
   allowInsecureRelay: true,
   skipLock: true,
 });
 service.start();
 
-const app = new Hono<{ Variables: AppVariables }>();
-app.route(
-  "/api/ark-link",
-  createArkLinkRoutes({
-    arkLink: service,
-    requireUser: async (context, next) => {
-      context.set("actor", {
-        id: adminId,
-        role: context.req.header("x-role") === "member" ? "member" : "admin",
-      } as AppVariables["actor"]);
-      await next();
-    },
-  }),
-);
+/** The app's routes over `arkLink`, signed in as the `x-role` header says, or not at all. */
+function appFor(arkLink: typeof service) {
+  const routes = new Hono<{ Variables: AppVariables }>();
+  routes.route(
+    "/api/ark-link",
+    createArkLinkRoutes({
+      arkLink,
+      requireUser: async (context, next) => {
+        const role = context.req.header("x-role");
+        if (role === "anonymous")
+          return context.json({ error: "Sign in first." }, 401);
+        context.set("actor", {
+          id: adminId,
+          role: role === "member" ? "member" : "admin",
+        } as AppVariables["actor"]);
+        await next();
+      },
+    }),
+  );
+  return routes;
+}
+const app = appFor(service);
 
-const call = (method: string, path: string, body?: unknown, role = "admin") =>
-  app.request(`/api/ark-link${path === "/" ? "" : path}`, {
+const call = (
+  method: string,
+  path: string,
+  body?: unknown,
+  role = "admin",
+  on = app,
+) =>
+  on.request(`/api/ark-link${path === "/" ? "" : path}`, {
     method,
     headers: { "content-type": "application/json", "x-role": role },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -130,7 +144,7 @@ describe("Settings → Phones (#149)", () => {
       enabled: false,
       status: "off",
       devices: [],
-      noSignIn: true,
+      noSignIn: false,
     });
     expect(relay.connected).toEqual([]);
   });
@@ -197,6 +211,22 @@ describe("Settings → Phones (#149)", () => {
         ).json()
       ).status,
     ).toBe("pending");
+
+    // Only a signed-in administrator confirms (Amgad, 18 Nov): not a member, not nobody.
+    for (const [role, status] of [
+      ["member", 403],
+      ["anonymous", 401],
+    ] as const)
+      expect(
+        (
+          await call(
+            "POST",
+            `/pairing/${claim.pairingId}/confirm`,
+            { deviceName: "Intruder" },
+            role,
+          )
+        ).status,
+      ).toBe(status);
 
     const confirmed = await call(
       "POST",
@@ -289,5 +319,64 @@ describe("Settings → Phones (#149)", () => {
     expect(saved.status).toBe(200);
     await until(() => relay.connected.length === 0);
     expect((await call("POST", "/pairing")).status).toBe(409);
+  });
+});
+
+describe("an install with no sign-in (Amgad, 18 Nov: option b)", () => {
+  const noSignIn = createArkLinkService(database, {
+    credentials: createCredentialStore(database),
+    encryptionKey: Buffer.alloc(32, 9).toString("base64"),
+    auditStore: { insert: async (event) => void events.push(event) },
+    localOrigin: `http://127.0.0.1:${localApp.port}`,
+    noSignIn: true,
+    allowInsecureRelay: true,
+    skipLock: true,
+  });
+  const single = appFor(noSignIn);
+  afterAll(() => noSignIn.stop());
+
+  test("cannot switch phone access on, and says sign-in comes first", async () => {
+    const saved = await call(
+      "PUT",
+      "/",
+      { relayUrl: relayBase, installToken, enabled: true },
+      "admin",
+      single,
+    );
+    expect(saved.status).toBe(400);
+    expect((await saved.json()).error).toBe(NEEDS_SIGN_IN);
+    const view = await (
+      await call("GET", "/", undefined, "admin", single)
+    ).json();
+    expect(view.noSignIn).toBe(true);
+    expect(view.status).toBe("off");
+  });
+
+  test("cannot start or confirm a pairing", async () => {
+    const started = await call("POST", "/pairing", undefined, "admin", single);
+    expect(started.status).toBe(409);
+    expect((await started.json()).error).toBe(NEEDS_SIGN_IN);
+    const confirmed = await call(
+      "POST",
+      "/pairing/someone/confirm",
+      { deviceName: "Phone" },
+      "admin",
+      single,
+    );
+    expect(confirmed.status).toBe(409);
+  });
+
+  test("never connects to the relay, even with Ark Link saved as on", async () => {
+    await service.save(adminId, {
+      relayUrl: relayBase,
+      installToken,
+      enabled: true,
+    });
+    await until(() => relay.connected.length === 1);
+    await service.stop();
+    await until(() => relay.connected.length === 0);
+    noSignIn.start();
+    await Bun.sleep(300);
+    expect(relay.connected).toEqual([]);
   });
 });

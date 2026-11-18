@@ -222,12 +222,13 @@ beforeEach(async () => {
 });
 
 describe("the desktop's socket", () => {
-  test("the desktop is greeted with its install and the link's origin", () => {
+  test("the desktop is greeted with its install, the link's origin and the Android app it vouches for", () => {
     expect(desk.last("hello")).toEqual({
       t: "hello",
       v: 1,
       installId: "demo-shop",
       linkOrigin: "https://link.example",
+      androidPackage: "blackark.arkagent",
     });
   });
 

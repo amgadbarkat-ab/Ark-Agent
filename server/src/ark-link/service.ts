@@ -50,6 +50,14 @@ const USED_EVERY_MS = 60_000;
 
 export class ArkLinkRefusedError extends Error {}
 
+/**
+ * Amgad, 18 Nov 06:40 (option b): a phone can be paired only on an install where people sign in. On
+ * one that runs with no sign-in, every request is its one administrator, so a paired phone would be
+ * that administrator with nothing but a device token in the way.
+ */
+export const NEEDS_SIGN_IN =
+  "Phones can be paired only where people sign in. Switch sign-in on for this install first (Google, Microsoft or your company's directory); then pair a phone here.";
+
 export type ArkLinkInput = {
   relayUrl: string;
   installToken?: string;
@@ -80,7 +88,7 @@ export type ArkLinkView = {
   enabled: boolean;
   status: ConnectorStatus;
   problem: string | null;
-  /** True on a desktop with no sign-in: a paired phone acts as this computer's administrator. */
+  /** True on an install with no sign-in: phones cannot be paired, and Ark Link does not connect. */
   noSignIn: boolean;
   pairing: ArkLinkPairingView | null;
   devices: ArkLinkDeviceView[];
@@ -94,7 +102,7 @@ export function createArkLinkService(
     auditStore: AuditStore;
     /** This server, on this computer, e.g. `http://127.0.0.1:3001`. */
     localOrigin: string;
-    /** Whether this install runs with no sign-in (the desktop's single-user mode). */
+    /** Whether this install runs with no sign-in (`OPENBOT_SINGLE_USER`). Then Ark Link stays off. */
     noSignIn: boolean;
     /** Tests only. */
     allowInsecureRelay?: boolean;
@@ -207,7 +215,7 @@ export function createArkLinkService(
     connector?.stop();
     connector = null;
     pairing = null;
-    if (stopped) return;
+    if (stopped || dependencies.noSignIn) return;
     const row = await load();
     if (!row?.enabled) return;
     if (!(await takeLock())) {
@@ -276,6 +284,8 @@ export function createArkLinkService(
     actorUserId: string,
     input: ArkLinkInput,
   ): Promise<ArkLinkView> {
+    if (input.enabled && dependencies.noSignIn)
+      throw new ArkLinkRefusedError(NEEDS_SIGN_IN);
     if (!deskSocketUrl(input.relayUrl, dependencies.allowInsecureRelay))
       throw new ArkLinkRefusedError(
         "The relay address must be https://<host>, with nothing after it.",
@@ -337,6 +347,7 @@ export function createArkLinkService(
   async function startPairing(
     actorUserId: string,
   ): Promise<ArkLinkPairingView> {
+    if (dependencies.noSignIn) throw new ArkLinkRefusedError(NEEDS_SIGN_IN);
     if (connector?.status !== "connected")
       throw new ArkLinkRefusedError(
         "Phones cannot be paired while the relay is not connected.",
@@ -365,6 +376,7 @@ export function createArkLinkService(
     pairingId: string,
     name: string,
   ): Promise<ArkLinkDeviceView> {
+    if (dependencies.noSignIn) throw new ArkLinkRefusedError(NEEDS_SIGN_IN);
     const claim = livePairing()?.claims.find(
       (entry) => entry.pairingId === pairingId,
     );
@@ -453,6 +465,11 @@ export function createArkLinkService(
   return {
     view,
     save,
+    /**
+     * The Android app the relay vouches for, while connected. `/api/capabilities` names it, so a page
+     * that app opened shows nothing to buy even though this install names no Android app of its own.
+     */
+    androidPackage: (): string | null => connector?.androidPackage ?? null,
     startPairing,
     confirm,
     refuse,

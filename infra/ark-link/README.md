@@ -34,9 +34,17 @@ Settings → Phones (it is off by default).
 and replaces the relay's list. The desktop checks every request against its own list, so a removed
 phone is refused even if the relay is behind.
 
-**Pairing is not sign-in.** Every request still goes through the desktop's own sign-in. A desktop install
-runs with no sign-in (one administrator, `OPENBOT_SINGLE_USER`), so there a paired phone acts as that
-administrator; Settings → Phones says so. See "Open question" below.
+**Pairing is not sign-in.** Every request still goes through the install's own sign-in, and the phone
+signs in with the person's own account. **Pairing needs sign-in** (Amgad, 18 Nov, option b): on an install
+that runs with no sign-in (`OPENBOT_SINGLE_USER=true`, every request its one administrator), Settings →
+Phones says in Greek and English that sign-in must be switched on first, the server refuses to switch
+Ark Link on or to start or confirm a pairing, and the connector never connects. Only a signed-in
+administrator confirms a phone.
+
+**What a phone cannot do through the link:** start a connector's OAuth sign-in (Gmail, Outlook and the
+rest), because the consent returns to the computer's own address. The server tells a phone's request
+from the computer's own by a secret mark the connector adds (`server/src/ark-link/marker.ts`), never by
+anything the phone sends, and answers "Connect this on your computer" instead.
 
 ## What it keeps
 
@@ -81,9 +89,9 @@ When the desktop is off, a paired phone gets a page in Greek and English ("Ο υ
 
 ## Requirements (needs Amgad's yes)
 
-- **A Linux VPS in the EU with Docker and the compose plugin.** The phone relay's kind (1 vCPU, 512 MB)
-  is enough for a few hundred phones. It can share a VPS with the phone relay only behind one Caddy; as
-  written, each has its own Caddy on ports 80 and 443.
+- **A Linux host in the EU with Docker and the compose plugin** (the Oracle Always Free VM; see "What it
+  needs from a host"). Sharing it with the phone relay means one Caddy for both; as written here, the
+  directory also runs on its own with its own Caddy on ports 80 and 443.
 - **A DNS name**, for example an A record `link.blackark.uk`, and ports 80 and 443 open.
 - **Images:** `oven/bun:1.3.14-slim` and `caddy:2.10.2-alpine`. Nothing else is installed.
 - **One copy per host.** State is per process.
@@ -153,10 +161,29 @@ routing by device id and carries only ciphertext.
   phase 2 is an Android app change too (a bundled page, or Capacitor on Android, which 19-mobile.md
   rejected for sign-in and push reasons). That trade-off is the decision to make before building it.
 
-## Open question
+## What it needs from a host
 
-On a desktop install with no sign-in, the device token is the only thing between the internet and that
-computer's administrator. Pairing needs a person at the desktop, tokens are 256-bit and stored hashed,
-removal is immediate and every pairing and removal is audited, but a stolen phone with an open cookie is
-that administrator until removed. A phone PIN, or a sign-in on the desktop, would close it; that is
-PE's and Amgad's call.
+Decided (Amgad, 18 Nov): an **Oracle Always Free VM in an EU region**, with Ark Link, the phone relay and
+the Control Board in Docker behind **one Caddy**. This directory follows `infra/phone-relay/`: a plain
+Bun service, a Dockerfile, and a compose service (`relay`) that can join that shared compose file (build
+context the repository root, `infra/ark-link/Dockerfile`, `./data` mounted at `/data`, port 8080 inside)
+or run beside it with its own Caddy as here. In a shared Caddyfile it is one more site block:
+`link.blackark.uk { reverse_proxy ark-link:8080 { stream_close_delay 5m } }`.
+
+- **Long-lived WebSockets, both ways.** One per connected desktop (outgoing from the desktop, open for
+  days), plus one per open phone screen that uses a socket (the conversation stream). The proxy must not
+  cut idle sockets: the relay pings desktops every 25 s, and the app's own streams beat every 8 s.
+- **Connections.** For the first test: a handful of desktops and phones, so tens of sockets. Planned
+  for: a few hundred desktops, each with up to 32 open requests or sockets per phone. Bun holds tens of
+  thousands of idle sockets on one core.
+- **Memory.** Measured here (`.scratch/android-149/measure-relay.ts`): about 47 MB for Bun at rest,
+  57 MB with 300 desktops connected and 66 MB with 1,000 (both ends of every socket in the one process,
+  so the relay alone is less). Plus what is in flight: bodies pass in 64 KB frames, and the desktop waits
+  when its socket is backed up, but the relay queues an answer for a phone that reads slowly (up to the
+  64 MB response cap per stream; in practice pages and messages are kilobytes). A 256 MB limit is generous for the first
+  year; the phone relay and Caddy fit beside it in 1 GB.
+- **State across restarts.** Only `data/installs.json` and `data/devices.json` (hashes and routing,
+  a few KB). Everything else is rebuilt: desktops reconnect on their own (back-off up to a minute) and
+  send their device list again, a pairing in progress is simply started again, and an open phone page
+  reloads. No database.
+- **One process per host**, because desktops' sockets and the pairing codes are in its memory.

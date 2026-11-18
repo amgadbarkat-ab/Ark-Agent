@@ -2,6 +2,7 @@ import {
   IconArrowLeft,
   IconCpu,
   IconCreditCard,
+  IconDeviceMobile,
   IconLayoutGrid,
   IconPhone,
   IconPlug,
@@ -21,6 +22,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { tNow, useT } from "@/lib/i18n";
 import { phoneSettingsQueryOptions } from "@/lib/phone/queries";
 import { queryClient } from "@/query-client";
@@ -80,6 +82,12 @@ const ITEMS: {
     linkOptions: { to: "/settings/phone-approval" },
   },
   {
+    /* This computer's ArkAgent on a phone, through BlackArk's relay (#149). Administrators only. */
+    title: tNow("Phones"),
+    icon: IconDeviceMobile,
+    linkOptions: { to: "/settings/phones" },
+  },
+  {
     /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */
     title: tNow("Components gallery"),
     icon: IconLayoutGrid,
@@ -97,9 +105,11 @@ export function SettingsSidebar({
     { ...phoneSettingsQueryOptions(), retry: false },
     queryClient,
   );
+  const { data: user } = useQuery(currentUserQueryOptions(), queryClient);
   const items = ITEMS.filter(
     (item) =>
-      item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess,
+      (item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess) &&
+      (item.linkOptions.to !== "/settings/phones" || user?.role === "admin"),
   );
   return (
     <Sidebar {...props}>

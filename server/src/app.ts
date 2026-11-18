@@ -565,7 +565,9 @@ export function createApp(
        * as an `android-app://` referrer, and only the first may hide a way to buy (docs/ark/19-mobile.md).
        * Public already: it is in the store listing and in `/.well-known/assetlinks.json`.
        */
-      androidPackage: config.mobileLinks?.android?.appId ?? null,
+      // Or, on an install phones reach through Ark Link (#149), the app BlackArk's relay vouches for.
+      androidPackage:
+        config.mobileLinks?.android?.appId ?? arkLink?.androidPackage() ?? null,
       /*
        * The address scheme the iOS app is opened by, which is where the system browser sends a person
        * back after signing in. The app builds the address it expects from it. Public: it is in the

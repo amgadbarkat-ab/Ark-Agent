@@ -187,4 +187,14 @@ describe("Ark Link contract", () => {
       ["content-type", "text/html"],
     ]);
   });
+
+  test("the store apps' user agent reaches the desktop, which hides anything to buy on it", () => {
+    for (const userAgent of [
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) ArkStoreApp/ios",
+      "Mozilla/5.0 (Linux; Android 15) Chrome/131.0 Mobile ArkStoreApp/android",
+    ])
+      expect(
+        forwardableRequestHeaders(new Headers({ "user-agent": userAgent })),
+      ).toEqual([["user-agent", userAgent]]);
+  });
 });

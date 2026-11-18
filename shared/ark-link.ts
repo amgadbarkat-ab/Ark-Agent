@@ -25,10 +25,16 @@
  *  4. The phone polls `/_link/pair/status {pairingId}` and, once, receives `{status: "confirmed",
  *     deviceToken}` with the `ark_link` cookie set. The relay then forgets the token and keeps its hash.
  *
- * ROUTING. Every other request to the relay carries `Authorization: ArkLink <deviceToken>` (the iOS
- * shell, scripts) or the `ark_link` cookie (Chrome in the Android app). The relay maps the token's
- * hash to a desktop and forwards the request without that credential. The desktop checks the token
- * again against its own list, so a device removed on the desktop is cut at once.
+ * ROUTING. Every other request to the relay carries the device token, in one of two ways:
+ *  - the `ark_link` cookie, which the relay sets (HttpOnly) when it hands the token over. Both store
+ *    apps rely on it: Chrome in the Android app, and the iOS shell's web view, which cannot add a
+ *    header to every request a page makes;
+ *  - `Authorization: ArkLink <deviceToken>`, for clients that make their own requests (scripts, the
+ *    tests, a native call). The header wins when both are present.
+ * The relay maps the token's hash to a desktop and forwards the request without that credential. The
+ * desktop checks the token again against its own list, so a device removed on the desktop is cut at
+ * once. Everything else the phone sends is passed on, `user-agent` included: the store apps add
+ * `ArkStoreApp/ios` or `ArkStoreApp/android` to it, and the desktop hides anything to buy on seeing it.
  *
  * PAIRING IS NOT SIGN-IN. The desktop's own sign-in still applies to every request (see the decision
  * record, docs/ark/19-mobile.md, for desktops that run with no sign-in).
@@ -278,8 +284,19 @@ export type HeaderList = [string, string][];
 
 /** relay → desktop */
 export type RelayMessage =
-  /** The socket is accepted. `linkOrigin` is the phone-facing origin, e.g. `https://link.blackark.uk`. */
-  | { t: "hello"; v: number; installId: string; linkOrigin: string }
+  /**
+   * The socket is accepted. `linkOrigin` is the phone-facing origin, e.g. `https://link.blackark.uk`.
+   * `androidPackage` is the Android app the relay vouches for in its `assetlinks.json`, when it has one:
+   * the desktop names it in `/api/capabilities`, so a page opened by that app (an `android-app://`
+   * referrer) shows nothing to buy, as the store rules require (docs/ark/19-mobile.md).
+   */
+  | {
+      t: "hello";
+      v: number;
+      installId: string;
+      linkOrigin: string;
+      androidPackage?: string;
+    }
   /**
    * A phone's request. `s` is the stream id, unique on this socket while open. `device` is who sent it,
    * with the token so the desktop can check it against its own list. `ws` asks for a WebSocket, with
@@ -405,6 +422,7 @@ const isCode = (value: unknown): value is number =>
   value >= 1000 &&
   value <= 4999;
 const HEX64 = /^[0-9a-f]{64}$/;
+const ANDROID_PACKAGE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const isId = (value: unknown): value is string =>
   typeof value === "string" && ID.test(value);
@@ -514,6 +532,11 @@ export function decodeRelayMessage(text: string): RelayMessage | null {
             v: m.v,
             installId: m.installId,
             linkOrigin: m.linkOrigin,
+            // Dropped, not refused, when it is not a package name: the rest of the greeting stands.
+            ...(typeof m.androidPackage === "string" &&
+            ANDROID_PACKAGE.test(m.androidPackage)
+              ? { androidPackage: m.androidPackage }
+              : {}),
           }
         : null;
     case "req": {

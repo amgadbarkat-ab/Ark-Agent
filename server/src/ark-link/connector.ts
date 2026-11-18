@@ -27,6 +27,7 @@ import {
   type RelayMessage,
   tokenHash,
 } from "../../../shared/ark-link";
+import { markLinkRequest } from "./marker";
 
 export type ArkLinkDevices = {
   /** Whether this device id is paired here with a token of this SHA-256. */
@@ -125,6 +126,8 @@ export function createArkLinkConnector(options: ConnectorOptions) {
   let stopped = true;
   let status: ConnectorStatus = "off";
   let problem: string | null = null;
+  /** The Android app the relay vouches for, from its greeting. */
+  let androidPackage: string | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let backoff = 1000;
   const locals = new Map<number, Local>();
@@ -189,7 +192,7 @@ export function createArkLinkConnector(options: ConnectorOptions) {
     for (const [name, value] of list) headers.append(name, value);
     headers.set("x-forwarded-host", relayHost);
     headers.set("x-forwarded-proto", "https");
-    return headers;
+    return markLinkRequest(headers);
   }
 
   async function allowed(
@@ -409,6 +412,7 @@ export function createArkLinkConnector(options: ConnectorOptions) {
       case "hello":
         if (message.v !== ARK_LINK_PROTOCOL_VERSION) return;
         backoff = 1000;
+        androidPackage = message.androidPackage ?? null;
         setStatus("connected", null);
         void syncDevices();
         return;
@@ -555,6 +559,10 @@ export function createArkLinkConnector(options: ConnectorOptions) {
     },
     get problem() {
       return problem;
+    },
+    /** The Android app the relay vouches for, once connected; null when it names none. */
+    get androidPackage() {
+      return androidPackage;
     },
     /** Asks the relay for a pairing code. */
     startPairing(

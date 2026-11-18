@@ -17,6 +17,7 @@ import {
   createArkLinkConnector,
   deskSocketUrl,
 } from "../src/ark-link/connector";
+import { cameThroughArkLink } from "../src/ark-link/marker";
 
 const installToken = newInstallToken();
 const relay = createLinkRelay({
@@ -67,6 +68,8 @@ const app = Bun.serve<{ path: string }>({
           ["set-cookie", "b=2; Path=/"],
         ],
       });
+    if (url.pathname === "/marker")
+      return new Response(String(cameThroughArkLink(request.headers)));
     if (url.pathname === "/redirect")
       return new Response(null, {
         status: 302,
@@ -211,6 +214,21 @@ describe("Ark Link, relay to desktop to phone", () => {
     });
     expect(response.headers.get("content-type")).toBe("text/event-stream");
     expect(await response.text()).toBe("one two three");
+  });
+
+  test("the desktop's server can tell a phone's request from its own, whatever the phone sends", async () => {
+    const phone = await pairPhone("Marked phone");
+    const throughLink = await fetch(`${relayBase}/marker`, {
+      headers: {
+        authorization: `ArkLink ${phone.token}`,
+        "x-ark-link-proof": "made-up",
+      },
+    });
+    expect(await throughLink.text()).toBe("true");
+    const onTheComputer = await fetch(`http://127.0.0.1:${app.port}/marker`, {
+      headers: { "x-ark-link-proof": "made-up" },
+    });
+    expect(await onTheComputer.text()).toBe("false");
   });
 
   test("a WebSocket reaches the desktop's server and back", async () => {
