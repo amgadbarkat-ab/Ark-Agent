@@ -153,12 +153,12 @@ relay's pair page, a paired one its own desktop's app through the relay.
   `/api/auth/*` answers "Sign in on your computer", and the iOS app never shows a sign-in. The build
   registers no return scheme unless `ARK_IOS_URL_SCHEME` is given; the system-browser code below is
   unchanged and still serves a hosted deployment.
-- **Checked against the relay** (claude/android-149, f2dc5ef), as the app's web view sends and keeps
+- **Checked against the relay** (claude/android-149, 52e83a2), as the app's web view sends and keeps
   things: an unpaired load of `/` lands on the relay's pair page; pairing leaves one `ark_link` cookie
   (HttpOnly, Secure, SameSite=Lax, 400 days, renewed on page loads); the desktop's app then answers with
   the cookie alone, sees `ArkStoreApp/ios` and never the token; a socket carries the cookie; an offline
-  desktop and a removed phone get the relay's own pages. 8 tests, in `.scratch/ios-149/` until the two
-  branches meet.
+  desktop and a removed phone get the relay's own pages, and nothing signs in. 9 tests, in
+  `.scratch/ios-149/` until the two branches meet.
 - **Updates:** what comes from the desktop updates with the desktop; the shell needs an App Store build
   only when something native changes (`.scratch/ios-149/updates.md`).
 - **When the host cannot be reached** the app shows its own page in Greek and English with "Try again",
@@ -199,6 +199,15 @@ The rest of this section is the hosted-deployment design, which still holds for 
   review. The project compiles (above).
 - **Not in the app yet:** notifications (Apple does not allow Web Push in a web view, so they need APNs and
   a second sending path), an offline page, and links into the site opening the app.
+
+### Later ideas (not built, not planned)
+
+- **Offline AI on the phone, PocketPal-style:** a small model running on the iPhone itself, for when the
+  desktop cannot be reached. To be evaluated only after the apps work (Amgad, 18 Nov 15:05: idea only,
+  no build). It would be the first thing the shell does on its own rather than as a window onto the
+  desktop, so it would need a native model runtime (a new dependency), a model download (size, storage,
+  App Store review of downloaded code and models), and an answer to what it may see of the person's
+  work while the desktop is away.
 
 ## Notifications
 

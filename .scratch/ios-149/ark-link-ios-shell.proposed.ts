@@ -2,7 +2,7 @@
  * PROPOSED for `server/tests/ark-link-ios-shell.test.ts` once `infra/ark-link/` and
  * `server/src/ark-link/` (claude/android-149) are on the same branch as this. Kept here under a name
  * `bun test` does not pick up, because on claude/ios-149 alone its imports do not exist. It passed,
- * 8 of 8, against claude/android-149 at f2dc5ef.
+ * 9 of 9, against claude/android-149 at 52e83a2 (8 of 8 at f2dc5ef).
  *
  * The iOS app through Ark Link (#149), as far as it can be walked without a Mac.
  *
@@ -83,7 +83,7 @@ const connector = createArkLinkConnector({
   localOrigin: `http://127.0.0.1:${app.port}`,
   allowInsecureRelay: true,
   devices: {
-    verify: async (id, hash) => paired.get(id) === hash,
+    verify: async (id, hash) => (paired.get(id) === hash ? "ok" : "refused"),
     list: async () =>
       [...paired].map(([id, tokenSha256]) => ({ id, tokenSha256 })),
     used: () => undefined,
@@ -328,6 +328,15 @@ describe("the iOS app through Ark Link", () => {
     expect(await (await view.navigate("/")).response.text()).toBe(
       "<html>the desktop's app at /</html>",
     );
+  });
+
+  test("the app reached its desktop without signing in anywhere", () => {
+    expect(seen.length).toBeGreaterThan(0);
+    expect(
+      seen.some((request) =>
+        new URL(request.url).pathname.startsWith("/api/auth"),
+      ),
+    ).toBe(false);
   });
 
   test("a phone removed on the desktop is told so, loses the cookie, and is offered pairing again", async () => {
