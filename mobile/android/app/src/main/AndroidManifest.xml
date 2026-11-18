@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  A Trusted Web Activity: Chrome, with no address bar, showing the deployment's own site. There is no
-  code of ours in this app. What it opens, the package it is, and the name under its icon come from the
-  deployment (mobile/android/ark.properties), and Android only drops the address bar once the site
-  vouches for this app at /.well-known/assetlinks.json (docs/ark/19-mobile.md).
+  A Trusted Web Activity: Chrome, with no address bar. There is no code of ours in this app. For
+  BlackArk's app it opens the Ark Link host (#149): an unpaired phone lands on the relay's pairing page,
+  a paired one sees its own desktop's ArkAgent through the relay. What it opens, the package it is, and
+  the name under its icon come from mobile/android/ark.properties, and Android only drops the address
+  bar once the host vouches for this app at /.well-known/assetlinks.json, which the relay serves
+  (docs/ark/19-mobile.md, infra/ark-link/README.md).
 
   Notifications are the site's own Web Push, shown by Chrome. Delegating them to this app (which would
   show them as this app's and ask for the Android 13 permission in the app) is a later improvement and
