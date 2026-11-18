@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { appendAudit, readAudit } from "./audit";
-import { testBoard } from "./test-helpers";
+import { nightly } from "./cron";
+import { type TestBoard, testBoard } from "./test-helpers";
 
-const PASSWORD = "correct horse battery";
-let current: ReturnType<typeof testBoard> | null = null;
+let current: TestBoard | null = null;
 afterEach(() => {
   current?.cleanup();
   current = null;
@@ -12,11 +12,11 @@ afterEach(() => {
 async function signedIn(
   role: "owner" | "admin" | "support" | "read-only" = "support",
 ) {
-  const t = testBoard();
+  const t = await testBoard();
   current = t;
   await t.addAccount("maria", role);
   const browser = t.browser();
-  await browser.signIn("maria", PASSWORD, t.code("maria"));
+  await browser.signIn("maria", t.code("maria"));
   return { t, browser };
 }
 
@@ -58,6 +58,7 @@ describe("Overview", () => {
   test("shows each service up, down or not connected", async () => {
     const { t, browser } = await signedIn();
     t.sources.relayDown = true;
+    await t.refresh();
     const page = (await browser.get("/")).text;
     expect(page).toContain(
       '<span class="tag ok">Up</span> Check-in service (blackark.uk)',
@@ -69,21 +70,22 @@ describe("Overview", () => {
     );
   });
 
-  test("asks the check-in service at most once a minute", async () => {
+  test("pages never ask the sources; only the Cron Trigger does", async () => {
     const { t, browser } = await signedIn();
+    const before = t.sources.checkinCalls;
     await browser.get("/");
     await browser.get("/customers");
     await browser.get("/customers/demo-shop");
-    expect(t.sources.checkinCalls).toBe(1);
-    t.clock.now += 61_000;
-    await browser.get("/");
-    expect(t.sources.checkinCalls).toBe(2);
+    expect(t.sources.checkinCalls).toBe(before);
+    await t.refresh();
+    expect(t.sources.checkinCalls).toBe(before + 1);
   });
 
   test("when the check-in service fails, shows the last data with a warning", async () => {
     const { t, browser } = await signedIn();
     await browser.get("/");
     t.sources.checkinsDown = true;
+    await t.refresh();
     t.clock.now += 61_000;
     const page = (await browser.get("/")).text;
     expect(page).toContain(
@@ -96,12 +98,14 @@ describe("Overview", () => {
   });
 
   test("with no data at all, says so", async () => {
-    const t = testBoard();
+    const t = await testBoard();
     current = t;
+    await t.sql.run("DELETE FROM snapshots WHERE source = 'checkins'");
     t.sources.checkinsDown = true;
+    await t.refresh();
     await t.addAccount("maria", "support");
     const browser = t.browser();
-    await browser.signIn("maria", PASSWORD, t.code("maria"));
+    await browser.signIn("maria", t.code("maria"));
     const page = (await browser.get("/")).text;
     expect(page).toContain("The check-in service could not be reached.");
     expect(page).toContain("No check-in data yet.");
@@ -179,7 +183,7 @@ describe("Customers", () => {
       "13/11/2026 12:00 Licence: team, 2 seats + phone, active, period ends 13/12/2026 12:00",
       "21/10/2026 13:00 First check-in from install eeee6666 (v0.1.48)",
     ]);
-    expect(readAudit(t.db, 1, 0)[0]).toMatchObject({
+    expect((await readAudit(t.sql, 1, 0))[0]).toMatchObject({
       actor: "maria",
       action: "view",
       target: "customer:demo-taverna",
@@ -228,6 +232,7 @@ describe("Services", () => {
   test("lists each source with its state and detail", async () => {
     const { t, browser } = await signedIn();
     t.sources.githubConnected = false;
+    await t.refresh();
     const page = (await browser.get("/services")).text;
     expect(row(page, "Check-in service")).toEqual([
       "Check-in service (blackark.uk)",
@@ -272,6 +277,7 @@ describe("Issues and fixes", () => {
   test("before a token is given, says GitHub is not connected", async () => {
     const { t, browser } = await signedIn();
     t.sources.githubConnected = false;
+    await t.refresh();
     expect((await browser.get("/issues")).text).toContain(
       "GitHub is not connected yet.",
     );
@@ -281,7 +287,7 @@ describe("Issues and fixes", () => {
 describe("Audit log", () => {
   test("an admin sees every sign-in and action, newest first, and that the chain holds", async () => {
     const { t, browser } = await signedIn("admin");
-    await t.browser().signIn("maria", "wrong password!!", "000000");
+    await t.browser().signIn("maria", "000000");
     await browser.get("/customers/demo-shop");
     const page = (await browser.get("/audit")).text;
     const actions = [
@@ -294,14 +300,25 @@ describe("Audit log", () => {
       "sign-in maria",
     ]);
     expect(page).toContain('<tr class="refused">');
-    expect(page).toContain("The chain of entries is intact.");
+    expect(page).toContain(
+      "The chain of entries is checked every night; it has not been checked yet.",
+    );
+    await nightly(
+      t.sql,
+      null,
+      () => t.clock.now,
+      () => {},
+    );
+    expect((await browser.get("/audit")).text).toContain(
+      "The chain of entries was intact at 18/11/2026 12:00.",
+    );
   });
 
   test("pages through older entries", async () => {
     const { t, browser } = await signedIn("owner");
     for (let i = 0; i < 150; i++)
-      appendAudit(
-        t.db,
+      await appendAudit(
+        t.sql,
         { actor: "maria", action: "view", target: `p${i}`, outcome: "ok" },
         t.clock.now,
       );

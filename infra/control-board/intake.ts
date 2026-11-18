@@ -11,12 +11,13 @@
  * 2. THE SUPPORT ADDRESS. support@blackark.uk is an alias delivering to General@; the poller
  *    (`pollMailbox`, with the IMAP reader in mail.ts) takes only what was sent to support@.
  */
-import type { Database } from "bun:sqlite";
+import { Buffer } from "node:buffer";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { appendAudit } from "./audit";
 import { CUSTOMER_ID, type Extension } from "./board";
 import type { Calendar } from "./business-hours";
 import { addNote, findBySource, getCase, openCase } from "./cases";
+import type { Sql } from "./sql";
 
 const WINDOW_SECONDS = 300;
 const MAX_PER_CUSTOMER_PER_DAY = 20;
@@ -139,7 +140,7 @@ export function readAppRequest(value: unknown): AppRequest | null {
 
 /** `POST /intake/app`: a signed request forwarded by blackark.uk opens one in-app case. */
 export function appIntake(
-  db: Database,
+  db: Sql,
   options: { secret: string; now?: () => number; calendar?: Calendar },
 ): Extension {
   const now = options.now ?? Date.now;
@@ -172,12 +173,15 @@ export function appIntake(
       }
       if (Math.abs(now() / 1000 - Number(time)) > WINDOW_SECONDS)
         return json(403, { error: "Stale request." });
-      db.query("DELETE FROM intake_nonces WHERE at < ?").run(
+      await db.run(
+        "DELETE FROM intake_nonces WHERE at < ?",
         now() - 2 * WINDOW_SECONDS * 1000,
       );
-      const taken = db
-        .query("INSERT OR IGNORE INTO intake_nonces (nonce, at) VALUES (?, ?)")
-        .run(nonce, now());
+      const taken = await db.run(
+        "INSERT OR IGNORE INTO intake_nonces (nonce, at) VALUES (?, ?)",
+        nonce,
+        now(),
+      );
       if (taken.changes === 0) return json(409, { error: "Already used." });
       let parsed: unknown;
       try {
@@ -187,22 +191,23 @@ export function appIntake(
       }
       const input = readAppRequest(parsed);
       if (!input) return json(400, { error: "Not a support request." });
-      const already = findBySource(db, `app:${input.requestId}`);
+      const already = await findBySource(db, `app:${input.requestId}`);
       if (already) {
         if (already.customer_id !== input.customerId)
           return json(409, { error: "Already used." });
         return json(200, { case: already.number });
       }
       const today =
-        db
-          .query<{ n: number }, [string, string]>(
+        (
+          await db.first<{ n: number }>(
             "SELECT COUNT(*) AS n FROM cases WHERE customer_id = ? AND channel = 'in-app' AND created_at >= ?",
+            input.customerId,
+            new Date(now() - 86_400_000).toISOString(),
           )
-          .get(input.customerId, new Date(now() - 86_400_000).toISOString())
-          ?.n ?? 0;
+        )?.n ?? 0;
       if (today >= MAX_PER_CUSTOMER_PER_DAY)
         return json(429, { error: "Too many today." });
-      const made = openCase(
+      const made = await openCase(
         db,
         {
           customerId: input.customerId,
@@ -220,7 +225,7 @@ export function appIntake(
       );
       if (input.diagnostics) {
         const d = input.diagnostics;
-        addNote(
+        await addNote(
           db,
           made.number,
           "intake:app",
@@ -234,7 +239,7 @@ export function appIntake(
           now(),
         );
       }
-      appendAudit(
+      await appendAudit(
         db,
         {
           actor: "intake:app",
@@ -297,7 +302,7 @@ const CUSTOMER_TAG = /\[customer:([A-Za-z0-9][A-Za-z0-9_-]{1,79})\]/;
  * address is left alone, unread, even if the mailbox handed it over.
  */
 export async function pollMailbox(
-  db: Database,
+  db: Sql,
   mailbox: MailSource,
   now: number,
   options: { supportAddress?: string; calendar?: Calendar } = {},
@@ -307,10 +312,11 @@ export async function pollMailbox(
     if (!sentToSupport(message, options.supportAddress)) continue;
     const ref = `mail:${message.id}`;
     if (
-      findBySource(db, ref) ||
-      db
-        .query("SELECT 1 FROM case_notes WHERE instr(body, ?) > 0")
-        .get(`Message-ID: ${message.id}\n`)
+      (await findBySource(db, ref)) ||
+      (await db.first(
+        "SELECT 1 AS found FROM case_notes WHERE instr(body, ?) > 0",
+        `Message-ID: ${message.id}\n`,
+      ))
     ) {
       await mailbox.markSeen(message.id);
       continue;
@@ -322,13 +328,13 @@ export async function pollMailbox(
       );
     const tagged = message.subject.match(CASE_TAG);
     const repliedTo = message.inReplyTo
-      ? findBySource(db, `mail:${message.inReplyTo}`)
+      ? await findBySource(db, `mail:${message.inReplyTo}`)
       : null;
     const existing =
-      repliedTo ?? (tagged ? getCase(db, Number(tagged[1])) : null);
+      repliedTo ?? (tagged ? await getCase(db, Number(tagged[1])) : null);
     if (existing) {
-      addNote(db, existing.number, "intake:mail", body, now);
-      appendAudit(
+      await addNote(db, existing.number, "intake:mail", body, now);
+      await appendAudit(
         db,
         {
           actor: "intake:mail",
@@ -342,7 +348,7 @@ export async function pollMailbox(
     } else {
       const customerId =
         message.subject.match(CUSTOMER_TAG)?.[1] ?? "unmatched";
-      const made = openCase(
+      const made = await openCase(
         db,
         {
           customerId,
@@ -361,7 +367,7 @@ export async function pollMailbox(
         now,
         options.calendar,
       );
-      appendAudit(
+      await appendAudit(
         db,
         {
           actor: "intake:mail",

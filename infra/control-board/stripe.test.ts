@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { stripeReadOnly } from "./stripe";
-import { testBoard } from "./test-helpers";
+import { type TestBoard, testBoard } from "./test-helpers";
 
 const KEY = "rk_test_readonly_standin";
 const servers: Array<{ stop: (force?: boolean) => void }> = [];
-let current: ReturnType<typeof testBoard> | null = null;
+let current: TestBoard | null = null;
 afterEach(() => {
   for (const server of servers.splice(0)) server.stop(true);
   current?.cleanup();
@@ -193,12 +193,13 @@ describe("Stripe, read-only", () => {
 
 describe("the Billing page", () => {
   test("shows failed payments first, then subscriptions with renewals; Overview counts failed payments", async () => {
-    const t = testBoard();
+    const t = await testBoard();
     current = t;
     t.sources.stripeConnected = true;
+    await t.refresh();
     await t.addAccount("maria", "support");
     const browser = t.browser();
-    await browser.signIn("maria", "correct horse battery", t.code("maria"));
+    await browser.signIn("maria", t.code("maria"));
     const page = (await browser.get("/billing")).text;
     expect(page).toContain("Failed payments <small>(1)</small>");
     expect(page).toMatch(
@@ -222,11 +223,11 @@ describe("the Billing page", () => {
   });
 
   test("without a key, says Stripe is not connected", async () => {
-    const t = testBoard();
+    const t = await testBoard();
     current = t;
     await t.addAccount("maria", "support");
     const browser = t.browser();
-    await browser.signIn("maria", "correct horse battery", t.code("maria"));
+    await browser.signIn("maria", t.code("maria"));
     expect((await browser.get("/billing")).text).toContain(
       "Stripe is not connected yet.",
     );

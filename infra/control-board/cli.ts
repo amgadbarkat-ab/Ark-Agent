@@ -1,212 +1,146 @@
 /**
- * The board's command line, run on the server (`./deploy.sh owner`, or `bun cli.ts …` in the
- * container). Everything it changes goes into the audit log as the actor "cli".
+ * The board's command line, run on the COO's computer. The board's data is in D1, which this
+ * script cannot reach (no keys, no wrangler dependency): it prints SQL to stdout, for
+ * `npx wrangler d1 execute`, and anything to show the person (a setup link) to stderr, so the
+ * link never lands in a file or in the SQL:
  *
- *   bun cli.ts create-owner        the first owner: user name, password at a hidden prompt, 2FA
- *   bun cli.ts reset <user>        a new setup link for someone who lost their phone or password
- *   bun cli.ts unlock <user>       clears the 15-minute sign-in lock for that name
- *   bun cli.ts list                the accounts, their roles and states
- *   bun cli.ts verify-audit        checks that no audit entry was changed or removed
+ *   bun cli.ts schema > schema.sql                the tables, once:  … d1 execute board --remote --file schema.sql
+ *   bun cli.ts owner <user> [access-email]        the first owner (refused in SQL if an active owner exists)
+ *   bun cli.ts reset <user>                       a new setup link for someone who lost their phone or passkey
+ *   bun cli.ts unlock <user>                      clears that account's sign-in failures
+ *
+ * Used as:  npx wrangler d1 execute board --remote --command "$(bun cli.ts owner maria)"
+ *
+ * A setup link carries only the SHA-256 of its token in D1; the token itself is printed once. The
+ * TOTP key for the link is made here and travels in the SQL, as the board would store it. The
+ * audit log gets its entry when the link is used (`account.setup`): its hash chain is computed in
+ * the board, not in SQL.
  */
-import type { Database } from "bun:sqlite";
-import { join } from "node:path";
 import {
-  activateDirectly,
-  activeOwners,
-  argon2id,
-  findAccount,
-  listAccounts,
-  MIN_PASSWORD,
-  type PasswordHasher,
-  resetAccount,
+  newToken,
+  SETUP_LINK_MS,
+  sha256,
+  validEmail,
   validUsername,
 } from "./accounts";
-import { appendAudit, verifyAudit } from "./audit";
-import { openStore } from "./store";
-import { newTotpSecret, otpauthUri, verifyTotp } from "./totp";
+import { schemaFile } from "./store";
+import { newTotpSecret } from "./totp";
 
-export type Io = {
-  ask(question: string): Promise<string>;
-  askHidden(question: string): Promise<string>;
-  print(line: string): void;
-};
+export type Io = { out(text: string): void; err(line: string): void };
 
-export async function runCli(
+/** An SQL literal; only for values this script made or checked (names, hex, base32, numbers). */
+function lit(value: string | number | null): string {
+  if (value === null) return "NULL";
+  if (typeof value === "number") return String(Math.trunc(value));
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function setupLinkSql(
+  username: string,
+  now: number,
+): { sql: string[]; token: string } {
+  const token = newToken();
+  const id = `(SELECT id FROM accounts WHERE username = ${lit(username)})`;
+  return {
+    token,
+    sql: [
+      `DELETE FROM setup_links WHERE account_id = ${id};`,
+      `INSERT INTO setup_links (token_hash, account_id, totp_secret, expires_at) SELECT ${lit(sha256(token))}, id, ${lit(
+        newTotpSecret(),
+      )}, ${lit(now + SETUP_LINK_MS)} FROM accounts WHERE username = ${lit(username)} AND status = 'pending';`,
+    ],
+  };
+}
+
+export function runCli(
   args: string[],
-  db: Database,
   io: Io,
-  options: {
-    now?: () => number;
-    hasher?: PasswordHasher;
-    publicOrigin?: string;
-  } = {},
-): Promise<number> {
-  const now = options.now ?? Date.now;
-  const hasher = options.hasher ?? argon2id;
-  const [command, name] = args;
-  const audit = (
-    action: string,
-    target: string | null,
-    outcome: "ok" | "refused" = "ok",
-    detail?: string,
-  ) =>
-    appendAudit(db, { actor: "cli", action, target, outcome, detail }, now());
+  options: { now?: () => number; publicOrigin?: string } = {},
+): number {
+  const now = (options.now ?? Date.now)();
+  const origin = options.publicOrigin ?? "https://<board>";
+  const [command, rawName, rawEmail] = args;
+  const name = (rawName ?? "").trim().toLowerCase();
+  const email = rawEmail ? rawEmail.trim().toLowerCase() : null;
 
-  if (command === "create-owner") {
-    if (activeOwners(db) > 0) {
-      io.print(
-        "An owner exists already. Add people on the Accounts page; use `reset` if an owner is locked out.",
-      );
-      return 1;
-    }
-    const username = (
-      await io.ask("User name (lower-case letters, digits, . _ -): ")
-    )
-      .trim()
-      .toLowerCase();
-    if (!validUsername(username) || findAccount(db, username)) {
-      io.print("That user name is not valid or is taken.");
-      return 1;
-    }
-    const password = await io.askHidden(
-      `Password (at least ${MIN_PASSWORD} characters, hidden): `,
-    );
-    const repeat = await io.askHidden("The same password again (hidden): ");
-    if (password.length < MIN_PASSWORD || password !== repeat) {
-      io.print("The passwords are too short or not the same.");
-      return 1;
-    }
-    const secret = newTotpSecret();
-    io.print("");
-    io.print(
-      "Add this key to your authenticator app (time-based, 6 digits, 30 seconds):",
-    );
-    io.print(`  ${secret.match(/.{1,4}/g)?.join(" ")}`);
-    io.print(`  ${otpauthUri("BlackArk Board", username, secret)}`);
-    io.print("Do not copy it anywhere else. It is shown only now.");
-    const code = (await io.ask("The 6-digit code your app shows now: ")).trim();
-    const step = verifyTotp(secret, code, now());
-    if (step === null) {
-      io.print(
-        "That code is not right. Check the phone's time and run create-owner again.",
-      );
-      audit("account.create", username, "refused", "owner: wrong first code");
-      return 1;
-    }
-    await activateDirectly(
-      db,
-      username,
-      "owner",
-      password,
-      secret,
-      step,
-      now(),
-      hasher,
-    );
-    audit("account.create", username, "ok", "role owner");
-    io.print(`Owner ${username} is ready. Sign in on the board.`);
+  if (command === "schema") {
+    io.out(schemaFile());
     return 0;
   }
 
-  if (command === "reset" && name) {
-    const account = findAccount(db, name);
-    if (!account) {
-      io.print("No such account.");
+  if (
+    (command === "owner" || command === "reset" || command === "unlock") &&
+    !validUsername(name)
+  ) {
+    io.err(
+      "That user name is not valid (2 to 32 of: lower-case letters, digits, . _ -).",
+    );
+    return 1;
+  }
+
+  if (command === "owner") {
+    if (email !== null && !validEmail(email)) {
+      io.err("That email address is not valid.");
       return 1;
     }
-    const token = resetAccount(db, account, now());
-    audit("account.reset", account.username);
-    io.print(`Setup link for ${account.username}, valid 24 hours, shown once:`);
-    io.print(`  ${options.publicOrigin ?? "https://<board>"}/setup/${token}`);
-    return 0;
-  }
-
-  if (command === "unlock" && name) {
-    db.query("DELETE FROM login_failures WHERE username = ?").run(
-      name.toLowerCase(),
+    const link = setupLinkSql(name, now);
+    io.out(
+      [
+        `INSERT INTO accounts (username, role, status, access_email, created_at, created_by) SELECT ${lit(name)}, 'owner', 'pending', ${lit(
+          email,
+        )}, ${lit(new Date(now).toISOString())}, 'cli' WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE role = 'owner' AND status = 'active');`,
+        ...link.sql,
+        "",
+      ].join("\n"),
     );
-    audit("account.unlock", name.toLowerCase());
-    io.print(`${name} can try to sign in again.`);
-    return 0;
-  }
-
-  if (command === "list") {
-    for (const account of listAccounts(db)) {
-      io.print(
-        `${account.username}\t${account.role}\t${account.status}\t${account.created_at}`,
-      );
-    }
-    return 0;
-  }
-
-  if (command === "verify-audit") {
-    const broken = verifyAudit(db);
-    io.print(
-      broken === null
-        ? "The audit log is intact."
-        : `Audit entry ${broken} does not follow from the one before it.`,
+    io.err(
+      `Setup link for ${name}, valid 24 hours, shown once (it does nothing if an owner exists already):`,
     );
-    return broken === null ? 0 : 2;
+    io.err(`  ${origin}/setup/${link.token}`);
+    return 0;
   }
 
-  io.print(
-    "Commands: create-owner | reset <user> | unlock <user> | list | verify-audit",
+  if (command === "reset") {
+    const id = `(SELECT id FROM accounts WHERE username = ${lit(name)})`;
+    const link = setupLinkSql(name, now);
+    io.out(
+      [
+        `UPDATE accounts SET status = 'pending', totp_secret = NULL, totp_last_step = -1 WHERE username = ${lit(name)} AND status != 'disabled';`,
+        `DELETE FROM passkeys WHERE account_id = ${id};`,
+        `DELETE FROM sessions WHERE account_id = ${id};`,
+        ...link.sql,
+        "",
+      ].join("\n"),
+    );
+    io.err(
+      `Setup link for ${name}, valid 24 hours, shown once (it does nothing if there is no such account):`,
+    );
+    io.err(`  ${origin}/setup/${link.token}`);
+    return 0;
+  }
+
+  if (command === "unlock") {
+    io.out(
+      `DELETE FROM login_failures WHERE key = 'account:' || (SELECT id FROM accounts WHERE username = ${lit(name)});\n`,
+    );
+    io.err(`${name} can try to sign in again once this runs.`);
+    return 0;
+  }
+
+  io.err(
+    "Commands: schema | owner <user> [access-email] | reset <user> | unlock <user>",
   );
   return 1;
 }
 
-/** Reads one line from the terminal without showing what is typed. */
-function hiddenPrompt(question: string): Promise<string> {
-  const stdin = process.stdin;
-  if (!stdin.isTTY)
-    throw new Error(
-      "A hidden prompt needs a terminal (docker compose exec -it).",
-    );
-  process.stdout.write(question);
-  return new Promise((resolve, reject) => {
-    let typed = "";
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.setEncoding("utf8");
-    const done = (error?: Error) => {
-      stdin.setRawMode(false);
-      stdin.pause();
-      stdin.off("data", onData);
-      process.stdout.write("\n");
-      if (error) reject(error);
-      else resolve(typed);
-    };
-    const onData = (chunk: string) => {
-      for (const char of chunk) {
-        if (char === "\r" || char === "\n") return done();
-        if (char === "\u0003") return done(new Error("Cancelled."));
-        if (char === "\u007f" || char === "\b") typed = typed.slice(0, -1);
-        else if (char >= " ") typed += char;
-      }
-    };
-    stdin.on("data", onData);
-  });
-}
-
-async function linePrompt(question: string): Promise<string> {
-  process.stdout.write(question);
-  for await (const line of console) return line;
-  return "";
-}
-
 if (import.meta.main) {
-  const dir = process.env.BOARD_DATA_DIR ?? "/data";
-  const db = openStore(join(dir, "board.sqlite"));
-  const code = await runCli(
+  const code = runCli(
     process.argv.slice(2),
-    db,
     {
-      ask: linePrompt,
-      askHidden: hiddenPrompt,
-      print: (line) => console.log(line),
+      out: (text) => process.stdout.write(text),
+      err: (line) => console.error(line),
     },
     { publicOrigin: process.env.BOARD_PUBLIC_ORIGIN },
   );
-  db.close();
   process.exit(code);
 }

@@ -1,147 +1,168 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { signIn } from "./accounts";
-import { readAudit } from "./audit";
 import { type Io, runCli } from "./cli";
-import { openStore } from "./store";
-import { fastHasher } from "./test-helpers";
+import { SCHEMA } from "./store";
+import {
+  Browser,
+  START,
+  type TestBoard,
+  testBoard,
+  VirtualAuthenticator,
+} from "./test-helpers";
 import { totp } from "./totp";
 
-const NOW = Date.parse("2026-11-18T10:00:00Z");
-const dirs: string[] = [];
-function store() {
-  const dir = mkdtempSync(join(tmpdir(), "control-board-cli-"));
-  dirs.push(dir);
-  return openStore(join(dir, "board.sqlite"));
-}
+let current: TestBoard | null = null;
 afterEach(() => {
-  for (const dir of dirs.splice(0))
-    rmSync(dir, { recursive: true, force: true });
+  current?.cleanup();
+  current = null;
 });
 
-/** A terminal that answers from a script; `hidden` records which prompts hid what was typed. */
-function terminal(answers: Array<string | ((printed: string[]) => string)>) {
-  const printed: string[] = [];
-  const hidden: string[] = [];
-  const next = () => {
-    const answer = answers.shift();
-    return typeof answer === "function" ? answer(printed) : (answer ?? "");
-  };
+function terminal() {
+  let out = "";
+  const err: string[] = [];
   const io: Io = {
-    ask: async () => next(),
-    askHidden: async (question) => {
-      hidden.push(question);
-      return next();
-    },
-    print: (line) => printed.push(line),
+    out: (text) => (out += text),
+    err: (line) => err.push(line),
   };
-  return { io, printed, hidden };
+  return { io, out: () => out, err };
 }
 
-const secretFrom = (printed: string[]) =>
-  printed.join("\n").match(/secret=([A-Z2-7]+)/)?.[1] ?? "";
-
-test("create-owner: the password only at hidden prompts, then the first 2FA code; the owner can sign in", async () => {
-  const db = store();
-  const term = terminal([
-    "First.Owner",
-    "a long owner password",
-    "a long owner password",
-    (printed) => totp(secretFrom(printed), NOW),
-  ]);
-  expect(
-    await runCli(["create-owner"], db, term.io, {
-      now: () => NOW,
-      hasher: fastHasher,
-    }),
-  ).toBe(0);
-  expect(term.hidden).toHaveLength(2);
-  expect(term.printed.join("\n")).not.toContain("a long owner password");
-  const secret = secretFrom(term.printed);
-  const later = NOW + 30_000;
-  const result = await signIn(
-    db,
-    "first.owner",
-    "a long owner password",
-    totp(secret, later),
-    later,
-    fastHasher,
-  );
-  expect(result.ok).toBe(true);
-  expect(readAudit(db, 1, 0)[0]).toMatchObject({
-    actor: "cli",
-    action: "account.create",
-    target: "first.owner",
-    outcome: "ok",
+function cli(args: string[]) {
+  const term = terminal();
+  const code = runCli(args, term.io, {
+    now: () => START,
+    publicOrigin: "https://board.example",
   });
+  return { code, sql: term.out(), err: term.err.join("\n") };
+}
+
+/** What `wrangler d1 execute --command` does with the printed SQL. */
+async function execute(t: TestBoard, sql: string) {
+  for (const statement of sql
+    .split(";\n")
+    .map((s) => s.trim())
+    .filter(Boolean))
+    await t.sql.run(statement);
+}
+
+const linkPath = (err: string) =>
+  err.match(/https:\/\/board\.example(\/setup\/[A-Za-z0-9_-]{43})/)?.[1] ?? "";
+
+async function finishSetup(
+  t: TestBoard,
+  path: string,
+  passkey = new VirtualAuthenticator(),
+) {
+  const browser = t.browser();
+  const form = await browser.get(path);
+  const secret = form.text.match(/secret=([A-Z2-7]+)/)?.[1] ?? "";
+  const done = await browser.passkeyForm(
+    `${path}/options`,
+    path,
+    Browser.csrfFrom(form.text),
+    (pk) => passkey.register(pk),
+    {
+      code: totp(secret, t.clock.now),
+    },
+  );
+  return { done, secret, passkey, browser };
+}
+
+test("schema: one statement per line, the same tables the board makes", () => {
+  const { code, sql } = cli(["schema"]);
+  expect(code).toBe(0);
+  expect(sql.trim().split("\n")).toHaveLength(SCHEMA.length);
+  expect(sql).toContain("CREATE TRIGGER IF NOT EXISTS audit_no_update");
 });
 
-test("create-owner refuses a wrong first code, and a second owner", async () => {
-  const db = store();
-  const wrong = terminal([
-    "boss",
-    "a long owner password",
-    "a long owner password",
-    "000000",
-  ]);
+test("owner: SQL to stdout with no token in it, the link to stderr; the owner sets up and signs in", async () => {
+  const t = await testBoard();
+  current = t;
+  const { code, sql, err } = cli(["owner", "First.Owner"]);
+  expect(code).toBe(0);
+  const path = linkPath(err);
+  expect(path).not.toBe("");
+  expect(sql).not.toContain(path.slice("/setup/".length));
+  await execute(t, sql);
+  const { done, secret, passkey, browser } = await finishSetup(t, path);
+  expect(done.text).toContain("Setup is done");
+  t.clock.now += 30_000;
   expect(
-    await runCli(["create-owner"], db, wrong.io, {
-      now: () => NOW,
-      hasher: fastHasher,
-    }),
-  ).toBe(1);
-  expect(db.query("SELECT COUNT(*) AS n FROM accounts").get()).toEqual({
-    n: 0,
-  });
-  const ok = terminal([
-    "boss",
-    "a long owner password",
-    "a long owner password",
-    (printed) => totp(secretFrom(printed), NOW),
-  ]);
-  expect(
-    await runCli(["create-owner"], db, ok.io, {
-      now: () => NOW,
-      hasher: fastHasher,
-    }),
-  ).toBe(0);
-  const again = terminal(["other"]);
-  expect(
-    await runCli(["create-owner"], db, again.io, {
-      now: () => NOW,
-      hasher: fastHasher,
-    }),
-  ).toBe(1);
+    (await browser.signIn("first.owner", totp(secret, t.clock.now), passkey))
+      .status,
+  ).toBe(303);
+  expect((await browser.get("/accounts")).status).toBe(200);
 });
 
-test("reset prints a setup link once; verify-audit reports the chain", async () => {
-  const db = store();
-  const ok = terminal([
-    "boss",
-    "a long owner password",
-    "a long owner password",
-    (printed) => totp(secretFrom(printed), NOW),
-  ]);
-  await runCli(["create-owner"], db, ok.io, {
-    now: () => NOW,
-    hasher: fastHasher,
+test("owner does nothing once an active owner exists", async () => {
+  const t = await testBoard();
+  current = t;
+  await t.addAccount("boss", "owner");
+  const { sql, err } = cli(["owner", "intruder"]);
+  await execute(t, sql);
+  expect(
+    await t.sql.first("SELECT id FROM accounts WHERE username = 'intruder'"),
+  ).toBe(null);
+  expect((await t.browser().get(linkPath(err))).status).toBe(404);
+});
+
+test("owner with an Access email stores it; bad names and emails are refused before any SQL", async () => {
+  const t = await testBoard();
+  current = t;
+  await execute(t, cli(["owner", "maria", "Maria@BlackArk.example"]).sql);
+  expect(
+    await t.sql.first<{ access_email: string }>(
+      "SELECT access_email FROM accounts WHERE username = 'maria'",
+    ),
+  ).toEqual({
+    access_email: "maria@blackark.example",
   });
-  const reset = terminal([]);
-  expect(
-    await runCli(["reset", "boss"], db, reset.io, {
-      now: () => NOW,
-      publicOrigin: "https://board.example",
-    }),
-  ).toBe(0);
-  expect(reset.printed.join("\n")).toMatch(
-    /https:\/\/board\.example\/setup\/[A-Za-z0-9_-]{43}/,
+  for (const args of [
+    ["owner", "x'; DROP TABLE accounts; --"],
+    ["owner", "ok", "not-an-email"],
+    ["reset"],
+    ["what"],
+  ]) {
+    const result = cli(args);
+    expect(result.code).toBe(1);
+    expect(result.sql).toBe("");
+  }
+});
+
+test("reset: the old passkey and sessions stop working, a new link sets the account up again", async () => {
+  const t = await testBoard();
+  current = t;
+  await t.addAccount("boss", "owner");
+  const old = t.browser();
+  await old.signIn("boss", t.code("boss"));
+  expect((await old.get("/")).status).toBe(200);
+  const { sql, err } = cli(["reset", "boss"]);
+  await execute(t, sql);
+  expect((await old.get("/")).status).toBe(303);
+  t.clock.now += 30_000;
+  expect((await t.browser().signIn("boss", t.code("boss"))).status).not.toBe(
+    303,
   );
-  expect(
-    db.query("SELECT status FROM accounts WHERE username = 'boss'").get(),
-  ).toEqual({ status: "pending" });
-  const verify = terminal([]);
-  expect(await runCli(["verify-audit"], db, verify.io)).toBe(0);
-  expect(verify.printed).toEqual(["The audit log is intact."]);
+  const { done } = await finishSetup(t, linkPath(err));
+  expect(done.text).toContain("Setup is done");
+});
+
+test("unlock: clears that account's failures only", async () => {
+  const t = await testBoard();
+  current = t;
+  await t.addAccount("boss", "owner");
+  const id = (
+    await t.sql.first<{ id: number }>(
+      "SELECT id FROM accounts WHERE username = 'boss'",
+    )
+  )?.id;
+  await t.sql.run(
+    "INSERT INTO login_failures (key, at) VALUES (?, ?), ('ip:abc', ?)",
+    `account:${id}`,
+    START,
+    START,
+  );
+  await execute(t, cli(["unlock", "boss"]).sql);
+  expect(await t.sql.all("SELECT key FROM login_failures")).toEqual([
+    { key: "ip:abc" },
+  ]);
 });

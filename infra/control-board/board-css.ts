@@ -1,4 +1,6 @@
-/* BlackArk Control Board. Served as /board.css; the CSP allows styles from this server only. */
+/** BlackArk Control Board styles, served as /board.css (the CSP allows styles from the board only). In a
+ * string, because a Worker has no files to read at run time. */
+export const CSS = `/* BlackArk Control Board. Served as /board.css; the CSP allows styles from this server only. */
 :root {
   --bg: #f7f7f5;
   --fg: #1d1d1b;
@@ -228,3 +230,4 @@ code {
 .filters strong {
   margin-right: 0.6rem;
 }
+`;

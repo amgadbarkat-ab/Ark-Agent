@@ -2,6 +2,7 @@
  * TOTP (RFC 6238) on Node/Bun's own crypto: HMAC-SHA1, 30-second steps, 6 digits, which is what
  * every authenticator app reads from an `otpauth://` link. No package.
  */
+import { Buffer } from "node:buffer";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";

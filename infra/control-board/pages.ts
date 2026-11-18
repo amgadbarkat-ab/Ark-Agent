@@ -110,52 +110,86 @@ export function staleBanner(
 
 // ---- Sign-in and setup -------------------------------------------------------------------------
 
+export type FirstFactor = "access" | "passkey";
+
+const PASSKEY_FIELDS = [
+  "challengeId",
+  "credentialId",
+  "clientDataJSON",
+  "authenticatorData",
+  "signature",
+  "attestationObject",
+];
+
+function passkeyFields(): Html {
+  return html`${PASSKEY_FIELDS.map((name) => html`<input type="hidden" name="${name}" value="">`)}`;
+}
+
+function codeField(l: Lang): Html {
+  return html`<label>${t(l, "Code from your authenticator app")}<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>`;
+}
+
+/**
+ * Sign-in. With passkeys: the person's passkey (webauthn.js asks the browser for it as the form is
+ * sent), then their TOTP code. Behind Access: Access already knows who it is; the TOTP code only.
+ */
 export function loginPage(
   frame: Frame,
   preCsrf: string,
-  error?: string,
+  mode: FirstFactor,
+  options: { error?: string; username?: string } = {},
 ): string {
   const l = frame.lang;
+  const passkey = mode === "passkey";
   return layout(
     frame,
     t(l, "Sign in"),
-    html`${notice(error)}
-<form method="post" action="/login" class="stack">
+    html`${notice(options.error)}
+${options.username ? html`<p>${t(l, "Account")}: <strong>${options.username}</strong></p>` : ""}
+<form method="post" action="/login" class="stack"${passkey ? html` data-passkey="/login/options" data-ceremony="sign-in"` : ""}>
   <input type="hidden" name="csrf" value="${preCsrf}">
-  <label>${t(l, "User name")}<input name="username" autocomplete="username" required maxlength="32"></label>
-  <label>${t(l, "Password")}<input name="password" type="password" autocomplete="current-password" required></label>
-  <label>${t(l, "Code from your authenticator app")}<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
-  <button type="submit">${t(l, "Sign in")}</button>
-</form>`,
+  ${passkey ? passkeyFields() : ""}
+  ${codeField(l)}
+  ${passkey ? html`<p class="error" data-passkey-status hidden>${t(l, "The passkey did not work. Try again.")}</p>` : ""}
+  <button type="submit">${passkey ? t(l, "Sign in with a passkey") : t(l, "Sign in")}</button>
+</form>
+${passkey ? html`<script src="/webauthn.js" defer></script>` : ""}`,
   );
 }
 
 export function setupPage(
   frame: Frame,
   preCsrf: string,
-  username: string,
-  secret: string,
-  uri: string,
+  details: {
+    username: string;
+    secret: string;
+    uri: string;
+    mode: FirstFactor;
+    token: string;
+    email: string | null;
+  },
   error?: string,
 ): string {
   const l = frame.lang;
-  const grouped = secret.match(/.{1,4}/g)?.join(" ") ?? secret;
+  const grouped = details.secret.match(/.{1,4}/g)?.join(" ") ?? details.secret;
+  const passkey = details.mode === "passkey";
   return layout(
     frame,
     t(l, "Set up your account"),
     html`${notice(error)}
-<p>${t(l, "Account")}: <strong>${username}</strong></p>
+<p>${t(l, "Account")}: <strong>${details.username}</strong>${details.email ? html` · ${details.email}` : ""}</p>
 <ol>
-  <li>${t(l, "Add this key to your authenticator app (time-based, 6 digits, 30 seconds):")}<br><code class="secret">${grouped}</code><br><small><code>${uri}</code></small></li>
-  <li>${t(l, "Choose a password of at least 12 characters, and type the code your app shows now.")}</li>
+  <li>${t(l, "Add this key to your authenticator app (time-based, 6 digits, 30 seconds):")}<br><code class="secret">${grouped}</code><br><small><code>${details.uri}</code></small></li>
+  <li>${passkey ? t(l, "Type the code your app shows now, then make a passkey for this board when your browser asks.") : t(l, "Type the code your app shows now. You sign in through Cloudflare Access with the email above.")}</li>
 </ol>
-<form method="post" class="stack">
+<form method="post" class="stack"${passkey ? html` data-passkey="/setup/${details.token}/options" data-ceremony="register"` : ""}>
   <input type="hidden" name="csrf" value="${preCsrf}">
-  <label>${t(l, "Password")}<input name="password" type="password" autocomplete="new-password" minlength="12" required></label>
-  <label>${t(l, "Password again")}<input name="repeat" type="password" autocomplete="new-password" minlength="12" required></label>
-  <label>${t(l, "Code from your authenticator app")}<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+  ${passkey ? passkeyFields() : ""}
+  ${codeField(l)}
+  ${passkey ? html`<p class="error" data-passkey-status hidden>${t(l, "The passkey was not made. Try again.")}</p>` : ""}
   <button type="submit">${t(l, "Finish setup")}</button>
-</form>`,
+</form>
+${passkey ? html`<script src="/webauthn.js" defer></script>` : ""}`,
   );
 }
 
@@ -488,16 +522,18 @@ export function auditPage(
   rows: AuditRow[],
   page: number,
   pages: number,
-  brokenAt: number | null,
+  chain: { brokenAt: number | null; checkedAt: number } | null,
 ): string {
   const l = frame.lang;
   return layout(
     frame,
     t(l, "Audit log"),
     html`${
-      brokenAt === null
-        ? html`<p class="info">${t(l, "The chain of entries is intact.")}</p>`
-        : html`<p class="error" role="alert">${t(l, "Entry {n} does not follow from the one before: the log was changed outside the board.", { n: brokenAt })}</p>`
+      chain === null
+        ? html`<p class="info">${t(l, "The chain of entries is checked every night; it has not been checked yet.")}</p>`
+        : chain.brokenAt === null
+          ? html`<p class="info">${t(l, "The chain of entries was intact at {time}.", { time: when(l, new Date(chain.checkedAt).toISOString()) })}</p>`
+          : html`<p class="error" role="alert">${t(l, "Entry {n} does not follow from the one before: the log was changed outside the board.", { n: chain.brokenAt })}</p>`
     }
 <div class="scroll"><table>
 <thead><tr><th>#</th><th>${t(l, "When")}</th><th>${t(l, "Who")}</th><th>${t(l, "Action")}</th><th>${t(l, "On")}</th><th>${t(l, "Result")}</th><th>${t(l, "Detail")}</th></tr></thead>
@@ -517,6 +553,7 @@ export function accountsPage(
   manageable: Role[],
   canManageRow: (account: Account) => boolean,
   message?: { setupLink?: string; username?: string; error?: string },
+  withEmail = false,
 ): string {
   const l = frame.lang;
   const csrf = frame.csrf ?? "";
@@ -540,7 +577,7 @@ ${
       (account) =>
         html`<tr><td>${account.username}</td><td>${roleName(l, account.role)}</td><td>${t(l, statusText[account.status] ?? account.status)}</td><td>${when(l, account.created_at)}${account.created_by ? html` <small class="muted">${account.created_by}</small>` : ""}</td><td>${
           canManageRow(account)
-            ? html`<form method="post" action="/accounts" class="inline"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="username" value="${account.username}"><button name="action" value="reset">${t(l, "Reset password and 2FA")}</button>${account.status !== "disabled" ? html` <button name="action" value="disable">${t(l, "Disable")}</button>` : ""}</form>`
+            ? html`<form method="post" action="/accounts" class="inline"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="username" value="${account.username}"><button name="action" value="reset">${t(l, "Reset passkey and 2FA")}</button>${account.status !== "disabled" ? html` <button name="action" value="disable">${t(l, "Disable")}</button>` : ""}</form>`
             : ""
         }</td></tr>`,
     )}</tbody></table></div>
@@ -549,6 +586,7 @@ ${
   <input type="hidden" name="csrf" value="${csrf}">
   <input type="hidden" name="action" value="create">
   <label>${t(l, "User name")} <small class="muted">${t(l, "lower-case letters, digits, dot, dash")}</small><input name="username" required pattern="[a-z0-9][a-z0-9._\\-]{1,31}" maxlength="32"></label>
+  ${withEmail ? html`<label>${t(l, "Cloudflare Access email")}<input name="email" type="email" required maxlength="254"></label>` : ""}
   <label>${t(l, "Role")}<select name="role">${manageable.map((role) => html`<option value="${role}">${roleName(l, role)}</option>`)}</select></label>
   <button type="submit">${t(l, "Add and make a setup link")}</button>
 </form>`,

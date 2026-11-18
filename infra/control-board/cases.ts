@@ -15,7 +15,6 @@
  * Who may do what is in roles.ts: everyone signed in reads cases; read-only cannot change them.
  * Every case opened, changed or noted goes into the audit log; a note's text does not.
  */
-import type { Database } from "bun:sqlite";
 import {
   type Context,
   CUSTOMER_ID,
@@ -32,6 +31,8 @@ import { type Html, html } from "./html";
 import { type Lang, t, when } from "./i18n";
 import * as pages from "./pages";
 import { can } from "./roles";
+import type { CheckinExport } from "./sources";
+import type { Sql } from "./sql";
 import { customerRows, type TimelineEvent } from "./summary";
 
 export const CHANNELS = ["in-app", "email"] as const;
@@ -96,88 +97,87 @@ function slaDue(
   ).toISOString();
 }
 
-export function openCase(
-  db: Database,
+export async function openCase(
+  sql: Sql,
   input: NewCase,
   by: string,
   now: number,
   calendar: Calendar = {},
-): Case {
+): Promise<Case> {
   const at = new Date(now).toISOString();
-  const number = db.transaction(() => {
-    const result = db
-      .query(
-        `INSERT INTO cases (customer_id, channel, language, priority, plan, status, subject, owner, github_issue, sla_due_at, created_at, created_by, updated_at, source_ref)
-         VALUES (?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        input.customerId,
-        input.channel,
-        input.language,
-        input.priority,
-        input.plan,
-        input.subject,
-        input.owner ?? null,
-        input.githubIssue ?? null,
-        slaDue(at, input.plan, input.priority, calendar),
-        at,
-        by,
-        at,
-        input.sourceRef ?? null,
-      );
-    const made = Number(result.lastInsertRowid);
-    if (input.note?.trim()) addNote(db, made, by, input.note, now);
-    return made;
-  })();
-  return getCase(db, number) as Case;
+  const result = await sql.run(
+    `INSERT INTO cases (customer_id, channel, language, priority, plan, status, subject, owner, github_issue, sla_due_at, created_at, created_by, updated_at, source_ref)
+     VALUES (?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    input.customerId,
+    input.channel,
+    input.language,
+    input.priority,
+    input.plan,
+    input.subject,
+    input.owner ?? null,
+    input.githubIssue ?? null,
+    slaDue(at, input.plan, input.priority, calendar),
+    at,
+    by,
+    at,
+    input.sourceRef ?? null,
+  );
+  const made = result.lastRowId;
+  if (input.note?.trim()) await addNote(sql, made, by, input.note, now);
+  return (await getCase(sql, made)) as Case;
 }
 
-export function findBySource(db: Database, sourceRef: string): Case | null {
-  return db
-    .query<Case, [string]>("SELECT * FROM cases WHERE source_ref = ?")
-    .get(sourceRef);
+export function findBySource(
+  sql: Sql,
+  sourceRef: string,
+): Promise<Case | null> {
+  return sql.first<Case>("SELECT * FROM cases WHERE source_ref = ?", sourceRef);
 }
 
-export function getCase(db: Database, number: number): Case | null {
-  return db
-    .query<Case, [number]>("SELECT * FROM cases WHERE number = ?")
-    .get(number);
+export function getCase(sql: Sql, number: number): Promise<Case | null> {
+  return sql.first<Case>("SELECT * FROM cases WHERE number = ?", number);
 }
 
-export function listCases(
-  db: Database,
+export async function listCases(
+  sql: Sql,
   filter: { openOnly?: boolean; customerId?: string },
-): Case[] {
-  const rows = db
-    .query<Case, []>("SELECT * FROM cases ORDER BY number DESC LIMIT 500")
-    .all();
+): Promise<Case[]> {
+  const rows = filter.customerId
+    ? await sql.all<Case>(
+        "SELECT * FROM cases WHERE customer_id = ? ORDER BY number DESC LIMIT 500",
+        filter.customerId,
+      )
+    : await sql.all<Case>("SELECT * FROM cases ORDER BY number DESC LIMIT 500");
   return rows.filter(
-    (row) =>
-      (!filter.openOnly || OPEN_STATUSES.includes(row.status)) &&
-      (!filter.customerId || row.customer_id === filter.customerId),
+    (row) => !filter.openOnly || OPEN_STATUSES.includes(row.status),
   );
 }
 
-export function notes(db: Database, number: number): Note[] {
-  return db
-    .query<Note, [number]>(
-      "SELECT * FROM case_notes WHERE case_number = ? ORDER BY id",
-    )
-    .all(number);
+export function notes(sql: Sql, number: number): Promise<Note[]> {
+  return sql.all<Note>(
+    "SELECT * FROM case_notes WHERE case_number = ? ORDER BY id",
+    number,
+  );
 }
 
-export function addNote(
-  db: Database,
+export async function addNote(
+  sql: Sql,
   number: number,
   author: string,
   body: string,
   now: number,
 ) {
   const at = new Date(now).toISOString();
-  db.query(
-    "INSERT INTO case_notes (case_number, at, author, body) VALUES (?, ?, ?, ?)",
-  ).run(number, at, author, body.slice(0, 8000));
-  db.query("UPDATE cases SET updated_at = ? WHERE number = ?").run(at, number);
+  await sql.batch([
+    [
+      "INSERT INTO case_notes (case_number, at, author, body) VALUES (?, ?, ?, ?)",
+      number,
+      at,
+      author,
+      body.slice(0, 8000),
+    ],
+    ["UPDATE cases SET updated_at = ? WHERE number = ?", at, number],
+  ]);
 }
 
 export type CaseChange = {
@@ -190,13 +190,13 @@ export type CaseChange = {
 };
 
 /** Applies the changes that differ, and says what changed ("status new→open"), for the audit log. */
-export function changeCase(
-  db: Database,
+export async function changeCase(
+  sql: Sql,
   current: Case,
   change: CaseChange,
   now: number,
   calendar: Calendar = {},
-): string[] {
+): Promise<string[]> {
   const changed: string[] = [];
   const next = { ...current };
   if (change.status && change.status !== current.status) {
@@ -233,9 +233,8 @@ export function changeCase(
     next.github_issue = change.githubIssue;
   }
   if (changed.length) {
-    db.query(
+    await sql.run(
       "UPDATE cases SET status = ?, priority = ?, plan = ?, owner = ?, github_issue = ?, sla_due_at = ?, updated_at = ? WHERE number = ?",
-    ).run(
       next.status,
       next.priority,
       next.plan,
@@ -254,13 +253,11 @@ export function overdue(row: Case, now: number): boolean {
 }
 
 /** Board accounts a case can be given to: active owners, admins and support. */
-function assignable(db: Database): string[] {
-  return db
-    .query<{ username: string }, []>(
-      "SELECT username FROM accounts WHERE status = 'active' AND role IN ('owner', 'admin', 'support') ORDER BY username",
-    )
-    .all()
-    .map((row) => row.username);
+async function assignable(sql: Sql): Promise<string[]> {
+  const rows = await sql.all<{ username: string }>(
+    "SELECT username FROM accounts WHERE status = 'active' AND role IN ('owner', 'admin', 'support') ORDER BY username",
+  );
+  return rows.map((row) => row.username);
 }
 
 // ---- Pages -------------------------------------------------------------------------------------
@@ -433,18 +430,14 @@ function issueNumber(value: string | null): number | null | "bad" {
 // ---- The extension -----------------------------------------------------------------------------
 
 export function casesExtension(
-  db: Database,
-  options: {
-    githubRepo?: string;
-    now?: () => number;
-    calendar?: Calendar;
-  } = {},
+  sql: Sql,
+  options: { githubRepo?: string; calendar?: Calendar } = {},
 ): Extension {
   const repo = options.githubRepo ?? "amgadbarkat-ab/Ark-Agent";
   const calendar = options.calendar ?? {};
   return {
-    timeline(customerId): TimelineEvent[] {
-      return listCases(db, { customerId }).map((row) => ({
+    async timeline(customerId): Promise<TimelineEvent[]> {
+      return (await listCases(sql, { customerId })).map((row) => ({
         at: row.created_at,
         kind: "case",
         number: row.number,
@@ -465,11 +458,16 @@ export function casesExtension(
 
       if (path === "/cases" && method === "GET") {
         const openOnly = url.searchParams.get("status") !== "all";
-        context.audit("view", "cases", "ok", openOnly ? undefined : "all");
+        await context.audit(
+          "view",
+          "cases",
+          "ok",
+          openOnly ? undefined : "all",
+        );
         return respond(
           listPage(
             frame,
-            listCases(db, { openOnly }),
+            await listCases(sql, { openOnly }),
             openOnly,
             context.now,
             repo,
@@ -485,7 +483,7 @@ export function casesExtension(
           newCasePage(
             frame,
             CUSTOMER_ID.test(customer) ? customer : "",
-            assignable(db),
+            await assignable(sql),
           ),
         );
       }
@@ -499,13 +497,19 @@ export function casesExtension(
         const priority = pick(PRIORITIES, form.get("priority"));
         const owner = form.get("owner") || null;
         const github = issueNumber(form.get("github"));
-        const fail = (message: string) => {
-          context.audit("case.create", customer || null, "refused", message);
+        const owners = await assignable(sql);
+        const fail = async (message: string) => {
+          await context.audit(
+            "case.create",
+            customer || null,
+            "refused",
+            message,
+          );
           return respond(
             newCasePage(
               frame,
               CUSTOMER_ID.test(customer) ? customer : "",
-              assignable(db),
+              owners,
               t(lang, message),
             ),
             400,
@@ -519,20 +523,20 @@ export function casesExtension(
           !language ||
           !priority ||
           github === "bad" ||
-          (owner && !assignable(db).includes(owner))
+          (owner && !owners.includes(owner))
         ) {
           return respond("", 400);
         }
         // The plan when the case is opened, from the check-ins: paid sets the SLA for urgent cases.
-        const data = await context.checkins();
+        const data = await context.snapshot<CheckinExport>("checkins");
         const known = data.value
           ? customerRows(data.value, context.now).find(
               (one) => one.customerId === customer,
             )
           : undefined;
         const plan: Plan = known?.plan === "paid" ? "paid" : "trial";
-        const made = openCase(
-          db,
+        const made = await openCase(
+          sql,
           {
             customerId: customer,
             channel,
@@ -548,7 +552,7 @@ export function casesExtension(
           context.now,
           calendar,
         );
-        context.audit(
+        await context.audit(
           "case.create",
           `case:${made.number}`,
           "ok",
@@ -559,17 +563,17 @@ export function casesExtension(
 
       const one = path.match(/^\/cases\/(\d{1,9})$/);
       if (!one) return null;
-      const row = getCase(db, Number(one[1]));
+      const row = await getCase(sql, Number(one[1]));
       if (!row) return null;
 
       if (method === "GET") {
-        context.audit("view", `case:${row.number}`);
+        await context.audit("view", `case:${row.number}`);
         return respond(
           casePage(
             frame,
             row,
-            notes(db, row.number),
-            assignable(db),
+            await notes(sql, row.number),
+            await assignable(sql),
             context.now,
             repo,
             canWrite,
@@ -582,8 +586,14 @@ export function casesExtension(
       if (action === "note") {
         const body = (form.get("body") ?? "").trim();
         if (!body) return respond("", 400);
-        addNote(db, row.number, session.account.username, body, context.now);
-        context.audit(
+        await addNote(
+          sql,
+          row.number,
+          session.account.username,
+          body,
+          context.now,
+        );
+        await context.audit(
           "case.note",
           `case:${row.number}`,
           "ok",
@@ -604,19 +614,19 @@ export function casesExtension(
           !priority ||
           !plan ||
           github === "bad" ||
-          (owner && !assignable(db).includes(owner))
+          (owner && !(await assignable(sql)).includes(owner))
         ) {
           return respond("", 400);
         }
-        const changed = changeCase(
-          db,
+        const changed = await changeCase(
+          sql,
           row,
           { status, priority, plan, owner, githubIssue: github },
           context.now,
           calendar,
         );
         if (changed.length)
-          context.audit(
+          await context.audit(
             "case.update",
             `case:${row.number}`,
             "ok",

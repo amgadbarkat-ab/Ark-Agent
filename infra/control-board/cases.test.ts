@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readAudit } from "./audit";
 import { casesExtension } from "./cases";
-import { Browser, testBoard } from "./test-helpers";
+import { Browser, type TestBoard, testBoard } from "./test-helpers";
 
 // The test clock starts on Wednesday 18 Nov 2026, 10:00 UTC = 12:00 Athens.
-const PASSWORD = "correct horse battery";
-let current: ReturnType<typeof testBoard> | null = null;
+let current: TestBoard | null = null;
 afterEach(() => {
   current?.cleanup();
   current = null;
@@ -14,13 +13,13 @@ afterEach(() => {
 async function signedIn(
   role: "owner" | "admin" | "support" | "read-only" = "support",
 ) {
-  const t = testBoard((db) => [
-    casesExtension(db, { githubRepo: "example/repo" }),
+  const t = await testBoard((sql) => [
+    casesExtension(sql, { githubRepo: "example/repo" }),
   ]);
   current = t;
   await t.addAccount("maria", role);
   const browser = t.browser();
-  await browser.signIn("maria", PASSWORD, t.code("maria"));
+  await browser.signIn("maria", t.code("maria"));
   return { t, browser };
 }
 
@@ -71,7 +70,7 @@ describe("support cases", () => {
     expect(fact(page, "Due by")).toBe("19/11/2026 18:00");
     expect(page).toContain("Called at 18:05, busy tone.");
     expect(
-      readAudit(t.db, 5, 0).map(
+      (await readAudit(t.sql, 5, 0)).map(
         (row) => `${row.action} ${row.target} ${row.detail ?? ""}`,
       ),
     ).toContain("case.create case:1 customer demo-clinic, trial, urgent");
@@ -94,7 +93,7 @@ describe("support cases", () => {
     await openOne(browser);
     // Thursday 19:00 Athens: case 1 (due 18:00) is overdue. Case 2, opened now, is due Friday.
     t.clock.now += 31 * 3_600_000;
-    await browser.signIn("maria", PASSWORD, t.code("maria"));
+    await browser.signIn("maria", t.code("maria"));
     await openOne(browser, { subject: "Later one", priority: "normal" });
     const list = (await browser.get("/cases")).text;
     const rows = [
@@ -126,8 +125,9 @@ describe("support cases", () => {
     expect(fact(after, "Status")).toBe("waiting");
     expect(fact(after, "Due by")).toBe("19/11/2026 18:00");
     expect(
-      readAudit(t.db, 10, 0).find((row) => row.action === "case.update")
-        ?.detail,
+      (await readAudit(t.sql, 10, 0)).find(
+        (row) => row.action === "case.update",
+      )?.detail,
     ).toBe("status new→waiting, priority urgent→normal, owner maria→nikos");
     await browser.post("/cases/1", {
       csrf,
@@ -137,10 +137,12 @@ describe("support cases", () => {
     expect((await browser.get("/cases/1")).text).toContain(
       "Customer&#39;s router restarts at 18:00.",
     );
-    expect(JSON.stringify(readAudit(t.db, 50, 0))).not.toContain("router");
-    expect(() =>
-      t.db.query("UPDATE case_notes SET body = 'x'").run(),
-    ).toThrow();
+    expect(JSON.stringify(await readAudit(t.sql, 50, 0))).not.toContain(
+      "router",
+    );
+    await expect(
+      t.sql.run("UPDATE case_notes SET body = 'x'"),
+    ).rejects.toThrow();
   });
 
   test("a person can set the plan (an email case from a paying customer), which moves the SLA", async () => {
@@ -160,8 +162,9 @@ describe("support cases", () => {
     expect(fact(page, "Plan")).toBe("paid");
     expect(fact(page, "Due by")).toBe("18/11/2026 16:00");
     expect(
-      readAudit(t.db, 10, 0).find((row) => row.action === "case.update")
-        ?.detail,
+      (await readAudit(t.sql, 10, 0)).find(
+        (row) => row.action === "case.update",
+      )?.detail,
     ).toBe("plan trial→paid");
   });
 
@@ -217,7 +220,7 @@ describe("support cases", () => {
     await openOne(browser);
     await t.addAccount("viewer", "read-only");
     const viewer = t.browser();
-    await viewer.signIn("viewer", PASSWORD, t.code("viewer"));
+    await viewer.signIn("viewer", t.code("viewer"));
     const page = await viewer.get("/cases/1");
     expect(page.status).toBe(200);
     expect(page.text).toContain(
@@ -264,7 +267,9 @@ describe("support cases", () => {
       priority: "normal",
     });
     expect(forged.status).toBe(403);
-    expect(t.db.query("SELECT COUNT(*) AS n FROM cases").get()).toEqual({
+    expect(
+      await t.sql.first<{ n: number }>("SELECT COUNT(*) AS n FROM cases"),
+    ).toEqual({
       n: 0,
     });
   });

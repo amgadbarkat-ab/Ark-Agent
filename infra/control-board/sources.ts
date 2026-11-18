@@ -8,6 +8,7 @@
  *  - GitHub issues and PRs: the REST API, only once a read-only token is given;
  *  - Stripe: an interface only, until a restricted read-only key is given.
  */
+import { Buffer } from "node:buffer";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { BillingSource } from "./stripe";
 

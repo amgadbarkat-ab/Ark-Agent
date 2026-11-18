@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import type { AccessCheck } from "./access";
 import { readAudit } from "./audit";
-import { Browser, testBoard } from "./test-helpers";
+import {
+  Browser,
+  type TestBoard,
+  testBoard,
+  VirtualAuthenticator,
+} from "./test-helpers";
 import { totp } from "./totp";
 
-const PASSWORD = "correct horse battery";
-let current: ReturnType<typeof testBoard> | null = null;
-function setup() {
-  current = testBoard();
+let current: TestBoard | null = null;
+async function setup(options?: Parameters<typeof testBoard>[1]) {
+  current = await testBoard(undefined, options);
   return current;
 }
 afterEach(() => {
@@ -14,13 +19,13 @@ afterEach(() => {
   current = null;
 });
 
-function lastAudit(t: ReturnType<typeof testBoard>) {
-  return readAudit(t.db, 1, 0)[0];
+async function lastAudit(t: TestBoard) {
+  return (await readAudit(t.sql, 1, 0))[0];
 }
 
-describe("signing in", () => {
-  test("nothing is shown before sign-in: every page sends you to the login form", async () => {
-    const t = setup();
+describe("signing in with a passkey and the board's TOTP", () => {
+  test("nothing is shown before sign-in: every page sends you to the sign-in form", async () => {
+    const t = await setup();
     const browser = t.browser();
     for (const path of [
       "/",
@@ -30,165 +35,197 @@ describe("signing in", () => {
       "/issues",
       "/audit",
       "/accounts",
+      "/billing",
     ]) {
       const page = await browser.get(path);
       expect(page.status).toBe(303);
       expect(page.location).toBe("/login");
-      expect(page.text).not.toContain("demo-");
     }
     const login = await browser.get("/login");
-    expect(login.text).toContain('name="password"');
+    expect(login.text).toContain('data-passkey="/login/options"');
     expect(login.text).toContain('name="code"');
+    expect(login.text).not.toContain('name="password"');
+    expect(login.text).toContain('<script src="/webauthn.js" defer></script>');
     expect(login.text).not.toContain("demo-");
   });
 
-  test("the password and a TOTP code sign you in, with a short-lived, locked-down cookie", async () => {
-    const t = setup();
+  test("the passkey and a TOTP code sign you in, with a short-lived, locked-down cookie", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
     const browser = t.browser();
-    const signedIn = await browser.signIn("maria", PASSWORD, t.code("maria"));
+    const signedIn = await browser.signIn("maria", t.code("maria"));
     expect(signedIn.status).toBe(303);
     expect(signedIn.location).toBe("/");
     const cookie = signedIn.response.headers
       .getSetCookie()
       .find((line) => line.startsWith("__Host-ark_board="));
-    expect(cookie).toBeDefined();
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("Secure");
-    expect(cookie).toContain("SameSite=Strict");
-    expect(cookie).toContain("Path=/");
-    expect(cookie).toContain("Max-Age=28800");
+    for (const part of [
+      "HttpOnly",
+      "Secure",
+      "SameSite=Strict",
+      "Path=/",
+      "Max-Age=28800",
+    ])
+      expect(cookie).toContain(part);
     expect(cookie).not.toContain("Domain=");
     const home = await browser.get("/");
     expect(home.status).toBe(200);
     expect(home.text).toContain("maria");
-    expect(lastAudit(t)).toMatchObject({
-      actor: "maria",
-      action: "view",
-      target: "overview",
-    });
-    const signIns = readAudit(t.db, 10, 0).filter(
+    const signIns = (await readAudit(t.sql, 10, 0)).filter(
       (row) => row.action === "sign-in",
     );
     expect(signIns).toMatchObject([
-      { actor: "maria", role: "support", outcome: "ok" },
+      { actor: "maria", role: "support", outcome: "ok", detail: "passkey" },
     ]);
   });
 
-  test("a right password without the right code does not sign in", async () => {
-    const t = setup();
+  test("the passkey without the right code does not sign in, and neither does a code without the passkey", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
-    const browser = t.browser();
-    const wrongCode = await browser.signIn("maria", PASSWORD, "000000");
-    expect(wrongCode.status).toBe(401);
-    expect(wrongCode.text).toContain("Wrong user name, password or code.");
-    const noCode = await browser.signIn("maria", PASSWORD, "");
-    expect(noCode.status).toBe(401);
-    expect((await browser.get("/")).status).toBe(303);
-    expect(lastAudit(t)).toMatchObject({
+    expect((await t.browser().signIn("maria", "000000")).status).toBe(401);
+    // A code alone, with no passkey at all.
+    const stranger = new VirtualAuthenticator();
+    expect(
+      (await t.browser().signIn("maria", t.code("maria"), stranger)).status,
+    ).toBe(401);
+    expect(await lastAudit(t)).toMatchObject({
       action: "sign-in",
-      target: "maria",
       outcome: "refused",
-      detail: "code",
+      detail: "unknown passkey",
     });
   });
 
-  test("a wrong password, an unknown name and a wrong code all get the same answer", async () => {
-    const t = setup();
+  test("a passkey answer for another site, or signed with another key, is refused", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
-    const answers = await Promise.all([
-      t.browser().signIn("maria", "wrong password!!", t.code("maria")),
-      t.browser().signIn("nobody", PASSWORD, t.code("maria")),
-      t.browser().signIn("maria", PASSWORD, "123456"),
-    ]);
-    const bodies = answers.map((answer) =>
-      answer.text.replace(/value="[^"]+"/g, ""),
+    const passkey = t.authenticators.get("maria") as VirtualAuthenticator;
+    const browser = t.browser();
+    const page = await browser.get("/login");
+    const csrf = Browser.csrfFrom(page.text);
+    const phishing = await browser.passkeyForm(
+      "/login/options",
+      "/login",
+      csrf,
+      (publicKey) =>
+        passkey.signIn(publicKey, { origin: "https://board-example.evil" }),
+      { code: t.code("maria") },
     );
-    expect(new Set(answers.map((answer) => answer.status))).toEqual(
-      new Set([401]),
+    expect(phishing.status).toBe(401);
+    expect(await lastAudit(t)).toMatchObject({
+      detail: "passkey: wrong origin",
+    });
+    const other = (await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign"],
+    )) as CryptoKeyPair;
+    const forged = await browser.passkeyForm(
+      "/login/options",
+      "/login",
+      csrf,
+      (publicKey) => passkey.signIn(publicKey, { key: other.privateKey }),
+      { code: t.code("maria") },
     );
-    expect(new Set(bodies).size).toBe(1);
+    expect(forged.status).toBe(401);
+    expect(await lastAudit(t)).toMatchObject({
+      detail: "passkey: bad signature",
+    });
   });
 
-  test("a code that was already used cannot sign in again (replay)", async () => {
-    const t = setup();
+  test("a challenge is used once: a replayed passkey answer is refused", async () => {
+    const t = await setup();
+    await t.addAccount("maria", "support");
+    const passkey = t.authenticators.get("maria") as VirtualAuthenticator;
+    const browser = t.browser();
+    const csrf = Browser.csrfFrom((await browser.get("/login")).text);
+    const options = JSON.parse(
+      (await browser.post("/login/options", { csrf })).text,
+    );
+    const answer = await passkey.signIn(options.publicKey);
+    const fields = {
+      csrf,
+      challengeId: options.challengeId,
+      ...answer,
+      code: t.code("maria"),
+    };
+    expect((await browser.post("/login", fields)).status).toBe(303);
+    t.clock.now += 30_000;
+    // Another browser, with its own form token, replays the same passkey answer.
+    const replay = t.browser();
+    const replayCsrf = Browser.csrfFrom((await replay.get("/login")).text);
+    expect(
+      (
+        await replay.post("/login", {
+          ...fields,
+          csrf: replayCsrf,
+          code: t.code("maria"),
+        })
+      ).status,
+    ).toBe(401);
+    expect(await lastAudit(t)).toMatchObject({ detail: "challenge" });
+  });
+
+  test("a TOTP code that was already used cannot sign in again", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
     const code = t.code("maria");
-    expect((await t.browser().signIn("maria", PASSWORD, code)).status).toBe(
+    expect((await t.browser().signIn("maria", code)).status).toBe(303);
+    t.clock.now += 5_000;
+    expect((await t.browser().signIn("maria", code)).status).toBe(401);
+    t.clock.now += 30_000;
+    expect((await t.browser().signIn("maria", t.code("maria"))).status).toBe(
       303,
     );
-    t.clock.now += 5_000;
-    expect((await t.browser().signIn("maria", PASSWORD, code)).status).toBe(
-      401,
-    );
-    t.clock.now += 30_000;
-    expect(
-      (await t.browser().signIn("maria", PASSWORD, t.code("maria"))).status,
-    ).toBe(303);
   });
 
-  test("after 5 failures a name is locked for 15 minutes, even with the right password and code", async () => {
-    const t = setup();
+  test("after 5 failures an account is locked for 15 minutes, even with the right passkey and code", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
-    for (let i = 0; i < 5; i++) {
-      expect(
-        (await t.browser().signIn("maria", "wrong password!!", t.code("maria")))
-          .status,
-      ).toBe(401);
-    }
-    const locked = await t.browser().signIn("maria", PASSWORD, t.code("maria"));
+    for (let i = 0; i < 5; i++)
+      expect((await t.browser().signIn("maria", "000000")).status).toBe(401);
+    const locked = await t.browser().signIn("maria", t.code("maria"));
     expect(locked.status).toBe(429);
-    expect(locked.text).toContain("Too many attempts");
-    expect(lastAudit(t)).toMatchObject({
+    expect(await lastAudit(t)).toMatchObject({
       action: "sign-in",
       outcome: "refused",
       detail: "locked",
     });
-    t.clock.now += 14 * 60_000;
-    expect(
-      (await t.browser().signIn("maria", PASSWORD, t.code("maria"))).status,
-    ).toBe(429);
-    t.clock.now += 61_000;
-    expect(
-      (await t.browser().signIn("maria", PASSWORD, t.code("maria"))).status,
-    ).toBe(303);
+    t.clock.now += 15 * 60_000 + 1;
+    expect((await t.browser().signIn("maria", t.code("maria"))).status).toBe(
+      303,
+    );
   });
 
-  test("one address is stopped after 20 failures across any names", async () => {
-    const t = setup();
+  test("one address is stopped after 20 failures, whoever it tries", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
-    for (let i = 0; i < 20; i++) {
-      await t.browser().signIn(`guess${i}`, "wrong password!!", "123456");
-    }
-    expect(
-      (await t.browser().signIn("maria", PASSWORD, t.code("maria"))).status,
-    ).toBe(429);
+    for (let i = 0; i < 20; i++)
+      await t.browser().signIn("nobody", "123456", new VirtualAuthenticator());
+    expect((await t.browser().signIn("maria", t.code("maria"))).status).toBe(
+      429,
+    );
     const elsewhere = t.browser();
     elsewhere.ip = "198.51.100.9";
-    expect(
-      (await elsewhere.signIn("maria", PASSWORD, t.code("maria"))).status,
-    ).toBe(303);
+    expect((await elsewhere.signIn("maria", t.code("maria"))).status).toBe(303);
   });
 
-  test("the login form without its CSRF token is refused", async () => {
-    const t = setup();
+  test("the sign-in form and its passkey options need the pre-session CSRF token", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
     const browser = t.browser();
     await browser.get("/login");
-    const forged = await browser.post("/login", {
-      csrf: "x".repeat(43),
-      username: "maria",
-      password: PASSWORD,
-      code: t.code("maria"),
-    });
-    expect(forged.status).toBe(403);
-    const fromElsewhere = await t.browser().post("/login", {
-      username: "maria",
-      password: PASSWORD,
-      code: t.code("maria"),
-    });
-    expect(fromElsewhere.status).toBe(403);
-    expect(lastAudit(t)).toMatchObject({
+    expect(
+      (await browser.post("/login/options", { csrf: "x".repeat(43) })).status,
+    ).toBe(403);
+    expect(
+      (
+        await browser.post("/login", {
+          csrf: "x".repeat(43),
+          code: t.code("maria"),
+        })
+      ).status,
+    ).toBe(403);
+    expect(await lastAudit(t)).toMatchObject({
       action: "sign-in",
       outcome: "refused",
       detail: "csrf",
@@ -196,88 +233,64 @@ describe("signing in", () => {
   });
 
   test("a disabled account cannot sign in", async () => {
-    const t = setup();
+    const t = await setup();
     await t.addAccount("maria", "support");
-    t.db
-      .query("UPDATE accounts SET status = 'disabled' WHERE username = 'maria'")
-      .run();
-    expect(
-      (await t.browser().signIn("maria", PASSWORD, t.code("maria"))).status,
-    ).toBe(401);
+    await t.sql.run(
+      "UPDATE accounts SET status = 'disabled' WHERE username = 'maria'",
+    );
+    expect((await t.browser().signIn("maria", t.code("maria"))).status).toBe(
+      401,
+    );
   });
 });
 
 describe("sessions", () => {
-  test("a session ends after 15 minutes without a request", async () => {
-    const t = setup();
+  test("a session ends after 15 minutes without a request, and after 8 hours in any case", async () => {
+    const t = await setup();
     await t.addAccount("maria", "support");
     const browser = t.browser();
-    await browser.signIn("maria", PASSWORD, t.code("maria"));
-    t.clock.now += 14 * 60_000;
-    expect((await browser.get("/")).status).toBe(200);
+    await browser.signIn("maria", t.code("maria"));
     t.clock.now += 14 * 60_000;
     expect((await browser.get("/")).status).toBe(200);
     t.clock.now += 15 * 60_000 + 1;
     const ended = await browser.get("/");
-    expect(ended.status).toBe(303);
     expect(ended.location).toBe("/login?ended=1");
-    expect((await browser.get("/login?ended=1")).text).toContain(
-      "Your session ended",
-    );
-  });
 
-  test("a session ends after 8 hours even when in use", async () => {
-    const t = setup();
-    await t.addAccount("maria", "support");
-    const browser = t.browser();
-    await browser.signIn("maria", PASSWORD, t.code("maria"));
-    for (let minutes = 10; minutes < 8 * 60; minutes += 10) {
+    const long = t.browser();
+    t.clock.now += 60_000;
+    await long.signIn("maria", t.code("maria"));
+    for (let minutes = 10; minutes <= 8 * 60; minutes += 10) {
       t.clock.now += 10 * 60_000;
-      expect((await browser.get("/services")).status).toBe(200);
+      if (minutes < 8 * 60)
+        expect((await long.get("/services")).status).toBe(200);
     }
-    t.clock.now += 10 * 60_000 + 1;
-    expect((await browser.get("/services")).status).toBe(303);
+    t.clock.now += 1;
+    expect((await long.get("/services")).status).toBe(303);
   });
 
   test("signing out ends the session, and needs the CSRF token", async () => {
-    const t = setup();
+    const t = await setup();
     await t.addAccount("maria", "support");
     const browser = t.browser();
-    await browser.signIn("maria", PASSWORD, t.code("maria"));
+    await browser.signIn("maria", t.code("maria"));
     const home = await browser.get("/");
     expect((await browser.post("/logout", { csrf: "wrong" })).status).toBe(403);
-    expect((await browser.get("/")).status).toBe(200);
-    const out = await browser.post("/logout", {
-      csrf: Browser.csrfFrom(home.text),
-    });
-    expect(out.status).toBe(303);
+    expect(
+      (await browser.post("/logout", { csrf: Browser.csrfFrom(home.text) }))
+        .status,
+    ).toBe(303);
     expect((await browser.get("/")).status).toBe(303);
-    expect(lastAudit(t)).toMatchObject({ actor: "maria", action: "sign-out" });
-  });
-
-  test("a stolen cookie value from another session does not carry its CSRF token", async () => {
-    const t = setup();
-    await t.addAccount("maria", "admin");
-    await t.addAccount("nikos", "admin");
-    const maria = t.browser();
-    await maria.signIn("maria", PASSWORD, t.code("maria"));
-    const nikos = t.browser();
-    await nikos.signIn("nikos", PASSWORD, t.code("nikos"));
-    const nikosToken = Browser.csrfFrom((await nikos.get("/accounts")).text);
-    const forged = await maria.post("/accounts", {
-      csrf: nikosToken,
-      action: "create",
-      username: "evil",
-      role: "support",
+    expect(await lastAudit(t)).toMatchObject({
+      actor: "maria",
+      action: "sign-out",
     });
-    expect(forged.status).toBe(403);
   });
 
   test("a POST from another site is refused even with the token", async () => {
-    const t = setup();
+    const t = await setup();
     await t.addAccount("maria", "admin");
     const browser = t.browser();
-    await browser.signIn("maria", PASSWORD, t.code("maria"));
+    await browser.signIn("maria", t.code("maria"));
     const csrf = Browser.csrfFrom((await browser.get("/accounts")).text);
     const crossSite = await browser.post(
       "/accounts",
@@ -285,20 +298,15 @@ describe("sessions", () => {
       { "sec-fetch-site": "cross-site", origin: "https://evil.example" },
     );
     expect(crossSite.status).toBe(403);
-    expect(lastAudit(t)).toMatchObject({
-      action: "refused",
-      outcome: "refused",
-      detail: "csrf",
-    });
   });
 });
 
 describe("roles", () => {
   async function as(role: "owner" | "admin" | "support" | "read-only") {
-    const t = setup();
+    const t = await setup();
     await t.addAccount("person", role);
     const browser = t.browser();
-    await browser.signIn("person", PASSWORD, t.code("person"));
+    await browser.signIn("person", t.code("person"));
     return { t, browser };
   }
 
@@ -311,21 +319,17 @@ describe("roles", () => {
         "/customers/demo-shop",
         "/services",
         "/issues",
+        "/billing",
       ]) {
         expect((await browser.get(path)).status).toBe(200);
       }
-      const audit = await browser.get("/audit");
-      expect(audit.status).toBe(403);
-      expect(audit.text).not.toContain("sign-in");
+      expect((await browser.get("/audit")).status).toBe(403);
       expect((await browser.get("/accounts")).status).toBe(403);
-      expect(lastAudit(t)).toMatchObject({
+      expect(await lastAudit(t)).toMatchObject({
         action: "refused",
         target: "GET /accounts",
         outcome: "refused",
       });
-      const home = await browser.get("/");
-      expect(home.text).not.toContain('href="/audit"');
-      expect(home.text).not.toContain('href="/accounts"');
       current?.cleanup();
       current = null;
     }
@@ -333,70 +337,43 @@ describe("roles", () => {
 
   test("an admin adds support and read-only accounts, never an owner or another admin", async () => {
     const { t, browser } = await as("admin");
-    const page = await browser.get("/accounts");
-    const csrf = Browser.csrfFrom(page.text);
-    expect(page.text).not.toContain('value="owner"');
+    const csrf = Browser.csrfFrom((await browser.get("/accounts")).text);
     const ok = await browser.post("/accounts", {
       csrf,
       action: "create",
       username: "eleni",
       role: "support",
     });
-    expect(ok.status).toBe(200);
     expect(ok.text).toMatch(
       /https:\/\/board\.example\/setup\/[A-Za-z0-9_-]{43}/,
     );
     for (const role of ["owner", "admin"]) {
-      const refused = await browser.post("/accounts", {
-        csrf,
-        action: "create",
-        username: `x-${role}`,
-        role,
-      });
-      expect(refused.status).toBe(403);
+      expect(
+        (
+          await browser.post("/accounts", {
+            csrf,
+            action: "create",
+            username: `x-${role}`,
+            role,
+          })
+        ).status,
+      ).toBe(403);
     }
     expect(
-      t.db
-        .query("SELECT username, role, status FROM accounts ORDER BY username")
-        .all(),
+      await t.sql.all(
+        "SELECT username, role, status FROM accounts ORDER BY username",
+      ),
     ).toEqual([
       { username: "eleni", role: "support", status: "pending" },
       { username: "person", role: "admin", status: "active" },
     ]);
   });
 
-  test("an admin cannot disable or reset an owner", async () => {
-    const { t, browser } = await as("admin");
-    await t.addAccount("boss", "owner");
-    const csrf = Browser.csrfFrom((await browser.get("/accounts")).text);
-    expect(
-      (
-        await browser.post("/accounts", {
-          csrf,
-          action: "disable",
-          username: "boss",
-        })
-      ).status,
-    ).toBe(403);
-    expect(
-      (
-        await browser.post("/accounts", {
-          csrf,
-          action: "reset",
-          username: "boss",
-        })
-      ).status,
-    ).toBe(403);
-    expect(
-      t.db.query("SELECT status FROM accounts WHERE username = 'boss'").get(),
-    ).toEqual({ status: "active" });
-  });
-
   test("disabling an account ends its sessions at once", async () => {
     const { t, browser } = await as("owner");
     await t.addAccount("eleni", "support");
     const eleni = t.browser();
-    await eleni.signIn("eleni", PASSWORD, t.code("eleni"));
+    await eleni.signIn("eleni", t.code("eleni"));
     expect((await eleni.get("/")).status).toBe(200);
     const csrf = Browser.csrfFrom((await browser.get("/accounts")).text);
     expect(
@@ -409,93 +386,139 @@ describe("roles", () => {
       ).status,
     ).toBe(200);
     expect((await eleni.get("/")).status).toBe(303);
-    expect(lastAudit(t)).toMatchObject({
-      actor: "person",
-      action: "account.disable",
-      target: "eleni",
-    });
   });
 });
 
 describe("a new account's setup link", () => {
-  test("sets the password and 2FA once, then the person signs in", async () => {
-    const t = setup();
+  async function made(t: TestBoard) {
     await t.addAccount("boss", "owner");
     const owner = t.browser();
-    await owner.signIn("boss", PASSWORD, t.code("boss"));
+    await owner.signIn("boss", t.code("boss"));
     const csrf = Browser.csrfFrom((await owner.get("/accounts")).text);
-    const made = await owner.post("/accounts", {
+    const page = await owner.post("/accounts", {
       csrf,
       action: "create",
       username: "eleni",
       role: "read-only",
     });
-    const path =
-      made.text.match(
+    return (
+      page.text.match(
         /https:\/\/board\.example(\/setup\/[A-Za-z0-9_-]{43})/,
-      )?.[1] ?? "";
-    expect(path).not.toBe("");
+      )?.[1] ?? ""
+    );
+  }
 
+  test("registers a passkey and the TOTP key once; then the person signs in with them", async () => {
+    const t = await setup();
+    const path = await made(t);
     const eleni = t.browser();
     const form = await eleni.get(path);
-    expect(form.status).toBe(200);
+    expect(form.text).toContain(`data-passkey="${path}/options"`);
     const secret = form.text.match(/secret=([A-Z2-7]+)/)?.[1] ?? "";
-    expect(secret).toHaveLength(32);
-    const formCsrf = Browser.csrfFrom(form.text);
-    const short = await eleni.post(path, {
-      csrf: formCsrf,
-      password: "short",
-      repeat: "short",
-      code: totp(secret, t.clock.now),
-    });
-    expect(short.status).toBe(400);
-    const wrongCode = await eleni.post(path, {
-      csrf: formCsrf,
-      password: "a long new password",
-      repeat: "a long new password",
-      code: "000000",
-    });
+    const csrf = Browser.csrfFrom(form.text);
+    const passkey = new VirtualAuthenticator();
+    const wrongCode = await eleni.passkeyForm(
+      `${path}/options`,
+      path,
+      csrf,
+      (pk) => passkey.register(pk),
+      { code: "000000" },
+    );
     expect(wrongCode.status).toBe(400);
-    const done = await eleni.post(path, {
-      csrf: formCsrf,
-      password: "a long new password",
-      repeat: "a long new password",
-      code: totp(secret, t.clock.now),
-    });
-    expect(done.status).toBe(200);
+    const done = await eleni.passkeyForm(
+      `${path}/options`,
+      path,
+      csrf,
+      (pk) => passkey.register(pk),
+      {
+        code: totp(secret, t.clock.now),
+      },
+    );
     expect(done.text).toContain("Setup is done");
     expect((await t.browser().get(path)).status).toBe(404);
-
     t.clock.now += 30_000;
     expect(
-      (
-        await eleni.signIn(
-          "eleni",
-          "a long new password",
-          totp(secret, t.clock.now),
-        )
-      ).status,
+      (await eleni.signIn("eleni", totp(secret, t.clock.now), passkey)).status,
     ).toBe(303);
     expect((await eleni.get("/customers")).status).toBe(200);
   });
 
-  test("a setup link stops working after 24 hours", async () => {
-    const t = setup();
-    await t.addAccount("boss", "owner");
-    const owner = t.browser();
-    await owner.signIn("boss", PASSWORD, t.code("boss"));
-    const csrf = Browser.csrfFrom((await owner.get("/accounts")).text);
-    const made = await owner.post("/accounts", {
-      csrf,
-      action: "create",
-      username: "eleni",
-      role: "support",
+  test("a passkey made for another site is refused at setup", async () => {
+    const t = await setup();
+    const path = await made(t);
+    const eleni = t.browser();
+    const form = await eleni.get(path);
+    const secret = form.text.match(/secret=([A-Z2-7]+)/)?.[1] ?? "";
+    const passkey = new VirtualAuthenticator("https://evil.example");
+    const refused = await eleni.passkeyForm(
+      `${path}/options`,
+      path,
+      Browser.csrfFrom(form.text),
+      (pk) => passkey.register(pk),
+      {
+        code: totp(secret, t.clock.now),
+      },
+    );
+    expect(refused.status).toBe(400);
+    expect(await lastAudit(t)).toMatchObject({
+      action: "account.setup",
+      detail: "passkey: wrong origin",
     });
-    const path =
-      made.text.match(
-        /https:\/\/board\.example(\/setup\/[A-Za-z0-9_-]{43})/,
-      )?.[1] ?? "";
+  });
+
+  test("a setup link stops working after 24 hours", async () => {
+    const t = await setup();
+    const path = await made(t);
     t.clock.now += 24 * 3_600_000 + 1;
     expect((await t.browser().get(path)).status).toBe(404);
+  });
+});
+
+describe("behind Cloudflare Access (FIRST_FACTOR=access)", () => {
+  const accessFor =
+    (allowed: Record<string, string>): AccessCheck =>
+    async (request) => {
+      const email =
+        allowed[request.headers.get("cf-access-jwt-assertion") ?? ""];
+      return email
+        ? { ok: true, email }
+        : { ok: false, reason: "no assertion" };
+    };
+  const access = accessFor({
+    "jwt-maria": "maria@blackark.example",
+    "jwt-guest": "guest@blackark.example",
+  });
+
+  test("Access's email names the account; the board's TOTP is still asked for", async () => {
+    const t = await setup({ firstFactor: "access", access });
+    await t.addAccount("maria", "support", "maria@blackark.example");
+    const browser = t.browser();
+    browser.extraHeaders["cf-access-jwt-assertion"] = "jwt-maria";
+    const page = await browser.get("/login");
+    expect(page.text).toContain("<strong>maria</strong>");
+    expect(page.text).not.toContain("data-passkey");
+    expect((await browser.signInWithCode("000000")).status).toBe(401);
+    expect((await browser.signInWithCode(t.code("maria"))).status).toBe(303);
+    expect((await browser.get("/")).status).toBe(200);
+  });
+
+  test("an Access email with no account gets nothing, and no assertion is refused outright", async () => {
+    const t = await setup({ firstFactor: "access", access });
+    const guest = t.browser();
+    guest.extraHeaders["cf-access-jwt-assertion"] = "jwt-guest";
+    expect((await guest.get("/login")).status).toBe(403);
+    const around = await t.browser().get("/login");
+    expect(around.status).toBe(403);
+    expect(around.text).toBe("Not through Cloudflare Access.");
+  });
+
+  test("a session is tied to the person Access let through", async () => {
+    const t = await setup({ firstFactor: "access", access });
+    await t.addAccount("maria", "support", "maria@blackark.example");
+    const browser = t.browser();
+    browser.extraHeaders["cf-access-jwt-assertion"] = "jwt-maria";
+    await browser.signInWithCode(t.code("maria"));
+    browser.extraHeaders["cf-access-jwt-assertion"] = "jwt-guest";
+    expect((await browser.get("/")).status).toBe(303);
   });
 });

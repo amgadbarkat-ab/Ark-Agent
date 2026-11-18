@@ -1,20 +1,16 @@
 /**
- * Cloudflare Access in front of the board (Amgad, 18 Nov 2026, #149). The board has no public port:
- * a Cloudflare Tunnel carries requests to it, and Cloudflare Access lets through only people its
- * policy allows. Access then adds `Cf-Access-Jwt-Assertion`, a JWT signed with the team's keys.
+ * Cloudflare Access in front of the board (`FIRST_FACTOR=access`): Access lets through only people
+ * its policy allows, and adds `Cf-Access-Jwt-Assertion`, a JWT signed with the team's keys. The
+ * board checks it on every request (WebCrypto, no package) and takes the email in it as the first
+ * factor: it must belong to a board account. The board's TOTP is still asked for after it.
  *
- * With this check on, the board refuses any request without a valid assertion, so a request that
- * reached the board some other way (around the tunnel) gets nothing. It is OFF until both the team
- * domain and the application's AUD tag are configured. The board's own accounts and TOTP still
- * apply on top: Access decides who may reach the board, the board decides who may sign in.
- *
- * The check, with node:crypto only:
- * - RS256, and the key named by `kid` from https://<team>.cloudflareaccess.com/cdn-cgi/access/certs
+ * The check:
+ * - RS256, with the key named by `kid` from https://<team>.cloudflareaccess.com/cdn-cgi/access/certs
  *   (kept an hour; fetched again, at most once a minute, when a new `kid` appears);
  * - `aud` contains the application's AUD tag, `iss` is the team domain;
  * - not expired, and not from the future (a minute's leeway each way).
  */
-import { createPublicKey, type KeyObject, verify } from "node:crypto";
+import { Buffer } from "node:buffer";
 
 export type AccessSettings = {
   /** e.g. "blackark.cloudflareaccess.com". */
@@ -25,11 +21,13 @@ export type AccessSettings = {
   now?: () => number;
 };
 
-export type AccessCheck = (
-  request: Request,
-) => Promise<{ ok: true } | { ok: false; reason: string }>;
+export type AccessResult =
+  | { ok: true; email: string | null }
+  | { ok: false; reason: string };
 
-type Jwk = { kid?: string; kty?: string; n?: string; e?: string; alg?: string };
+export type AccessCheck = (request: Request) => Promise<AccessResult>;
+
+type Jwk = { kid?: string; kty?: string; n?: string; e?: string };
 
 const LEEWAY_SECONDS = 60;
 const KEYS_TTL_MS = 60 * 60_000;
@@ -43,7 +41,7 @@ export function cloudflareAccess(settings: AccessSettings): AccessCheck {
   const send = settings.fetch ?? fetch;
   const now = settings.now ?? Date.now;
   const issuer = `https://${settings.teamDomain}`;
-  let keys = new Map<string, KeyObject>();
+  let keys = new Map<string, CryptoKey>();
   let fetchedAt = 0;
 
   async function loadKeys(): Promise<void> {
@@ -53,22 +51,25 @@ export function cloudflareAccess(settings: AccessSettings): AccessCheck {
     if (!response.ok)
       throw new Error(`Access keys answered ${response.status}.`);
     const body = (await response.json()) as { keys?: Jwk[] };
-    const next = new Map<string, KeyObject>();
+    const next = new Map<string, CryptoKey>();
     for (const jwk of body.keys ?? []) {
       if (!jwk.kid || jwk.kty !== "RSA" || !jwk.n || !jwk.e) continue;
       next.set(
         jwk.kid,
-        createPublicKey({
-          key: { kty: "RSA", n: jwk.n, e: jwk.e },
-          format: "jwk",
-        }),
+        await crypto.subtle.importKey(
+          "jwk",
+          { kty: "RSA", n: jwk.n, e: jwk.e, alg: "RS256", ext: true },
+          { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+          false,
+          ["verify"],
+        ),
       );
     }
     keys = next;
     fetchedAt = now();
   }
 
-  async function keyFor(kid: string): Promise<KeyObject | undefined> {
+  async function keyFor(kid: string): Promise<CryptoKey | undefined> {
     if (now() - fetchedAt > KEYS_TTL_MS) await loadKeys();
     if (!keys.has(kid) && now() - fetchedAt > REFETCH_MIN_MS) await loadKeys();
     return keys.get(kid);
@@ -91,6 +92,7 @@ export function cloudflareAccess(settings: AccessSettings): AccessCheck {
       exp?: number;
       nbf?: number;
       iat?: number;
+      email?: string;
     };
     try {
       header = decodePart(head) as typeof header;
@@ -100,18 +102,18 @@ export function cloudflareAccess(settings: AccessSettings): AccessCheck {
     }
     if (header.alg !== "RS256" || !header.kid)
       return { ok: false, reason: "not RS256" };
-    let key: KeyObject | undefined;
+    let key: CryptoKey | undefined;
     try {
       key = await keyFor(header.kid);
     } catch {
       return { ok: false, reason: "keys unavailable" };
     }
     if (!key) return { ok: false, reason: "unknown key" };
-    const valid = verify(
-      "RSA-SHA256",
-      Buffer.from(`${head}.${body}`),
+    const valid = await crypto.subtle.verify(
+      { name: "RSASSA-PKCS1-v1_5" },
       key,
-      Buffer.from(signature, "base64url"),
+      new Uint8Array(Buffer.from(signature, "base64url")),
+      new TextEncoder().encode(`${head}.${body}`),
     );
     if (!valid) return { ok: false, reason: "bad signature" };
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
@@ -123,6 +125,10 @@ export function cloudflareAccess(settings: AccessSettings): AccessCheck {
       return { ok: false, reason: "expired" };
     if ((claims.nbf ?? claims.iat ?? 0) - LEEWAY_SECONDS > seconds)
       return { ok: false, reason: "not yet valid" };
-    return { ok: true };
+    return {
+      ok: true,
+      email:
+        typeof claims.email === "string" ? claims.email.toLowerCase() : null,
+    };
   };
 }

@@ -21,11 +21,29 @@ export const EL: Record<string, string> = {
   "Sign out": "Αποσύνδεση",
   "Sign in": "Σύνδεση",
   "User name": "Όνομα χρήστη",
-  Password: "Κωδικός",
-  "Password again": "Ξανά ο κωδικός",
+  "Sign in with a passkey": "Σύνδεση με κλειδί πρόσβασης",
+  "The passkey did not work. Try again.":
+    "Το κλειδί πρόσβασης δεν λειτούργησε. Δοκιμάστε ξανά.",
+  "The passkey was not made. Try again.":
+    "Το κλειδί πρόσβασης δεν δημιουργήθηκε. Δοκιμάστε ξανά.",
+  "Type the code your app shows now, then make a passkey for this board when your browser asks.":
+    "Πληκτρολογήστε τον κωδικό που δείχνει τώρα η εφαρμογή σας και, όταν το ζητήσει το πρόγραμμα περιήγησης, δημιουργήστε κλειδί πρόσβασης για αυτόν τον πίνακα.",
+  "Type the code your app shows now. You sign in through Cloudflare Access with the email above.":
+    "Πληκτρολογήστε τον κωδικό που δείχνει τώρα η εφαρμογή σας. Συνδέεστε μέσω Cloudflare Access με το παραπάνω email.",
+  "This Cloudflare Access sign-in has no board account. Ask an admin.":
+    "Αυτή η σύνδεση Cloudflare Access δεν έχει λογαριασμό στον πίνακα. Ρωτήστε έναν διαχειριστή.",
+  "That did not work. Check your passkey or code and try again.":
+    "Δεν έγινε. Ελέγξτε το κλειδί πρόσβασης ή τον κωδικό και δοκιμάστε ξανά.",
+  "The chain of entries is checked every night; it has not been checked yet.":
+    "Η αλυσίδα των εγγραφών ελέγχεται κάθε βράδυ· δεν έχει ελεγχθεί ακόμη.",
+  "The chain of entries was intact at {time}.":
+    "Η αλυσίδα των εγγραφών ήταν ακέραιη στις {time}.",
+  "Cloudflare Access email": "Email του Cloudflare Access",
+  "That email already has an account.": "Αυτό το email έχει ήδη λογαριασμό.",
+  "That email address is not valid.":
+    "Αυτή η διεύθυνση email δεν είναι έγκυρη.",
+  "not checked yet": "δεν έχει ελεγχθεί ακόμη",
   "Code from your authenticator app": "Κωδικός από την εφαρμογή επαλήθευσης",
-  "Wrong user name, password or code.":
-    "Λάθος όνομα χρήστη, κωδικός ή κωδικός επαλήθευσης.",
   "Too many attempts. Try again in 15 minutes.":
     "Πάρα πολλές προσπάθειες. Δοκιμάστε ξανά σε 15 λεπτά.",
   "The form expired. Please try again.": "Η φόρμα έληξε. Δοκιμάστε ξανά.",
@@ -34,12 +52,7 @@ export const EL: Record<string, string> = {
   "Set up your account": "Ρύθμιση λογαριασμού",
   "Add this key to your authenticator app (time-based, 6 digits, 30 seconds):":
     "Προσθέστε αυτό το κλειδί στην εφαρμογή επαλήθευσης (με βάση τον χρόνο, 6 ψηφία, 30 δευτερόλεπτα):",
-  "Choose a password of at least 12 characters, and type the code your app shows now.":
-    "Διαλέξτε κωδικό τουλάχιστον 12 χαρακτήρων και πληκτρολογήστε τον κωδικό που δείχνει τώρα η εφαρμογή σας.",
   "Finish setup": "Ολοκλήρωση ρύθμισης",
-  "The password needs at least 12 characters.":
-    "Ο κωδικός χρειάζεται τουλάχιστον 12 χαρακτήρες.",
-  "The two passwords are not the same.": "Οι δύο κωδικοί δεν είναι ίδιοι.",
   "That code is not right. Check your app's time and try the next code.":
     "Ο κωδικός δεν είναι σωστός. Ελέγξτε την ώρα της εφαρμογής σας και δοκιμάστε τον επόμενο κωδικό.",
   "This setup link is not valid. Ask an admin for a new one.":
@@ -136,7 +149,6 @@ export const EL: Record<string, string> = {
   Merged: "Συγχωνευμένα",
   Closed: "Κλειστά",
   "No issues.": "Κανένα θέμα.",
-  "The chain of entries is intact.": "Η αλυσίδα των εγγραφών είναι ακέραιη.",
   "Entry {n} does not follow from the one before: the log was changed outside the board.":
     "Η εγγραφή {n} δεν ακολουθεί την προηγούμενη: το αρχείο άλλαξε εκτός του πίνακα.",
   When: "Πότε",
@@ -155,7 +167,7 @@ export const EL: Record<string, string> = {
     "Σύνδεσμος ρύθμισης για {name}, ισχύει 24 ώρες. Εμφανίζεται μόνο τώρα: δώστε τον στο άτομο εσείς, όχι με email ή μήνυμα χωρίς προστασία.",
   Role: "Ρόλος",
   Added: "Προστέθηκε",
-  "Reset password and 2FA": "Επαναφορά κωδικού και 2FA",
+  "Reset passkey and 2FA": "Επαναφορά κλειδιού πρόσβασης και 2FA",
   Disable: "Απενεργοποίηση",
   "Add an account": "Νέος λογαριασμός",
   "lower-case letters, digits, dot, dash":

@@ -1,36 +1,33 @@
 /**
  * The board on this computer with made-up data, to look at it:  bun infra/control-board/dev.ts
  *
- * It makes a throwaway SQLite file, an owner "demo" with the password "demo-password-1" and a
- * printed TOTP key (add it to an authenticator app, or read the current code from the console),
- * and serves http://localhost:8787. Browsers keep `Secure` and `__Host-` cookies on localhost.
- * Nothing leaves the computer: every source is a stand-in.
+ * A throwaway SQLite file stands in for D1, and every source is a stand-in, refreshed every minute
+ * as the Cron Trigger would: nothing leaves the computer. It makes a pending owner "demo" and prints
+ * its setup link: open it, add the TOTP key to an authenticator app, and make a passkey (browsers
+ * allow passkeys on http://localhost). Then sign in with the passkey and the app's code.
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activateDirectly } from "./accounts";
+import { createPendingAccount } from "./accounts";
 import { createBoard } from "./board";
 import { casesExtension, openCase } from "./cases";
+import { refreshSources } from "./cron";
+import { openLocalStore } from "./sql-sqlite";
 import { standIns } from "./standins";
-import { openStore } from "./store";
-import { newTotpSecret, totp } from "./totp";
 
+const port = Number(process.env.PORT ?? 8787);
+const origin = `http://localhost:${port}`;
 const dir = mkdtempSync(join(tmpdir(), "control-board-dev-"));
-const db = openStore(join(dir, "board.sqlite"));
-const secret = newTotpSecret();
-await activateDirectly(
-  db,
-  "demo",
-  "owner",
-  "demo-password-1",
-  secret,
-  -1,
+const sql = await openLocalStore(join(dir, "board.sqlite"));
+const token = await createPendingAccount(
+  sql,
+  { username: "demo", role: "owner" },
+  "dev",
   Date.now(),
 );
-const port = Number(process.env.PORT ?? 8787);
-openCase(
-  db,
+await openCase(
+  sql,
   {
     customerId: "demo-clinic",
     channel: "in-app",
@@ -45,23 +42,19 @@ openCase(
 );
 const sources = standIns(Date.now);
 sources.stripeConnected = true;
+await refreshSources(sql, sources, Date.now);
+setInterval(() => void refreshSources(sql, sources, Date.now), 60_000);
+
 const board = createBoard({
-  db,
-  extensions: [casesExtension(db)],
-  sources,
-  publicOrigin: `http://localhost:${port}`,
+  sql,
+  publicOrigin: origin,
+  firstFactor: "passkey",
+  extensions: [casesExtension(sql)],
 });
 Bun.serve({
   port,
   hostname: "127.0.0.1",
   fetch: (request) => board.fetch(request, "127.0.0.1"),
 });
-console.log(`Control Board (made-up data): http://localhost:${port}/login`);
-console.log(
-  `User name: demo   Password: demo-password-1   TOTP key: ${secret}`,
-);
-setInterval(
-  () => console.log(`Current code: ${totp(secret, Date.now())}`),
-  30_000,
-);
-console.log(`Current code: ${totp(secret, Date.now())}`);
+console.log(`Control Board (made-up data): ${origin}/login`);
+console.log(`Set up the owner "demo" first: ${origin}/setup/${token}`);

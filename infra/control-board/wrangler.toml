@@ -1,0 +1,42 @@
+# BlackArk Control Board (#149) on Cloudflare Workers, free plan. Deploy steps: README.md.
+# wrangler is NOT a dependency of this repository; COO runs it with `npx wrangler@<version>` after
+# Amgad's yes. Secrets are never written here: `wrangler secret put NAME` (hidden prompt).
+name = "blackark-board"
+main = "worker.ts"
+compatibility_date = "2025-09-01"
+# node:crypto (createHash, createHmac, randomBytes, timingSafeEqual) and node:buffer.
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[vars]
+BOARD_PUBLIC_ORIGIN = "https://blackark-board.<account-subdomain>.workers.dev"
+# "passkey" (no Cloudflare Access needed) or "access" (Cloudflare Access + its email).
+FIRST_FACTOR = "passkey"
+CF_ACCESS_TEAM_DOMAIN = ""
+CF_ACCESS_AUD = ""
+CHECKIN_EXPORT_URL = "https://blackark.uk/checkin/export/"
+RELAY_HEALTH_URL = ""
+GITHUB_REPO = "amgadbarkat-ab/Ark-Agent"
+SUPPORT_ADDRESS = "support@blackark.uk"
+MAIL_IMAP_HOST = "imap.one.com"
+MAIL_IMAP_PORT = "993"
+MAIL_USER = "General@blackark.uk"
+BOARD_HOLIDAYS = ""
+# "blackark" (blackark.uk's checkin/audit-copy/), "r2" (the bucket below) or "none".
+AUDIT_COPY = "blackark"
+AUDIT_COPY_URL = "https://blackark.uk/checkin/audit-copy/"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "blackark-board"
+database_id = "<set by: wrangler d1 create blackark-board>"
+
+# Only with AUDIT_COPY = "r2" (R2 needs an R2 subscription on the account):
+# [[r2_buckets]]
+# binding = "AUDIT_BUCKET"
+# bucket_name = "blackark-board-audit"
+
+[triggers]
+# Sources every 10 minutes, the support mailbox every 5, and the nightly audit check and copy
+# (02:17 UTC). Three of the free plan's five Cron Triggers.
+crons = ["*/10 * * * *", "*/5 * * * *", "17 2 * * *"]
