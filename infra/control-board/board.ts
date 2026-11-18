@@ -22,6 +22,7 @@ import type { AccessCheck } from "./access";
 import {
   type Account,
   activeOwners,
+  addressKey,
   clearFailures,
   completeSetup,
   createPendingAccount,
@@ -45,7 +46,6 @@ import {
   resetAccount,
   type Session,
   setSignCount,
-  sha256,
   takeChallenge,
   validRole,
 } from "./accounts";
@@ -1004,7 +1004,7 @@ export function createBoard(options: BoardOptions) {
         ]);
       }
 
-      const ipKey = `ip:${sha256(ip)}`;
+      const ipKey = await addressKey(sql, ip, now());
       const open = await handlePublic(
         request,
         url,

@@ -207,6 +207,15 @@ describe("signing in with a passkey and the board's TOTP", () => {
     const elsewhere = t.browser();
     elsewhere.ip = "198.51.100.9";
     expect((await elsewhere.signIn("maria", t.code("maria"))).status).toBe(303);
+    // The address is never stored, nor a plain hash of it that every IPv4 address could be tried on.
+    const keys = (
+      await t.sql.all<{ key: string }>(
+        "SELECT DISTINCT key FROM login_failures WHERE key LIKE 'ip:%'",
+      )
+    ).map((row) => row.key);
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).not.toContain("203.0.113.7");
+    expect(keys[0]).not.toBe(`ip:${t.sha256("203.0.113.7")}`);
   });
 
   test("the sign-in form and its passkey options need the pre-session CSRF token", async () => {

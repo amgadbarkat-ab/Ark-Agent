@@ -27,7 +27,7 @@ Amgad's decisions of 18 Nov 2026 (06:26 and 06:40 Athens), relayed by PE.
   - people, active in 7 days, conversations in 7 days, phone line, os.
   - Accepted by checkin/index.php and the server receiver, exported, and shown on the board.
 - **Privacy notice:** updated in docs/legal/privacy-notice.md.
-- **Hosting:** Oracle Always Free VM, behind Cloudflare Tunnel and Access, with no public port.
+- **Hosting:** Oracle Always Free VM, behind Cloudflare Tunnel and Access (superseded: see 07, Workers + D1).
   - The Cf-Access-Jwt-Assertion check (access.ts) is off until configured.
 
 ## Comments

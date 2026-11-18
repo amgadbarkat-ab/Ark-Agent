@@ -13,7 +13,7 @@
  * - A new account, or a reset one, gets a one-time setup link valid 24 hours, where the person adds
  *   the TOTP key (and, with passkeys, registers a passkey).
  */
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { Sql } from "./sql";
 import { ROLES, type Role } from "./store";
 import { newTotpSecret, verifyTotp } from "./totp";
@@ -439,4 +439,35 @@ export async function pruneExpired(sql: Sql, now: number): Promise<void> {
     ["DELETE FROM challenges WHERE expires_at < ?", now],
     ["DELETE FROM login_failures WHERE at < ?", now - LOCK_WINDOW_MS],
   ]);
+}
+
+// ---- The address key, for the per-address sign-in limit ----------------------------------------
+
+const salts = new WeakMap<Sql, string>();
+
+/**
+ * The key a caller's address is counted under: HMAC-SHA256 of the address with a random salt made
+ * once and kept in D1, so the stored key cannot be turned back into the address by trying every
+ * IPv4 address. Kept 15 minutes, like the failures it counts.
+ */
+export async function addressKey(
+  sql: Sql,
+  ip: string,
+  now: number,
+): Promise<string> {
+  let salt = salts.get(sql);
+  if (!salt) {
+    await sql.run(
+      "INSERT OR IGNORE INTO snapshots (source, body, fetched_at, checked_at) VALUES ('address-salt', ?, ?, ?)",
+      JSON.stringify(randomBytes(32).toString("hex")),
+      now,
+      now,
+    );
+    const row = await sql.first<{ body: string }>(
+      "SELECT body FROM snapshots WHERE source = 'address-salt'",
+    );
+    salt = JSON.parse(row?.body ?? '""') as string;
+    salts.set(sql, salt);
+  }
+  return `ip:${createHmac("sha256", salt).update(ip).digest("hex")}`;
 }
