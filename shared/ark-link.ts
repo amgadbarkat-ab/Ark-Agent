@@ -108,6 +108,8 @@ export const ARK_LINK_LIMITS = {
   maxChunkBytes: 64 * 1024,
   /** One control frame. */
   maxControlBytes: 64 * 1024,
+  /** One passed-through WebSocket message, either way. Larger ones close that socket (1009). */
+  maxWsMessageBytes: 1024 * 1024,
   /** Requests and sockets open at once per device. */
   maxStreamsPerDevice: 32,
   /** Per device: a bucket of this many requests, refilled at `requestsPerMinute`. */

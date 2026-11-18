@@ -57,6 +57,7 @@ import {
   toolCallExecutor,
 } from "./approvals/held";
 import { createApprovalStore } from "./approvals/store";
+import { createArkLinkService } from "./ark-link/service";
 import {
   type AuditInitiator,
   createAuditReader,
@@ -1671,6 +1672,20 @@ const phoneLine = createPhoneLineService(database, {
   allowed: () => activation.addonEnabled("phone"),
 });
 
+/*
+ * Ark Link (#149): phones reaching this install through BlackArk's relay. Off until an administrator
+ * switches it on in Settings -> Phones. It keeps one outgoing connection to the relay and makes each
+ * paired phone's request again here, on this computer, to this server.
+ */
+const arkLink = createArkLinkService(database, {
+  credentials: credentialStore,
+  encryptionKey: config.keyEncryptionKey,
+  auditStore: bootAuditStore,
+  localOrigin:
+    process.env.ARK_LINK_LOCAL_ORIGIN?.trim() || `http://127.0.0.1:${port}`,
+  noSignIn: config.singleUser,
+});
+
 const app = createApp(
   config,
   auth,
@@ -1957,12 +1972,15 @@ const app = createApp(
   },
   // The business's own phone line (#109).
   phoneLine,
+  // Phones through BlackArk's relay (#149).
+  arkLink,
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
 // Once a day, the renewed licence key from the address the key names; nothing when it names none.
 activation.startRenewals();
 phoneLine.start();
+arkLink.start();
 // Each mail employee's folders, From address and the AMKA block, from the trial profile (#109).
 useMailboxPolicy((botId) => trial.mailPolicyFor(botId));
 
@@ -2238,6 +2256,7 @@ const drain = createDrain({
       workOfferedListener?.stop() ?? Promise.resolve(),
       Promise.resolve(retentionSweeps.stop()),
       phoneLine.stop(),
+      arkLink.stop(),
     ]),
   exit: (code) => process.exit(code),
   log: (line) => console.log(line),

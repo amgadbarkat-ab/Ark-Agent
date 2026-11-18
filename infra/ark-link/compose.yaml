@@ -1,0 +1,30 @@
+# The Ark Link relay behind Caddy, which gets and renews the HTTPS certificate (Let's Encrypt) on its
+# own. Phones and the Android app need https:// with a real certificate.
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: infra/ark-link/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    expose:
+      - "8080"
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      LINK_DOMAIN: ${LINK_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - relay
+volumes:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,8 @@
+# No access log: the relay keeps no paths, bodies or tokens, and Caddy keeps nothing either.
+# WebSockets pass through reverse_proxy as they are. Caddy replaces any X-Forwarded-For a phone sends.
+{$LINK_DOMAIN} {
+	reverse_proxy relay:8080 {
+		# The desktop's socket and a phone's sockets live for hours; a reload does not cut them at once.
+		stream_close_delay 5m
+	}
+}

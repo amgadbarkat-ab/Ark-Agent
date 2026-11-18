@@ -425,6 +425,12 @@ export const auditEventTypes = [
   "phone.line_saved",
   "phone.line_removed",
   "phone.line_refused",
+  /* Ark Link (#149): phones reaching this install through BlackArk's relay. Never a token. */
+  "ark_link.saved",
+  "ark_link.pairing_started",
+  "ark_link.pairing_refused",
+  "ark_link.device_paired",
+  "ark_link.device_removed",
 
   /* The lead of a team looking at, or switching off, a colleague's routine, or asking its owner for a change. */
   "team.action",

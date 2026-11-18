@@ -1,6 +1,7 @@
 /** One import path for every table, with schema files grouped by owner. */
 
 export * from "./approvals";
+export * from "./ark-link";
 export * from "./cloud";
 export * from "./components";
 export * from "./computer";

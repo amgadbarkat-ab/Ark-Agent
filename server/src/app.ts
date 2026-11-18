@@ -18,6 +18,8 @@ import type { AgentProfileStore } from "./agents/profile-store";
 import { createAgentRoutes } from "./agents/routes";
 import { createApprovalRoutes } from "./approvals/routes";
 import type { ApprovalStore } from "./approvals/store";
+import { createArkLinkRoutes } from "./ark-link/routes";
+import type { ArkLinkService } from "./ark-link/service";
 import {
   type AuditEventType,
   type AuditInitiator,
@@ -493,6 +495,11 @@ export function createApp(
    * leaves `/api/phone-line` unmounted.
    */
   phoneLine?: PhoneLineService,
+  /**
+   * Ark Link (#149): phones reaching this install through BlackArk's relay. Appended last, for the
+   * positional reason above. Absent leaves `/api/ark-link` unmounted.
+   */
+  arkLink?: ArkLinkService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1785,6 +1792,10 @@ export function createApp(
       "/api/phone-line",
       createPhoneLineRoutes({ phoneLine, requireUser }),
     );
+  }
+
+  if (arkLink) {
+    app.route("/api/ark-link", createArkLinkRoutes({ arkLink, requireUser }));
   }
 
   if (trial) {
