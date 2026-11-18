@@ -1,6 +1,0 @@
-# The board's site, to add to the relay's Caddyfile (infra/phone-relay/Caddyfile) after Amgad's yes,
-# with BOARD_DOMAIN added to the caddy service's environment in infra/phone-relay/compose.yaml.
-# No access log: the board keeps its own audit log, and Caddy keeps nothing.
-{$BOARD_DOMAIN} {
-	reverse_proxy board:8080
-}

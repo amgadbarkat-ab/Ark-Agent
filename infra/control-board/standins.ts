@@ -3,7 +3,6 @@
  * is invented (demo-…); nothing here is a real customer.
  */
 import type {
-  BillingSource,
   CheckinExport,
   CheckinSource,
   HealthSource,
@@ -11,6 +10,7 @@ import type {
   Sources,
   WorkItem,
 } from "./sources";
+import type { BillingSnapshot, BillingSource } from "./stripe";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -201,11 +201,64 @@ export function demoIssues(now: number): WorkItem[] {
   ];
 }
 
+/** What the read-only Stripe source would return, made up. */
+export function demoBilling(now: number): BillingSnapshot {
+  const ahead = (ms: number) => new Date(now + ms).toISOString();
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  return {
+    subscriptions: [
+      {
+        id: "sub_demo_shop",
+        customerId: "demo-shop",
+        status: "active",
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: ahead(20 * DAY),
+        amountCents: 4900,
+        currency: "EUR",
+        interval: "month",
+      },
+      {
+        id: "sub_demo_taverna",
+        customerId: "demo-taverna",
+        status: "past_due",
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: ahead(25 * DAY),
+        amountCents: 9800,
+        currency: "EUR",
+        interval: "month",
+      },
+      {
+        id: "sub_demo_old",
+        customerId: "stripe-cus_DEMO1",
+        status: "active",
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: ahead(3 * DAY),
+        amountCents: 4900,
+        currency: "EUR",
+        interval: "month",
+      },
+    ],
+    failed: [
+      {
+        invoiceId: "in_demo_1",
+        customerId: "demo-taverna",
+        amountDueCents: 9800,
+        currency: "EUR",
+        attempts: 2,
+        nextAttempt: ahead(2 * DAY),
+        at: ago(3 * DAY),
+      },
+    ],
+  };
+}
+
 export type StandIns = Sources & {
   /** Switches for the tests: make a source fail, or answer again. */
   checkinsDown: boolean;
   relayDown: boolean;
   githubConnected: boolean;
+  /** Off by default, as on a board with no Stripe key yet. */
+  stripeConnected: boolean;
   checkinCalls: number;
 };
 
@@ -214,6 +267,7 @@ export function standIns(now: () => number): StandIns {
     checkinsDown: false,
     relayDown: false,
     githubConnected: true,
+    stripeConnected: false,
     checkinCalls: 0,
   };
   const checkins: CheckinSource = {
@@ -237,11 +291,13 @@ export function standIns(now: () => number): StandIns {
     },
   };
   const billing: BillingSource = {
-    async subscriptions() {
-      return null;
+    async snapshot() {
+      return state.stripeConnected ? demoBilling(now()) : null;
     },
     async health() {
-      return { up: null, detail: "not connected" };
+      return state.stripeConnected
+        ? { up: true, detail: "ok", ms: 40 }
+        : { up: null, detail: "not connected" };
     },
   };
   return Object.assign(state, { checkins, relay, issues, billing });

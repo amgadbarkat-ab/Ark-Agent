@@ -9,6 +9,7 @@
  *  - Stripe: an interface only, until a restricted read-only key is given.
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import type { BillingSource } from "./stripe";
 
 export type InstallStatus = "trial" | "ended" | "paid";
 
@@ -94,20 +95,8 @@ export interface IssueSource {
   list(): Promise<WorkItem[] | null>;
 }
 
-/** Stripe, read-only. Not wired to any page in milestone 1; the Services page shows it as not connected. */
-export type Subscription = {
-  customerId: string | null;
-  status: string;
-  currentPeriodEnd: string;
-  amountCents: number;
-  currency: string;
-};
-
-export interface BillingSource {
-  /** Null: not connected (no restricted read key yet). */
-  subscriptions(): Promise<Subscription[] | null>;
-  health(): Promise<Health>;
-}
+/** Stripe, read-only: stripe.ts. */
+export type { BillingSource } from "./stripe";
 
 export type Sources = {
   checkins: CheckinSource;
@@ -272,18 +261,6 @@ export function githubIssues(options: {
     },
   };
 }
-
-// ---- Stripe ------------------------------------------------------------------------------------
-
-/** Stripe before a restricted read-only key is given: not connected, and nothing is sent. */
-export const stripeNotConnected: BillingSource = {
-  async subscriptions() {
-    return null;
-  },
-  async health() {
-    return { up: null, detail: "not connected" };
-  },
-};
 
 // ---- A minute's memory -------------------------------------------------------------------------
 

@@ -33,19 +33,22 @@ openCase(
   db,
   {
     customerId: "demo-clinic",
-    channel: "phone",
+    channel: "in-app",
     language: "el",
-    priority: "high",
+    priority: "urgent",
+    plan: "trial",
     subject: "Η γραμμή δεν απαντά μετά τις 18:00",
     note: "Made-up case for the local board.",
   },
   "demo",
   Date.now() - 30 * 3_600_000,
 );
+const sources = standIns(Date.now);
+sources.stripeConnected = true;
 const board = createBoard({
   db,
   extensions: [casesExtension(db)],
-  sources: standIns(Date.now),
+  sources,
   publicOrigin: `http://localhost:${port}`,
 });
 Bun.serve({

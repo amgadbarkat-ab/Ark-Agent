@@ -1,21 +1,25 @@
-# The board on the phone relay's VPS. It has no Caddy of its own: the relay's Caddy, which holds
-# ports 80 and 443, serves it too, once the site in Caddyfile.board is added to the relay's
-# Caddyfile (README, "Deploy"). The board is reachable only on the relay's Docker network.
+# The board on BlackArk's Oracle Always Free VM (EU region), beside the phone relay and Ark Link
+# (Amgad, 18 Nov 2026). It has NO public port: nothing here publishes one. The only way in is
+# Cloudflare Tunnel: cloudflared dials out to Cloudflare and carries requests to board:8080 on this
+# compose network, and Cloudflare Access decides who may reach it at all.
 services:
   board:
-    build: .
+    build:
+      context: ../..
+      dockerfile: infra/control-board/Dockerfile
     restart: unless-stopped
     env_file: .env
     volumes:
       - ./data:/data
     expose:
       - "8080"
-    networks:
-      edge:
-        aliases:
-          - board
-networks:
-  edge:
-    # The default network of the relay's compose project (the folder infra/phone-relay).
-    name: phone-relay_default
-    external: true
+  cloudflared:
+    # Remotely managed tunnel: its public hostname (board.<domain> → http://board:8080) is set in
+    # Cloudflare's dashboard. TUNNEL_TOKEN is in tunnel.env (mode 600, written by
+    # ./deploy.sh tunnel), kept apart so the board never sees it.
+    image: cloudflare/cloudflared:2025.8.0
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: tunnel.env
+    depends_on:
+      - board

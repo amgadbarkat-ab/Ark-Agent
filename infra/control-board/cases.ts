@@ -3,9 +3,12 @@
  *
  * A case has:
  * - a number and a customer id;
- * - a channel (in the app, email, phone) and a language (el, en);
- * - a priority, a status and an owner (a board account);
- * - an SLA due time, worked out from the priority when the case is opened or its priority changes;
+ * - a channel (in the app or email: Amgad, 18 Nov, support is in-app, with email kept for what
+ *   still arrives at support@) and a language (el, en);
+ * - the customer's plan when it was opened (trial or paid), an urgency (urgent or normal), a status
+ *   and an owner (a board account);
+ * - an SLA due time from the plan and the urgency, in Athens business hours (business-hours.ts),
+ *   worked out again when the urgency changes;
  * - optionally a GitHub issue it is linked to;
  * - internal notes, kept as written: a note is never changed or removed.
  *
@@ -20,27 +23,26 @@ import {
   redirect,
   respond,
 } from "./board";
+import {
+  slaDue as businessDue,
+  type Calendar,
+  type Plan,
+} from "./business-hours";
 import { type Html, html } from "./html";
 import { type Lang, t, when } from "./i18n";
 import * as pages from "./pages";
 import { can } from "./roles";
-import type { TimelineEvent } from "./summary";
+import { customerRows, type TimelineEvent } from "./summary";
 
-export const CHANNELS = ["in-app", "email", "phone"] as const;
+export const CHANNELS = ["in-app", "email"] as const;
 export const LANGUAGES = ["el", "en"] as const;
-export const PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+export const PRIORITIES = ["urgent", "normal"] as const;
+export const PLANS = ["trial", "paid"] as const;
 export const STATUSES = ["new", "open", "waiting", "solved", "closed"] as const;
 export type Channel = (typeof CHANNELS)[number];
 export type Priority = (typeof PRIORITIES)[number];
 export type Status = (typeof STATUSES)[number];
 
-/** Time to a first answer, by priority (calendar hours for now; business hours is an open question). */
-export const SLA_HOURS: Record<Priority, number> = {
-  urgent: 4,
-  high: 24,
-  normal: 72,
-  low: 168,
-};
 const OPEN_STATUSES: readonly Status[] = ["new", "open", "waiting"];
 
 export type Case = {
@@ -49,6 +51,7 @@ export type Case = {
   channel: Channel;
   language: "el" | "en";
   priority: Priority;
+  plan: Plan;
   status: Status;
   subject: string;
   owner: string | null;
@@ -73,6 +76,7 @@ export type NewCase = {
   channel: Channel;
   language: "el" | "en";
   priority: Priority;
+  plan: Plan;
   subject: string;
   owner?: string | null;
   githubIssue?: number | null;
@@ -81,9 +85,14 @@ export type NewCase = {
   sourceRef?: string;
 };
 
-function slaDue(createdAt: string, priority: Priority): string {
+function slaDue(
+  createdAt: string,
+  plan: Plan,
+  priority: Priority,
+  calendar: Calendar,
+): string {
   return new Date(
-    Date.parse(createdAt) + SLA_HOURS[priority] * 3_600_000,
+    businessDue(Date.parse(createdAt), plan, priority, calendar),
   ).toISOString();
 }
 
@@ -92,23 +101,25 @@ export function openCase(
   input: NewCase,
   by: string,
   now: number,
+  calendar: Calendar = {},
 ): Case {
   const at = new Date(now).toISOString();
   const number = db.transaction(() => {
     const result = db
       .query(
-        `INSERT INTO cases (customer_id, channel, language, priority, status, subject, owner, github_issue, sla_due_at, created_at, created_by, updated_at, source_ref)
-         VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO cases (customer_id, channel, language, priority, plan, status, subject, owner, github_issue, sla_due_at, created_at, created_by, updated_at, source_ref)
+         VALUES (?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.customerId,
         input.channel,
         input.language,
         input.priority,
+        input.plan,
         input.subject,
         input.owner ?? null,
         input.githubIssue ?? null,
-        slaDue(at, input.priority),
+        slaDue(at, input.plan, input.priority, calendar),
         at,
         by,
         at,
@@ -172,6 +183,8 @@ export function addNote(
 export type CaseChange = {
   status?: Status;
   priority?: Priority;
+  /** Set by a person, e.g. on an email case from a paying customer (mail carries no signed plan). */
+  plan?: Plan;
   owner?: string | null;
   githubIssue?: number | null;
 };
@@ -182,6 +195,7 @@ export function changeCase(
   current: Case,
   change: CaseChange,
   now: number,
+  calendar: Calendar = {},
 ): string[] {
   const changed: string[] = [];
   const next = { ...current };
@@ -192,7 +206,18 @@ export function changeCase(
   if (change.priority && change.priority !== current.priority) {
     changed.push(`priority ${current.priority}→${change.priority}`);
     next.priority = change.priority;
-    next.sla_due_at = slaDue(current.created_at, change.priority);
+  }
+  if (change.plan && change.plan !== current.plan) {
+    changed.push(`plan ${current.plan}→${change.plan}`);
+    next.plan = change.plan;
+  }
+  if (next.priority !== current.priority || next.plan !== current.plan) {
+    next.sla_due_at = slaDue(
+      current.created_at,
+      next.plan,
+      next.priority,
+      calendar,
+    );
   }
   if (change.owner !== undefined && change.owner !== current.owner) {
     changed.push(`owner ${current.owner ?? "-"}→${change.owner ?? "-"}`);
@@ -209,10 +234,11 @@ export function changeCase(
   }
   if (changed.length) {
     db.query(
-      "UPDATE cases SET status = ?, priority = ?, owner = ?, github_issue = ?, sla_due_at = ?, updated_at = ? WHERE number = ?",
+      "UPDATE cases SET status = ?, priority = ?, plan = ?, owner = ?, github_issue = ?, sla_due_at = ?, updated_at = ? WHERE number = ?",
     ).run(
       next.status,
       next.priority,
+      next.plan,
       next.owner,
       next.github_issue,
       next.sla_due_at,
@@ -242,7 +268,6 @@ function assignable(db: Database): string[] {
 const CHANNEL_NAMES: Record<Channel, string> = {
   "in-app": "In the app",
   email: "Email",
-  phone: "Phone",
 };
 const LANGUAGE_NAMES: Record<string, string> = { el: "Greek", en: "English" };
 
@@ -345,6 +370,7 @@ function casePage(
 <dt>${t(l, "Customer")}</dt><dd><a href="/customers/${encodeURIComponent(row.customer_id)}">${row.customer_id}</a></dd>
 <dt>${t(l, "Channel")}</dt><dd>${t(l, CHANNEL_NAMES[row.channel])}</dd>
 <dt>${t(l, "Language")}</dt><dd>${t(l, LANGUAGE_NAMES[row.language] ?? row.language)}</dd>
+<dt>${t(l, "Plan")}</dt><dd>${t(l, row.plan)}</dd>
 <dt>${t(l, "Priority")}</dt><dd>${t(l, row.priority)}</dd>
 <dt>${t(l, "Status")}</dt><dd>${t(l, row.status)}</dd>
 <dt>${t(l, "Assigned to")}</dt><dd>${row.owner ?? t(l, "Nobody yet")}</dd>
@@ -359,6 +385,7 @@ ${
   <input type="hidden" name="action" value="update">
   <label>${t(l, "Status")}<select name="status">${options(l, STATUSES, row.status, (value) => value)}</select></label>
   <label>${t(l, "Priority")}<select name="priority">${options(l, PRIORITIES, row.priority, (value) => value)}</select></label>
+  <label>${t(l, "Plan")}<select name="plan">${options(l, PLANS, row.plan, (value) => value)}</select></label>
   <label>${t(l, "Assigned to")}<select name="owner"><option value="">${t(l, "Nobody yet")}</option>${owners.map((name) => html`<option value="${name}"${name === row.owner ? html` selected` : ""}>${name}</option>`)}</select></label>
   <label>${t(l, "GitHub issue")}<input name="github" inputmode="numeric" pattern="[0-9]{0,7}" value="${row.github_issue ?? ""}" placeholder="${t(l, "Issue number, or empty")}"></label>
   <button type="submit">${t(l, "Save changes")}</button>
@@ -407,9 +434,14 @@ function issueNumber(value: string | null): number | null | "bad" {
 
 export function casesExtension(
   db: Database,
-  options: { githubRepo?: string; now?: () => number } = {},
+  options: {
+    githubRepo?: string;
+    now?: () => number;
+    calendar?: Calendar;
+  } = {},
 ): Extension {
   const repo = options.githubRepo ?? "amgadbarkat-ab/Ark-Agent";
+  const calendar = options.calendar ?? {};
   return {
     timeline(customerId): TimelineEvent[] {
       return listCases(db, { customerId }).map((row) => ({
@@ -491,6 +523,14 @@ export function casesExtension(
         ) {
           return respond("", 400);
         }
+        // The plan when the case is opened, from the check-ins: paid sets the SLA for urgent cases.
+        const data = await context.checkins();
+        const known = data.value
+          ? customerRows(data.value, context.now).find(
+              (one) => one.customerId === customer,
+            )
+          : undefined;
+        const plan: Plan = known?.plan === "paid" ? "paid" : "trial";
         const made = openCase(
           db,
           {
@@ -498,6 +538,7 @@ export function casesExtension(
             channel,
             language,
             priority,
+            plan,
             subject,
             owner,
             githubIssue: github,
@@ -505,12 +546,13 @@ export function casesExtension(
           },
           session.account.username,
           context.now,
+          calendar,
         );
         context.audit(
           "case.create",
           `case:${made.number}`,
           "ok",
-          `customer ${customer}, ${priority}${github ? `, github #${github}` : ""}`,
+          `customer ${customer}, ${plan}, ${priority}${github ? `, github #${github}` : ""}`,
         );
         return redirect(`/cases/${made.number}`);
       }
@@ -552,11 +594,15 @@ export function casesExtension(
       if (action === "update") {
         const status = pick(STATUSES, form.get("status"));
         const priority = pick(PRIORITIES, form.get("priority"));
+        const plan = form.has("plan")
+          ? pick(PLANS, form.get("plan"))
+          : row.plan;
         const owner = form.get("owner") || null;
         const github = issueNumber(form.get("github"));
         if (
           !status ||
           !priority ||
+          !plan ||
           github === "bad" ||
           (owner && !assignable(db).includes(owner))
         ) {
@@ -565,8 +611,9 @@ export function casesExtension(
         const changed = changeCase(
           db,
           row,
-          { status, priority, owner, githubIssue: github },
+          { status, priority, plan, owner, githubIssue: github },
           context.now,
+          calendar,
         );
         if (changed.length)
           context.audit(

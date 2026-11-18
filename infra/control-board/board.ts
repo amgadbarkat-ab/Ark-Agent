@@ -13,6 +13,7 @@
  */
 import type { Database } from "bun:sqlite";
 import { timingSafeEqual } from "node:crypto";
+import type { AccessCheck } from "./access";
 import {
   type Account,
   activeOwners,
@@ -61,7 +62,16 @@ export type BoardOptions = {
   log?: (line: string) => void;
   /** Extra routes (milestone 2) tried after the board's own, with the session already checked. */
   extensions?: Extension[];
+  /**
+   * Cloudflare Access's signed header, checked on every request but `/healthz` (Docker's own check)
+   * and `/intake/app` (signed with its own secret, and let through Access by a bypass rule).
+   * Absent: not checked.
+   */
+  access?: AccessCheck;
 };
+
+/** Paths that are not behind Cloudflare Access. */
+const ACCESS_EXEMPT = new Set(["/healthz", "/intake/app"]);
 
 export type Context = {
   request: Request;
@@ -190,6 +200,11 @@ export function createBoard(options: BoardOptions) {
   const issues = remembered(() => options.sources.issues.list(), cacheMs, now);
   const billing = remembered(
     () => options.sources.billing.health(),
+    cacheMs,
+    now,
+  );
+  const stripe = remembered(
+    () => options.sources.billing.snapshot(),
     cacheMs,
     now,
   );
@@ -527,6 +542,7 @@ export function createBoard(options: BoardOptions) {
           data.value ? overview(data.value, context.now) : null,
           await services(),
           pages.staleBanner(lang, data.fetchedAt, data.error),
+          (await stripe()).value?.failed.length ?? null,
         ),
       );
     }
@@ -575,6 +591,12 @@ export function createBoard(options: BoardOptions) {
           extensions.length > 0 && needs("cases.write"),
         ),
       );
+    }
+
+    if (method === "GET" && path === "/billing") {
+      context.audit("view", "billing");
+      const result = await stripe();
+      return respond(pages.billingPage(frame, result.value, result.error));
     }
 
     if (method === "GET" && path === "/services") {
@@ -753,6 +775,23 @@ export function createBoard(options: BoardOptions) {
       const url = new URL(request.url);
       const jar = readCookies(request);
       const lang: Lang = jar.get(LANG_COOKIE) === "el" ? "el" : "en";
+
+      if (options.access && !ACCESS_EXEMPT.has(url.pathname)) {
+        const passed = await options.access(request);
+        if (!passed.ok) {
+          log(
+            `control-board: refused without Cloudflare Access (${passed.reason})`,
+          );
+          return new Response("Not through Cloudflare Access.", {
+            status: 403,
+            headers: {
+              "content-type": "text/plain",
+              "cache-control": "no-store",
+              ...SECURITY_HEADERS,
+            },
+          });
+        }
+      }
 
       if (url.pathname === "/board.css") {
         return new Response(CSS, {

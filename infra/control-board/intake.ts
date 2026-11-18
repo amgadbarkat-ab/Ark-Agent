@@ -1,23 +1,27 @@
 /**
- * Ways a support case can open by itself (#149, milestone 2). DESIGN STAGE: both are built and
- * tested against stand-ins, and neither is switched on (see .scratch/control-board/intake-design.md).
+ * How a support case opens by itself (#149).
  *
- * 1. The app's future "Help & support" form: `POST /intake/app`, HMAC-signed like the check-in
- *    export (X-Ark-Time, X-Ark-Nonce, X-Ark-Signature over "<time>.<nonce>.<body>" with
- *    INTAKE_SECRET), within 5 minutes, each nonce once. Mounted only when INTAKE_SECRET is set.
- *    Who signs is the open question in the design: a secret built into every app can be read out
- *    of it, so the proposal is that blackark.uk signs, after checking the install's signed profile.
- * 2. A support mailbox, read by a poller through `MailSource`. Only a stand-in exists: a real IMAP
- *    client needs the mailbox and its password, after Amgad's yes.
+ * 1. THE APP'S HELP & SUPPORT (Amgad, 18 Nov: the only support channel). The app posts to
+ *    blackark.uk/checkin/support/, which checks the install's BlackArk-signed trial profile or
+ *    licence, looks up the customer's plan, and forwards the request here, to `POST /intake/app`,
+ *    signed with INTAKE_SECRET (X-Ark-Time, X-Ark-Nonce, X-Ark-Signature over
+ *    "<time>.<nonce>.<body>"), within 5 minutes, each nonce once. Mounted only when INTAKE_SECRET
+ *    is set. The app's own request id makes a retry return the same case, so a request the app had
+ *    to queue never opens two.
+ * 2. THE SUPPORT ADDRESS. support@blackark.uk is an alias delivering to General@; the poller
+ *    (`pollMailbox`, with the IMAP reader in mail.ts) takes only what was sent to support@.
  */
 import type { Database } from "bun:sqlite";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { appendAudit } from "./audit";
 import { CUSTOMER_ID, type Extension } from "./board";
+import type { Calendar } from "./business-hours";
 import { addNote, findBySource, getCase, openCase } from "./cases";
 
 const WINDOW_SECONDS = 300;
 const MAX_PER_CUSTOMER_PER_DAY = 20;
+const MAX_BODY = 65_536;
+const MAX_LOG_LINES = 200;
 
 export function signIntake(
   secret: string,
@@ -40,16 +44,51 @@ function json(status: number, body: unknown): Response {
   });
 }
 
+/** What the customer chose to send besides their words: never conversations, mail, files or keys. */
+export type Diagnostics = {
+  appVersion: string;
+  os: string;
+  /** Recent warning and error lines, scrubbed on the customer's computer before they saw them. */
+  logs: string[];
+};
+
 export type AppRequest = {
+  /** The app's own id for this request (a UUID), the same on every retry. */
+  requestId: string;
   customerId: string;
   installId: string;
   appVersion: string;
   language: "el" | "en";
   subject: string;
   message: string;
+  urgent: boolean;
+  /** From blackark.uk's licences, which signed the forward: paid when an active licence exists. */
+  plan: "trial" | "paid";
+  diagnostics: Diagnostics | null;
 };
 
-function readAppRequest(value: unknown): AppRequest | null {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function readDiagnostics(value: unknown): Diagnostics | null | "bad" {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object") return "bad";
+  const body = value as Record<string, unknown>;
+  const logs = body.logs;
+  if (
+    typeof body.appVersion !== "string" ||
+    body.appVersion.length > 32 ||
+    typeof body.os !== "string" ||
+    body.os.length > 80 ||
+    !Array.isArray(logs) ||
+    logs.length > MAX_LOG_LINES ||
+    logs.some((line) => typeof line !== "string" || line.length > 500)
+  ) {
+    return "bad";
+  }
+  return { appVersion: body.appVersion, os: body.os, logs: logs as string[] };
+}
+
+export function readAppRequest(value: unknown): AppRequest | null {
   if (!value || typeof value !== "object") return null;
   const body = value as Record<string, unknown>;
   const text = (key: string, max: number) =>
@@ -58,6 +97,7 @@ function readAppRequest(value: unknown): AppRequest | null {
     (body[key] as string).length <= max
       ? (body[key] as string).trim()
       : null;
+  const requestId = text("requestId", 36);
   const customerId = text("customerId", 80);
   const installId = text("installId", 64);
   const appVersion = text("appVersion", 32);
@@ -65,24 +105,42 @@ function readAppRequest(value: unknown): AppRequest | null {
   const message = text("message", 8000);
   const language =
     body.language === "el" || body.language === "en" ? body.language : null;
+  const plan = body.plan === "paid" || body.plan === "trial" ? body.plan : null;
+  const diagnostics = readDiagnostics(body.diagnostics);
   if (
+    !requestId ||
+    !UUID.test(requestId) ||
     !customerId ||
     !CUSTOMER_ID.test(customerId) ||
     !installId ||
     !appVersion ||
     !subject ||
     !message ||
-    !language
+    !language ||
+    !plan ||
+    typeof body.urgent !== "boolean" ||
+    diagnostics === "bad"
   ) {
     return null;
   }
-  return { customerId, installId, appVersion, language, subject, message };
+  return {
+    requestId,
+    customerId,
+    installId,
+    appVersion,
+    language,
+    subject,
+    message,
+    urgent: body.urgent,
+    plan,
+    diagnostics,
+  };
 }
 
-/** `POST /intake/app`: a signed request from the app's form opens one case, channel in-app. */
+/** `POST /intake/app`: a signed request forwarded by blackark.uk opens one in-app case. */
 export function appIntake(
   db: Database,
-  options: { secret: string; now?: () => number },
+  options: { secret: string; now?: () => number; calendar?: Calendar },
 ): Extension {
   const now = options.now ?? Date.now;
   return {
@@ -92,10 +150,10 @@ export function appIntake(
     async handlePublic(request, url) {
       if (url.pathname !== "/intake/app") return null;
       if (request.method !== "POST") return json(405, { error: "POST only." });
-      if (Number(request.headers.get("content-length") ?? "0") > 16_384)
+      if (Number(request.headers.get("content-length") ?? "0") > MAX_BODY)
         return json(413, { error: "Too large." });
-      const body = (await request.text()).slice(0, 16_385);
-      if (body.length > 16_384) return json(413, { error: "Too large." });
+      const body = (await request.text()).slice(0, MAX_BODY + 1);
+      if (body.length > MAX_BODY) return json(413, { error: "Too large." });
       const time = request.headers.get("x-ark-time") ?? "";
       const nonce = request.headers.get("x-ark-nonce") ?? "";
       const signature = Buffer.from(
@@ -129,6 +187,12 @@ export function appIntake(
       }
       const input = readAppRequest(parsed);
       if (!input) return json(400, { error: "Not a support request." });
+      const already = findBySource(db, `app:${input.requestId}`);
+      if (already) {
+        if (already.customer_id !== input.customerId)
+          return json(409, { error: "Already used." });
+        return json(200, { case: already.number });
+      }
       const today =
         db
           .query<{ n: number }, [string, string]>(
@@ -144,14 +208,32 @@ export function appIntake(
           customerId: input.customerId,
           channel: "in-app",
           language: input.language,
-          priority: "normal",
+          priority: input.urgent ? "urgent" : "normal",
+          plan: input.plan,
           subject: input.subject,
           note: `From install ${input.installId.slice(0, 8)} (v${input.appVersion}):\n${input.message}`,
-          sourceRef: `app:${nonce}`,
+          sourceRef: `app:${input.requestId}`,
         },
         "intake:app",
         now(),
+        options.calendar,
       );
+      if (input.diagnostics) {
+        const d = input.diagnostics;
+        addNote(
+          db,
+          made.number,
+          "intake:app",
+          [
+            "Diagnostics the customer chose to send (scrubbed on their computer):",
+            `App version: ${d.appVersion}`,
+            `System: ${d.os}`,
+            `Recent warnings and errors (${d.logs.length}):`,
+            ...d.logs,
+          ].join("\n"),
+          now(),
+        );
+      }
       appendAudit(
         db,
         {
@@ -159,7 +241,7 @@ export function appIntake(
           action: "case.create",
           target: `case:${made.number}`,
           outcome: "ok",
-          detail: `customer ${input.customerId}`,
+          detail: `customer ${input.customerId}, ${input.plan}${input.urgent ? ", urgent" : ""}${input.diagnostics ? ", diagnostics" : ""}`,
         },
         now(),
       );
@@ -175,14 +257,33 @@ export type MailMessage = {
   id: string;
   inReplyTo?: string;
   from: string;
+  /** The To and Cc addresses, lower-case. */
+  to: string[];
+  cc: string[];
   subject: string;
   text: string;
 };
 
-/** A mailbox: today only a stand-in. The real one is IMAP over TLS (see intake-design.md). */
+/**
+ * A mailbox: `imapMailbox` in mail.ts (General@ over IMAP, only what was sent to support@), or the
+ * in-memory stand-in below. `unseen` must not mark anything read; `markSeen` marks one message.
+ */
 export interface MailSource {
   unseen(): Promise<MailMessage[]>;
   markSeen(id: string): Promise<void>;
+}
+
+export const SUPPORT_ADDRESS = "support@blackark.uk";
+
+/** Whether a message was sent to the support address (To or Cc), not merely to General@. */
+export function sentToSupport(
+  message: Pick<MailMessage, "to" | "cc">,
+  address = SUPPORT_ADDRESS,
+): boolean {
+  const want = address.toLowerCase();
+  return [...message.to, ...message.cc].some(
+    (one) => one.toLowerCase() === want,
+  );
 }
 
 const CASE_TAG = /\[(?:Case|Υπόθεση) #(\d{1,9})\]/i;
@@ -192,15 +293,18 @@ const CUSTOMER_TAG = /\[customer:([A-Za-z0-9][A-Za-z0-9_-]{1,79})\]/;
  * Reads the mailbox once: a reply (In-Reply-To a message we know, or "[Case #N]" in the subject)
  * becomes a note on that case; anything else opens a case, channel email. The customer id comes
  * from "[customer:<id>]" in the subject when present, otherwise "unmatched" for a person to set.
- * Each message is taken once (its Message-ID), then marked seen.
+ * Each message is taken once (its Message-ID), then marked seen. A message not sent to the support
+ * address is left alone, unread, even if the mailbox handed it over.
  */
 export async function pollMailbox(
   db: Database,
   mailbox: MailSource,
   now: number,
+  options: { supportAddress?: string; calendar?: Calendar } = {},
 ): Promise<number[]> {
   const touched: number[] = [];
   for (const message of await mailbox.unseen()) {
+    if (!sentToSupport(message, options.supportAddress)) continue;
     const ref = `mail:${message.id}`;
     if (
       findBySource(db, ref) ||
@@ -247,12 +351,15 @@ export async function pollMailbox(
             ? "el"
             : "en",
           priority: "normal",
+          // Mail carries no signed plan; a person changes the urgency if the customer pays.
+          plan: "trial",
           subject: message.subject.slice(0, 200) || "(no subject)",
           note: body,
           sourceRef: ref,
         },
         "intake:mail",
         now,
+        options.calendar,
       );
       appendAudit(
         db,

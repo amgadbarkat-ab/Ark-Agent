@@ -9,6 +9,7 @@ import { type Lang, money, t, when } from "./i18n";
 import { can } from "./roles";
 import type { Health, Install, WorkItem } from "./sources";
 import type { Role } from "./store";
+import type { BillingSnapshot, StripeSubscription } from "./stripe";
 import type { CustomerRow, Overview, TimelineEvent } from "./summary";
 
 export type Frame = {
@@ -47,6 +48,7 @@ function nav(frame: Frame): Html {
       "Cases",
       frame.cases === true && can(account.role, "cases.read"),
     ],
+    ["/billing", "Billing", true],
     ["/services", "Services", true],
     ["/issues", "Issues and fixes", true],
     ["/audit", "Audit log", can(account.role, "audit.read")],
@@ -178,6 +180,7 @@ export function overviewPage(
   numbers: Overview | null,
   services: ServiceRow[],
   banner: Html,
+  failedPayments: number | null = null,
 ): string {
   const l = frame.lang;
   const tile = (
@@ -218,6 +221,14 @@ export function overviewPage(
             "/customers?plan=phone-low",
             n.phoneLow > 0,
           ),
+          failedPayments === null
+            ? ""
+            : tile(
+                "Failed payments",
+                failedPayments,
+                "/billing",
+                failedPayments > 0,
+              ),
         ]
       : html`<p>${t(l, "No check-in data yet.")}</p>`
   }
@@ -541,5 +552,79 @@ ${
   <label>${t(l, "Role")}<select name="role">${manageable.map((role) => html`<option value="${role}">${roleName(l, role)}</option>`)}</select></label>
   <button type="submit">${t(l, "Add and make a setup link")}</button>
 </form>`,
+  );
+}
+
+// ---- Billing (Stripe, read-only) ---------------------------------------------------------------
+
+function subscriptionState(lang: Lang, row: StripeSubscription): Html {
+  const kind =
+    row.status === "active" || row.status === "trialing"
+      ? row.cancelAtPeriodEnd
+        ? "warn"
+        : "ok"
+      : row.status === "past_due" ||
+          row.status === "unpaid" ||
+          row.status === "incomplete"
+        ? "bad"
+        : "muted";
+  const word =
+    row.cancelAtPeriodEnd && row.status === "active"
+      ? "ends at period end"
+      : row.status.replace(/_/g, " ");
+  return html`<span class="tag ${kind}">${t(lang, word)}</span>`;
+}
+
+function customerLink(customerId: string): Html {
+  return customerId.startsWith("stripe-")
+    ? html`<code>${customerId}</code>`
+    : html`<a href="/customers/${encodeURIComponent(customerId)}">${customerId}</a>`;
+}
+
+export function billingPage(
+  frame: Frame,
+  data: BillingSnapshot | null,
+  error?: string,
+): string {
+  const l = frame.lang;
+  if (data === null) {
+    return layout(
+      frame,
+      t(l, "Billing"),
+      html`${error ? html`<p class="error" role="alert">${error}</p>` : ""}<p>${t(l, "Stripe is not connected yet. It needs a restricted read-only key, made by COO.")}</p>`,
+    );
+  }
+  const order = (row: StripeSubscription) =>
+    row.status === "past_due" || row.status === "unpaid"
+      ? 0
+      : row.status === "active"
+        ? 1
+        : 2;
+  const subscriptions = [...data.subscriptions].sort(
+    (a, b) => order(a) - order(b) || a.customerId.localeCompare(b.customerId),
+  );
+  return layout(
+    frame,
+    t(l, "Billing"),
+    html`${error ? html`<p class="error" role="alert">${error}</p>` : ""}
+<h2>${t(l, "Failed payments")} <small>(${data.failed.length})</small></h2>
+${
+  data.failed.length === 0
+    ? html`<p>${t(l, "No failed payments.")}</p>`
+    : html`<div class="scroll"><table>
+<thead><tr><th>${t(l, "Customer")}</th><th>${t(l, "Amount due")}</th><th>${t(l, "Attempts")}</th><th>${t(l, "Next attempt")}</th><th>${t(l, "Since")}</th></tr></thead>
+<tbody>${data.failed.map(
+        (row) =>
+          html`<tr><td>${customerLink(row.customerId)}</td><td>${money(l, row.amountDueCents * 10)}</td><td>${row.attempts}</td><td>${row.nextAttempt ? when(l, row.nextAttempt) : "–"}</td><td>${when(l, row.at)}</td></tr>`,
+      )}</tbody></table></div>`
+}
+<h2>${t(l, "Subscriptions")} <small>(${subscriptions.length})</small></h2>
+<div class="scroll"><table>
+<thead><tr><th>${t(l, "Customer")}</th><th>${t(l, "State")}</th><th>${t(l, "Renews or ends")}</th><th>${t(l, "Amount")}</th></tr></thead>
+<tbody>${subscriptions.map(
+      (row) =>
+        html`<tr><td>${customerLink(row.customerId)}</td><td>${subscriptionState(l, row)}</td><td>${row.currentPeriodEnd ? when(l, row.currentPeriodEnd) : "–"}</td><td>${money(l, row.amountCents * 10)}${row.interval ? html` / ${t(l, row.interval)}` : ""}</td></tr>`,
+    )}</tbody></table></div>
+<p class="muted">${t(l, "From Stripe with a read-only key, at most once a minute. No names, emails or cards are read.")}</p>`,
   );
 }

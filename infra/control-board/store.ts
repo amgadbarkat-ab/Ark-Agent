@@ -66,9 +66,10 @@ export function openStore(path: string): Database {
   db.exec(`CREATE TABLE IF NOT EXISTS cases (
     number INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id TEXT NOT NULL,
-    channel TEXT NOT NULL CHECK (channel IN ('in-app', 'email', 'phone')),
+    channel TEXT NOT NULL CHECK (channel IN ('in-app', 'email')),
     language TEXT NOT NULL CHECK (language IN ('el', 'en')),
-    priority TEXT NOT NULL CHECK (priority IN ('urgent', 'high', 'normal', 'low')),
+    priority TEXT NOT NULL CHECK (priority IN ('urgent', 'normal')),
+    plan TEXT NOT NULL CHECK (plan IN ('trial', 'paid')),
     status TEXT NOT NULL CHECK (status IN ('new', 'open', 'waiting', 'solved', 'closed')),
     subject TEXT NOT NULL,
     owner TEXT,
