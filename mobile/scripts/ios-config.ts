@@ -180,7 +180,7 @@ const PLIST_END = /<\/dict>\s*<\/plist>\s*$/;
  *  - why it asks for the microphone and the camera. The desktop's pages ask for the microphone to
  *    dictate and to talk to an employee, and a file picker offers to take a photo; Capacitor's web
  *    view grants a page that, and iOS then ends the app on the spot if the reason is missing.
- *    English only: a Greek reason needs an `el.lproj/InfoPlist.strings` in the Xcode project.
+ *    This is the English; the Greek is in `el.lproj/InfoPlist.strings` (`addLocalizedInfoPlist`).
  *
  * Refuses a file that already has any of these keys rather than adding a second one: an Info.plist
  * with a key twice is read by taking one of them, and which one is not something to leave to chance.
@@ -222,13 +222,152 @@ export function patchInfoPlist(xml: string, config: IosConfig): string {
     ...scheme,
     "\t<key>ITSAppUsesNonExemptEncryption</key>",
     "\t<false/>",
-    "\t<key>NSMicrophoneUsageDescription</key>",
-    "\t<string>ArkAgent uses the microphone when you dictate a message or talk to a digital employee.</string>",
-    "\t<key>NSCameraUsageDescription</key>",
-    "\t<string>ArkAgent uses the camera when you take a photo to attach to a message.</string>",
+    ...Object.entries(USAGE_REASONS.en).flatMap(([key, reason]) => [
+      `\t<key>${key}</key>`,
+      `\t<string>${reason}</string>`,
+    ]),
     "",
   ].join("\n");
   return xml.replace(PLIST_END, (end) => `${addition}${end}`);
+}
+
+/**
+ * Why the app asks for the microphone and the camera, in each language the app is offered in.
+ *
+ * The English goes into Info.plist itself; each language also gets `<language>.lproj/InfoPlist.strings`,
+ * which is what iOS reads for a phone set to that language. Written without `<`, `>` or `&`, so the
+ * English needs no escaping in the plist.
+ */
+export const USAGE_REASONS = {
+  en: {
+    NSMicrophoneUsageDescription:
+      "ArkAgent uses the microphone when you dictate a message or talk to a digital employee.",
+    NSCameraUsageDescription:
+      "ArkAgent uses the camera when you take a photo to attach to a message.",
+  },
+  el: {
+    NSMicrophoneUsageDescription:
+      "Το ArkAgent χρησιμοποιεί το μικρόφωνο όταν υπαγορεύετε ένα μήνυμα ή μιλάτε με έναν ψηφιακό υπάλληλο.",
+    NSCameraUsageDescription:
+      "Το ArkAgent χρησιμοποιεί την κάμερα όταν τραβάτε μια φωτογραφία για να την επισυνάψετε σε ένα μήνυμα.",
+  },
+} as const;
+
+export type AppLanguage = keyof typeof USAGE_REASONS;
+export const APP_LANGUAGES = Object.keys(USAGE_REASONS) as AppLanguage[];
+
+/** One line of a `.strings` file. */
+export function stringsLine(key: string, value: string): string {
+  const quoted = value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `"${key}" = "${quoted}";`;
+}
+
+/** `<language>.lproj/InfoPlist.strings`: UTF-8, which Xcode accepts and converts as it copies it. */
+export function infoPlistStrings(language: AppLanguage): string {
+  return `${Object.entries(USAGE_REASONS[language])
+    .map(([key, value]) => stringsLine(key, value))
+    .join("\n")}\n`;
+}
+
+/**
+ * Object ids for what `addLocalizedInfoPlist` adds: 24 hex digits like Xcode's own, with a prefix no
+ * generated id has, so a second edit is caught by finding the first.
+ */
+const LOCALIZED_IDS = {
+  buildFile: "0A4C1E550000000000000001",
+  variantGroup: "0A4C1E550000000000000002",
+  en: "0A4C1E550000000000000003",
+  el: "0A4C1E550000000000000004",
+} as const;
+
+/** Insert `text` before the first match of `anchor`, or say the project is not what was expected. */
+function insertBefore(source: string, anchor: RegExp, text: string): string {
+  const match = anchor.exec(source);
+  if (!match) {
+    throw new Error(
+      "project.pbxproj is not in the shape expected; it was not edited.",
+    );
+  }
+  return source.slice(0, match.index) + text + source.slice(match.index);
+}
+
+/**
+ * Add `InfoPlist.strings` to the generated Xcode project as one localized resource (English and
+ * Greek), and Greek to the languages it knows, the way Xcode itself records one.
+ *
+ * Text edits anchored on the sections Capacitor's template has (checked against Capacitor 8.5.3's, in
+ * `mobile/tests/fixtures`). Refuses a project it has edited before or whose shape it does not find,
+ * rather than writing a project Xcode might half read.
+ */
+export function addLocalizedInfoPlist(pbxproj: string): string {
+  if (pbxproj.includes(LOCALIZED_IDS.variantGroup)) {
+    throw new Error(
+      "project.pbxproj already has InfoPlist.strings; it was not edited.",
+    );
+  }
+  const ids = LOCALIZED_IDS;
+  let out = pbxproj;
+  out = insertBefore(
+    out,
+    /\/\* End PBXBuildFile section \*\//,
+    `\t\t${ids.buildFile} /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.variantGroup} /* InfoPlist.strings */; };\n`,
+  );
+  out = insertBefore(
+    out,
+    /\/\* End PBXFileReference section \*\//,
+    APP_LANGUAGES.map(
+      (language) =>
+        `\t\t${ids[language]} /* ${language} */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ${language}; path = ${language}.lproj/InfoPlist.strings; sourceTree = "<group>"; };\n`,
+    ).join(""),
+  );
+  // The App group: listed after Info.plist.
+  out = insertBefore(
+    out,
+    /(?<=\t\t\t\t[0-9A-F]{24} \/\* Info\.plist \*\/,\n)/,
+    `\t\t\t\t${ids.variantGroup} /* InfoPlist.strings */,\n`,
+  );
+  // The app target's Resources phase.
+  out = insertBefore(
+    out,
+    /(?<=isa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = \d+;\n\t\t\tfiles = \(\n)/,
+    `\t\t\t\t${ids.buildFile} /* InfoPlist.strings in Resources */,\n`,
+  );
+  out = insertBefore(
+    out,
+    /\/\* End PBXVariantGroup section \*\//,
+    [
+      `\t\t${ids.variantGroup} /* InfoPlist.strings */ = {`,
+      "\t\t\tisa = PBXVariantGroup;",
+      "\t\t\tchildren = (",
+      ...APP_LANGUAGES.map(
+        (language) => `\t\t\t\t${ids[language]} /* ${language} */,`,
+      ),
+      "\t\t\t);",
+      "\t\t\tname = InfoPlist.strings;",
+      '\t\t\tsourceTree = "<group>";',
+      "\t\t};",
+      "",
+    ].join("\n"),
+  );
+  const regions = /knownRegions = \(\n((?:\t\t\t\t[\w-]+,\n)*)(\t\t\t\);)/.exec(
+    out,
+  );
+  if (!regions) {
+    throw new Error(
+      "project.pbxproj is not in the shape expected; it was not edited.",
+    );
+  }
+  const known = regions[1] ?? "";
+  const missing = APP_LANGUAGES.filter(
+    (language) => !known.includes(`\t${language},\n`),
+  )
+    .map((language) => `\t\t\t\t${language},\n`)
+    .join("");
+  return (
+    out.slice(0, regions.index) +
+    `knownRegions = (\n${known}${missing}${regions[2]}` +
+    out.slice(regions.index + regions[0].length)
+  );
 }
 
 /** What `xcodebuild` is told so the version comes from the deployment, not from the generated project. */

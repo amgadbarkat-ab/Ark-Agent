@@ -2,12 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  addLocalizedInfoPlist,
   BUNDLE_ID,
   capacitorConfigFor,
   errorPageFor,
   iconProblem,
+  infoPlistStrings,
   iosConfigFrom,
   patchInfoPlist,
+  stringsLine,
   USER_AGENT_TOKEN,
   versionSettings,
 } from "../scripts/ios-config";
@@ -246,6 +249,82 @@ describe("the Info.plist", () => {
     expect(() => patchInfoPlist("<plist><dict>", build())).toThrow(
       /not in the shape expected/,
     );
+  });
+});
+
+describe("the usage reasons in Greek", () => {
+  /** The project Capacitor 8.5.3 generates, as `prepare-ios.ts` receives it. */
+  const project = source(
+    "mobile",
+    "tests",
+    "fixtures",
+    "capacitor-8.5.3-App.pbxproj",
+  );
+
+  test("a Greek iPhone is told in Greek, and an English one in English", () => {
+    const greek = infoPlistStrings("el");
+    expect(greek).toContain(
+      '"NSMicrophoneUsageDescription" = "Το ArkAgent χρησιμοποιεί το μικρόφωνο',
+    );
+    expect(greek).toContain('"NSCameraUsageDescription" = "Το ArkAgent');
+    expect(greek).not.toMatch(/[A-Za-z]{4,} (the|when|you)\b/);
+    const english = infoPlistStrings("en");
+    expect(english).toContain(
+      '"NSMicrophoneUsageDescription" = "ArkAgent uses the microphone',
+    );
+    // The English file and Info.plist itself say the same thing.
+    const plist = patchInfoPlist(
+      "<plist>\n<dict>\n</dict>\n</plist>\n",
+      build(),
+    );
+    for (const line of english.trim().split("\n")) {
+      const [, key, value] = /^"(\w+)" = "(.*)";$/.exec(line) ?? [];
+      expect(plist).toContain(`<key>${key}</key>\n\t<string>${value}</string>`);
+    }
+  });
+
+  test("a quote or backslash in a reason cannot end the string early", () => {
+    expect(stringsLine("K", 'say "hi" \\ bye')).toBe(
+      '"K" = "say \\"hi\\" \\\\ bye";',
+    );
+  });
+
+  test("the project carries both files as one localized resource, and knows Greek", () => {
+    const edited = addLocalizedInfoPlist(project);
+    expect(edited).toMatch(/knownRegions = \(\s*en,\s*Base,\s*el,\s*\);/);
+    expect(edited).toContain(
+      'path = en.lproj/InfoPlist.strings; sourceTree = "<group>";',
+    );
+    expect(edited).toContain(
+      'path = el.lproj/InfoPlist.strings; sourceTree = "<group>";',
+    );
+    // One variant group, in the App group, copied by the Resources phase.
+    expect(edited.match(/isa = PBXVariantGroup;/g)).toHaveLength(3);
+    const resources = /isa = PBXResourcesBuildPhase;[\s\S]*?\);/.exec(edited);
+    expect(resources?.[0]).toContain("/* InfoPlist.strings in Resources */,");
+    const appGroup = /\/\* App \*\/ = \{\s*isa = PBXGroup;[\s\S]*?\);/.exec(
+      edited,
+    );
+    expect(appGroup?.[0]).toContain("/* InfoPlist.strings */,");
+    // Every object it names is defined once, and nothing that was there is lost.
+    for (const id of new Set(edited.match(/\b0A4C1E55[0-9A-F]{16}\b/g))) {
+      expect(
+        edited.match(new RegExp(`\\t${id} /\\*[^*]*\\*/ = \\{`, "g")),
+      ).toHaveLength(1);
+    }
+    for (const line of project.split("\n")) {
+      if (!line.includes("knownRegions")) expect(edited).toContain(line);
+    }
+  });
+
+  test("is not added twice, and a project of an unexpected shape is not edited", () => {
+    const once = addLocalizedInfoPlist(project);
+    expect(() => addLocalizedInfoPlist(once)).toThrow(/already/);
+    expect(() =>
+      addLocalizedInfoPlist(
+        project.replace("isa = PBXResourcesBuildPhase;", ""),
+      ),
+    ).toThrow(/not in the shape expected/);
   });
 });
 

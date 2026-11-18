@@ -21,9 +21,12 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import {
+  APP_LANGUAGES,
+  addLocalizedInfoPlist,
   capacitorConfigFor,
   errorPageFor,
   iconProblem,
+  infoPlistStrings,
   iosConfigFrom,
   patchInfoPlist,
   versionSettings,
@@ -81,6 +84,18 @@ try {
 
   const plist = join(shell, "ios", "App", "App", "Info.plist");
   writeFileSync(plist, patchInfoPlist(readFileSync(plist, "utf8"), config));
+
+  // Why it asks for the microphone and camera, in each language, and the project told about them.
+  for (const language of APP_LANGUAGES) {
+    const folder = join(shell, "ios", "App", "App", `${language}.lproj`);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(
+      join(folder, "InfoPlist.strings"),
+      infoPlistStrings(language),
+    );
+  }
+  const project = join(shell, "ios", "App", "App.xcodeproj", "project.pbxproj");
+  writeFileSync(project, addLocalizedInfoPlist(readFileSync(project, "utf8")));
 
   // The copy inside the project, not www/ itself, which stays the same for every build.
   const page = join(shell, "ios", "App", "App", "public", "index.html");

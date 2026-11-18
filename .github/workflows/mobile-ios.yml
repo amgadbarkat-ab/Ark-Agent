@@ -91,6 +91,11 @@ jobs:
           # Without these iOS ends the app the moment a page asks for the microphone or the camera.
           plutil -extract NSMicrophoneUsageDescription raw "$app/Info.plist"
           plutil -extract NSCameraUsageDescription raw "$app/Info.plist"
+          # And in Greek, for a phone set to Greek (el.lproj/InfoPlist.strings, compiled by Xcode).
+          plutil -extract NSMicrophoneUsageDescription raw "$app/el.lproj/InfoPlist.strings" | tee "$RUNNER_TEMP/el-mic.txt"
+          plutil -extract NSCameraUsageDescription raw "$app/el.lproj/InfoPlist.strings"
+          grep -q "μικρόφωνο" "$RUNNER_TEMP/el-mic.txt"
+          plutil -extract NSMicrophoneUsageDescription raw "$app/en.lproj/InfoPlist.strings"
           grep -q '"url": "https://link.example"' "$app/capacitor.config.json"
           grep -q 'data-link="https://link.example"' "$app/public/index.html"
       # Evidence, not a gate: a runner without a usable simulator says nothing about the code.
