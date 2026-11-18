@@ -178,3 +178,30 @@ export async function verifyAudit(sql: Sql): Promise<number | null> {
     next = last.id + 1;
   }
 }
+
+/** Where a bounded check got to: the last row checked, and the hash it had then. */
+export type ChainMark = { id: number; hash: string };
+
+export const START_MARK: ChainMark = { id: 0, hash: GENESIS };
+
+/**
+ * Checks at most `limit` rows after `from`. A Worker's cron has 10 ms of CPU, so the nightly check
+ * cannot rehash a large log in one go: it checks what is new, and a rolling stretch of older rows.
+ */
+export async function verifyAuditPart(
+  sql: Sql,
+  from: ChainMark,
+  limit: number,
+): Promise<{ brokenAt: number | null; last: ChainMark }> {
+  const rows = await sql.all<AuditRow>(
+    "SELECT * FROM audit WHERE id > ? ORDER BY id LIMIT ?",
+    from.id,
+    limit,
+  );
+  const broken = brokenAt(rows, from.hash, from.id + 1);
+  const tail = rows.at(-1);
+  return {
+    brokenAt: broken,
+    last: tail ? { id: tail.id, hash: tail.hash } : from,
+  };
+}

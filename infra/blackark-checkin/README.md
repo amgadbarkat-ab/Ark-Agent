@@ -275,7 +275,7 @@ Upload it only with Amgad's yes on this exact build, as before.
 **Setup, once, after Amgad's yes:**
 1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
 2. Put it in `'export_secret'` in `config.php`.
-3. Type the same secret at the board's hidden prompt (`./deploy.sh checkin`, in `infra/control-board/`).
+3. Give the same secret to the board as a Worker secret, at wrangler's hidden prompt: `npx wrangler secret put CHECKIN_EXPORT_SECRET` (see `infra/control-board/README.md`).
 
 Until then the export answers 503.
 
@@ -300,8 +300,37 @@ Amgad decided on 18 Nov: in-app Help & support is BlackArk's only support channe
 
 **Setup, once, after Amgad's yes:**
 1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
-2. Put it in `'intake_secret'`, and the board's address in `'intake_url'`.
-3. Type the same secret at `./deploy.sh intake` on the board.
+2. Put it in `'intake_secret'`, and the board's address in `'intake_url'` (`https://<board>/intake/app`).
+3. Give the same secret to the board: `npx wrangler secret put INTAKE_SECRET`.
+
+## The Control Board's audit copy (#149, not deployed)
+
+The board copies its audit log here once a night (`AUDIT_COPY=blackark` on the board), so a copy is
+kept away from Cloudflare.
+
+**Endpoint:** `…/checkin/audit-copy/`, POST only, signed both ways like the export, with
+`'audit_copy_secret'` (its own secret, not the export's or the relay's). Each nonce is taken once.
+
+**Only a batch that continues the copy is taken:**
+- it starts from the hash of an entry kept here (or from the start);
+- its ids follow with no gap, and each entry's hash is recomputed here and must match;
+- an entry kept already must come again exactly the same: the board may resend a batch whose answer
+  it lost, but a changed entry is refused (409). The copy is never rewritten.
+
+**Stored** in the `audit_copy` table of the same SQLite file. Its triggers refuse UPDATE and DELETE,
+and nothing here issues either.
+
+**What the entries hold:** staff user names and roles, the action, the customer id it was about, and
+a short detail. No customer's name, email or words.
+
+**Setup, once, after Amgad's yes:**
+1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
+2. Put it in `'audit_copy_secret'` in `config.php`.
+3. Give the same secret to the board: `npx wrangler secret put AUDIT_COPY_SECRET`, and set
+   `AUDIT_COPY = "blackark"` and `AUDIT_COPY_URL = "https://blackark.uk/checkin/audit-copy/"` in its
+   `wrangler.toml`.
+
+Until then it answers 503.
 
 ## Counts in the check-in (v0.1.49, #149)
 

@@ -8,10 +8,18 @@
  * Each run is one Worker invocation: at most 50 subrequests and 50 D1 queries on the free plan,
  * which these stay well under.
  */
-import { createHmac, randomBytes } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { pruneExpired } from "./accounts";
-import { type AuditRow, auditSince, GENESIS, verifyAudit } from "./audit";
-import { saveFailure, saveSnapshot } from "./snapshots";
+import {
+  type AuditRow,
+  auditSince,
+  type ChainMark,
+  GENESIS,
+  START_MARK,
+  verifyAuditPart,
+} from "./audit";
+import { readSnapshot, saveFailure, saveSnapshot } from "./snapshots";
 import type { Sources } from "./sources";
 import type { Sql } from "./sql";
 import type { R2Bucket } from "./workers";
@@ -88,6 +96,19 @@ export function blackarkCopy(options: {
       });
       if (!response.ok)
         throw new Error(`The audit copy answered ${response.status}.`);
+      // The answer is signed back for this request's nonce, as the export's is.
+      const answer = await response.text();
+      const answeredAt = response.headers.get("x-ark-time") ?? "";
+      const expected = signCopy(options.secret, answeredAt, nonce, answer);
+      const given = response.headers.get("x-ark-signature") ?? "";
+      if (
+        given.length !== expected.length ||
+        !timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+      )
+        throw new Error("The audit copy's answer is not signed.");
+      const stored = (JSON.parse(answer) as { lastId?: unknown }).lastId;
+      if (stored !== (batch.entries.at(-1)?.id ?? null))
+        throw new Error("The audit copy did not take the whole batch.");
     },
   };
 }
@@ -111,7 +132,7 @@ export function r2Copy(bucket: R2Bucket): AuditCopy {
   };
 }
 
-/** Copies the entries not copied yet (at most 2,000 a night), and records how far it got. */
+/** Copies the entries not copied yet (at most `NIGHTLY.copied` a night), and records how far it got. */
 export async function copyAudit(
   sql: Sql,
   copy: AuditCopy,
@@ -121,7 +142,7 @@ export async function copyAudit(
     "SELECT last_id, last_hash FROM audit_copies WHERE destination = ?",
     copy.name,
   );
-  const entries = await auditSince(sql, done?.last_id ?? 0, 2000);
+  const entries = await auditSince(sql, done?.last_id ?? 0, NIGHTLY.copied);
   if (entries.length === 0) return 0;
   await copy.send({ prevHash: done?.last_hash ?? GENESIS, entries }, now);
   const last = entries.at(-1) as AuditRow;
@@ -136,6 +157,45 @@ export async function copyAudit(
   return entries.length;
 }
 
+/** What the nightly chain check keeps between nights (the "audit-chain" snapshot). */
+export type ChainState = {
+  /** The first entry found not to follow from the one before; it stays shown once found. */
+  brokenAt: number | null;
+  /** Every entry up to here has been checked once. */
+  verified: ChainMark;
+  /** The rolling re-check of older entries is here; it starts again from the first when done. */
+  rolling: ChainMark;
+};
+
+/** Per night, within a cron's 10 ms of CPU (see README, "Free plan"). */
+export const NIGHTLY = { newEntries: 1000, olderEntries: 500, copied: 1000 };
+
+export async function checkChain(sql: Sql, now: number): Promise<ChainState> {
+  const before = (await readSnapshot<ChainState>(sql, "audit-chain")).value;
+  const state: ChainState = {
+    brokenAt: before?.brokenAt ?? null,
+    verified: before?.verified ?? START_MARK,
+    rolling: before?.rolling ?? START_MARK,
+  };
+  const fresh = await verifyAuditPart(sql, state.verified, NIGHTLY.newEntries);
+  state.brokenAt ??= fresh.brokenAt;
+  if (fresh.brokenAt === null) state.verified = fresh.last;
+  if (state.rolling.id < state.verified.id) {
+    const older = await verifyAuditPart(
+      sql,
+      state.rolling,
+      Math.min(NIGHTLY.olderEntries, state.verified.id - state.rolling.id),
+    );
+    state.brokenAt ??= older.brokenAt;
+    state.rolling =
+      older.last.id >= state.verified.id ? START_MARK : older.last;
+  } else {
+    state.rolling = START_MARK;
+  }
+  await saveSnapshot(sql, "audit-chain", state, now);
+  return state;
+}
+
 export async function nightly(
   sql: Sql,
   copy: AuditCopy | null,
@@ -143,12 +203,7 @@ export async function nightly(
   log: (line: string) => void,
 ) {
   await pruneExpired(sql, now());
-  await saveSnapshot(
-    sql,
-    "audit-chain",
-    { brokenAt: await verifyAudit(sql) },
-    now(),
-  );
+  await checkChain(sql, now());
   if (!copy) return;
   try {
     const copied = await copyAudit(sql, copy, now());

@@ -59,6 +59,7 @@ return [
   'export_secret' => 'export-secret-for-tests-0123456789abcdef',
   'intake_url' => 'http://127.0.0.1:18767/intake/app',
   'intake_secret' => 'intake-secret-for-tests-0123456789abcdef',
+  'audit_copy_secret' => 'audit-copy-secret-for-tests-0123456789abcdef',
   // On here only, to test it; written to a folder instead of sent.
   'phone_low_email' => true,
   'phone_low_email_reply_to' => 'general@blackark.example',
@@ -361,6 +362,73 @@ expect "when the board cannot take it, the app is told to send it again" 502 -X 
 expect "not a support request" 400 -X POST --data '{"customerId":"demo-shop"}' "$support"
 for _ in $(seq 1 8); do send_support "$(support_body demo-shop "$inst" "$(profile_proof "$good")")" >/dev/null; done
 expect "the 11th request from one install in a day is refused" 429 -X POST --data "$(support_body demo-shop "$inst" "$(profile_proof "$good")")" "$support"
+
+# The Control Board's off-site audit copy (#149): signed, append-only, only a batch that continues
+# the chain; driven by the board's own client (cron.ts) against a throwaway board store.
+copy_url="http://127.0.0.1:$port/checkin/audit-copy/"
+expect "the audit copy refuses GET" 405 "$copy_url"
+expect "the audit copy refuses an unsigned request" 403 -X POST --data '{"prevHash":"0","entries":[]}' "$copy_url"
+mkdir -p "$work/boardstore"
+cat > "$repo/.checkin-audit-copy.ts" <<'TS'
+import { appendAudit, type AuditRow, rowHash } from "./infra/control-board/audit";
+import { blackarkCopy, copyAudit, signCopy } from "./infra/control-board/cron";
+import { openLocalStore } from "./infra/control-board/sql-sqlite";
+const [url, secret, dir] = process.argv.slice(2) as [string, string, string];
+const sql = await openLocalStore(`${dir}/board.sqlite`);
+const copy = blackarkCopy({ url, secret });
+const add = (detail: string | null, target = "customer:demo-shop") =>
+  appendAudit(sql, { actor: "maria", role: "support", action: "view", target, outcome: "ok", detail }, Date.now());
+// Text that JSON writes differently in many places: Greek, a slash, quotes, a newline, U+2028, a tab.
+await add("Δεν ανοίγει / \"Gmail\"\nline next\ttab");
+for (let i = 0; i < 4; i++) await add(null, `customer:c${i}`);
+const say = (line: string) => console.log(line);
+say(`first ${await copyAudit(sql, copy, Date.now())}`);
+say(`again ${await copyAudit(sql, copy, Date.now())}`);
+await add("later");
+await add(null);
+say(`new ${await copyAudit(sql, copy, Date.now())}`);
+const rows = await sql.all<AuditRow>("SELECT * FROM audit ORDER BY id");
+const post = async (batch: unknown, nonce = crypto.randomUUID().replaceAll("-", "")) => {
+  const body = JSON.stringify(batch);
+  const time = String(Math.floor(Date.now() / 1000));
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "x-ark-time": time, "x-ark-nonce": nonce, "x-ark-signature": signCopy(secret, time, nonce, body) },
+    body,
+  });
+  return `${response.status} ${await response.text()}`;
+};
+// The board lost an answer and sends a batch again, overlapping what is kept: taken, nothing doubled.
+say(`resend ${await post({ prevHash: (rows[1] as AuditRow).hash, entries: rows.slice(2) })}`);
+// Entry 3 rewritten, its chain recomputed so it looks valid on its own: refused.
+const prev = (rows[1] as AuditRow).hash;
+const forged = { ...(rows[2] as AuditRow), actor: "someone-else" };
+forged.hash = rowHash(prev, forged);
+say(`rewrite ${(await post({ prevHash: prev, entries: [forged] })).split(" ")[0]}`);
+say(`gap ${(await post({ prevHash: (rows[1] as AuditRow).hash, entries: rows.slice(3) })).split(" ")[0]}`);
+say(`unknown ${(await post({ prevHash: "a".repeat(64), entries: [] })).split(" ")[0]}`);
+const nonce = "replay-nonce-0123456789";
+await post({ prevHash: (rows.at(-1) as AuditRow).hash, entries: [] }, nonce);
+say(`replay ${(await post({ prevHash: (rows.at(-1) as AuditRow).hash, entries: [] }, nonce)).split(" ")[0]}`);
+const other = blackarkCopy({ url, secret: "a-different-secret-0123456789abcdefgh" });
+await add(null);
+say(`wrong-secret ${await copyAudit(sql, other, Date.now()).then(String, (e: Error) => e.message)}`);
+TS
+copied="$(cd "$repo" && bun .checkin-audit-copy.ts "$copy_url" 'audit-copy-secret-for-tests-0123456789abcdef' "$work/boardstore" 2>&1)"; rm -f "$repo/.checkin-audit-copy.ts"
+line() { grep "^$1 " <<<"$copied" | head -1 | cut -d' ' -f2-; }
+[[ "$(line first)" == 5 && "$(line again)" == 0 && "$(line new)" == 2 ]] \
+  && { pass=$((pass+1)); echo "ok   the board's client copies its entries (Greek, quotes, newlines and all), then only what is new"; } || { fail=$((fail+1)); echo "FAIL audit copy client: $copied"; }
+[[ "$(line resend)" == '200 {"stored":0,"lastId":7}' ]] \
+  && { pass=$((pass+1)); echo "ok   a batch sent again over what is kept is taken, and nothing is doubled"; } || { fail=$((fail+1)); echo "FAIL audit copy resend: $(line resend)"; }
+[[ "$(line rewrite)" == 409 && "$(line gap)" == 409 && "$(line unknown)" == 409 ]] \
+  && { pass=$((pass+1)); echo "ok   a rewritten entry, a gap, and a batch that does not continue the copy are refused (409)"; } || { fail=$((fail+1)); echo "FAIL audit copy refusals: $copied"; }
+[[ "$(line replay)" == 409 ]] \
+  && { pass=$((pass+1)); echo "ok   the same signed batch sent again is refused (replay)"; } || { fail=$((fail+1)); echo "FAIL audit copy replay: $(line replay)"; }
+[[ "$(line wrong-secret)" == "The audit copy answered 403." ]] \
+  && { pass=$((pass+1)); echo "ok   a batch signed with another secret is refused"; } || { fail=$((fail+1)); echo "FAIL audit copy secret: $(line wrong-secret)"; }
+kept="$(php -r '$db = new PDO("sqlite:" . $argv[1]); $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $n = $db->query("SELECT COUNT(*) FROM audit_copy")->fetchColumn(); $out = [$n]; foreach (["UPDATE audit_copy SET actor = 1", "DELETE FROM audit_copy"] as $q) { try { $db->exec($q); $out[] = "changed"; } catch (PDOException $e) { $out[] = str_contains($e->getMessage(), "append-only") ? "refused" : "error"; } } echo implode(" ", $out);' "$work/checkin/data/checkins.sqlite")"
+[[ "$kept" == "7 refused refused" ]] \
+  && { pass=$((pass+1)); echo "ok   the copy keeps 7 entries, and the database refuses to change or remove one"; } || { fail=$((fail+1)); echo "FAIL audit copy store: $kept"; }
 
 # Counts-only check-in fields (#149, v0.1.49): accepted, stored, exported; nothing else is.
 counts='{"customerId":"demo-clinic","installId":"2c3d4e5f-0000-4000-8000-0000000000c1","version":"0.1.49","status":"trial","daysLeft":20,"employees":4,"people":5,"activePeople7d":3,"conversations7d":41,"phoneLine":true,"os":"windows"}'
