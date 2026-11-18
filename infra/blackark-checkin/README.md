@@ -278,3 +278,45 @@ Upload it only with Amgad's yes on this exact build, as before.
 3. Type the same secret at the board's hidden prompt (`./deploy.sh checkin`, in `infra/control-board/`).
 
 Until then the export answers 503.
+
+## Help & support from the app (#149, not deployed)
+
+Amgad decided on 18 Nov: in-app Help & support is BlackArk's only support channel.
+
+**Endpoint:** `…/checkin/support/`, POST only.
+
+**What it does with a request:**
+1. **Checks the proof.** The request must carry the install's BlackArk-signed proof, either:
+   - the trial profile (checked as for check-ins); or
+   - its `ARK1-` activation code or licence key, checked against `trial_public_keys` or `license_public_key`, for this customer.
+2. **Limits it:** 10 requests per install a day.
+3. **Adds the plan:** `paid` while an active licence is on file, otherwise `trial`.
+4. **Forwards it** to the Control Board (`intake_url`), signed with `intake_secret`: `X-Ark-Time`, `X-Ark-Nonce`, and `X-Ark-Signature` = HMAC-SHA256 of `<time>.<nonce>.<body>`. The proof itself is not forwarded.
+5. **Answers** the board's case number: `{"case": 7}`.
+
+**If the board cannot be reached:** it answers 502. The app keeps the request and sends it again every hour, with the same request id, so it becomes one case.
+
+**What is kept here:** only the install id, the request id and the time, for the daily limit, for 24 hours. The customer's words and any diagnostics pass through to the board.
+
+**Setup, once, after Amgad's yes:**
+1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
+2. Put it in `'intake_secret'`, and the board's address in `'intake_url'`.
+3. Type the same secret at `./deploy.sh intake` on the board.
+
+## Counts in the check-in (v0.1.49, #149)
+
+From v0.1.49 the app's check-in may also carry **counts only**, all optional:
+
+| Field | What it is |
+|---|---|
+| `people` | people with an account on that install |
+| `activePeople7d` | how many of them used it in the last 7 days; never more than `people` |
+| `conversations7d` | conversations started in the last 7 days |
+| `phoneLine` | `true` or `false`: whether a phone line is set up |
+| `os` | `windows`, `macos` or `linux` |
+
+**Storage:** they are stored in new columns, added once to an existing file, and they are in the export.
+
+**Older installs:** send none, and show `–`.
+
+**Anything else** in a check-in, a name for example, is still refused.

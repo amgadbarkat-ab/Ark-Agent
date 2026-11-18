@@ -1,6 +1,6 @@
 # Proposed check-in payload change (for PE; the desktop app is not changed here)
 
-Status: open (proposal only)
+Status: resolved (implemented, #149 milestone 3; privacy notice updated)
 
 The board can only show what a check-in sends. Today (v0.1.38+) a check-in is:
 `customerId, installId, version, status, daysLeft, endsAt, employees, proof`.

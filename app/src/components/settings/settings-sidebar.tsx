@@ -3,6 +3,7 @@ import {
   IconCpu,
   IconCreditCard,
   IconLayoutGrid,
+  IconLifebuoy,
   IconPhone,
   IconPlug,
   IconSettings,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { tNow, useT } from "@/lib/i18n";
 import { phoneSettingsQueryOptions } from "@/lib/phone/queries";
+import { supportStateQueryOptions } from "@/lib/support/queries";
 import { queryClient } from "@/query-client";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
@@ -80,6 +82,12 @@ const ITEMS: {
     linkOptions: { to: "/settings/phone-approval" },
   },
   {
+    /* Writing to BlackArk about a problem (#149): the only support channel. */
+    title: tNow("Help & support"),
+    icon: IconLifebuoy,
+    linkOptions: { to: "/settings/help" },
+  },
+  {
     /* The same mark Admin gives UI Components. It is the same subject seen from the other side. */
     title: tNow("Components gallery"),
     icon: IconLayoutGrid,
@@ -97,9 +105,12 @@ export function SettingsSidebar({
     { ...phoneSettingsQueryOptions(), retry: false },
     queryClient,
   );
+  // Help & support is listed where this server offers it (a desktop install), as phone approval is.
+  const support = useQuery(supportStateQueryOptions(), queryClient);
   const items = ITEMS.filter(
     (item) =>
-      item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess,
+      (item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess) &&
+      (item.linkOptions.to !== "/settings/help" || Boolean(support.data)),
   );
   return (
     <Sidebar {...props}>

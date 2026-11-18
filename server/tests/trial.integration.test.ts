@@ -342,6 +342,65 @@ describe("a customer trial on this install (#109)", () => {
     expect(rows[0]?.daysLeft).toBe(28);
   });
 
+  test("from v0.1.49 a check-in also carries counts, and still nothing anyone wrote (#149)", async () => {
+    const sent: { body: Record<string, unknown> }[] = [];
+    const service = createTrialService(database, {
+      keys: [blackArk.publicKey],
+      version: "0.1.49",
+      now: () => new Date("2026-11-17T09:00:00Z"),
+      counts: async () => ({
+        people: 5,
+        activePeople7d: 3,
+        conversations7d: 41,
+        phoneLine: true,
+        os: "windows",
+      }),
+      fetch: (async (_url: string, init: RequestInit) => {
+        sent.push({ body: JSON.parse(String(init.body)) });
+        return new Response(null, { status: 204 });
+      }) as unknown as typeof fetch,
+    });
+    await service.importProfile(profileFile());
+    expect(await service.checkIn()).toBe("sent");
+    const body = sent[0]?.body ?? {};
+    expect(body).toMatchObject({
+      people: 5,
+      activePeople7d: 3,
+      conversations7d: 41,
+      phoneLine: true,
+      os: "windows",
+    });
+    const { proof: _proof, ...plain } = body;
+    expect(JSON.stringify(plain)).not.toContain("Demo Shop");
+    // BlackArk's own receiver accepts the counts (and keeps none of them).
+    const receiver = trialCheckInRoutes(database);
+    const answer = await receiver.request("/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    expect(answer.status).toBe(204);
+  });
+
+  test("a check-in whose counts fail goes without them", async () => {
+    const sent: { body: Record<string, unknown> }[] = [];
+    const service = createTrialService(database, {
+      keys: [blackArk.publicKey],
+      version: "0.1.49",
+      now: () => new Date("2026-11-17T09:00:00Z"),
+      counts: async () => {
+        throw new Error("database busy");
+      },
+      fetch: (async (_url: string, init: RequestInit) => {
+        sent.push({ body: JSON.parse(String(init.body)) });
+        return new Response(null, { status: 204 });
+      }) as unknown as typeof fetch,
+    });
+    await service.importProfile(profileFile());
+    expect(await service.checkIn()).toBe("sent");
+    expect(sent[0]?.body).not.toHaveProperty("people");
+  });
+
   test("no check-in address, no check-in", async () => {
     const { service, sent } = harness();
     await service.importProfile(profileFile({ checkInUrl: undefined }));

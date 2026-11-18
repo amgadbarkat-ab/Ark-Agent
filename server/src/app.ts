@@ -133,6 +133,8 @@ import type { RoutineRunner } from "./routines/runner";
 import type { IntentRouter } from "./routing/classify";
 import { createRoutingRoutes } from "./routing/routes";
 import { securityHeaders } from "./security-headers";
+import { supportRoutes } from "./support/routes";
+import type { SupportService } from "./support/service";
 import type { PackageStatusReader } from "./tenant-package";
 import {
   activationRoutes,
@@ -493,6 +495,11 @@ export function createApp(
    * leaves `/api/phone-line` unmounted.
    */
   phoneLine?: PhoneLineService,
+  /**
+   * Help & support (#149): the person's requests to BlackArk. Appended last, for the positional
+   * reason above. Absent leaves `/api/support` unmounted, and the app hides Help & support.
+   */
+  support?: SupportService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1785,6 +1792,10 @@ export function createApp(
       "/api/phone-line",
       createPhoneLineRoutes({ phoneLine, requireUser }),
     );
+  }
+
+  if (support) {
+    app.route("/api/support", supportRoutes(requireUser, support));
   }
 
   if (trial) {

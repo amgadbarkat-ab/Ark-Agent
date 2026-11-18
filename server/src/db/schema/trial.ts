@@ -109,3 +109,24 @@ export const activationState = pgTable("activation_state", {
   activatedAt: at("activated_at").notNull().defaultNow(),
   updatedAt: at("updated_at").notNull().defaultNow(),
 });
+
+/**
+ * Help & support requests sent from this install (#149, v0.1.49). Each keeps exactly what was (or
+ * will be) sent, so the person can see it again, and a request that could not be sent yet is
+ * sent again later with the same id: BlackArk gives back the same case, never a second one.
+ */
+export const supportRequests = pgTable("support_requests", {
+  /** The request id BlackArk sees (a UUID); the same on every attempt. */
+  id: uuid("id").primaryKey(),
+  /** Who sent it on this install; only they see it in Help & support. */
+  userId: text("user_id").notNull(),
+  /** The JSON body sent to BlackArk, exactly, as the person saw it before sending. */
+  body: text("body").notNull(),
+  /** "queued" until BlackArk answers with a case, "sent" then; "refused" when BlackArk said no. */
+  status: text("status").notNull().default("queued"),
+  caseNumber: integer("case_number"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: at("created_at").notNull().defaultNow(),
+  sentAt: at("sent_at"),
+});

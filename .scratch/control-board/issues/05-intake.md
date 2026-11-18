@@ -1,6 +1,6 @@
 # 05 Case intake: app form endpoint and mailbox poller (design)
 
-Status: open
+Status: resolved
 Type: task
 
 Design in `../intake-design.md`. Built and tested against stand-ins: `POST /intake/app` (HMAC,

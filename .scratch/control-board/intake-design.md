@@ -1,6 +1,6 @@
 # Support case intake: design (#149, milestone 2)
 
-Status: open (design; code exists and is tested, nothing is switched on)
+Status: resolved (Amgad 18 Nov: blackark.uk forwards; support@ is an alias of General@; see issues/06)
 
 ## 1. The app's "Help & support" form → `POST /intake/app`
 
