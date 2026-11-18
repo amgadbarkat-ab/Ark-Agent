@@ -75,6 +75,48 @@ export const OUTREACH =
 export const HONESTY =
   "If you are not sure, say so and say what you would need to find out. Never invent facts, figures, quotes or sources. Ask before doing anything that changes something outside this conversation.";
 
+/**
+ * The name an account is created with when nobody has given a company name (accounts/store.ts). It is a
+ * placeholder, not a company, and an employee that said "Legal Helper at Internal" (DT Lab, v0.1.48)
+ * named something it was never told.
+ */
+export const PLACEHOLDER_ACCOUNT_NAME = "Internal";
+
+/**
+ * The company's name for a digital employee to use, from the account's name, or null.
+ *
+ * An account's name is "their email or company name", so an address is not offered as a company, and
+ * neither is the placeholder an account is created with.
+ */
+export function companyFromAccountName(
+  name: string | null | undefined,
+): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed || trimmed.includes("@")) return null;
+  if (trimmed === PLACEHOLDER_ACCOUNT_NAME) return null;
+  return trimmed.slice(0, 120);
+}
+
+/**
+ * A stored instruction without the placeholder taken for a company.
+ *
+ * Read-time, like `withCurrentTeamwork`: installs before this fix wrote " at Internal" and " for Internal"
+ * into the instruction, and only those exact phrases in the two sentences `composeInstruction` writes are
+ * taken out, so anything the person wrote is left as they wrote it.
+ */
+export function withoutPlaceholderCompany(instruction: string): string {
+  const at = ` at ${PLACEHOLDER_ACCOUNT_NAME}, `;
+  if (!instruction.startsWith("You are ")) return instruction;
+  const first = instruction.indexOf(at);
+  const firstLineEnd = instruction.indexOf("\n");
+  if (first < 0 || (firstLineEnd >= 0 && first > firstLineEnd))
+    return instruction;
+  return `${instruction.slice(0, first)}, ${instruction.slice(first + at.length)}`.replace(
+    ` for ${PLACEHOLDER_ACCOUNT_NAME}, then your work`,
+    ", then your work",
+  );
+}
+
 function bullets(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
 }

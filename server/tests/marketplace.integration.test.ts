@@ -1109,6 +1109,60 @@ describe("a digital employee installed from a role", () => {
     expect(prompt).not.toContain("ann@example.com");
   });
 
+  /*
+   * DT Lab (v0.1.48): the Legal Helper introduced itself as "Legal Helper at Internal". "Internal" is the
+   * name the account is created with when nobody has given a company name, not a company.
+   */
+  test("does not call the account's placeholder name a company, for any role", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-internal");
+    const tenantId = await accounts.ensureTenant(ann.id);
+    await database
+      .update(tenants)
+      .set({ name: "Internal" })
+      .where(eq(tenants.id, tenantId));
+    for (const slug of ["legal-helper", "sales"]) {
+      const result = await store.install(ann, slug);
+      made.agents.push(result.agentId);
+      const prompt = (await instructionOf(result.agentId)) ?? "";
+      expect(prompt, slug).not.toContain("Internal");
+    }
+  });
+
+  test("installed while the placeholder was taken for a company, it is read without it", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-internal-legacy");
+    const legal = await store.install(ann, "legal-helper");
+    made.agents.push(legal.agentId);
+    const listing = OFFICIAL_LISTINGS.find((l) => l.slug === "legal-helper");
+    if (!listing) throw new Error("no legal-helper");
+    // What v0.1.48 wrote into a Legal Helper hired on an account still called "Internal".
+    const { composeInstruction } = await import("../src/marketplace/official");
+    await database
+      .update(agentProfiles)
+      .set({
+        persona: `${composeInstruction(listing, "Internal")}\n\nAlways copy in the finance lead.`,
+      })
+      .where(eq(agentProfiles.agentId, legal.agentId));
+    const loaded = await createRuntimeAgentLoader(database)(ann);
+    const said = instructionLoaded(loaded, legal.agentId);
+    expect(said).not.toContain("at Internal");
+    expect(said).not.toContain("for Internal");
+    expect(said).toContain("You are Legal Helper, the legal helper");
+    expect(said).toContain("Always copy in the finance lead.");
+  });
+
+  test("says which role it was installed from, so a Legal Helper's answers can be marked", async () => {
+    const { store } = storeWithSkills();
+    const ann = await person("role-which");
+    const legal = await store.install(ann, "legal-helper");
+    const sales = await store.install(ann, "sales");
+    made.agents.push(legal.agentId, sales.agentId);
+    expect(await store.installedRole(legal.agentId)).toBe("legal-helper");
+    expect(await store.installedRole(sales.agentId)).toBe("sales");
+    expect(await store.installedRole(`nobody-${randomUUID()}`)).toBeNull();
+  });
+
   test("keeps its instruction when only its name is edited", async () => {
     const { store } = storeWithSkills();
     const ann = await person("role-edit");

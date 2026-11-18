@@ -39,6 +39,7 @@ import type { AgentFetch, StallGuard } from "./channels/stall-guard";
 import type { DeploymentConfig } from "./config";
 import { observeModelConnection } from "./desktop-connection-failure";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
+import { withoutPlaceholderCompany } from "./marketplace/official";
 import {
   type ConnectionLanguageModel,
   deploymentChatModel,
@@ -165,7 +166,9 @@ export function standingRoleMessage(
         ? `You are ${profile.name}.`
         : `You are ${profile.name}, ${profile.title}.`,
       profile.persona?.trim()
-        ? withoutRetiredLanguage(withCurrentTeamwork(profile.persona))
+        ? withoutRetiredLanguage(
+            withCurrentTeamwork(withoutPlaceholderCompany(profile.persona)),
+          )
         : profile.roleDescription,
       ...(profile.team ? [profile.team] : []),
       ...(profile.memory ? [profile.memory] : []),
@@ -283,7 +286,11 @@ export function registeredAgentFromRow(
           // The team rides with the instruction it was written for, since a built-in digital employee
           // has no standing role message to carry it.
           systemPrompt: [
-            withoutRetiredLanguage(withCurrentTeamwork(trimmedSystemPrompt)),
+            withoutRetiredLanguage(
+              withCurrentTeamwork(
+                withoutPlaceholderCompany(trimmedSystemPrompt),
+              ),
+            ),
             row.team,
             row.memory,
           ]

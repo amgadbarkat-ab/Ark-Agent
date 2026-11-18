@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### DT Lab's findings on v0.1.48 (#109)
+
+- **Legal Helper: the disclaimer is added by the server.** Every Legal Helper answer now opens and closes with exactly "Draft for review by a qualified lawyer. Not legal advice." (in Greek, «Προσχέδιο για έλεγχο από αρμόδιο δικηγόρο. Δεν αποτελεί νομική συμβουλή.» when the answer is in Greek). A version the model wrote itself is taken out, so the line appears once at each end. A Legal Helper's messages now appear whole rather than word by word.
+- **Legal Helper: an NDA triage has one definite rating.** A no-hire or non-solicit clause is always Red, and every triage ends with exactly one overall rating (Green, Yellow or Red), the worst colour in its table. The server checks this after the model answers; the NDA triage skill says the same (role version 2, for new installs).
+- **No "at Internal".** A digital employee added on an account with no company name no longer says it works "at Internal", for every role. Employees already added that way are read without it.
+
 ## 0.1.48
 
 ### `ark-eval` uses OpenRouter's free tier (#116)

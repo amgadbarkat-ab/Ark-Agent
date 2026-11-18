@@ -37,6 +37,7 @@ import {
   tenants,
 } from "../db/schema";
 import {
+  companyFromAccountName,
   composeInstruction,
   OFFICIAL_LISTINGS,
   type OfficialListing,
@@ -207,6 +208,11 @@ export type MarketplaceStore = {
     actor: AgentActor,
     slug: string,
   ): Promise<{ agentId: string; name: string }>;
+  /**
+   * The slug of the official role a digital employee was installed from, or null. Read by the runtime to
+   * give every Legal Helper answer its fixed disclaimer (see `legal-answer.ts`).
+   */
+  installedRole(agentId: string): Promise<string | null>;
   publisherPage(
     publisherId: string,
   ): Promise<{ publisher: PublisherProfile; listings: ListingCard[] }>;
@@ -571,9 +577,7 @@ export function createMarketplaceStore(
       .from(tenants)
       .where(eq(tenants.id, tenantId))
       .limit(1);
-    const name = row?.name?.trim();
-    if (!name || name.includes("@")) return null;
-    return name.slice(0, 120);
+    return companyFromAccountName(row?.name);
   }
 
   /**
@@ -930,6 +934,25 @@ export function createMarketplaceStore(
         throw new MarketplaceError("not_found", "No such listing.");
       }
       return detail;
+    },
+
+    async installedRole(agentId) {
+      const [row] = await database
+        .select({ slug: marketplaceListings.slug })
+        .from(marketplaceInstalls)
+        .innerJoin(
+          marketplaceListings,
+          eq(marketplaceListings.id, marketplaceInstalls.listingId),
+        )
+        .where(
+          and(
+            eq(marketplaceInstalls.agentId, agentId),
+            eq(marketplaceListings.kind, "official"),
+          ),
+        )
+        .orderBy(desc(marketplaceInstalls.installedAt))
+        .limit(1);
+      return row?.slug ?? null;
     },
 
     async install(actor, slug) {
