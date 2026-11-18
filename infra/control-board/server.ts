@@ -4,7 +4,9 @@
  * certificate. Nothing is fetched until someone signed in opens a page.
  */
 import { join } from "node:path";
-import { createBoard } from "./board";
+import { createBoard, type Extension } from "./board";
+import { casesExtension } from "./cases";
+import { appIntake } from "./intake";
 import {
   checkinExport,
   githubIssues,
@@ -26,8 +28,17 @@ const notConnected: HealthSource = {
   check: async () => ({ up: null, detail: "not connected" }),
 };
 
+const db = openStore(join(dataDir, "board.sqlite"));
+const githubRepo = env.GITHUB_REPO ?? "amgadbarkat-ab/Ark-Agent";
+const extensions: Extension[] = [casesExtension(db, { githubRepo })];
+// The app's support form (design stage): only with a secret, and only after Amgad's yes.
+if ((env.INTAKE_SECRET ?? "").length >= 32) {
+  extensions.push(appIntake(db, { secret: env.INTAKE_SECRET as string }));
+}
+
 const board = createBoard({
-  db: openStore(join(dataDir, "board.sqlite")),
+  db,
+  extensions,
   publicOrigin: origin,
   sources: {
     checkins:
@@ -46,7 +57,7 @@ const board = createBoard({
       ? relayHealth({ url: env.RELAY_HEALTH_URL })
       : notConnected,
     issues: githubIssues({
-      repo: env.GITHUB_REPO ?? "amgadbarkat-ab/Ark-Agent",
+      repo: githubRepo,
       token: env.GITHUB_TOKEN || undefined,
     }),
     billing: stripeNotConnected,

@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { activateDirectly } from "./accounts";
 import { createBoard } from "./board";
+import { casesExtension, openCase } from "./cases";
 import { standIns } from "./standins";
 import { openStore } from "./store";
 import { newTotpSecret, totp } from "./totp";
@@ -28,8 +29,22 @@ await activateDirectly(
   Date.now(),
 );
 const port = Number(process.env.PORT ?? 8787);
+openCase(
+  db,
+  {
+    customerId: "demo-clinic",
+    channel: "phone",
+    language: "el",
+    priority: "high",
+    subject: "Η γραμμή δεν απαντά μετά τις 18:00",
+    note: "Made-up case for the local board.",
+  },
+  "demo",
+  Date.now() - 30 * 3_600_000,
+);
 const board = createBoard({
   db,
+  extensions: [casesExtension(db)],
   sources: standIns(Date.now),
   publicOrigin: `http://localhost:${port}`,
 });

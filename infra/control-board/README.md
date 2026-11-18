@@ -38,7 +38,7 @@ browser ── https ──▶ Caddy (the relay's, on the EU VPS) ──▶ boar
   - refused request (wrong role, missing CSRF token).
 
   Each entry holds who did it, their role, the action, its target, the result and when.
-- **Support cases:** milestone 2, not in this build.
+- **Support cases:** each case's fields, and its internal notes as written. See [Support cases](#support-cases-milestone-2).
 
 **What it does not keep:**
 - **Customer data from the sources.** It is asked for at most once a minute and held in memory only.
@@ -104,6 +104,7 @@ There is no QR code: it would need a package. The key and the `otpauth://` link 
 | **Issues and fixes** | GitHub issues and PRs, by label, then open / merged / closed |
 | **Audit log** | every entry, newest first, and whether the chain of entries is intact |
 | **Accounts** | owners and admins add, disable and reset accounts |
+| **Cases** | support cases, open or all; one case with its notes (milestone 2) |
 
 **How a customer's plan is worked out:**
 - **Paid:** an active licence, or an install that reports `paid`.
@@ -111,6 +112,46 @@ There is no QR code: it would need a package. The key and the `otpauth://` link 
 - **Trial ended:** anything else.
 
 The days left come from the install heard from most recently, because a silent install still reports the days it had then.
+
+## Support cases (milestone 2)
+
+**Cases are on** in this build. Each case has:
+- a number and a customer id;
+- a channel (in the app, email, phone) and a language (Greek, English);
+- a priority, a status and an owner (a board account);
+- an SLA due time;
+- optionally, a linked GitHub issue;
+- internal notes.
+
+**The SLA** is the time to a first answer, worked out from the priority:
+
+| Priority | Due within |
+|---|---|
+| urgent | 4 hours |
+| high | 24 hours |
+| normal | 72 hours |
+| low | 7 days |
+
+A case still new, open or waiting after that is marked **overdue**. Changing the priority works
+the time out again from when the case was opened.
+
+**Notes** are internal: the customer never sees them. A note is never changed or removed. The
+audit log records that a note was added, and its length, never its text.
+
+**GitHub:** a case links to an issue by its number. The board shows the link and never writes to
+GitHub.
+
+**A customer's page** lists their cases on the timeline, with **Open a case**.
+
+**Roles:** read-only can read cases; support, admin and owner can also open and change them.
+
+**Intake, design stage:** the code is built and tested against stand-ins, and is **not switched
+on**. See `.scratch/control-board/intake-design.md`.
+- **The app's future "Help & support" form:** `POST /intake/app`, signed like the export, opening
+  an in-app case. It exists only when `INTAKE_SECRET` is set. Who signs (proposed: blackark.uk,
+  after checking the install's signed profile) is an open question.
+- **A support mailbox:** `pollMailbox` reads a `MailSource`, opens email cases and adds replies as
+  notes. Only the in-memory stand-in exists. The IMAP client needs the mailbox, and Amgad's yes.
 
 ## Run it locally, with made-up data
 
@@ -128,7 +169,7 @@ Every source is a stand-in (`standins.ts`, customers `demo-…`). Nothing leaves
 ## Test
 
 ```bash
-cd infra/control-board && bun test         # the board: TOTP, sign-in, lockout, sessions, CSRF, roles, audit, pages, sources, CLI
+cd infra/control-board && bun test         # the board: TOTP, sign-in, lockout, sessions, CSRF, roles, audit, pages, sources, CLI, cases, intake
 bash infra/blackark-checkin/test.sh        # the export on PHP: good, bad, stale and replayed signatures, no personal data
 node_modules/.bin/tsc --noEmit -p infra/control-board
 ```
@@ -193,6 +234,7 @@ The board runs on **the same EU VPS as the phone relay**. It joins the relay's D
 | `RELAY_HEALTH_URL` | `http://relay:8080/health` | no |
 | `GITHUB_REPO` | `amgadbarkat-ab/Ark-Agent` | no |
 | `GITHUB_TOKEN` | | **yes**, later; hidden prompt |
+| `INTAKE_SECRET` | | **yes**, later: switches on `POST /intake/app`. Unset: there is no such endpoint |
 | `PORT`, `BOARD_DATA_DIR`, `TRUST_PROXY` | `8080`, `/data`, `1` (set in the image) | no |
 
 **Images:** `oven/bun:1.3.14-slim`, the same as the relay. No package is installed.

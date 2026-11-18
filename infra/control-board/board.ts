@@ -90,6 +90,8 @@ export type Extension = {
   handle(context: Context): Promise<Response | null>;
   /** Extra timeline events for a customer (cases). */
   timeline?(customerId: string): import("./summary").TimelineEvent[];
+  /** A route needing no session (a signed machine endpoint), tried before the session check. */
+  handlePublic?(request: Request, url: URL): Promise<Response | null>;
 };
 
 const SESSION_COOKIE = "__Host-ark_board";
@@ -114,7 +116,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-robots-tag": "noindex, nofollow",
 };
 
-function respond(
+export function respond(
   body: string,
   status = 200,
   headers: Record<string, string> = {},
@@ -130,7 +132,7 @@ function respond(
   return new Response(body, { status, headers: out });
 }
 
-function redirect(location: string, cookies: string[] = []): Response {
+export function redirect(location: string, cookies: string[] = []): Response {
   return respond("", 303, { location }, cookies);
 }
 
@@ -778,6 +780,10 @@ export function createBoard(options: BoardOptions) {
 
       const open = await handlePublic(request, url, lang, jar, ip);
       if (open) return open;
+      for (const extension of extensions) {
+        const answer = await extension.handlePublic?.(request, url);
+        if (answer) return answer;
+      }
 
       pruneSessions(db, now());
       const session = findSession(db, jar.get(SESSION_COOKIE) ?? "", now());
@@ -793,6 +799,7 @@ export function createBoard(options: BoardOptions) {
         path: url.pathname,
         account: session.account,
         csrf: session.csrf,
+        cases: extensions.length > 0,
       };
       const form = await readForm(request);
       const context: Context = {

@@ -33,7 +33,7 @@ function phrasesUsed(): string[] {
 
 test("every phrase the board shows has Greek", () => {
   // Header values and other words that are never shown.
-  const notShown = new Set(["nosniff", "same-origin"]);
+  const notShown = new Set(["nosniff", "same-origin", "case"]);
   const missing = phrasesUsed().filter(
     (phrase) => !(phrase in EL) && !notShown.has(phrase),
   );

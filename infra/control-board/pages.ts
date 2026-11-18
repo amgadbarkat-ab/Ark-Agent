@@ -16,6 +16,8 @@ export type Frame = {
   path: string;
   account: Account | null;
   csrf: string | null;
+  /** Whether support cases (milestone 2) are switched on, for the menu. */
+  cases?: boolean;
 };
 
 function langSwitch(frame: Frame): Html {
@@ -40,6 +42,11 @@ function nav(frame: Frame): Html {
   const links: Array<[string, string, boolean]> = [
     ["/", "Overview", true],
     ["/customers", "Customers", true],
+    [
+      "/cases",
+      "Cases",
+      frame.cases === true && can(account.role, "cases.read"),
+    ],
     ["/services", "Services", true],
     ["/issues", "Issues and fixes", true],
     ["/audit", "Audit log", can(account.role, "audit.read")],
