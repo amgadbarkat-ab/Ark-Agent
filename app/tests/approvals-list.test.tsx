@@ -171,6 +171,9 @@ test("in Greek the request says for whom in Greek too, not half in English", asy
     expect(view.queryByText(/ for Ben/)).toBeNull();
     expect(view.getByRole("button", { name: "Έγκριση" })).toBeTruthy();
   } finally {
+    // Unmounted first: switching back with the list still drawn schedules a render that would run
+    // after the DOM is gone, which bun reports as an error between tests.
+    cleanup();
     setLanguage("en");
   }
 });
