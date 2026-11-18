@@ -1,18 +1,19 @@
 name: iOS app
 
-# The iOS app is a thin Capacitor shell around the deployment's own site (docs/ark/19-mobile.md). The
-# Xcode project is made from the deployment's names every time, so the parts that can break are the
-# names and the build, and only a Mac can build.
+# The iOS app is a thin Capacitor shell that opens Ark Link, the relay a customer's own desktop
+# ArkAgent connects out to (#149, docs/ark/19-mobile.md). The Xcode project is made from the build's
+# names every time, so the parts that can break are the names and the build, and only a Mac can build.
 #
-#  - Every change to it makes the project against made-up names and builds it for the simulator
-#    without signing. Holds no secret and answers "does this still build".
+#  - Every change to it, and every push to a `claude/ios-*` branch that touches it, makes the project
+#    against a made-up Ark Link host and builds it for the simulator without signing. Holds no secret
+#    and answers "does this still build". It then opens the app in a simulator and keeps a picture of
+#    it, which is evidence and not a gate.
 #  - A person starting it by hand archives and exports the signed app for App Store Connect, signing
 #    with a key from the owner's Apple developer account. The .ipa is kept as a build artifact;
 #    uploading it (to TestFlight and the store) is the owner's.
 #
-# Nothing here has been run on GitHub, and the project has never been compiled: this repository's
-# build machine is Linux, where Capacitor makes the project (that part has been run) and Xcode does
-# not exist. The first run of this workflow is the first build.
+# This repository's build machine is Linux, where Capacitor makes the project and Xcode does not
+# exist, so this workflow is where the app is compiled.
 on:
   pull_request:
     paths:
@@ -20,7 +21,7 @@ on:
       - "mobile/scripts/**"
       - ".github/workflows/mobile-ios.yml"
   push:
-    branches: [main]
+    branches: [main, "claude/ios-**"]
     paths:
       - "mobile/ios/**"
       - "mobile/scripts/**"
@@ -40,7 +41,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Made-up names, on purpose: this proves the project builds, and must never be mistaken for the app.
+  # A made-up host, on purpose: this proves the project builds, and must never be mistaken for the app.
   check:
     name: make and build
     runs-on: macos-latest
@@ -57,12 +58,14 @@ jobs:
       - run: bun install --frozen-lockfile
         working-directory: mobile/ios
       - run: bun test mobile
-      - name: Make the project against made-up names
+      - name: Which Xcode this runner has
+        run: |
+          xcodebuild -version
+          ls -d /Applications/Xcode*.app
+      - name: Make the project against a made-up host
         env:
-          ARK_IOS_APP_ID: ABCDE12345.test.example.ark
-          ARK_APP_URL: https://ark.example
+          ARK_LINK_URL: https://link.example
           ARK_APP_NAME: Ark Test
-          ARK_IOS_URL_SCHEME: arkapp
           ARK_IOS_BUILD_NUMBER: "1"
         run: bun mobile/scripts/prepare-ios.ts > "$RUNNER_TEMP/versions.txt"
       - name: Build for the simulator, unsigned
@@ -76,8 +79,44 @@ jobs:
             -configuration Debug \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/derived" \
             CODE_SIGNING_ALLOWED=NO \
             "${versions[@]}"
+      - name: Read back what was built
+        run: |
+          app="$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/App.app"
+          test "$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")" = "blackark.arkagent"
+          plutil -extract CFBundleShortVersionString raw "$app/Info.plist"
+          plutil -extract CFBundleVersion raw "$app/Info.plist"
+          grep -q '"url": "https://link.example"' "$app/capacitor.config.json"
+          grep -q 'data-link="https://link.example"' "$app/public/index.html"
+      # Evidence, not a gate: a runner without a usable simulator says nothing about the code.
+      - name: Open it in a simulator and keep a picture
+        continue-on-error: true
+        run: |
+          app="$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/App.app"
+          device="$(xcrun simctl list devices available --json | bun -e '
+            const { devices } = JSON.parse(await Bun.stdin.text());
+            const phone = Object.entries(devices)
+              .filter(([runtime]) => runtime.includes("iOS"))
+              .flatMap(([, list]) => list)
+              .find((one) => one.name.startsWith("iPhone"));
+            if (phone) console.log(phone.udid);
+          ')"
+          test -n "$device"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" "$app"
+          xcrun simctl launch "$device" blackark.arkagent
+          # The made-up host never answers, so the app's own page is what should be on the screen.
+          sleep 30
+          xcrun simctl io "$device" screenshot "$RUNNER_TEMP/simulator.png"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-simulator
+          path: ${{ runner.temp }}/simulator.png
+          if-no-files-found: ignore
+          retention-days: 7
 
   # By hand only: it holds the signing key.
   release:
@@ -86,7 +125,7 @@ jobs:
     needs: check
     runs-on: macos-latest
     timeout-minutes: 40
-    # The deployment's names and the signing key are only given to a run started by hand from a
+    # The build's names and the signing key are only given to a run started by hand from a
     # branch the environment allows; add required reviewers to it (mobile/README.md).
     environment: mobile-release
     steps:
@@ -99,13 +138,12 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun install --frozen-lockfile
         working-directory: mobile/ios
-      - name: Make the project from the deployment's own names
+      - name: Make the project from the owner's names
         env:
           # Repository (or environment) variables, set by the owner: see mobile/README.md.
-          ARK_IOS_APP_ID: ${{ vars.ARK_IOS_APP_ID }}
-          ARK_APP_URL: ${{ vars.ARK_APP_URL }}
+          ARK_LINK_URL: ${{ vars.ARK_LINK_URL }}
+          ARK_IOS_TEAM_ID: ${{ vars.ARK_IOS_TEAM_ID }}
           ARK_APP_NAME: ${{ vars.ARK_APP_NAME }}
-          ARK_IOS_URL_SCHEME: ${{ vars.ARK_IOS_URL_SCHEME }}
           ARK_IOS_BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
         run: bun mobile/scripts/prepare-ios.ts > "$RUNNER_TEMP/versions.txt"
       - name: Put the App Store Connect key where Xcode reads it
@@ -116,12 +154,12 @@ jobs:
           printf '%s' "$ASC_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
       - name: Archive and export, signed by Xcode with the key
         env:
-          ARK_IOS_APP_ID: ${{ vars.ARK_IOS_APP_ID }}
+          ARK_IOS_TEAM_ID: ${{ vars.ARK_IOS_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ARK_IOS_ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ARK_IOS_ASC_ISSUER_ID }}
         run: |
-          # The identifier was checked by the previous step: the team is what comes before the first dot.
-          team="${ARK_IOS_APP_ID%%.*}"
+          # Checked by the previous step when given; a signed app cannot be made without one.
+          team="${ARK_IOS_TEAM_ID:?ARK_IOS_TEAM_ID is not set: the Apple developer team that signs the app.}"
           # macOS ships bash 3.2, which has no `mapfile`; read the file a line at a time instead.
           versions=()
           while IFS= read -r line; do versions+=("$line"); done < "$RUNNER_TEMP/versions.txt"

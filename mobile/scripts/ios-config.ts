@@ -1,16 +1,18 @@
 /**
- * What the iOS app is told about the deployment it belongs to, checked before anything is built, and
- * the two things done to the project Capacitor generates from it.
+ * What the iOS app is told, checked before anything is built, and the two things done to the project
+ * Capacitor generates from it.
  *
- * Like the Android app, the iOS app is a window onto one site and nothing in the repository says
- * which: the bundle identifier, the site, the name under the icon and the address scheme the system
- * browser returns to all belong to a deployment the owner has yet to choose (docs/ark/19-mobile.md),
- * and none has a default. A missing or wrong one stops the build here, in a sentence.
+ * The iOS app is one app for every customer (#149): a window onto Ark Link, the BlackArk relay a
+ * customer's own desktop ArkAgent connects out to. A phone that is not paired yet is shown the pair
+ * screen there; a paired one is shown its desktop's own app, through the relay. So the bundle
+ * identifier is the product's (`blackark.arkagent`, the owner's choice, permanent once published) and
+ * the start address is the Ark Link host, which is given at build time and has no default: a build
+ * that silently pointed at a host nobody runs would look like a broken app.
  *
  * Pure: the environment goes in, checked values and edited text come out. `prepare-ios.ts` does the
  * reading, writing and running.
  */
-import { isAppUrlScheme, isIosAppId } from "../../server/src/mobile/links";
+import { isAppUrlScheme } from "../../server/src/mobile/links";
 import {
   APP_NAME,
   APP_NAME_RULE,
@@ -19,15 +21,27 @@ import {
   siteFrom,
 } from "./shared";
 
+/** The app's bundle identifier. Permanent once published (docs/ark/20-accounts-and-keys.md). */
+export const BUNDLE_ID = "blackark.arkagent";
+
+const TEAM_ID = /^[A-Z0-9]{10}$/;
+
 export type IosConfig = {
-  /** The Apple developer team that signs it. */
-  teamId: string;
   bundleId: string;
+  /** The Apple developer team that signs it; null for an unsigned build, which needs none. */
+  teamId: string | null;
   appName: string;
-  siteUrl: string;
-  siteHost: string;
-  /** Where the system browser sends a person back to the app. */
-  urlScheme: string;
+  /** The Ark Link host the app opens, `https://host`. */
+  linkUrl: string;
+  linkHost: string;
+  /**
+   * Where the system browser sends a person back to the app after signing in, or null for none.
+   *
+   * The hand-off exists for a hosted deployment that signs in with Google, which refuses a web view
+   * (server/src/auth/native-browser.ts). A desktop reached through Ark Link signs in inside the app,
+   * so a build for Ark Link registers no scheme unless one is asked for.
+   */
+  urlScheme: string | null;
   /** `CFBundleShortVersionString`: up to three whole numbers. */
   versionName: string;
   /** `CFBundleVersion`: a whole number that goes up with every upload to App Store Connect. */
@@ -44,15 +58,12 @@ export function iosConfigFrom(
   /** The repository's version, used when no version name is given. */
   defaultVersionName: string,
 ): IosConfig {
-  const appId = need(environment, "ARK_IOS_APP_ID");
-  if (!isIosAppId(appId)) {
+  const teamId = environment.ARK_IOS_TEAM_ID?.trim() || null;
+  if (teamId !== null && !TEAM_ID.test(teamId)) {
     throw new Error(
-      "ARK_IOS_APP_ID is not an iOS app identifier: the ten-character team id, a dot, then the bundle identifier (such as ABCDE12345.com.example.ark).",
+      "ARK_IOS_TEAM_ID is the Apple developer team id: ten capital letters and digits, as App Store Connect shows it (such as ABCDE12345).",
     );
   }
-  const dot = appId.indexOf(".");
-  const teamId = appId.slice(0, dot);
-  const bundleId = appId.slice(dot + 1);
 
   const appName = need(environment, "ARK_APP_NAME");
   if (!APP_NAME.test(appName)) {
@@ -61,10 +72,10 @@ export function iosConfigFrom(
     );
   }
 
-  const site = siteFrom(need(environment, "ARK_APP_URL"));
+  const link = linkFrom(need(environment, "ARK_LINK_URL"));
 
-  const urlScheme = need(environment, "ARK_IOS_URL_SCHEME");
-  if (!isAppUrlScheme(urlScheme)) {
+  const urlScheme = environment.ARK_IOS_URL_SCHEME?.trim() || null;
+  if (urlScheme !== null && !isAppUrlScheme(urlScheme)) {
     throw new Error(
       "ARK_IOS_URL_SCHEME is not an app's own address scheme: three to thirty-two lowercase letters, digits, dots, plus signs or hyphens, starting with a letter, and not one the system already uses (such as https).",
     );
@@ -92,34 +103,48 @@ export function iosConfigFrom(
   }
 
   return {
+    bundleId: BUNDLE_ID,
     teamId,
-    bundleId,
     appName,
-    siteUrl: site.url,
-    siteHost: site.host,
+    linkUrl: link.url,
+    linkHost: link.host,
     urlScheme,
     versionName,
     buildNumber,
   };
 }
 
+/** The Ark Link host as an origin the app can open and stay on, or a sentence saying what it must be. */
+function linkFrom(address: string): { url: string; host: string } {
+  try {
+    return siteFrom(address);
+  } catch {
+    throw new Error(
+      "ARK_LINK_URL is the Ark Link host the app opens: https and a domain name, with no path, port, user name, query or fragment (such as https://link.blackark.uk).",
+    );
+  }
+}
+
 /**
  * The file Capacitor reads to make the project.
  *
- * `server.url` is what makes the app a window onto the site: nothing of the web app is bundled, so
- * it is always the version the server is running. `allowNavigation` keeps the window on that site;
- * a link to anywhere else opens in the system browser instead of inside the app.
+ * `server.url` is what makes the app a window onto Ark Link: nothing of the web app is bundled, so
+ * a paired phone always shows the version its desktop is running. `allowNavigation` keeps the window
+ * on that host; a link to anywhere else opens in the system browser instead of inside the app.
+ * `errorPath` shows the app's own page (`www/index.html`) when the host cannot be reached, instead of
+ * a blank window.
  */
 export function capacitorConfigFor(config: IosConfig) {
   return {
     appId: config.bundleId,
     appName: config.appName,
-    // Required to exist, and shown only if the site cannot be reached at all.
+    // Required to exist; its page is shown when the host cannot be reached.
     webDir: "www",
     server: {
-      url: config.siteUrl,
+      url: config.linkUrl,
       cleartext: false,
-      allowNavigation: [config.siteHost],
+      allowNavigation: [config.linkHost],
+      errorPath: "index.html",
     },
     ios: {
       appendUserAgent: USER_AGENT_TOKEN,
@@ -128,12 +153,28 @@ export function capacitorConfigFor(config: IosConfig) {
   };
 }
 
+const EMPTY_LINK = ' data-link=""';
+
+/**
+ * The app's own page (`www/index.html`, shown when the host cannot be reached) with the host its
+ * "Try again" goes back to. The host is a checked origin, so it needs no escaping in an attribute.
+ */
+export function errorPageFor(html: string, config: IosConfig): string {
+  if (html.split(EMPTY_LINK).length !== 2) {
+    throw new Error(
+      'www/index.html must have exactly one empty data-link="" for the Ark Link host; it was not edited.',
+    );
+  }
+  return html.replace(EMPTY_LINK, ` data-link="${config.linkUrl}"`);
+}
+
 const PLIST_END = /<\/dict>\s*<\/plist>\s*$/;
 
 /**
  * Add to the generated Info.plist what Capacitor's template has no setting for:
  *
- *  - the address scheme, so the system browser can open the app again after signing in;
+ *  - the address scheme, when one is given, so the system browser can open the app again after
+ *    signing in;
  *  - the export-compliance answer: the app uses only the encryption in the system's own HTTPS, which
  *    is exempt, and without this App Store Connect asks on every upload.
  *
@@ -151,20 +192,25 @@ export function patchInfoPlist(xml: string, config: IosConfig): string {
       "Info.plist is not in the shape expected; it was not edited.",
     );
   }
+  const scheme = config.urlScheme
+    ? [
+        "\t<key>CFBundleURLTypes</key>",
+        "\t<array>",
+        "\t\t<dict>",
+        "\t\t\t<key>CFBundleTypeRole</key>",
+        "\t\t\t<string>Editor</string>",
+        "\t\t\t<key>CFBundleURLName</key>",
+        `\t\t\t<string>${config.bundleId}</string>`,
+        "\t\t\t<key>CFBundleURLSchemes</key>",
+        "\t\t\t<array>",
+        `\t\t\t\t<string>${config.urlScheme}</string>`,
+        "\t\t\t</array>",
+        "\t\t</dict>",
+        "\t</array>",
+      ]
+    : [];
   const addition = [
-    "\t<key>CFBundleURLTypes</key>",
-    "\t<array>",
-    "\t\t<dict>",
-    "\t\t\t<key>CFBundleTypeRole</key>",
-    "\t\t\t<string>Editor</string>",
-    "\t\t\t<key>CFBundleURLName</key>",
-    `\t\t\t<string>${config.bundleId}</string>`,
-    "\t\t\t<key>CFBundleURLSchemes</key>",
-    "\t\t\t<array>",
-    `\t\t\t\t<string>${config.urlScheme}</string>`,
-    "\t\t\t</array>",
-    "\t\t</dict>",
-    "\t</array>",
+    ...scheme,
     "\t<key>ITSAppUsesNonExemptEncryption</key>",
     "\t<false/>",
     "",
