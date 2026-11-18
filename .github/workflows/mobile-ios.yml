@@ -88,11 +88,16 @@ jobs:
           test "$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")" = "blackark.arkagent"
           plutil -extract CFBundleShortVersionString raw "$app/Info.plist"
           plutil -extract CFBundleVersion raw "$app/Info.plist"
+          # Without these iOS ends the app the moment a page asks for the microphone or the camera.
+          plutil -extract NSMicrophoneUsageDescription raw "$app/Info.plist"
+          plutil -extract NSCameraUsageDescription raw "$app/Info.plist"
           grep -q '"url": "https://link.example"' "$app/capacitor.config.json"
           grep -q 'data-link="https://link.example"' "$app/public/index.html"
       # Evidence, not a gate: a runner without a usable simulator says nothing about the code.
       - name: Open it in a simulator and keep a picture
         continue-on-error: true
+        # A simulator that never finishes booting must not hold the job to its own limit.
+        timeout-minutes: 10
         run: |
           app="$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/App.app"
           device="$(xcrun simctl list devices available --json | bun -e '
