@@ -15,6 +15,9 @@ import {
   ARK_LINK_PATHS,
   ARK_LINK_PROTOCOL_VERSION,
   ARK_LINK_VERSION_HEADER,
+  BEAT,
+  BEAT_EVERY_MS,
+  BEAT_TIMEOUT_MS,
   DATA_KIND,
   DESK_CLOSE,
   type DeskMessage,
@@ -161,6 +164,12 @@ export function createArkLinkConnector(options: ConnectorOptions) {
   let androidPackage: string | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let backoff = 1000;
+  /**
+   * The desktop's own heartbeat (#149): a relay on Workers sleeps between messages and sends no pings,
+   * so the desktop asks, and reconnects when nothing answers.
+   */
+  let beat: ReturnType<typeof setInterval> | null = null;
+  let lastBeat = 0;
   const locals = new Map<number, Local>();
   const starts = new Map<
     string,
@@ -502,6 +511,9 @@ export function createArkLinkConnector(options: ConnectorOptions) {
           reason: message.reason,
         });
         return;
+      case "beat":
+        lastBeat = Date.now();
+        return;
       case "ping":
         send({ t: "pong", at: message.at });
         return;
@@ -546,12 +558,26 @@ export function createArkLinkConnector(options: ConnectorOptions) {
     }
     opened.binaryType = "arraybuffer";
     socket = opened;
+    lastBeat = Date.now();
+    if (beat) clearInterval(beat);
+    beat = setInterval(() => {
+      if (socket !== opened) return;
+      if (Date.now() - lastBeat > BEAT_TIMEOUT_MS) {
+        opened.close(4004, "no answer");
+        return;
+      }
+      if (opened.readyState === WebSocket.OPEN) opened.send(BEAT);
+    }, BEAT_EVERY_MS);
     opened.onmessage = (event) => {
       if (socket !== opened) return;
       if (typeof event.data === "string") onMessage(event.data);
       else onData(event.data as ArrayBuffer);
     };
     opened.onclose = (event) => {
+      if (socket === opened && beat) {
+        clearInterval(beat);
+        beat = null;
+      }
       if (socket !== opened) return;
       socket = null;
       for (const s of [...locals.keys()]) closeLocal(s, 1001, "relay gone");
@@ -599,6 +625,8 @@ export function createArkLinkConnector(options: ConnectorOptions) {
       stopped = true;
       if (retry) clearTimeout(retry);
       retry = null;
+      if (beat) clearInterval(beat);
+      beat = null;
       const old = socket;
       socket = null;
       for (const s of [...locals.keys()]) closeLocal(s, 1001, "stopping");

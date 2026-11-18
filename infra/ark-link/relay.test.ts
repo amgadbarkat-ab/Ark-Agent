@@ -232,6 +232,11 @@ describe("the desktop's socket", () => {
     });
   });
 
+  test("the desktop's heartbeat is answered, byte for byte as a Durable Object would", async () => {
+    desk.socket.send('{"t":"beat"}');
+    await until(() => desk.received.some((m) => m.t === "beat"));
+  });
+
   test("an unknown install token is refused before the socket opens", async () => {
     const stranger = new FakeDesk(newInstallToken());
     await expect(stranger.ready).rejects.toThrow();

@@ -329,7 +329,9 @@ export type RelayMessage =
     }
   /** A pairing ended without a device: it expired, or the phone went away. */
   | { t: "pair.ended"; pairingId: string; reason: PairRefusal }
-  | { t: "ping"; at: number };
+  | { t: "ping"; at: number }
+  /** Answer to the desktop's {@link BEAT}. */
+  | { t: "beat" };
 
 /** desktop → relay */
 export type DeskMessage =
@@ -351,7 +353,21 @@ export type DeskMessage =
   | { t: "pair.refuse"; pairingId: string }
   /** Every paired device, sent on connect and after any change. The relay replaces its list with it. */
   | { t: "devices"; devices: { id: string; tokenSha256: string }[] }
-  | { t: "pong"; at: number };
+  | { t: "pong"; at: number }
+  /**
+   * The desktop's own heartbeat, every {@link BEAT_EVERY_MS}; the relay answers `{t:"beat"}`. Sent as
+   * exactly {@link BEAT}, so a Durable Object can answer it without waking (auto-response).
+   */
+  | { t: "beat" };
+
+/**
+ * The desktop's heartbeat frame, byte for byte, and the relay's answer is the same text. Additive: a
+ * relay that does not know it ignores it, and a desktop that hears nothing back for
+ * {@link BEAT_TIMEOUT_MS} reconnects.
+ */
+export const BEAT = '{"t":"beat"}';
+export const BEAT_EVERY_MS = 30_000;
+export const BEAT_TIMEOUT_MS = 75_000;
 
 /** Kinds of binary data frame. */
 export const DATA_KIND = {
@@ -505,6 +521,8 @@ export function decodeDeskMessage(text: string): DeskMessage | null {
     }
     case "pong":
       return typeof m.at === "number" ? { t: "pong", at: m.at } : null;
+    case "beat":
+      return { t: "beat" };
     default:
       return null;
   }
@@ -613,6 +631,8 @@ export function decodeRelayMessage(text: string): RelayMessage | null {
         : null;
     case "ping":
       return typeof m.at === "number" ? { t: "ping", at: m.at } : null;
+    case "beat":
+      return { t: "beat" };
     default:
       return null;
   }

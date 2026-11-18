@@ -56,7 +56,7 @@ export const PAIR_PAGE = page(
 <p class="en">On the computer, open <b>Settings → Phones</b> and choose <b>Pair a phone</b>. Type the code it shows here.</p>
 <form id="pair" autocomplete="off">
 <label for="code">Κωδικός <span>· Code</span></label>
-<input id="code" name="code" inputmode="text" autocapitalize="characters" maxlength="9" placeholder="ABCD-EFGH" required>
+<input id="code" name="code" inputmode="text" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="9" placeholder="ABCD-EFGH" required>
 <label for="name">Όνομα κινητού <span>· Phone's name</span></label>
 <input id="name" name="name" maxlength="60" required>
 <button id="go" type="submit">Σύνδεση · Connect</button>

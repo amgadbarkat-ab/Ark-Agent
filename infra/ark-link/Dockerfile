@@ -5,7 +5,7 @@ FROM oven/bun:1.3.14-slim
 WORKDIR /app
 COPY shared/ark-link.ts shared/
 COPY server/src/mobile/links.ts server/src/mobile/
-COPY infra/ark-link/relay.ts infra/ark-link/pages.ts infra/ark-link/store.ts infra/ark-link/installs.ts infra/ark-link/main.ts infra/ark-link/
+COPY infra/ark-link/relay.ts infra/ark-link/desk-link.ts infra/ark-link/directory.ts infra/ark-link/edge.ts infra/ark-link/pages.ts infra/ark-link/store.ts infra/ark-link/installs.ts infra/ark-link/main.ts infra/ark-link/
 RUN mkdir -p /data && chown bun:bun /data
 USER bun
 WORKDIR /app/infra/ark-link
