@@ -61,6 +61,13 @@ function ark_db(): PDO
         checkins INTEGER NOT NULL DEFAULT 1
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS installs_customer ON installs (customer_id)');
+    // Counts from v0.1.49 (#149): added to an existing file once, empty for older installs.
+    $columns = array_column($pdo->query('PRAGMA table_info(installs)')->fetchAll(), 'name');
+    foreach (['people' => 'INTEGER', 'active_people_7d' => 'INTEGER', 'conversations_7d' => 'INTEGER', 'phone_line' => 'INTEGER', 'os' => 'TEXT'] as $column => $type) {
+        if (!in_array($column, $columns, true)) {
+            $pdo->exec("ALTER TABLE installs ADD COLUMN $column $type");
+        }
+    }
     $pdo->exec('CREATE TABLE IF NOT EXISTS login_failures (at INTEGER NOT NULL)');
     // Paid licence keys from Stripe (v0.1.44): one row per subscription, its latest signed key.
     $pdo->exec('CREATE TABLE IF NOT EXISTS licenses (

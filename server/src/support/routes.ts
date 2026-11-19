@@ -1,0 +1,80 @@
+/**
+ * Help & support over HTTP (#149), at `/api/support`, for the signed-in person:
+ * - GET  /           whether this install can send a request, and the person's requests
+ * - POST /preview    exactly what would be sent, for the person to read first
+ * - POST /requests   send it (kept and sent again later if BlackArk cannot be reached)
+ */
+import { Hono, type MiddlewareHandler } from "hono";
+import { z } from "zod";
+import type { AppVariables } from "../auth/guards";
+import { type SupportService, SupportUnavailableError } from "./service";
+
+type Middleware = MiddlewareHandler<{ Variables: AppVariables }>;
+
+const body = z.strictObject({
+  subject: z.string().trim().min(3).max(200),
+  message: z.string().trim().min(10).max(8000),
+  urgent: z.boolean(),
+  includeDiagnostics: z.boolean(),
+  language: z.enum(["el", "en"]),
+});
+const sendBody = body.extend({ previewId: z.string().uuid().optional() });
+
+export function supportRoutes(
+  requireUser: Middleware,
+  service: SupportService,
+) {
+  const app = new Hono<{ Variables: AppVariables }>();
+  app.use("*", requireUser);
+
+  app.get("/", async (context) =>
+    context.json({
+      available: await service.available(),
+      requests: await service.list(context.var.actor.id),
+    }),
+  );
+
+  const read = async (raw: unknown) => body.safeParse(raw);
+
+  app.post("/preview", async (context) => {
+    const parsed = await read(await context.req.json().catch(() => null));
+    if (!parsed.success)
+      return context.json({ error: "Write a subject and what happened." }, 400);
+    try {
+      return context.json({
+        payload: await service.preview(context.var.actor.id, parsed.data),
+      });
+    } catch (error) {
+      if (error instanceof SupportUnavailableError)
+        return context.json({ error: error.message }, 409);
+      throw error;
+    }
+  });
+
+  app.post("/requests", async (context) => {
+    const parsed = sendBody.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success)
+      return context.json({ error: "Write a subject and what happened." }, 400);
+    const { previewId: _previewId, ...input } = parsed.data;
+    try {
+      return context.json(
+        {
+          request: await service.submit(
+            context.var.actor.id,
+            input,
+            parsed.data.previewId,
+          ),
+        },
+        201,
+      );
+    } catch (error) {
+      if (error instanceof SupportUnavailableError)
+        return context.json({ error: error.message }, 409);
+      throw error;
+    }
+  });
+
+  return app;
+}

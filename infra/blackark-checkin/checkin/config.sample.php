@@ -69,4 +69,26 @@ return [
     'phone_low_email' => false,
     'phone_low_email_from' => 'no-reply@blackark.uk',
     'phone_low_email_reply_to' => 'General@blackark.uk',
+
+    // ---- The Control Board's read-only export (#149) -------------------------------------------
+    // The secret the board signs its export requests with, and this server its answers: 32+ random
+    // characters, the same as CHECKIN_EXPORT_SECRET on the board. Never the same as relay_secret.
+    // Make it with: php -r 'echo bin2hex(random_bytes(32));'   Empty: the export answers 503.
+    'export_secret' => '',
+
+    // ---- Help & support from the app (#149) -----------------------------------------------------
+    // Where checkin/support/ forwards a checked request: the Control Board's intake, on its Worker
+    // (Access, if used, lets this one path through; it is signed instead).
+    'intake_url' => 'https://blackark-board.<account>.workers.dev/intake/app',
+    // The secret it signs with: 32+ random characters, the same as INTAKE_SECRET on the board.
+    // Make it with: php -r 'echo bin2hex(random_bytes(32));'   Empty: Help & support answers 503
+    // and the app keeps the request until it is set.
+    'intake_secret' => '',
+
+    // ---- The Control Board's audit copy (#149) ---------------------------------------------------
+    // The secret the board signs its nightly audit batches with (checkin/audit-copy/), and this
+    // server its answers: 32+ random characters, the same as AUDIT_COPY_SECRET on the board, and
+    // never the same as the other secrets here. Make it with: php -r 'echo bin2hex(random_bytes(32));'
+    // Empty: the audit copy answers 503.
+    'audit_copy_secret' => '',
 ];

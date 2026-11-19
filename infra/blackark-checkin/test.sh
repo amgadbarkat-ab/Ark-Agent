@@ -56,6 +56,10 @@ return [
   'stripe_api_base' => 'http://127.0.0.1:18766/fakestripe',
   'stripe_buy' => ['plan' => 'price_team', 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
+  'export_secret' => 'export-secret-for-tests-0123456789abcdef',
+  'intake_url' => 'http://127.0.0.1:18767/intake/app',
+  'intake_secret' => 'intake-secret-for-tests-0123456789abcdef',
+  'audit_copy_secret' => 'audit-copy-secret-for-tests-0123456789abcdef',
   // On here only, to test it; written to a folder instead of sent.
   'phone_low_email' => true,
   'phone_low_email_reply_to' => 'general@blackark.example',
@@ -83,7 +87,32 @@ if ($path === '/fakestripe/v1/checkout/sessions') {
 }
 FAKE
 php -S "127.0.0.1:18766" "$work/fake/router.php" >/dev/null 2>&1 & fake=$!
-trap 'kill "${server:-0}" "${fake:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
+# A stand-in for the Control Board's /intake/app (#149): it checks the signature like the board,
+# keeps what it was sent, and answers case 7 (or 503 when the subject asks it to be down).
+mkdir -p "$work/board"
+cat > "$work/board/router.php" <<'BOARD'
+<?php
+$body = file_get_contents('php://input');
+$time = $_SERVER['HTTP_X_ARK_TIME'] ?? '';
+$nonce = $_SERVER['HTTP_X_ARK_NONCE'] ?? '';
+$want = hash_hmac('sha256', $time . '.' . $nonce . '.' . $body, 'intake-secret-for-tests-0123456789abcdef');
+header('Content-Type: application/json');
+if (!hash_equals($want, $_SERVER['HTTP_X_ARK_SIGNATURE'] ?? '') || abs(time() - (int) $time) > 300) {
+    http_response_code(403);
+    echo '{}';
+    exit;
+}
+file_put_contents(__DIR__ . '/received.json', $body);
+if ((json_decode($body, true)['subject'] ?? '') === 'board-down') {
+    http_response_code(503);
+    echo '{}';
+    exit;
+}
+http_response_code(201);
+echo '{"case":7}';
+BOARD
+php -S "127.0.0.1:18767" "$work/board/router.php" >/dev/null 2>&1 & board_pid=$!
+trap 'kill "${server:-0}" "${fake:-0}" "${board_pid:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 port=18765
 php -S "127.0.0.1:$port" -t "$work" >/dev/null 2>&1 & server=$!
@@ -257,6 +286,164 @@ relay_call "$gulfcall" >/dev/null
 eml="$work/outbox/demo-gulf.eml"
 [[ "$(subject "$eml")" == "ArkAgent: less than one hour of phone time left" ]] && decoded "$eml" | head -1 | grep -q '^Dear customer,' && ! decoded "$eml" | grep -q 'Αγαπητέ' \
   && { pass=$((pass+1)); echo "ok   a GCC customer (AE) gets the English text only"; } || { fail=$((fail+1)); echo "FAIL GCC email: $(subject "$eml") / $(decoded "$eml" | head -3)"; }
+
+# The Control Board's read-only export (#149): signed both ways, each request taken once, nothing
+# personal in it.
+export_url="http://127.0.0.1:$port/checkin/export/"
+export_secret='export-secret-for-tests-0123456789abcdef'
+sign_export() { php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2] . "." . $argv[3], $argv[4]);' "$1" "$2" "$3" "$export_secret"; }
+want='{"want":"export"}'
+export_call() { # time nonce signature -> headers in $work/export.h, body in $work/export.b; prints the status
+  curl -s -D "$work/export.h" -o "$work/export.b" -w '%{http_code}' -X POST -H 'content-type: application/json' \
+    -H "x-ark-time: $1" -H "x-ark-nonce: $2" -H "x-ark-signature: $3" --data "$want" "$export_url"
+}
+expect "the export refuses GET" 405 "$export_url"
+expect "the export refuses an unsigned request" 403 -X POST --data "$want" "$export_url"
+t="$(date +%s)"; n="nonce-$(php -r 'echo bin2hex(random_bytes(8));')"
+[[ "$(export_call "$t" "$n" "$(sign_export "$t" "$n" '{"want":"other"}')")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   the export refuses a signature over another body"; } || { fail=$((fail+1)); echo "FAIL export bad signature"; }
+[[ "$(export_call "$t" "$n" "$(php -r 'echo hash_hmac("sha256", $argv[1], "not-the-export-secret-0123456789abcdef");' "$t.$n.$want")")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   the export refuses a request signed with another secret"; } || { fail=$((fail+1)); echo "FAIL export wrong secret"; }
+old=$(( $(date +%s) - 600 ))
+[[ "$(export_call "$old" "$n" "$(sign_export "$old" "$n" "$want")")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   the export refuses a signed request 10 minutes old"; } || { fail=$((fail+1)); echo "FAIL export stale"; }
+got="$(export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")")"
+answered_at="$(grep -i '^x-ark-time:' "$work/export.h" | tr -d '\r' | awk '{print $2}')"
+answer_sig="$(grep -i '^x-ark-signature:' "$work/export.h" | tr -d '\r' | awk '{print $2}')"
+[[ "$got" == 200 && "$answer_sig" == "$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2] . "." . file_get_contents($argv[3]), $argv[4]);' "$answered_at" "$n" "$work/export.b" "$export_secret")" ]] \
+  && { pass=$((pass+1)); echo "ok   a signed request gets the export, and the answer is signed for its nonce"; } || { fail=$((fail+1)); echo "FAIL export good: $got $(head -c 300 "$work/export.b")"; }
+summary="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); $b = []; foreach ($d["phone"] as $p) { $b[$p["customerId"]] = $p["balanceMils"] . "/" . $p["state"]; } $i = array_filter($d["installs"], fn($r) => $r["customerId"] === "demo-shop"); echo count($i), " ", $b["demo-phone"] ?? "-", " ", count($d["ledger"]) > 0 ? "ledger" : "none"; foreach ($d["licences"] as $l) { if ($l["customerId"] === "demo-shop") { echo " ", $l["status"], ":", $l["plan"], ":", implode("+", $l["addons"]); } }' "$work/export.b")"
+[[ "$summary" == "2 23400/ok ledger canceled:team:phone" ]] \
+  && { pass=$((pass+1)); echo "ok   the export carries installs, phone balances with their state, the ledger and licences"; } || { fail=$((fail+1)); echo "FAIL export content: $summary"; }
+! grep -q -e 'owner@shop.example' -e 'owner@gulf.example' -e 'ARK1-' -e 'cus_' -e 'sub_' -e 'cs_test' -e '"CA0' -e '"GR"' -e '"AE"' -e '127.0.0.1' "$work/export.b" \
+  && { pass=$((pass+1)); echo "ok   the export has no email, country, licence key, Stripe id, call id or IP"; } || { fail=$((fail+1)); echo "FAIL export leaks: $(grep -o -e 'owner@[a-z.]*' -e 'ARK1-.\{8\}' -e 'cus_[0-9]*' -e 'sub_[0-9]*' "$work/export.b" | head -3)"; }
+[[ "$(export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")")" == 409 ]] \
+  && { pass=$((pass+1)); echo "ok   the same signed request sent again is refused (replay)"; } || { fail=$((fail+1)); echo "FAIL export replay"; }
+cat > "$repo/.checkin-export.ts" <<'TS'
+import { checkinExport } from "./infra/control-board/sources";
+const [url, secret] = process.argv.slice(2);
+const data = await checkinExport({ url, secret }).load();
+console.log(`${data.installs.length} ${data.phone.length}`);
+const bad = await checkinExport({ url, secret: "a-different-secret-0123456789abcdefgh" }).load().then(() => "read", (e: Error) => e.message);
+console.log(bad);
+TS
+board="$(cd "$repo" && bun .checkin-export.ts "$export_url" "$export_secret" 2>&1)"; rm -f "$repo/.checkin-export.ts"
+[[ "$(head -1 <<<"$board")" =~ ^[0-9]+\ [1-9][0-9]*$ && "$(tail -1 <<<"$board")" == "The check-in export answered 403." ]] \
+  && { pass=$((pass+1)); echo "ok   the Control Board's own client reads the export, and is refused with a wrong secret"; } || { fail=$((fail+1)); echo "FAIL board client: $board"; }
+
+# Help & support (#149): the app's request, checked against the install's signed profile or code,
+# forwarded to the Control Board signed with intake_secret, with the customer's plan.
+support="http://127.0.0.1:$port/checkin/support/"
+uuid() { php -r 'printf("%04x%04x-%04x-4%03x-a%03x-%012x", random_int(0, 65535), random_int(0, 65535), random_int(0, 65535), random_int(0, 4095), random_int(0, 4095), random_int(0, 281474976710655));'; }
+support_body() { # customer install proof-json [subject]
+  echo "{\"requestId\":\"$(uuid)\",\"customerId\":\"$1\",\"installId\":\"$2\",\"appVersion\":\"0.1.49\",\"language\":\"el\",\"subject\":\"${4:-Δεν ανοίγει το Gmail}\",\"message\":\"Μετά την ενημέρωση ζητάει ξανά σύνδεση.\",\"urgent\":true,\"diagnostics\":{\"appVersion\":\"0.1.49\",\"os\":\"Windows 11 (x64)\",\"logs\":[\"error mailbox: sign-in refused\"]},\"proof\":$3}"
+}
+send_support() { curl -s -o "$work/support.out" -w '%{http_code}' -X POST -H 'content-type: application/json' --data "$1" "$support"; }
+profile_proof() { php -r '$d = json_decode($argv[1], true); $d["kind"] = "profile"; echo json_encode($d);' "$1"; }
+inst=1b2c3d4e-0000-4000-8000-0000000000a1
+expect "Help & support refuses GET" 405 "$support"
+got="$(send_support "$(support_body demo-shop "$inst" "$(profile_proof "$good")")")"
+received="$work/board/received.json"
+[[ "$got" == 200 && "$(cat "$work/support.out")" == '{"case":7}' ]] \
+  && [[ "$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo $d["customerId"], " ", $d["plan"], " ", $d["urgent"] ? "urgent" : "normal", " ", $d["subject"], " ", count($d["diagnostics"]["logs"]), " ", array_key_exists("proof", $d) ? "proof!" : "no-proof";' "$received")" == "demo-shop trial urgent Δεν ανοίγει το Gmail 1 no-proof" ]] \
+  && { pass=$((pass+1)); echo "ok   a request with the install's signed profile is forwarded, signed, with the plan (trial) and no proof, and the case number comes back"; } || { fail=$((fail+1)); echo "FAIL support forward: $got $(cat "$work/support.out") $(cat "$received" 2>/dev/null | head -c 300)"; }
+expect "a profile signed for another customer is refused" 403 -X POST --data "$(support_body demo-shop "$inst" "$(profile_proof "$other")")" "$support"
+expect "a profile signed with another key is refused" 403 -X POST --data "$(support_body demo-shop "$inst" "$(profile_proof "$wrong")")" "$support"
+expect "no proof at all is refused" 403 -X POST --data "$(support_body demo-shop "$inst" '{}')" "$support"
+# A licence key for demo-phone, signed with the test licence key, as license-keygen's key would be.
+licence="$(php -r '$p = rtrim(strtr(base64_encode(json_encode(["v" => 1, "action" => "license", "customer" => "demo-phone", "nonce" => "n1", "issuedAt" => "2026-11-18T00:00:00Z", "plan" => "team", "seats" => 1, "validUntil" => "2099-01-01T00:00:00Z"])), "+/", "-_"), "="); $s = rtrim(strtr(base64_encode(sodium_crypto_sign_detached($p, base64_decode($argv[1]))), "+/", "-_"), "="); echo json_encode(["kind" => "code", "payload" => $p, "signature" => $s]);' "$license_secret")"
+got="$(send_support "$(support_body demo-phone 1b2c3d4e-0000-4000-8000-0000000000a2 "$licence")")"
+[[ "$got" == 200 && "$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["plan"];' "$received")" == paid ]] \
+  && { pass=$((pass+1)); echo "ok   a request with the install's licence key is forwarded as paid (an active licence is on file)"; } || { fail=$((fail+1)); echo "FAIL support licence: $got $(cat "$work/support.out")"; }
+forged="$(php -r '$d = json_decode($argv[1], true); $d["signature"] = rtrim(strtr(base64_encode(random_bytes(64)), "+/", "-_"), "="); echo json_encode($d);' "$licence")"
+expect "a licence key with a forged signature is refused" 403 -X POST --data "$(support_body demo-phone 1b2c3d4e-0000-4000-8000-0000000000a2 "$forged")" "$support"
+expect "a licence key for another customer is refused" 403 -X POST --data "$(support_body demo-shop 1b2c3d4e-0000-4000-8000-0000000000a2 "$licence")" "$support"
+expect "when the board cannot take it, the app is told to send it again" 502 -X POST --data "$(support_body demo-shop "$inst" "$(profile_proof "$good")" board-down)" "$support"
+expect "not a support request" 400 -X POST --data '{"customerId":"demo-shop"}' "$support"
+for _ in $(seq 1 8); do send_support "$(support_body demo-shop "$inst" "$(profile_proof "$good")")" >/dev/null; done
+expect "the 11th request from one install in a day is refused" 429 -X POST --data "$(support_body demo-shop "$inst" "$(profile_proof "$good")")" "$support"
+
+# The Control Board's off-site audit copy (#149): signed, append-only, only a batch that continues
+# the chain; driven by the board's own client (cron.ts) against a throwaway board store.
+copy_url="http://127.0.0.1:$port/checkin/audit-copy/"
+expect "the audit copy refuses GET" 405 "$copy_url"
+expect "the audit copy refuses an unsigned request" 403 -X POST --data '{"prevHash":"0","entries":[]}' "$copy_url"
+mkdir -p "$work/boardstore"
+cat > "$repo/.checkin-audit-copy.ts" <<'TS'
+import { appendAudit, type AuditRow, rowHash } from "./infra/control-board/audit";
+import { blackarkCopy, copyAudit, signCopy } from "./infra/control-board/cron";
+import { openLocalStore } from "./infra/control-board/sql-sqlite";
+const [url, secret, dir] = process.argv.slice(2) as [string, string, string];
+const sql = await openLocalStore(`${dir}/board.sqlite`);
+const copy = blackarkCopy({ url, secret });
+const add = (detail: string | null, target = "customer:demo-shop") =>
+  appendAudit(sql, { actor: "maria", role: "support", action: "view", target, outcome: "ok", detail }, Date.now());
+// Text that JSON writes differently in many places: Greek, a slash, quotes, a newline, U+2028, a tab.
+await add("Δεν ανοίγει / \"Gmail\"\nline next\ttab");
+for (let i = 0; i < 4; i++) await add(null, `customer:c${i}`);
+const say = (line: string) => console.log(line);
+say(`first ${await copyAudit(sql, copy, Date.now())}`);
+say(`again ${await copyAudit(sql, copy, Date.now())}`);
+await add("later");
+await add(null);
+say(`new ${await copyAudit(sql, copy, Date.now())}`);
+const rows = await sql.all<AuditRow>("SELECT * FROM audit ORDER BY id");
+const post = async (batch: unknown, nonce = crypto.randomUUID().replaceAll("-", "")) => {
+  const body = JSON.stringify(batch);
+  const time = String(Math.floor(Date.now() / 1000));
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "x-ark-time": time, "x-ark-nonce": nonce, "x-ark-signature": signCopy(secret, time, nonce, body) },
+    body,
+  });
+  return `${response.status} ${await response.text()}`;
+};
+// The board lost an answer and sends a batch again, overlapping what is kept: taken, nothing doubled.
+say(`resend ${await post({ prevHash: (rows[1] as AuditRow).hash, entries: rows.slice(2) })}`);
+// Entry 3 rewritten, its chain recomputed so it looks valid on its own: refused.
+const prev = (rows[1] as AuditRow).hash;
+const forged = { ...(rows[2] as AuditRow), actor: "someone-else" };
+forged.hash = rowHash(prev, forged);
+say(`rewrite ${(await post({ prevHash: prev, entries: [forged] })).split(" ")[0]}`);
+say(`gap ${(await post({ prevHash: (rows[1] as AuditRow).hash, entries: rows.slice(3) })).split(" ")[0]}`);
+say(`unknown ${(await post({ prevHash: "a".repeat(64), entries: [] })).split(" ")[0]}`);
+const nonce = "replay-nonce-0123456789";
+await post({ prevHash: (rows.at(-1) as AuditRow).hash, entries: [] }, nonce);
+say(`replay ${(await post({ prevHash: (rows.at(-1) as AuditRow).hash, entries: [] }, nonce)).split(" ")[0]}`);
+const other = blackarkCopy({ url, secret: "a-different-secret-0123456789abcdefgh" });
+await add(null);
+say(`wrong-secret ${await copyAudit(sql, other, Date.now()).then(String, (e: Error) => e.message)}`);
+TS
+copied="$(cd "$repo" && bun .checkin-audit-copy.ts "$copy_url" 'audit-copy-secret-for-tests-0123456789abcdef' "$work/boardstore" 2>&1)"; rm -f "$repo/.checkin-audit-copy.ts"
+line() { grep "^$1 " <<<"$copied" | head -1 | cut -d' ' -f2-; }
+[[ "$(line first)" == 5 && "$(line again)" == 0 && "$(line new)" == 2 ]] \
+  && { pass=$((pass+1)); echo "ok   the board's client copies its entries (Greek, quotes, newlines and all), then only what is new"; } || { fail=$((fail+1)); echo "FAIL audit copy client: $copied"; }
+[[ "$(line resend)" == '200 {"stored":0,"lastId":7}' ]] \
+  && { pass=$((pass+1)); echo "ok   a batch sent again over what is kept is taken, and nothing is doubled"; } || { fail=$((fail+1)); echo "FAIL audit copy resend: $(line resend)"; }
+[[ "$(line rewrite)" == 409 && "$(line gap)" == 409 && "$(line unknown)" == 409 ]] \
+  && { pass=$((pass+1)); echo "ok   a rewritten entry, a gap, and a batch that does not continue the copy are refused (409)"; } || { fail=$((fail+1)); echo "FAIL audit copy refusals: $copied"; }
+[[ "$(line replay)" == 409 ]] \
+  && { pass=$((pass+1)); echo "ok   the same signed batch sent again is refused (replay)"; } || { fail=$((fail+1)); echo "FAIL audit copy replay: $(line replay)"; }
+[[ "$(line wrong-secret)" == "The audit copy answered 403." ]] \
+  && { pass=$((pass+1)); echo "ok   a batch signed with another secret is refused"; } || { fail=$((fail+1)); echo "FAIL audit copy secret: $(line wrong-secret)"; }
+kept="$(php -r '$db = new PDO("sqlite:" . $argv[1]); $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); $n = $db->query("SELECT COUNT(*) FROM audit_copy")->fetchColumn(); $out = [$n]; foreach (["UPDATE audit_copy SET actor = 1", "DELETE FROM audit_copy"] as $q) { try { $db->exec($q); $out[] = "changed"; } catch (PDOException $e) { $out[] = str_contains($e->getMessage(), "append-only") ? "refused" : "error"; } } echo implode(" ", $out);' "$work/checkin/data/checkins.sqlite")"
+[[ "$kept" == "7 refused refused" ]] \
+  && { pass=$((pass+1)); echo "ok   the copy keeps 7 entries, and the database refuses to change or remove one"; } || { fail=$((fail+1)); echo "FAIL audit copy store: $kept"; }
+
+# Counts-only check-in fields (#149, v0.1.49): accepted, stored, exported; nothing else is.
+counts='{"customerId":"demo-clinic","installId":"2c3d4e5f-0000-4000-8000-0000000000c1","version":"0.1.49","status":"trial","daysLeft":20,"employees":4,"people":5,"activePeople7d":3,"conversations7d":41,"phoneLine":true,"os":"windows"}'
+[[ "$(post "$counts")" == 204 ]] && { pass=$((pass+1)); echo "ok   a v0.1.49 check-in with counts is stored (204)"; } || { fail=$((fail+1)); echo "FAIL counts check-in"; }
+bad_counts() { echo "${counts/2c3d4e5f-0000-4000-8000-0000000000c1/2c3d4e5f-0000-4000-8000-0000000000c2}" | sed "s/$1/$2/"; }
+expect "more people active than people is refused" 400 -X POST -H 'content-type: application/json' --data "$(bad_counts '"activePeople7d":3' '"activePeople7d":9')" "$url"
+expect "an unknown system is refused" 400 -X POST -H 'content-type: application/json' --data "$(bad_counts '"os":"windows"' '"os":"beos"')" "$url"
+expect "a phone line that is not true or false is refused" 400 -X POST -H 'content-type: application/json' --data "$(bad_counts '"phoneLine":true' '"phoneLine":"yes"')" "$url"
+expect "a name is still refused" 400 -X POST -H 'content-type: application/json' --data "$(bad_counts '"os":"windows"' '"os":"windows","name":"Maria"')" "$url"
+t="$(date +%s)"; n="nonce-$(php -r 'echo bin2hex(random_bytes(8));')"
+export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")" >/dev/null
+row="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); foreach ($d["installs"] as $i) { if ($i["installId"] === $argv[2]) { echo json_encode([$i["people"], $i["activePeople7d"], $i["conversations7d"], $i["phoneLine"], $i["os"]]); } }' "$work/export.b" 2c3d4e5f-0000-4000-8000-0000000000c1)"
+old="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); foreach ($d["installs"] as $i) { if ($i["installId"] === $argv[2]) { echo json_encode([$i["people"], $i["os"]]); } }' "$work/export.b" 6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b)"
+[[ "$row" == '[5,3,41,true,"windows"]' && "$old" == '[null,null]' ]] \
+  && { pass=$((pass+1)); echo "ok   the export carries the counts, and none for an older install"; } || { fail=$((fail+1)); echo "FAIL counts export: $row / $old"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

@@ -208,12 +208,15 @@ import { createRoutineRunner } from "./routines/runner";
 import { createRoutineStore } from "./routines/store";
 import { createIntentRouter } from "./routing/classify";
 import { createModelCompleter } from "./routing/model";
+import { captureConsole } from "./support/scrub";
+import { createSupportService } from "./support/service";
 import {
   createPackageStatusReader,
   loadTenantPackage,
   synchronizeTenantPackage,
 } from "./tenant-package";
 import { createActivationService } from "./trial/activation";
+import { installCounts } from "./trial/counts";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
 import { applyProfileInstructions, seedTrialRoster } from "./trial/seed";
 import { createTrialService, trialKeysFrom } from "./trial/service";
@@ -317,12 +320,23 @@ const agentVault = {
  * employees. Built before the stores it changes, because it wraps them. Only the keys built into this
  * release are trusted on a desktop install; a server may add one in ARK_TRIAL_PUBLIC_KEY.
  */
+// Help & support (#149): recent warnings and errors, scrubbed as they are caught, for diagnostics
+// the person may choose to send. In memory only.
+const recentLogLines = captureConsole();
+const support = createSupportService(database, {
+  version: appVersion(),
+  logs: recentLogLines,
+  ...(process.env.ARK_SUPPORT_URL?.trim()
+    ? { url: process.env.ARK_SUPPORT_URL.trim() }
+    : {}),
+});
 const trial = createTrialService(database, {
   keys: trialKeysFrom(
     TRIAL_PUBLIC_KEYS,
     config.singleUser ? undefined : process.env.ARK_TRIAL_PUBLIC_KEY,
   ),
   version: appVersion(),
+  counts: () => installCounts(database),
 });
 /*
  * Activation (#109, v0.1.42): on a desktop install nothing runs without a trial activation code, a
@@ -1968,9 +1982,13 @@ const app = createApp(
   },
   // The business's own phone line (#109).
   phoneLine,
+  // Help & support (#149): requests to BlackArk, kept and sent again when it cannot be reached.
+  support,
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
+// Help & support requests that could not be sent yet, every hour.
+support.startRetries();
 // Once a day, the renewed licence key from the address the key names; nothing when it names none.
 activation.startRenewals();
 phoneLine.start();

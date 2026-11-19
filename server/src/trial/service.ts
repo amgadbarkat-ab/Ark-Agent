@@ -11,8 +11,10 @@
  * time this install has seen, so turning the clock back leaves the trial where it was.
  *
  * WHAT A CHECK-IN SAYS. The customer id from the profile, this install's random id, the version, the
- * trial status, days left, the end, and how many employees the roster has. Never a conversation, a
- * name, a file or anything else a person wrote.
+ * trial status, days left, the end, and how many employees the roster has. From v0.1.49 (#149) also
+ * counts: people, people active in 7 days, conversations started in 7 days, whether a phone line is
+ * set up, and the kind of system (counts.ts). Never a conversation, a name, a file or anything else
+ * a person wrote.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { KeyObject } from "node:crypto";
@@ -31,6 +33,7 @@ import { publicKeyFromBase64, signedByAny } from "../../../shared/trial-sign";
 import type { Entitlement } from "../accounts/store";
 import type { Database } from "../db/client";
 import { trialCodes, trialRoster, trialState } from "../db/schema";
+import type { CheckInCounts } from "./counts";
 
 /** Said when a create is refused during a trial. The app shows it, in Greek when chosen. */
 export const CREATE_BLOCKED_MESSAGE =
@@ -125,6 +128,8 @@ export function createTrialService(
     version: string;
     now?: () => Date;
     fetch?: typeof fetch;
+    /** The counts a check-in carries (counts.ts). Absent, or failing: the check-in goes without. */
+    counts?: () => Promise<CheckInCounts>;
   },
 ) {
   const now = options.now ?? (() => new Date());
@@ -269,7 +274,14 @@ export function createTrialService(
     const row = await load();
     if (!row?.checkInUrl) return "none";
     const trial = await view(row);
+    let counts: CheckInCounts | Record<string, never> = {};
+    try {
+      counts = (await options.counts?.()) ?? {};
+    } catch {
+      counts = {};
+    }
     const body = {
+      ...counts,
       customerId: row.customerId,
       installId: row.installId,
       version: options.version,

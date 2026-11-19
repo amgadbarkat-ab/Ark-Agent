@@ -1,0 +1,5 @@
+# Written on the server by deploy.sh; never committed.
+.env
+.env.tmp
+tunnel.env
+data/

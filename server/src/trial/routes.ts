@@ -64,6 +64,12 @@ const checkInBody = z.strictObject({
   daysLeft: z.number().int().min(0).max(10_000),
   endsAt: z.string().datetime().optional(),
   employees: z.number().int().min(0).max(1_000).optional(),
+  /** From v0.1.49 (#149): counts only. Accepted and not stored on this receiver. */
+  people: z.number().int().min(0).max(10_000).optional(),
+  activePeople7d: z.number().int().min(0).max(10_000).optional(),
+  conversations7d: z.number().int().min(0).max(1_000_000).optional(),
+  phoneLine: z.boolean().optional(),
+  os: z.enum(["windows", "macos", "linux"]).optional(),
   /** From v0.1.38: the install's signed profile. Accepted and not stored. */
   proof: z
     .strictObject({

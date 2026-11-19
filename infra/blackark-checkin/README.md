@@ -244,3 +244,108 @@ Amgad decided on 17 Nov (#109 6945084979 and 6945455933):
 
 - **Adding a language:** a new text is added to `phone-emails.php` in a pull request, and is used only after Amgad's yes on that text.
 - **Switching it on:** it is off (`'phone_low_email' => false`) until Amgad's yes at deploy. The app's notice works without it.
+
+## The Control Board's export (#149, not deployed)
+
+A read-only endpoint for the BlackArk Control Board (`infra/control-board/`). It changes nothing.
+Upload it only with Amgad's yes on this exact build, as before.
+
+**Endpoint:** `…/checkin/export/`, POST only.
+
+**Signing, both ways**, with `'export_secret'` in `config.php`, a separate secret from `relay_secret`:
+- **The request:**
+  - `X-Ark-Time`: the Unix time, accepted within 5 minutes;
+  - `X-Ark-Nonce`: new for each request;
+  - `X-Ark-Signature`: HMAC-SHA256 of `<time>.<nonce>.<body>`.
+- **Replays:** each nonce is taken once, so the same request sent again is refused (409).
+- **The answer** is signed the same way over `<time>.<nonce>.<answer>`, so the board knows it came from here, for its own request.
+
+**What it returns:**
+- **installs:** the check-in rows;
+- **licences:** plan, seats, add-ons, active or canceled, period end;
+- **phone:** each balance and its state;
+- **ledger:** the last 90 days of credits and charges.
+
+**Never in it:**
+- an IP address (none is kept);
+- a name, an email or a billing country;
+- a licence key or a Stripe id;
+- a ledger reference (a Twilio call id).
+
+**Setup, once, after Amgad's yes:**
+1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
+2. Put it in `'export_secret'` in `config.php`.
+3. Give the same secret to the board as a Worker secret, at wrangler's hidden prompt: `npx wrangler secret put CHECKIN_EXPORT_SECRET` (see `infra/control-board/README.md`).
+
+Until then the export answers 503.
+
+## Help & support from the app (#149, not deployed)
+
+Amgad decided on 18 Nov: in-app Help & support is BlackArk's only support channel.
+
+**Endpoint:** `…/checkin/support/`, POST only.
+
+**What it does with a request:**
+1. **Checks the proof.** The request must carry the install's BlackArk-signed proof, either:
+   - the trial profile (checked as for check-ins); or
+   - its `ARK1-` activation code or licence key, checked against `trial_public_keys` or `license_public_key`, for this customer.
+2. **Limits it:** 10 requests per install a day.
+3. **Adds the plan:** `paid` while an active licence is on file, otherwise `trial`.
+4. **Forwards it** to the Control Board (`intake_url`), signed with `intake_secret`: `X-Ark-Time`, `X-Ark-Nonce`, and `X-Ark-Signature` = HMAC-SHA256 of `<time>.<nonce>.<body>`. The proof itself is not forwarded.
+5. **Answers** the board's case number: `{"case": 7}`.
+
+**If the board cannot be reached:** it answers 502. The app keeps the request and sends it again every hour, with the same request id, so it becomes one case.
+
+**What is kept here:** only the install id, the request id and the time, for the daily limit, for 24 hours. The customer's words and any diagnostics pass through to the board.
+
+**Setup, once, after Amgad's yes:**
+1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
+2. Put it in `'intake_secret'`, and the board's address in `'intake_url'` (`https://<board>/intake/app`).
+3. Give the same secret to the board: `npx wrangler secret put INTAKE_SECRET`.
+
+## The Control Board's audit copy (#149, not deployed)
+
+The board copies its audit log here once a night (`AUDIT_COPY=blackark` on the board), so a copy is
+kept away from Cloudflare.
+
+**Endpoint:** `…/checkin/audit-copy/`, POST only, signed both ways like the export, with
+`'audit_copy_secret'` (its own secret, not the export's or the relay's). Each nonce is taken once.
+
+**Only a batch that continues the copy is taken:**
+- it starts from the hash of an entry kept here (or from the start);
+- its ids follow with no gap, and each entry's hash is recomputed here and must match;
+- an entry kept already must come again exactly the same: the board may resend a batch whose answer
+  it lost, but a changed entry is refused (409). The copy is never rewritten.
+
+**Stored** in the `audit_copy` table of the same SQLite file. Its triggers refuse UPDATE and DELETE,
+and nothing here issues either.
+
+**What the entries hold:** staff user names and roles, the action, the customer id it was about, and
+a short detail. No customer's name, email or words.
+
+**Setup, once, after Amgad's yes:**
+1. Make a secret with `php -r 'echo bin2hex(random_bytes(32));'`.
+2. Put it in `'audit_copy_secret'` in `config.php`.
+3. Give the same secret to the board: `npx wrangler secret put AUDIT_COPY_SECRET`, and set
+   `AUDIT_COPY = "blackark"` and `AUDIT_COPY_URL = "https://blackark.uk/checkin/audit-copy/"` in its
+   `wrangler.toml`.
+
+Until then it answers 503.
+
+## Counts in the check-in (v0.1.49, #149)
+
+From v0.1.49 the app's check-in may also carry **counts only**, all optional:
+
+| Field | What it is |
+|---|---|
+| `people` | people with an account on that install |
+| `activePeople7d` | how many of them used it in the last 7 days; never more than `people` |
+| `conversations7d` | conversations started in the last 7 days |
+| `phoneLine` | `true` or `false`: whether a phone line is set up |
+| `os` | `windows`, `macos` or `linux` |
+
+**Storage:** they are stored in new columns, added once to an existing file, and they are in the export.
+
+**Older installs:** send none, and show `–`.
+
+**Anything else** in a check-in, a name for example, is still refused.

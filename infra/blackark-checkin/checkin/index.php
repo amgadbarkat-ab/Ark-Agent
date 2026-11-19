@@ -12,6 +12,12 @@
  *   employees   0–1000 (optional)
  * From v0.1.38 also:
  *   proof       { profile, signature }: the install's signed trial profile, checked here.
+ * From v0.1.49 also (#149, Amgad 18 Nov 2026: counts only, never a name or an email), each optional:
+ *   people           0–10000: people with an account on this install
+ *   activePeople7d   0–10000: of those, how many used it in the last 7 days
+ *   conversations7d  0–1000000: conversations started in the last 7 days
+ *   phoneLine        true | false: whether a phone line is set up on this install
+ *   os               "windows" | "macos" | "linux"
  *
  * Answers 204 when stored, 400 for anything else in the body, 403 when proof is required and
  * missing or wrong, 429 when the same install checked in moments ago.
@@ -50,7 +56,8 @@ if (!is_array($body)) {
     ark_refuse(400, 'Not a check-in.');
 }
 
-$allowed = ['customerId', 'installId', 'version', 'status', 'daysLeft', 'endsAt', 'employees', 'proof'];
+$allowed = ['customerId', 'installId', 'version', 'status', 'daysLeft', 'endsAt', 'employees', 'proof',
+    'people', 'activePeople7d', 'conversations7d', 'phoneLine', 'os'];
 foreach (array_keys($body) as $key) {
     if (!in_array($key, $allowed, true)) {
         ark_refuse(400, 'Not a check-in.');
@@ -64,6 +71,12 @@ $status = $body['status'] ?? null;
 $daysLeft = $body['daysLeft'] ?? null;
 $endsAt = $body['endsAt'] ?? null;
 $employees = $body['employees'] ?? null;
+$people = $body['people'] ?? null;
+$activePeople = $body['activePeople7d'] ?? null;
+$conversations = $body['conversations7d'] ?? null;
+$phoneLine = $body['phoneLine'] ?? null;
+$os = $body['os'] ?? null;
+$count = fn ($value, int $max): bool => $value === null || (is_int($value) && $value >= 0 && $value <= $max);
 
 $valid =
     is_string($customerId) && preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customerId) === 1 &&
@@ -72,7 +85,11 @@ $valid =
     is_string($status) && in_array($status, ['trial', 'ended', 'paid'], true) &&
     is_int($daysLeft) && $daysLeft >= 0 && $daysLeft <= 10000 &&
     ($endsAt === null || (is_string($endsAt) && strlen($endsAt) <= 40 && strtotime($endsAt) !== false)) &&
-    ($employees === null || (is_int($employees) && $employees >= 0 && $employees <= 1000));
+    ($employees === null || (is_int($employees) && $employees >= 0 && $employees <= 1000)) &&
+    $count($people, 10000) && $count($activePeople, 10000) && $count($conversations, 1000000) &&
+    ($activePeople === null || $people === null || $activePeople <= $people) &&
+    ($phoneLine === null || is_bool($phoneLine)) &&
+    ($os === null || in_array($os, ['windows', 'macos', 'linux'], true));
 if (!$valid) {
     ark_refuse(400, 'Not a check-in.');
 }
@@ -109,13 +126,17 @@ try {
             ark_refuse(429, 'This receiver is full.');
         }
         $insert = $db->prepare('INSERT INTO installs
-            (install_id, customer_id, version, status, days_left, ends_at, employees, verified, first_seen, last_seen, checkins)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)');
-        $insert->execute([$installId, $customerId, $version, $status, $daysLeft, $endsAt, $employees, $verified, $now, $now]);
+            (install_id, customer_id, version, status, days_left, ends_at, employees, verified, first_seen, last_seen, checkins,
+             people, active_people_7d, conversations_7d, phone_line, os)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)');
+        $insert->execute([$installId, $customerId, $version, $status, $daysLeft, $endsAt, $employees, $verified, $now, $now,
+            $people, $activePeople, $conversations, $phoneLine === null ? null : (int) $phoneLine, $os]);
     } else {
         $update = $db->prepare('UPDATE installs SET customer_id = ?, version = ?, status = ?, days_left = ?,
-            ends_at = ?, employees = ?, verified = ?, last_seen = ?, checkins = checkins + 1 WHERE install_id = ?');
-        $update->execute([$customerId, $version, $status, $daysLeft, $endsAt, $employees, $verified, $now, $installId]);
+            ends_at = ?, employees = ?, verified = ?, last_seen = ?, checkins = checkins + 1,
+            people = ?, active_people_7d = ?, conversations_7d = ?, phone_line = ?, os = ? WHERE install_id = ?');
+        $update->execute([$customerId, $version, $status, $daysLeft, $endsAt, $employees, $verified, $now,
+            $people, $activePeople, $conversations, $phoneLine === null ? null : (int) $phoneLine, $os, $installId]);
     }
     $db->commit();
 } catch (Throwable $error) {
