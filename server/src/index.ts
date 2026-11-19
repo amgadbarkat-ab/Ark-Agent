@@ -140,6 +140,7 @@ import {
 import { createHostAccessBroker } from "./host-access/broker";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
+import { LegalHelperAgent } from "./marketplace/legal-answer";
 import { createMarketplaceStore } from "./marketplace/store";
 import { createMemoryStore } from "./memories/store";
 import { memoryTools } from "./memories/tools";
@@ -1367,9 +1368,19 @@ const copilotRuntime = mountCopilotRuntime(
   markAttachmentsSentForActor,
   // The model this person chose for themselves, if they chose one. See models/for-actor.ts.
   modelForActor,
-  // The plan's limit on how many Bots work at once. See accounts/run-gate.ts.
+  // The plan's limit on how many Bots work at once. See accounts/run-gate.ts. Inside it, a Legal Helper's
+  // answers get their fixed disclaimer and a definite NDA rating (marketplace/legal-answer.ts); the
+  // gate's own notices about waiting for a place are not legal answers and stay outside.
   (actor) => (botId, agent) =>
-    new RunGateAgent(agent, { actorId: actor.id, botId }, runGateOptions),
+    new RunGateAgent(
+      new LegalHelperAgent(
+        agent,
+        async () =>
+          (await marketplaceStore.installedRole(botId)) === "legal-helper",
+      ),
+      { actorId: actor.id, botId },
+      runGateOptions,
+    ),
 );
 
 /**

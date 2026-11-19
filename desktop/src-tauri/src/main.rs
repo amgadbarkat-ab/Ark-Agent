@@ -414,10 +414,6 @@ fn install_in_parallel(
     address: &engine::Address,
     images: &[String],
 ) -> Result<(), Problem> {
-    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst};
-    let next = AtomicUsize::new(0);
-    let finished = AtomicUsize::new(0);
-    let fetched: Vec<AtomicU64> = images.iter().map(|_| AtomicU64::new(0)).collect();
     let failure: std::sync::Mutex<Option<Problem>> = std::sync::Mutex::new(None);
     let fail = |problem: Problem| {
         let mut slot = failure.lock().unwrap();
@@ -444,51 +440,22 @@ fn install_in_parallel(
                 fail(problem);
             }
         });
-        let workers: Vec<_> = (0..PULLS_AT_ONCE.min(images.len()))
-            .map(|_| {
-                scope.spawn(|| loop {
-                    if stopped() {
-                        break;
-                    }
-                    if let Err(problem) = attempt.require_current() {
-                        fail(problem);
-                        break;
-                    }
-                    let index = next.fetch_add(1, SeqCst);
-                    let Some(image) = images.get(index) else {
-                        break;
-                    };
-                    let said = || {
-                        format!(
-                            "Downloading local software ({} of {} done).",
-                            finished.load(SeqCst),
-                            images.len()
-                        )
-                    };
-                    let outcome = pull_metrics::pull_image(
-                        address,
-                        image,
-                        |bytes| {
-                            fetched[index].store(bytes, SeqCst);
-                            let total: u64 = fetched.iter().map(|part| part.load(SeqCst)).sum();
-                            report_running(handle, "images", said(), Some(total));
-                        },
-                        |_| {},
-                    );
-                    match outcome {
-                        Ok(()) => {
-                            finished.fetch_add(1, SeqCst);
-                        }
-                        Err(problem) => {
-                            fail(problem);
-                            break;
-                        }
-                    }
-                })
-            })
-            .collect();
-        for worker in workers {
-            let _ = worker.join();
+        // The count is sent as each image starts and finishes, not only with a byte counter: an
+        // engine that reports no bytes showed nothing moving for 25 minutes (DT Lab, #109).
+        let pulled = pull_metrics::pull_all(
+            images,
+            PULLS_AT_ONCE,
+            || {
+                if stopped() {
+                    return Err(Problem::plain("stopped"));
+                }
+                attempt.require_current()
+            },
+            |image, on_bytes| pull_metrics::pull_image(address, image, on_bytes, |_| {}),
+            |progress| report_running(handle, "images", progress.detail(), progress.bytes),
+        );
+        if let Err(problem) = pulled {
+            fail(problem);
         }
         let _ = packages.join();
     });
@@ -3968,6 +3935,95 @@ fn window_returned_is_due(last: Option<std::time::Instant>, now: std::time::Inst
     }
 }
 
+/// The main window, built from its configuration with a download handler (DT Lab, #109).
+///
+/// Left to the web view, "Download" in the ArkAgent window (Propose a change's JSON file, for one)
+/// saved silently into the app's working folder. Every download now goes to the person's Downloads
+/// folder, never over a file already there, and a box says where it went, with Show in folder.
+///
+/// Not a Save As dialog: the destination has to be decided inside this handler, on the thread that
+/// runs the window, where waiting for a dialog would hold the window still.
+fn build_main_window<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<tauri::WebviewWindow<R>, String> {
+    use openbot_desktop_lib::downloads;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use tauri::webview::DownloadEvent;
+
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .cloned()
+        .ok_or("the ArkAgent window is not configured")?;
+    // Where each download was sent, by address: macOS does not say where a finished one went.
+    let sent: Arc<Mutex<HashMap<String, std::path::PathBuf>>> = Arc::default();
+    tauri::WebviewWindowBuilder::from_config(app, &config)
+        .map_err(|error| format!("could not prepare the ArkAgent window: {error}"))?
+        .on_download(move |webview, event| {
+            match event {
+                DownloadEvent::Requested { url, destination } => {
+                    if let Ok(folder) = webview.app_handle().path().download_dir() {
+                        let _ = std::fs::create_dir_all(&folder);
+                        *destination = downloads::destination(&folder, destination);
+                        sent.lock()
+                            .unwrap()
+                            .insert(url.to_string(), destination.clone());
+                    }
+                }
+                DownloadEvent::Finished { url, path, success } => {
+                    let path = path.or_else(|| sent.lock().unwrap().remove(url.as_str()));
+                    tell_about_download(webview.app_handle(), path, success);
+                }
+                _ => {}
+            }
+            true
+        })
+        .build()
+        .map_err(|error| format!("could not open the ArkAgent window: {error}"))
+}
+
+/// The box after a download: where the file is, and a button that shows it in its folder.
+fn tell_about_download<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    path: Option<std::path::PathBuf>,
+    success: bool,
+) {
+    use openbot_desktop_lib::{downloads, language};
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    use tauri_plugin_opener::OpenerExt;
+    let greek = language::greek();
+    let title = language::pick("Download", "Λήψη");
+    let mut dialog = app.dialog().message(match (&path, success) {
+        (Some(path), true) => downloads::saved_message(path, greek),
+        _ => downloads::failed_message(greek).to_string(),
+    });
+    dialog = dialog.title(title);
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.parent(&window);
+    }
+    match (path, success) {
+        (Some(path), true) => {
+            let opener = app.clone();
+            dialog
+                .kind(MessageDialogKind::Info)
+                .buttons(MessageDialogButtons::OkCancelCustom(
+                    language::pick("Show in folder", "Εμφάνιση στον φάκελο").to_string(),
+                    language::pick("OK", "Εντάξει").to_string(),
+                ))
+                .show(move |show| {
+                    if show {
+                        let _ = opener.opener().reveal_item_in_dir(&path);
+                    }
+                });
+        }
+        _ => dialog.kind(MessageDialogKind::Error).show(|_| {}),
+    }
+}
+
 /// Help → About ArkAgent: the version, in a box of its own (desk #73). Not blocking, so the menu
 /// thread is never held while the box is open.
 fn show_about(app: &tauri::AppHandle) {
@@ -4052,6 +4108,8 @@ fn main() {
             _ => {}
         })
         .setup(|app| {
+            // First, so everything below finds the window where Tauri used to have built it.
+            build_main_window(app.handle())?;
             if let Some(root) = app
                 .path()
                 .app_config_dir()
@@ -10392,6 +10450,24 @@ fn main() {
 
     fn setup_navigation_config() -> tauri::utils::config::Config {
         serde_json::from_str(include_str!("../tauri.conf.json")).unwrap()
+    }
+
+    /// DT Lab (#109, v0.1.48): a download in the window was saved silently into the working folder.
+    /// A download handler can only be given to a window as it is built, so the shell builds the
+    /// main window itself, from the same configuration, rather than letting Tauri build it first.
+    #[test]
+    fn the_main_window_is_built_by_the_shell_so_its_downloads_are_handled() {
+        let config = setup_navigation_config();
+        assert!(!config.app.windows[0].create);
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().app.windows = config.app.windows.clone();
+        let app = tauri::test::mock_builder()
+            .manage(Shell::default())
+            .build(context)
+            .unwrap();
+        assert!(app.get_webview_window("main").is_none());
+        build_main_window(app.handle()).unwrap();
+        assert_eq!(app.get_webview_window("main").unwrap().label(), "main");
     }
 
     #[test]

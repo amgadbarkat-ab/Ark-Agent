@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### DT Lab's findings on v0.1.48 (#109)
+
+- **Legal Helper: the disclaimer is added by the server.** Every Legal Helper answer now opens and closes with exactly "Draft for review by a qualified lawyer. Not legal advice." (in Greek, «Προσχέδιο για έλεγχο από αρμόδιο δικηγόρο. Δεν αποτελεί νομική συμβουλή.» when the answer is in Greek). A version the model wrote itself is taken out, so the line appears once at each end. A Legal Helper's messages now appear whole rather than word by word.
+- **Legal Helper: an NDA triage has one definite rating.** A no-hire or non-solicit clause is always Red, and every triage ends with exactly one overall rating (Green, Yellow or Red), the worst colour in its table. The server checks this after the model answers; the NDA triage skill says the same (role version 2, for new installs).
+- **Desktop: a download says where it went.** "Download" in the ArkAgent window (Propose a change's file, for one) no longer saves silently into the app's own folder. The file goes to your Downloads folder, under a new name if one is already there, and a box shows the full path with a "Show in folder" button.
+- **Desktop: the download of local software shows its progress.** On the first start after an update, the "Local software" step now says how many images are done ("Downloading local software (2 of 7 done).") as each one starts and finishes, with the bytes downloaded where the engine reports them. Before, the count was only sent together with a byte counter, so an engine that reports none (DT Lab, Windows) showed nothing moving for the whole download.
+- **No "at Internal".** A digital employee added on an account with no company name no longer says it works "at Internal", for every role. Employees already added that way are read without it.
+
 ## 0.1.48
 
 ### `ark-eval` uses OpenRouter's free tier (#116)
