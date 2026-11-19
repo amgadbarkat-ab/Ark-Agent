@@ -656,6 +656,104 @@ function ark_meter_flush(PDO $db, int $limit = 20): int
     return $sent;
 }
 
+/** A GET to Stripe's API with the restricted key; the answer, or null when it could not be asked. */
+function ark_stripe_get(string $path, array $query): ?array
+{
+    $key = (string) ark_config('stripe_api_key', '');
+    if ($key === '') {
+        return null;
+    }
+    $context = stream_context_create(['http' => [
+        'method' => 'GET',
+        'header' => "Authorization: Bearer $key\r\n",
+        'timeout' => 15,
+        'ignore_errors' => true,
+    ]]);
+    $base = rtrim((string) ark_config('stripe_api_base', 'https://api.stripe.com'), '/');
+    $raw = @file_get_contents($base . $path . '?' . http_build_query($query, '', '&'), false, $context);
+    if ($raw === false) {
+        return null;
+    }
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+/** Ark Private Server's tiers (servers-catalogue.php), in the order the app shows them. */
+function ark_server_catalogue(): array
+{
+    static $catalogue = null;
+    if ($catalogue === null) {
+        $catalogue = require __DIR__ . '/servers-catalogue.php';
+    }
+    return $catalogue;
+}
+
+/**
+ * The Stripe price ids for one tier, found by their lookup keys (COO, 19 Nov: never hard-coded), as
+ * ['monthly' => id, 'activation' => id|null]. Null when Stripe cannot be asked, a price is missing or
+ * inactive, or its amount, currency or kind differs from the catalogue: a price the customer was not
+ * shown is never charged.
+ */
+function ark_server_prices(string $tier): ?array
+{
+    $entry = ark_server_catalogue()[$tier] ?? null;
+    if (!is_array($entry)) {
+        return null;
+    }
+    $keys = array_values((array) $entry['lookupKeys']);
+    $answer = ark_stripe_get('/v1/prices', ['lookup_keys' => $keys, 'active' => 'true', 'limit' => 10]);
+    $found = [];
+    foreach ((array) ($answer['data'] ?? []) as $price) {
+        if (is_array($price) && is_string($price['lookup_key'] ?? null)) {
+            $found[$price['lookup_key']] = $price;
+        }
+    }
+    $want = ['monthly' => [(int) $entry['monthlyCents'], 'recurring']];
+    if ((int) $entry['activationCents'] > 0) {
+        $want['activation'] = [(int) $entry['activationCents'], 'one_time'];
+    }
+    $ids = ['monthly' => null, 'activation' => null];
+    foreach ($want as $kind => [$cents, $type]) {
+        $price = $found[$entry['lookupKeys'][$kind] ?? ''] ?? null;
+        if (
+            !is_array($price) || ($price['active'] ?? false) !== true || (int) ($price['unit_amount'] ?? -1) !== $cents
+            || strtolower((string) ($price['currency'] ?? '')) !== 'eur' || ($price['type'] ?? '') !== $type
+            || ($type === 'recurring' && ($price['recurring']['interval'] ?? '') !== 'month')
+            || preg_match('/^price_[A-Za-z0-9]{1,80}$/', (string) ($price['id'] ?? '')) !== 1
+        ) {
+            error_log('ark-server: the Stripe price for ' . $tier . ' ' . $kind . ' is missing or differs from the catalogue.');
+            return null;
+        }
+        $ids[$kind] = (string) $price['id'];
+    }
+    return $ids;
+}
+
+/**
+ * Private server orders (#149): one row per Stripe subscription. `status` is setting_up (paid, BlackArk
+ * is ordering and setting it up), ready (BlackArk attached its address, model and key), stopped
+ * (BlackArk took it down) or cancelled (the subscription ended). The key is sent only to the paying
+ * customer's own install (servers/, with its proof).
+ */
+function ark_private_servers_table(PDO $db): void
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS private_servers (
+        subscription_id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        tier TEXT NOT NULL,
+        status TEXT NOT NULL,
+        session_id TEXT,
+        ordered_at INTEGER NOT NULL,
+        paid_until INTEGER,
+        base_url TEXT,
+        model TEXT,
+        api_key TEXT,
+        ready_at INTEGER,
+        updated_at INTEGER NOT NULL
+    )');
+    $db->exec('CREATE INDEX IF NOT EXISTS private_servers_customer ON private_servers (customer_id, ordered_at)');
+}
+
 /** Which approved text a customer's country gets (phone-emails.php), and whether it has its own. */
 function ark_phone_email_text(?string $country): array
 {

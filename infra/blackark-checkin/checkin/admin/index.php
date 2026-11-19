@@ -5,6 +5,11 @@
  * One row per install: customer, version, status, days left, end, employees, whether the last
  * check-in carried a BlackArk-signed profile, and when it was last heard from. A customer seen on
  * more than one install in the last 7 days is flagged.
+ *
+ * Ark Private Server orders (#149, 19 Nov): each paid order, and the form where staff attach the server
+ * once it is set up (its https address ending in /v1, the model it serves and its key), or mark it
+ * stopped. The key is written once and never shown again here; the customer's install fetches it from
+ * servers/ with its own proof.
  */
 
 declare(strict_types=1);
@@ -75,6 +80,46 @@ if (($_POST['action'] ?? '') === 'login') {
         $_SESSION['signed_in'] = true;
         header('Location: ./');
         exit;
+    }
+}
+
+$notice = '';
+$action = (string) ($_POST['action'] ?? '');
+if (in_array($action, ['server_attach', 'server_stop'], true)) {
+    if (empty($_SESSION['signed_in']) || !hash_equals($_SESSION['csrf'] ?? '', (string) ($_POST['csrf'] ?? ''))) {
+        http_response_code(403);
+        exit('Sign in again.');
+    }
+    ark_private_servers_table($db);
+    $subscription = (string) ($_POST['subscription'] ?? '');
+    $find = $db->prepare('SELECT status FROM private_servers WHERE subscription_id = ?');
+    $find->execute([$subscription]);
+    $current = $find->fetchColumn();
+    if ($current === false) {
+        $error = 'No such order.';
+    } elseif ($action === 'server_stop') {
+        $db->prepare("UPDATE private_servers SET status = 'stopped', updated_at = ? WHERE subscription_id = ?")->execute([time(), $subscription]);
+        $notice = 'Marked stopped.';
+    } else {
+        $url = trim((string) ($_POST['base_url'] ?? ''));
+        $model = trim((string) ($_POST['model'] ?? ''));
+        $key = trim((string) ($_POST['api_key'] ?? ''));
+        $parts = parse_url($url);
+        if (
+            !is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+            || !preg_match('#/v1/?$#', (string) ($parts['path'] ?? '')) || strlen($url) > 300
+        ) {
+            $error = 'The address must be https, with no name, password or query, and end in /v1.';
+        } elseif ($model === '' || strlen($model) > 120 || preg_match('/[\x00-\x1f]/', $model)) {
+            $error = 'Give the model name the server answers to.';
+        } elseif (strlen($key) < 16 || strlen($key) > 512 || preg_match('/[^\x21-\x7e]/', $key)) {
+            $error = 'The key must be 16 to 512 visible characters, with no spaces.';
+        } else {
+            $db->prepare("UPDATE private_servers SET status = 'ready', base_url = ?, model = ?, api_key = ?, ready_at = ?, updated_at = ? WHERE subscription_id = ?")
+                ->execute([rtrim($url, '/'), $model, $key, time(), time(), $subscription]);
+            $notice = 'Attached. The customer\'s app picks it up within a few minutes.';
+        }
     }
 }
 
@@ -170,6 +215,56 @@ $signedIn = !empty($_SESSION['signed_in']);
         <td<?= $stale ? ' class="flag" title="Not heard from in over 2 days"' : '' ?>><?= athens($row['last_seen']) ?></td>
         <td><?= athens($row['first_seen']) ?></td>
         <td><?= (int) $row['checkins'] ?></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+<?php
+    ark_private_servers_table($db);
+    $orders = $db->query('SELECT * FROM private_servers ORDER BY ordered_at DESC')->fetchAll();
+    $catalogue = ark_server_catalogue();
+?>
+  <h2>Ark Private Server orders</h2>
+  <p class="note">Each paid order. Set the server up at the supplier, then attach it: its https address ending in /v1, the model it serves, and its key. The key is not shown again.</p>
+  <?php if ($notice !== ''): ?><p class="ok" role="status"><?= h($notice) ?></p><?php endif; ?>
+  <?php if ($error !== ''): ?><p class="error" role="alert"><?= h($error) ?></p><?php endif; ?>
+  <div class="wrap">
+  <table>
+    <thead><tr><th>Customer</th><th>Tier</th><th>Status</th><th>Ordered</th><th>Paid until</th><th>Server</th><th></th></tr></thead>
+    <tbody>
+    <?php if (!$orders): ?>
+      <tr><td colspan="7" class="muted">No order yet.</td></tr>
+    <?php endif; ?>
+    <?php foreach ($orders as $order): ?>
+      <tr>
+        <td><?= h($order['customer_id']) ?></td>
+        <td><?= h($catalogue[$order['tier']]['name'] ?? $order['tier']) ?></td>
+        <td<?= $order['status'] === 'setting_up' ? ' class="flag"' : '' ?>><?= h($order['status']) ?></td>
+        <td><?= athens(gmdate('c', (int) $order['ordered_at'])) ?></td>
+        <td><?= $order['paid_until'] ? athens(gmdate('c', (int) $order['paid_until'])) : '–' ?></td>
+        <td><?= $order['base_url'] ? h($order['base_url']) . ' · ' . h($order['model']) . ' · key set' : '–' ?></td>
+        <td>
+          <?php if (in_array($order['status'], ['setting_up', 'ready', 'stopped'], true)): ?>
+          <form method="post" action="./" class="attach">
+            <input type="hidden" name="action" value="server_attach">
+            <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+            <input type="hidden" name="subscription" value="<?= h($order['subscription_id']) ?>">
+            <input name="base_url" type="url" placeholder="https://…/v1" aria-label="Server address" required>
+            <input name="model" placeholder="Model" aria-label="Model" required>
+            <input name="api_key" type="password" placeholder="Key" aria-label="Key" autocomplete="off" required>
+            <button type="submit">Attach</button>
+          </form>
+          <?php endif; ?>
+          <?php if ($order['status'] === 'ready'): ?>
+          <form method="post" action="./">
+            <input type="hidden" name="action" value="server_stop">
+            <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+            <input type="hidden" name="subscription" value="<?= h($order['subscription_id']) ?>">
+            <button type="submit">Mark stopped</button>
+          </form>
+          <?php endif; ?>
+        </td>
       </tr>
     <?php endforeach; ?>
     </tbody>

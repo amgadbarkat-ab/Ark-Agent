@@ -274,6 +274,26 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
 
   // ---- any server that speaks the OpenAI API ------------------------------------------------
   {
+    /*
+     * Ark Private Server (#149, 19 Nov): a server BlackArk sets up for this customer alone, running
+     * an open model behind an OpenAI-compatible address. Made by Settings → Models → Ark Private
+     * Server once BlackArk has attached it (server/src/private-server), so nobody types it.
+     */
+    id: "blackark-private-server",
+    name: "Ark Private Server",
+    tier: "custom",
+    protocol: "openai",
+    baseUrl: "",
+    baseUrlEditable: true,
+    keyRequired: true,
+    suggestedModels: [],
+    summary:
+      "Your own private server, set up by BlackArk, running an open model.",
+    notes: [
+      "Added for you from Settings → Models → Ark Private Server once BlackArk has it ready.",
+    ],
+  },
+  {
     id: "openai-compatible",
     name: "Another OpenAI-compatible server",
     tier: "custom",

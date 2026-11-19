@@ -122,6 +122,8 @@ import {
   type PrivacyAudit,
   privacyRoutes,
 } from "./privacy/routes";
+import { privateServerRoutes } from "./private-server/routes";
+import type { PrivateServerService } from "./private-server/service";
 import {
   type ModelProviderProxy,
   mountProviderOAuthProxy,
@@ -500,6 +502,12 @@ export function createApp(
    * reason above. Absent leaves `/api/support` unmounted, and the app hides Help & support.
    */
   support?: SupportService,
+  /**
+   * Ark Private Server (#149): BlackArk's private model servers, bought on BlackArk's page. Appended
+   * last, for the positional reason above. Absent leaves `/api/private-server` unmounted, and the app
+   * hides the card.
+   */
+  privateServer?: PrivateServerService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1796,6 +1804,13 @@ export function createApp(
 
   if (support) {
     app.route("/api/support", supportRoutes(requireUser, support));
+  }
+
+  if (privateServer) {
+    app.route(
+      "/api/private-server",
+      privateServerRoutes(requireUser, privateServer),
+    );
   }
 
   if (trial) {

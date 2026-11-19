@@ -199,6 +199,7 @@ import {
 } from "./plugins/video";
 import { listTools as listWooCommerceTools } from "./plugins/woocommerce";
 import { hubConversations } from "./privacy/conversations";
+import { createPrivateServerService } from "./private-server/service";
 import { createProviderOAuthProxy } from "./provider-oauth";
 import { createPushSender, webPushSend } from "./push/sender";
 import { createPushStore } from "./push/store";
@@ -2016,6 +2017,14 @@ const app = createApp(
   phoneLine,
   // Help & support (#149): requests to BlackArk, kept and sent again when it cannot be reached.
   support,
+  // Ark Private Server (#149): BlackArk's private model servers, on an install BlackArk activated.
+  createPrivateServerService(database, {
+    connections: modelConnectionStore,
+    version: appVersion(),
+    ...(process.env.ARK_SERVERS_URL?.trim()
+      ? { url: process.env.ARK_SERVERS_URL.trim() }
+      : {}),
+  }),
 );
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();

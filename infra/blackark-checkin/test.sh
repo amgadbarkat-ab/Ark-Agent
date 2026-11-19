@@ -86,6 +86,26 @@ if ($path === '/fakestripe/v1/checkout/sessions') {
         exit;
     }
     echo json_encode(['object' => 'billing.meter_event']);
+} elseif ($path === '/fakestripe/v1/prices') {
+    // Ark Private Server's prices by lookup key, as COO made them; `price_drift` makes one differ.
+    parse_str((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_QUERY), $q);
+    $table = [
+        'private_server_small_monthly' => ['price_srvSmallM', 950, 'recurring'],
+        'private_server_gpu_entry_monthly' => ['price_srvGpuM', 35700, 'recurring'],
+        'private_server_gpu_entry_activation' => ['price_srvGpuA', 34800, 'one_time'],
+    ];
+    $data = [];
+    foreach ((array) ($q['lookup_keys'] ?? []) as $key) {
+        if (isset($table[$key])) {
+            [$id, $amount, $type] = $table[$key];
+            if (is_file(__DIR__ . '/price_drift') && $key === 'private_server_small_monthly') {
+                $amount = 1050;
+            }
+            $data[] = ['id' => $id, 'lookup_key' => $key, 'active' => true, 'unit_amount' => $amount, 'currency' => 'eur', 'type' => $type]
+                + ($type === 'recurring' ? ['recurring' => ['interval' => 'month']] : []);
+        }
+    }
+    echo json_encode(['object' => 'list', 'data' => $data]);
 } elseif ($path === '/fakestripe/v1/invoiceitems') {
     echo json_encode(['id' => 'ii_test_1']);
 } elseif (preg_match('#^/fakestripe/v1/invoices(/in_test_1/(finalize|pay))?$#', $path)) {
@@ -612,6 +632,76 @@ t="$(date +%s)"; n="nonce-$(php -r 'echo bin2hex(random_bytes(8));')"
 export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")" >/dev/null
 [[ "$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo json_encode($d["meterEventsWaiting"] ?? null);' "$work/export.b")" == 2 ]] && ! grep -q 'cus_' "$work/export.b" \
   && { pass=$((pass+1)); echo "ok   the export says how many meter events wait, and still no Stripe id"; } || { fail=$((fail+1)); echo "FAIL export waiting: $(grep -o '"meterEventsWaiting":[0-9a-z]*' "$work/export.b")"; }
+
+# Ark Private Server (#149, 19 Nov): the app's list, the buy page's checkout, the webhook's order,
+# staff attaching the server, and the key reaching only the paying install.
+servers="http://127.0.0.1:$port/checkin/servers/"
+srv_inst=5c6d7e8f-0000-4000-8000-0000000000c1
+srv_body() { echo "{\"customerId\":\"$1\",\"installId\":\"$srv_inst\",\"proof\":$2}"; }
+expect "the server list refuses GET" 405 "$servers"
+expect "the server list without proof is refused" 403 -X POST --data '{"customerId":"demo-shop","installId":"'"$srv_inst"'"}' "$servers"
+expect "the server list with another customer's proof is refused" 403 -X POST --data "$(srv_body demo-clinic "$(profile_proof "$good")")" "$servers"
+list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")" "$servers")"
+php -r '$d = json_decode($argv[1], true); $ids = array_column($d["tiers"], "id");
+  exit($ids === ["small","medium","large","gpu_entry","gpu_high"] && $d["order"] === null
+    && $d["tiers"][3]["monthlyCents"] === 35700 && $d["tiers"][3]["activationCents"] === 34800 && $d["tiers"][0]["storage"] === "100 GB"
+    && $d["buyUrl"] === "https://blackark.example/checkin/buy/?customer=demo-shop&server=" ? 0 : 1);' "$list" \
+  && { pass=$((pass+1)); echo "ok   the app gets the five tiers, with storage, model and prices, and no order yet"; } || { fail=$((fail+1)); echo "FAIL server list: $list"; }
+
+got="$(location "$buy?customer=demo-shop&server=gpu_entry")"
+[[ "$got" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] && grep -q 'mode=subscription' <(last) \
+  && grep -q 'line_items%5B0%5D%5Bprice%5D=price_srvGpuM' <(last) && grep -q 'line_items%5B1%5D%5Bprice%5D=price_srvGpuA' <(last) \
+  && grep -q 'metadata%5Bkind%5D=private_server' <(last) && grep -q 'subscription_data%5Bmetadata%5D%5Bserver_tier%5D=gpu_entry' <(last) \
+  && grep -q 'client_reference_id=demo-shop' <(last) && grep -q 'done%3Dserver' <(last) \
+  && { pass=$((pass+1)); echo "ok   a GPU server opens one subscription checkout: the monthly price and the one-time activation, found by lookup key"; } \
+  || { fail=$((fail+1)); echo "FAIL server checkout ($got): $(last)"; }
+got="$(location "$buy?customer=demo-shop&server=small")"
+[[ "$got" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] && grep -q 'line_items%5B0%5D%5Bprice%5D=price_srvSmallM' <(last) && ! grep -q 'line_items%5B1%5D' <(last) \
+  && { pass=$((pass+1)); echo "ok   a small server has the monthly price only"; } || { fail=$((fail+1)); echo "FAIL small checkout ($got)"; }
+expect "a tier that is not offered is refused" 400 "$buy?customer=demo-shop&server=huge"
+expect "a tier whose Stripe price is not set up is not sold" 503 "$buy?customer=demo-shop&server=medium"
+touch "$work/fake/price_drift"
+expect "a Stripe price that differs from the price shown is never charged" 503 "$buy?customer=demo-shop&server=small"
+rm -f "$work/fake/price_drift"
+branded "the server thank-you page" "$buy?done=server"
+
+srv_checkout='{"id":"evt_srv_1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_server0001","client_reference_id":"demo-shop","customer":"cus_9","subscription":"sub_srv_1","payment_status":"paid","metadata":{"kind":"private_server","server_tier":"gpu_entry","customer_id":"demo-shop"}}}}'
+[[ "$(send_event "$srv_checkout")" == 200 ]] && [[ "$(send_event "$srv_checkout")" == 200 ]] || { fail=$((fail+1)); echo "FAIL server checkout event"; }
+srv_end=$(( $(date +%s) + 31*86400 ))
+srv_invoice='{"id":"evt_srv_2","type":"invoice.paid","data":{"object":{"subscription":"sub_srv_1","lines":{"data":[{"price":{"id":"price_srvGpuM"},"quantity":1,"period":{"end":'"$srv_end"'}}]}}}}'
+send_event "$srv_invoice" >/dev/null
+db="$work/checkin/data/checkins.sqlite"
+[[ "$(php -r '$d = new PDO("sqlite:" . $argv[1]); echo $d->query("SELECT COUNT(*) FROM private_servers")->fetchColumn(), " ", $d->query("SELECT COUNT(*) FROM licenses WHERE subscription_id = '"'"'sub_srv_1'"'"'")->fetchColumn();' "$db")" == "1 0" ]] \
+  && { pass=$((pass+1)); echo "ok   a paid server order is kept once, and never as a licence"; } || { fail=$((fail+1)); echo "FAIL server order rows"; }
+list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")" "$servers")"
+php -r '$o = json_decode($argv[1], true)["order"]; exit($o["tier"] === "gpu_entry" && $o["status"] === "setting_up" && $o["apiKey"] === null && $o["baseUrl"] === null && $o["paidUntil"] !== null ? 0 : 1);' "$list" \
+  && { pass=$((pass+1)); echo "ok   the app shows the order as being set up by BlackArk, paid until the invoice's end"; } || { fail=$((fail+1)); echo "FAIL order setting_up: $list"; }
+
+page="$(curl -s -c "$jar" -b "$jar" "http://127.0.0.1:$port/checkin/admin/")"
+csrf="$(grep -o 'name="csrf" value="[0-9a-f]*"' <<<"$page" | head -1 | sed 's/.*value="//; s/"//')"
+grep -q 'Ark Private Server — GPU Entry' <<<"$page" && grep -q 'setting_up' <<<"$page" \
+  && { pass=$((pass+1)); echo "ok   staff see the order waiting to be set up"; } || { fail=$((fail+1)); echo "FAIL admin order list"; }
+attach() { curl -s -c "$jar" -b "$jar" --data-urlencode "action=server_attach" --data-urlencode "csrf=$1" --data-urlencode "subscription=sub_srv_1" \
+  --data-urlencode "base_url=$2" --data-urlencode "model=qwen2.5:32b" --data-urlencode "api_key=$3" "http://127.0.0.1:$port/checkin/admin/"; }
+grep -q 'must be https' <(attach "$csrf" "http://srv-1.example/v1" "sk-test-0123456789abcdef") \
+  && { pass=$((pass+1)); echo "ok   an address that is not https is refused"; } || { fail=$((fail+1)); echo "FAIL http accepted"; }
+[[ "$(curl -s -o /dev/null -w '%{http_code}' --data "action=server_attach&csrf=nope&subscription=sub_srv_1" "http://127.0.0.1:$port/checkin/admin/")" == 403 ]] \
+  && { pass=$((pass+1)); echo "ok   attaching without signing in is refused"; } || { fail=$((fail+1)); echo "FAIL attach without session"; }
+page="$(attach "$csrf" "https://srv-1.example/v1" "sk-test-0123456789abcdef")"
+grep -q 'Attached' <<<"$page" && ! grep -q 'sk-test-0123456789abcdef' <<<"$page" \
+  && { pass=$((pass+1)); echo "ok   staff attach the server, and the key is not shown back"; } || { fail=$((fail+1)); echo "FAIL attach"; }
+list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")" "$servers")"
+php -r '$o = json_decode($argv[1], true)["order"]; exit($o["status"] === "ready" && $o["baseUrl"] === "https://srv-1.example/v1" && $o["model"] === "qwen2.5:32b" && $o["apiKey"] === "sk-test-0123456789abcdef" ? 0 : 1);' "$list" \
+  && { pass=$((pass+1)); echo "ok   once attached, the paying install gets its address, model and key"; } || { fail=$((fail+1)); echo "FAIL ready order: $list"; }
+other_list="$(curl -s -X POST --data "$(srv_body demo-clinic "$(profile_proof "$other")")" "$servers")"
+! grep -q 'sk-test' <<<"$other_list" && php -r 'exit(json_decode($argv[1], true)["order"] === null ? 0 : 1);' "$other_list" \
+  && { pass=$((pass+1)); echo "ok   another customer never sees it"; } || { fail=$((fail+1)); echo "FAIL other customer sees server: $other_list"; }
+srv_end_event='{"id":"evt_srv_3","type":"customer.subscription.deleted","data":{"object":{"id":"sub_srv_1","metadata":{"kind":"private_server"}}}}'
+send_event "$srv_end_event" >/dev/null
+list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")" "$servers")"
+php -r '$o = json_decode($argv[1], true)["order"]; exit($o["status"] === "cancelled" && $o["apiKey"] === null ? 0 : 1);' "$list" \
+  && { pass=$((pass+1)); echo "ok   a cancelled server is shown as cancelled, and its key is no longer sent"; } || { fail=$((fail+1)); echo "FAIL cancelled: $list"; }
+expect "the catalogue file is not served" 404 "http://127.0.0.1:$port/checkin/servers-catalogue.php"
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]
