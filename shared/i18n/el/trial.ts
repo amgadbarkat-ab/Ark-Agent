@@ -23,10 +23,7 @@ export const EL_TRIAL: Record<string, string> = {
 
   // Settings, then Plan.
   Trial: "Δοκιμή",
-  "Trial for {customer}, set by BlackArk.":
-    "Δοκιμή για {customer}, όπως την όρισε η BlackArk.",
-  "If BlackArk sent you a trial profile (a file ending in .arktrial), import it here.":
-    "Αν η BlackArk σάς έστειλε προφίλ δοκιμής (αρχείο που τελειώνει σε .arktrial), εισαγάγετέ το εδώ.",
+  "Your trial, set by BlackArk.": "Η δοκιμή σας, όπως την όρισε η BlackArk.",
   "{start} to {end}, {days} days": "{start} έως {end}, {days} ημέρες",
   "Converted to paid. No end date, and no limit on new employees.":
     "Έγινε πληρωμένο πρόγραμμα. Χωρίς ημερομηνία λήξης και χωρίς όριο σε νέους υπαλλήλους.",
@@ -50,16 +47,6 @@ export const EL_TRIAL: Record<string, string> = {
   "Done. The trial has ended.": "Έγινε. Η δοκιμή έληξε.",
   "Done. The trial now ends on {end}.":
     "Έγινε. Η δοκιμή λήγει πλέον στις {end}.",
-  "Import trial profile": "Εισαγωγή προφίλ δοκιμής",
-  "Only a newer profile for {customer} can replace this one.":
-    "Μόνο νεότερο προφίλ για {customer} μπορεί να αντικαταστήσει αυτό.",
-  "The trial employees are set up as soon as it is imported.":
-    "Οι υπάλληλοι της δοκιμής ορίζονται μόλις εισαχθεί.",
-  "Imported. The trial employees are on your Digital Team.":
-    "Εισήχθη. Οι υπάλληλοι της δοκιμής είναι στην Ψηφιακή Ομάδα σας.",
-  "This profile was already imported. Nothing changed.":
-    "Αυτό το προφίλ έχει ήδη εισαχθεί. Δεν άλλαξε τίποτα.",
-  "Importing…": "Εισαγωγή…",
   "Choose file": "Επιλογή αρχείου",
 
   // Admin, then Trials (BlackArk's own server).
@@ -77,13 +64,6 @@ export const EL_TRIAL: Record<string, string> = {
     "απομένουν {days} ημέρες · έκδοση {version} · τελευταίος έλεγχος {when}",
   ended: "έληξε",
   paid: "πληρωμένο",
-
-  // The setup window, before ArkAgent opens.
-  "Trial profile ready. It is imported when ArkAgent opens.":
-    "Το προφίλ δοκιμής είναι έτοιμο. Θα εισαχθεί όταν ανοίξει το ArkAgent.",
-  "ArkAgent could not keep the trial profile on this computer.":
-    "Το ArkAgent δεν μπόρεσε να κρατήσει το προφίλ δοκιμής σε αυτόν τον υπολογιστή.",
-  "The trial profile was not accepted.": "Το προφίλ δοκιμής δεν έγινε δεκτό.",
 
   // What the server says about a profile or a code.
   "This version of ArkAgent has no BlackArk key yet, so it cannot check a trial profile or code. Ask BlackArk for the current version.":
@@ -119,8 +99,6 @@ export const EL_TRIAL: Record<string, string> = {
     "Το προφίλ δοκιμής αναφέρει άγνωστο πρόγραμμα.",
   "Could not load the trial": "Δεν ήταν δυνατή η φόρτωση της δοκιμής",
   "Could not load the trials": "Δεν ήταν δυνατή η φόρτωση των δοκιμών",
-  "Could not import the trial profile":
-    "Δεν ήταν δυνατή η εισαγωγή του προφίλ δοκιμής",
   "Could not use the unlock code":
     "Δεν ήταν δυνατή η χρήση του κωδικού ξεκλειδώματος",
 

@@ -1,9 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import { BrandBar } from "./BrandBar";
-import { LanguageSwitch } from "./LanguageSwitch";
-import { TrialImport } from "./TrialImport";
+import { SetupWindow } from "./SetupWindow";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -12,9 +9,6 @@ if (!root)
 
 createRoot(root).render(
   <StrictMode>
-    <BrandBar />
-    <LanguageSwitch />
-    <TrialImport />
-    <App />
+    <SetupWindow />
   </StrictMode>,
 );

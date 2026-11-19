@@ -1242,30 +1242,3 @@ main.welcome-main {
   color: var(--ink);
   border-color: var(--ember);
 }
-
-/* Import trial profile (#109): under EN / ΕΛ, as quiet as it, out of each step's way. */
-.trial-import {
-  position: fixed;
-  top: 2.6rem;
-  right: 0.75rem;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  max-width: 18rem;
-  text-align: right;
-}
-
-.trial-import button {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
-}
-
-.trial-import p {
-  margin: 0.35rem 0 0;
-  font-size: 0.78rem;
-}
-
-.trial-import-error {
-  color: var(--ember);
-}

@@ -280,6 +280,86 @@ describe("an NDA triage ends with exactly one overall rating, and a no-hire clau
     );
   });
 
+  // DT Lab, #109, 19 Nov: v0.1.49 still let these through as Yellow.
+  test("a numbered table whose clause name is in the second column: the 3-year no-hire is Red", async () => {
+    const table = [
+      "| # | Clause | Rating | Comment |",
+      "|---|---|---|---|",
+      "| 1 | Definition of confidential information | 🟢 Green | Standard |",
+      "| 3 | Staff | 🟡 Yellow | May not hire any of the supplier's employees for 3 years |",
+    ].join("\n");
+    const { all } = await run(
+      [{ say: [`${table}\n\nOverall rating: Red`] }],
+      "/legal-nda-triage",
+    );
+    expect(all).toContain("| 3 | Staff | Red | May not hire");
+    expect(all).toContain(
+      "| 1 | Definition of confidential information | 🟢 Green |",
+    );
+    expect(all.endsWith(`**Overall rating: Red**\n\n${EN}`)).toBe(true);
+  });
+
+  test("a triage written as a list: the no-hire item is Red, the others keep their colour", async () => {
+    const answer = [
+      "1. **Term (clause 2)**: 🟡 Yellow. Five years is longer than the playbook.",
+      "2. **No-hire (clause 3)**: 🟡 Yellow. The client may not hire the supplier's staff for 3 years.",
+      "3. **Governing law**: 🟢 Green.",
+    ].join("\n");
+    const { all } = await run([{ say: [answer] }], "/legal-nda-triage");
+    expect(all).toContain("2. **No-hire (clause 3)**: 🔴 Red. The client");
+    expect(all).toContain("1. **Term (clause 2)**: 🟡 Yellow.");
+    expect(all).toContain("3. **Governing law**: 🟢 Green.");
+    expect(all.endsWith(`**Overall rating: Red**\n\n${EN}`)).toBe(true);
+  });
+
+  test("a clause under its own heading with the rating on a line below is Red", async () => {
+    const answer = [
+      "### Clause 3: Non-solicitation of employees",
+      "",
+      "Rating: Yellow",
+      "",
+      "### Clause 4: Term",
+      "",
+      "Rating: Green",
+    ].join("\n");
+    const { all } = await run([{ say: [answer] }], "/legal-nda-triage");
+    expect(all).toContain("Non-solicitation of employees\n\nRating: Red");
+    expect(all).toContain("Term\n\nRating: Green");
+    expect(all.endsWith(`**Overall rating: Red**\n\n${EN}`)).toBe(true);
+  });
+
+  test("the Greek 2-year non-solicit, in a list, is Κόκκινο", async () => {
+    const answer = [
+      "- **Μη προσέλκυση προσωπικού (άρθρο 5)**: 🟡 Κίτρινο. Για 2 χρόνια μετά τη λήξη.",
+      "- **Διάρκεια**: 🟢 Πράσινο.",
+    ].join("\n");
+    const { all } = await run(
+      [{ say: [answer] }],
+      "/legal-nda-triage για αυτό το συμφωνητικό",
+    );
+    expect(all).toContain(
+      "- **Μη προσέλκυση προσωπικού (άρθρο 5)**: 🔴 Κόκκινο. Για 2 χρόνια",
+    );
+    expect(all).toContain("- **Διάρκεια**: 🟢 Πράσινο.");
+    expect(all.endsWith(`**Συνολική αξιολόγηση: Κόκκινο**\n\n${EL}`)).toBe(
+      true,
+    );
+  });
+
+  test("hiring that is not about the other side's staff, and a colour legend, are left alone", async () => {
+    const answer = [
+      "Colours: 🟢 Green fits, 🟡 Yellow negotiate, 🔴 Red lawyer first.",
+      "",
+      "| Point | Colour | What the text says |",
+      "|---|---|---|",
+      "| Purpose | Yellow | Disclosure for hiring a contractor's services |",
+    ].join("\n");
+    const { all } = await run([{ say: [answer] }], "/legal-nda-triage");
+    expect(all).toContain("| Purpose | Yellow | Disclosure for hiring");
+    expect(all).toContain("Colours: 🟢 Green fits, 🟡 Yellow negotiate");
+    expect(all.endsWith(`**Overall rating: Yellow**\n\n${EN}`)).toBe(true);
+  });
+
   test("a contract review that is not an NDA is not given an overall rating", async () => {
     const { all } = await run(
       [{ say: [`Contract review.\n\n${TRIAGE_TABLE}`] }],

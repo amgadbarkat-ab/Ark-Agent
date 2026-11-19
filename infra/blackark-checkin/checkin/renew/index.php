@@ -47,12 +47,13 @@ $customer = (string) ($body['customerId'] ?? '');
 $install = (string) ($body['installId'] ?? '');
 $validUntil = $body['validUntil'] ?? null;
 $has = $validUntil === null ? 0 : (is_string($validUntil) ? strtotime($validUntil) : false);
-if (
-    preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1 ||
-    preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $install) !== 1 ||
-    $has === false
-) {
+if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1 || $has === false) {
     renew_answer(400);
+}
+// No install id: nothing proves which install is asking, so it is refused as any unproven request is
+// (DT Lab, #109, 19 Nov: a request with no proof and no install id answered 400, the notes say 403).
+if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $install) !== 1) {
+    renew_answer(403);
 }
 
 $db = ark_db();

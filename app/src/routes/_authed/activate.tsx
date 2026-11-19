@@ -15,7 +15,7 @@ import { activationQueryOptions } from "@/lib/trial/queries";
 
 /**
  * The Activate screen (#109, v0.1.42). On a desktop install that has no trial activation code, no
- * paid licence key and no trial setup file, or whose trial or licence has ended, this is the only
+ * paid licence key and no trial profile, or whose trial or licence has ended, this is the only
  * screen: nothing else opens until one of them is entered. Nothing is deleted while it shows.
  */
 export const Route = createFileRoute("/_authed/activate")({

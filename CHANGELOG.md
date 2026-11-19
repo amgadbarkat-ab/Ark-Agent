@@ -8,6 +8,12 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Legal Helper: a no-hire or non-solicit clause is Red however the triage is written (DT Lab, #109).** v0.1.49 forced only a table row whose first cell named the clause, and DT Lab still saw Yellow for a 3-year no-hire (English) and a 2-year non-solicit (Greek). The server now finds the clause by its name in any cell before the colour, by its text (hiring plus the other side's staff) anywhere in the row, and in a triage written as a list or under headings. Because it is the server, every Legal Helper gets it, including those hired with role version 1, with no reinstall.
+- **Every digital employee: who it works for (DT Lab, #109).** Asked which company it works for, an employee names only the company in its instructions, or with none, this business's Ark Team from BlackArk. It never names the model it runs on or its maker, does not call itself an AI model or chatbot, still says plainly it is not a person when sincerely asked, and answers in the question's language. Added at read time, so existing employees get it too.
+- **blackark.uk `checkin/renew/`: a request with no install id is 403, as the notes say, not 400.** A body that is not a request at all is still 400.
+- **Phone line: BlackArk's Cloudflare relay by default (v0.1.50).** Settings → Phone line fills in `https://blackark-phone.blackark.workers.dev` as the relay address for a new line, and the prepaid balance always offers "Add 5 hours" (BlackArk's Stripe page), not only once it runs low. Calls are answered once Twilio is set on the relay; until then the line connects and shows its balance.
+- **Desktop: no trial- or customer-specific screens (v0.1.50).** The setup window's "Import trial profile" button, the trial file picker on the Activate screen and the "Import trial profile" row in Settings → Plan are gone, and Settings → Plan no longer names the trial's customer. BlackArk staff load a signed profile in the setup session by putting the `.arktrial` file in `<app config dir>/import/` before opening the app; it is checked exactly as before, moved to `imported/` or `refused/`, and every attempt is written to `import/import.log` (docs/trials/README.md). A refused file is never shown to the customer. Typing a trial code or licence key is unchanged.
+
 ## 0.1.49
 
 ### Activation reaches the app after payment (#109, v0.1.49)

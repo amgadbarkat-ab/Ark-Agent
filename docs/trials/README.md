@@ -38,8 +38,9 @@ replace an existing key.
 2. `bun scripts/ark-trial.ts sign-profile demo-shop.json` writes `demo-shop.arktrial`.
 3. `bun scripts/ark-trial.ts show demo-shop.arktrial --public-key <public key>` prints what it says and
    whether the key signed it.
-4. On the customer's computer: setup window → **Import trial profile**, or after setup
-   **Settings → Plan → Trial → Import trial profile → Choose file**.
+4. On the customer's computer, in the setup session: put the file in the import folder. See
+   [Loading the profile on site](#loading-the-profile-on-site-from-v0150) below. No screen in the
+   app offers this any more.
 
 Official role slugs for `basedOn` (the tool refuses any other): `sales`, `front-desk`, `marketing`,
 `accounting`, `support-agent` (Customer Support), `inventory-logistics`, `executive-assistant`
@@ -66,11 +67,68 @@ BlackArk's own ArkAgent server, with `ARK_TRIAL_RECEIVER=true`, receives check-i
 random install id, the version, the status, the days left, the end and the number of trial
 employees. Nothing else is sent.
 
+## Loading the profile on site (from v0.1.50)
+
+For COO and the on-site installer. ArkAgent is one release for everyone, and no screen in it names a
+customer or offers a trial profile. The setup window's **Import trial profile** button and the
+**Choose file** rows on the Activate screen and in Settings → Plan are gone. The signed profile is
+loaded only in the setup session, on the customer's computer, from a folder.
+
+**The folder** is `import` inside ArkAgent's config folder:
+
+| System | Import folder |
+| --- | --- |
+| Windows | `%APPDATA%\blackark.arkagent\import\` (for example `C:\Users\<name>\AppData\Roaming\blackark.arkagent\import\`) |
+| macOS | `~/Library/Application Support/blackark.arkagent/import/` |
+| Linux | `~/.config/blackark.arkagent/import/` (or `$XDG_CONFIG_HOME/blackark.arkagent/import/`) |
+
+ArkAgent makes the folder the first time it opens its app. Before that, make it yourself; the name
+must be exactly `import`.
+
+**Steps:**
+
+1. Sign and check the profile at BlackArk as above (`sign-profile`, then `show ... --public-key`).
+   Bring the `.arktrial` file on a USB stick or download it on the customer's computer.
+2. Install ArkAgent and run the setup window as usual.
+3. Copy the `.arktrial` file into the import folder:
+   - **Windows:** press Win+R, type `%APPDATA%\blackark.arkagent`, press Enter. Open `import` (make
+     it if it is not there) and paste the file.
+   - **macOS:** in Finder, Go → Go to Folder… (Shift+Cmd+G), type
+     `~/Library/Application Support/blackark.arkagent`, press Return. Open `import` (make it if it is
+     not there) and drop the file in. Or in Terminal:
+     `mkdir -p ~/Library/Application\ Support/blackark.arkagent/import` then
+     `cp demo-shop.arktrial ~/Library/Application\ Support/blackark.arkagent/import/`
+   - **Linux:** `mkdir -p ~/.config/blackark.arkagent/import && cp demo-shop.arktrial ~/.config/blackark.arkagent/import/`
+4. Open ArkAgent's app: finish the setup window, or, if ArkAgent is already running, quit it from the
+   tray and open it again. The file is sent as the app opens, once ArkAgent's server is running.
+5. Check that it went in:
+   - the trial employees are on the Digital Team, and Settings → Plan shows the trial's days left;
+   - the file has moved to `import/imported/` (its name now starts with the time);
+   - `import/import.log` has a line with `"outcome":"imported"`.
+6. Nothing left to clear up: the file in `imported/` is the record. Leave it.
+
+**When it is refused** (not a profile, not signed by BlackArk, changed after signing, for another
+customer, or older than the one already in): the file moves to `import/refused/` and the reason is
+in `import/import.log` as `"outcome":"refused","reason":"..."`. The customer sees nothing: the window
+opens as usual, without the trial. Fix the file at BlackArk, sign it again, and repeat from step 3.
+
+**When ArkAgent's server was not running yet:** the file stays in `import/` and the log says
+`"outcome":"unreachable"`. It is sent the next time the app opens.
+
+**What is checked and recorded:** the signature is checked by ArkAgent's server against BlackArk's
+trial public keys, exactly as before v0.1.50. Every attempt is one JSON line in `import/import.log`:
+time (UTC), file name, the file's SHA-256, the outcome and the reason. An import that changed the
+trial is also written to ArkAgent's audit log as `trial.profile_imported`, with the customer id, the
+end date and the number of employees.
+
+A file the old setup-window button kept (`trial.arktrial` in the config folder, v0.1.37 to v0.1.49)
+and that never went in is moved into `import/` and goes the same way.
+
 ## Activation (from v0.1.42)
 
 The desktop app opens only with one of three things:
 
-- the trial setup file above;
+- the trial profile above, loaded from the import folder in the setup session;
 - a **trial activation code**;
 - a **paid licence key**.
 
