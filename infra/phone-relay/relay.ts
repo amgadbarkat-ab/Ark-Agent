@@ -65,6 +65,8 @@ export type Billing = {
   /** A minute, and how long before its end the next one is set aside or the call ended. For tests. */
   minuteMs?: number;
   marginMs?: number;
+  /** How often a low or used-up balance is asked again for a connected install. For tests. */
+  refreshMs?: number;
 };
 
 export type Rates = { incoming: number; landline: number; mobile: number };
@@ -479,6 +481,9 @@ export function createRelay(config: RelayConfig) {
     forwarded: boolean,
   ): Promise<string | null> {
     const view = await balanceFor(line);
+    // The install hears what blackark.uk said, so a top-up shows in the app with the next call,
+    // not only once a call has been charged (v0.1.49 end-to-end test).
+    if (view) tellDesk(line, view);
     if (!view) {
       // blackark.uk is not answering: one call per customer on the last balance known, then busy.
       if (
@@ -601,6 +606,25 @@ export function createRelay(config: RelayConfig) {
   }
   if (config.billing)
     setInterval(() => void retryCharges(), RETRY_MS).unref?.();
+
+  /**
+   * A connected install whose balance is in its last hour or used up asks again every few minutes
+   * (v0.1.49 end-to-end test): a top-up then shows in the app even when no call comes in. A balance
+   * that is fine is not asked about; the next call or charge says when it changes.
+   */
+  async function refreshLowBalances() {
+    for (const line of config.lines()) {
+      if (!billed(line) || !desks.has(line.name)) continue;
+      if (wallets.get(line.customerId)?.state === "ok") continue;
+      const view = await balanceFor(line);
+      if (view) tellDesk(line, view);
+    }
+  }
+  if (config.billing)
+    setInterval(
+      () => void refreshLowBalances(),
+      config.billing.refreshMs ?? 5 * 60_000,
+    ).unref?.();
 
   async function signedForm(
     request: Request,

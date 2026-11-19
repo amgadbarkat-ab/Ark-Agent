@@ -50,7 +50,11 @@ afterEach(() => {
   for (const stop of stops.splice(0)) stop();
 });
 
-function setup(options: { balance: number; reachable?: boolean }) {
+function setup(options: {
+  balance: number;
+  reachable?: boolean;
+  refreshMs?: number;
+}) {
   const asked: Record<string, unknown>[] = [];
   const alerts: { subject: string; body: string }[] = [];
   const twilio: string[] = [];
@@ -80,7 +84,13 @@ function setup(options: { balance: number; reachable?: boolean }) {
       return base;
     },
     lines: () => [billedLine, offlineLine, trialLine],
-    billing: { url: billingUrl, secret, minuteMs: 300, marginMs: 100 },
+    billing: {
+      url: billingUrl,
+      secret,
+      minuteMs: 300,
+      marginMs: 100,
+      refreshMs: options.refreshMs,
+    },
     fetch: (async (url: string, init: RequestInit) => {
       if (url !== billingUrl) {
         twilio.push(String(init.body));
@@ -276,6 +286,41 @@ describe("the prepaid phone balance in the relay (#109)", () => {
     expect(t.relay.state.meters.get(callId(10))?.reserved).toBe(217);
   });
 
+  test("a top-up reaches the install with the next call, not only after a charge (v0.1.49 end-to-end finding)", async () => {
+    const t = setup({ balance: 0 });
+    const received = await t.desk();
+    expect(received.at(-1)).toMatchObject({ state: "empty" });
+    // The customer tops up on blackark.uk; the next call is answered, and the install hears it.
+    t.bank.balance = 23_400;
+    received.length = 0;
+    expect(await t.voice(billedLine, 30)).toContain("<Connect>");
+    await until(() =>
+      received.some(
+        (m) => m.type === "phone.balance" && m.balanceMils === 23_400,
+      ),
+    );
+    expect(received.find((m) => m.type === "phone.balance")).toMatchObject({
+      state: "ok",
+    });
+  });
+
+  test("with no call at all, a top-up still reaches an install in its last hour or used up; one that is fine is not asked about", async () => {
+    const t = setup({ balance: 0, refreshMs: 150 });
+    const received = await t.desk();
+    t.bank.balance = 23_400;
+    received.length = 0;
+    await until(() =>
+      received.some(
+        (m) => m.type === "phone.balance" && m.balanceMils === 23_400,
+      ),
+    );
+    // Now "ok": the relay stops asking until a call or a charge says otherwise.
+    await Bun.sleep(200);
+    t.asked.length = 0;
+    await Bun.sleep(400);
+    expect(t.asked).toEqual([]);
+  });
+
   test("a finished call is charged its seconds, what it set aside is let go, and the install hears the new balance", async () => {
     const t = setup({ balance: 10000 });
     const received = await t.desk();
@@ -291,8 +336,11 @@ describe("the prepaid phone balance in the relay (#109)", () => {
       parts: [{ kind: "incoming", seconds: 75 }],
     });
     await until(() => !t.relay.state.meters.has(callId(11)));
-    await until(() => received.some((m) => m.type === "phone.balance"));
-    expect(received.find((m) => m.type === "phone.balance")).toMatchObject({
+    // The charged balance (the call was also told the balance as it was answered).
+    const charged = (m: Record<string, unknown>) =>
+      m.type === "phone.balance" && m.balanceMils === 10000 - 156;
+    await until(() => received.some(charged));
+    expect(received.find(charged)).toMatchObject({
       balanceMils: 10000 - 156,
       topUpUrl:
         "https://blackark.example/checkin/buy/?topup=1&customer=demo-phone",
