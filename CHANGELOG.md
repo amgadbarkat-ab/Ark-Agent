@@ -16,6 +16,11 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 - **blackark.uk: a licence key goes only to the install itself.** `checkin/renew/` used to hand the current key to anyone who sent a customer id. It now needs the install's proof, checked as Help & support checks it: its BlackArk-signed trial profile, or its signed activation code or licence key, made for that customer. An install from v0.1.44 to v0.1.48, which sends only its key's number, is still answered when that number belongs to a key issued to the same customer. Anything else is refused (403). One install may ask at most 150 times an hour (429).
 
+### Desktop: Save As (#109, v0.1.49)
+
+- **A real Save As dialog for files ArkAgent makes** (Propose a change's file, for one). It suggests the file's name in your Downloads folder; you choose where; Cancel saves nothing. After saving, the same box with the full path and "Show in folder". Other downloads (a file from the server, such as an export) still go straight to Downloads with that box.
+- **The permission behind it is one command and one place:** the ArkAgent window may ask the desktop to show Save As and write the text it was given to the file the person picked, only while it shows the app from its own address on this computer (`http://127.0.0.1:<port>`). No other page, port or window can, and nothing else changes for the desktop's other commands.
+
 ### DT Lab's findings on v0.1.48 (#109)
 
 - **Legal Helper: the disclaimer is added by the server.** Every Legal Helper answer now opens and closes with exactly "Draft for review by a qualified lawyer. Not legal advice." (in Greek, «Προσχέδιο για έλεγχο από αρμόδιο δικηγόρο. Δεν αποτελεί νομική συμβουλή.» when the answer is in Greek). A version the model wrote itself is taken out, so the line appears once at each end. A Legal Helper's messages now appear whole rather than word by word.

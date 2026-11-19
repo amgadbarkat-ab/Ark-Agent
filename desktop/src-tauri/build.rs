@@ -30,5 +30,13 @@ fn main() {
     );
     println!("cargo:rerun-if-env-changed=RUSTC");
     println!("cargo:rerun-if-env-changed=PATH");
-    tauri_build::build()
+    // Save As (v0.1.49): one command, in a plugin of the app's own, so it has a permission of its
+    // own (`ark-save:allow-save-download`) and no default. Granted at run time to the main window
+    // while it shows the app's own loopback origin (main.rs, allow_save_as). The app's other
+    // commands are untouched: an inlined plugin adds no app ACL manifest.
+    tauri_build::try_build(tauri_build::Attributes::new().plugin(
+        "ark-save",
+        tauri_build::InlinedPlugin::new().commands(&["save_download"]),
+    ))
+    .expect("tauri-build could not prepare the app")
 }

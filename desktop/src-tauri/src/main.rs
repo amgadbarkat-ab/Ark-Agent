@@ -2820,6 +2820,7 @@ fn show_openbot_on<R: tauri::Runtime>(
         .get_webview_window("main")
         .ok_or("the ArkAgent window is not there to show it in")?;
     let destination = with_language(destination, language);
+    allow_save_as(&app, &destination);
     let outcome = window
         .navigate(
             destination
@@ -3781,6 +3782,7 @@ fn restore_window_on<R: tauri::Runtime>(app: &tauri::AppHandle<R>, ports: &openb
             .url()
             .is_ok_and(|current| same_window_app(&current, &destination));
         if !already_showing {
+            allow_save_as(app, destination.as_str());
             let _ = window.navigate(destination);
         }
     }
@@ -3986,6 +3988,99 @@ fn build_main_window<R: tauri::Runtime>(
         .map_err(|error| format!("could not open the ArkAgent window: {error}"))
 }
 
+/// Save As for a file the app makes itself (v0.1.49): the dialog suggests the file's name in the
+/// Downloads folder, the person chooses where, Cancel saves nothing, and after saving the same box
+/// with "Show in folder" as a download. Reachable only as `plugin:ark-save|save_download`, granted
+/// by `allow_save_as` to the main window on the app's own origin.
+#[tauri::command]
+async fn save_download<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    name: String,
+    text: String,
+) -> Result<bool, String> {
+    use openbot_desktop_lib::downloads;
+    use tauri_plugin_dialog::DialogExt;
+    if text.len() > downloads::MAX_SAVE_BYTES {
+        return Err("The file is too large to save.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = app
+            .dialog()
+            .file()
+            .set_file_name(downloads::suggested_name(&name));
+        if let Ok(folder) = app.path().download_dir() {
+            dialog = dialog.set_directory(folder);
+        }
+        if let Some(window) = app.get_webview_window("main") {
+            dialog = dialog.set_parent(&window);
+        }
+        let choice = dialog
+            .blocking_save_file()
+            .and_then(|path| path.into_path().ok());
+        match downloads::save_chosen(choice, &text) {
+            Ok(Some(path)) => {
+                tell_about_download(&app, Some(path), true);
+                Ok(true)
+            }
+            Ok(None) => Ok(false),
+            Err(_) => {
+                tell_about_download(&app, None, false);
+                Ok(false)
+            }
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Present once the Save As plugin is registered, as it is in the app itself (with the ACL that
+/// names its permission). Tauri panics on a capability whose permission it does not know, so
+/// nothing is granted without it, e.g. in a test app built without the plugin.
+struct SaveAsRegistered;
+
+/// The Save As plugin: one command, and no permission until `allow_save_as` grants it.
+fn save_as_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("ark-save")
+        .invoke_handler(tauri::generate_handler![save_download])
+        .setup(|app, _api| {
+            app.manage(SaveAsRegistered);
+            Ok(())
+        })
+        .build()
+}
+
+/// Grants Save As to the main window for exactly this app origin (`downloads::save_as_origin`),
+/// once per origin. Nothing for any other address.
+fn allow_save_as<R: tauri::Runtime>(app: &tauri::AppHandle<R>, destination: &str) {
+    use openbot_desktop_lib::downloads;
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static GRANTED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    if app.try_state::<SaveAsRegistered>().is_none() {
+        return;
+    }
+    let Some(origin) = downloads::save_as_origin(destination) else {
+        return;
+    };
+    let mut granted = GRANTED
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if granted.contains(&origin) {
+        return;
+    }
+    let capability = tauri::ipc::CapabilityBuilder::new(format!("save-as-{}", granted.len()))
+        .window("main")
+        .remote(origin.clone())
+        .permission("ark-save:allow-save-download");
+    match app.add_capability(capability) {
+        Ok(()) => {
+            granted.insert(origin);
+        }
+        Err(error) => eprintln!("[save-as] not granted: {error}"),
+    }
+}
+
 /// The box after a download: where the file is, and a button that shows it in its folder.
 fn tell_about_download<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
@@ -4057,6 +4152,8 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // Save As for files the app makes (v0.1.49); no permission until allow_save_as grants it.
+        .plugin(save_as_plugin())
         .manage(Shell::default())
         .invoke_handler(tauri::generate_handler![
             save_trial_profile,
@@ -4317,6 +4414,67 @@ fn main() {
                 _ => {}
             }
         });
+}
+
+#[cfg(test)]
+mod save_as_permission_tests {
+    use super::*;
+
+    /// Calls Save As as a page at `url` in the main window would, with the app's real ACL.
+    fn call_from(
+        window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        url: &str,
+        text: String,
+    ) -> Result<serde_json::Value, serde_json::Value> {
+        tauri::test::get_ipc_response(
+            window,
+            tauri::webview::InvokeRequest {
+                cmd: "plugin:ark-save|save_download".into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: url.parse().unwrap(),
+                body: tauri::ipc::InvokeBody::Json(
+                    serde_json::json!({ "name": "x.json", "text": text }),
+                ),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.into(),
+            },
+        )
+        .map(|body| body.deserialize::<serde_json::Value>().unwrap())
+    }
+
+    #[test]
+    fn save_as_is_callable_only_from_the_app_origin_it_was_granted_to() {
+        let app = tauri::test::mock_builder()
+            .plugin(save_as_plugin())
+            .build(tauri::generate_context!(test = true))
+            .unwrap();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        // Larger than allowed, so a call that gets through is answered by the command itself
+        // ("too large") without opening a dialog; one that does not is refused by the ACL.
+        let big = || "x".repeat(openbot_desktop_lib::downloads::MAX_SAVE_BYTES + 1);
+        let refused = |result: Result<serde_json::Value, serde_json::Value>| {
+            let error = result.expect_err("refused");
+            assert!(
+                error.to_string().contains("not allowed")
+                    && !error.to_string().contains("too large"),
+                "reached the command: {error}"
+            );
+        };
+        refused(call_from(&window, "http://127.0.0.1:3010/", big()));
+        allow_save_as(app.handle(), "http://127.0.0.1:3010/channel/x?lang=el");
+        let reached =
+            call_from(&window, "http://127.0.0.1:3010/agents", big()).expect_err("too large");
+        assert!(reached.to_string().contains("too large"), "{reached}");
+        // Another port, another host, or the setup page: still refused.
+        refused(call_from(&window, "http://127.0.0.1:3011/", big()));
+        refused(call_from(&window, "http://evil.example:3010/", big()));
+        // An address that is not the app's own grants nothing.
+        allow_save_as(app.handle(), "https://example.com/");
+        refused(call_from(&window, "https://example.com/", big()));
+    }
 }
 
 #[cfg(test)]
