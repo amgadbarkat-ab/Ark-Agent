@@ -13,6 +13,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **Ark Team comes in three tiers, per person a month (before tax):** 5 digital employees for €100, 10 for €140, 20 for €200. The customer can switch tiers in Stripe's billing portal. ArkAgent (€50) and Ark Team Enterprise are unchanged, and so is how many employees may work at the same moment.
 - **The limit is for the whole computer:** the tier's number times the people (seats) on the subscription. For example, 3 people on the 10 tier may have 30 digital employees. A licence key now carries its tier, signed. A key from before this release counts as 5 per person. A trial allows as many employees as its signed profile sets up, or 5 when it sets up none.
 - **At the limit, no new digital employee is made:** not from the New form, an approved proposal from a colleague, Duplicate, or a marketplace hire. The refusal is recorded in the audit log (`agent.limit_refused`), and a sentence in Greek or English says how to move up a tier or add a person.
+- **The app says it before anybody presses:** at the limit, the add buttons (New, Duplicate, a proposed employee, marketplace Install) are off and show the same sentence. Settings, then Plan, shows Ark Team's three tiers and, on a licensed computer, "Digital employees on this computer: 12 of 30."
 - **Nothing that exists is touched.** An install already above its limit, after a downgrade or a removed seat, keeps every employee, and every one keeps working. It just cannot add another.
 
 ### DT Lab's findings on v0.1.48 (#109)

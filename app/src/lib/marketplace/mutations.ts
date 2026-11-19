@@ -2,6 +2,7 @@ import { mutationOptions, type QueryClient } from "@tanstack/react-query";
 import { agentKeys } from "@/lib/agents/queries";
 import { client, tryClient } from "@/lib/client";
 import { tNow } from "@/lib/i18n";
+import { agentAllowanceQueryOptions } from "@/lib/trial/queries";
 import { type ListingDetail, marketplaceKeys } from "./queries";
 
 const FALLBACK = tNow("Could not save the listing");
@@ -131,6 +132,10 @@ export function installListingMutationOptions(queryClient: QueryClient) {
       await Promise.all([
         invalidate(queryClient),
         queryClient.invalidateQueries({ queryKey: agentKeys.all }),
+        // One fewer left under Ark Team's agent limit (v0.1.49).
+        queryClient.invalidateQueries({
+          queryKey: agentAllowanceQueryOptions().queryKey,
+        }),
       ]);
     },
   });
