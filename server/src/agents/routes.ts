@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AuditEventType, AuditStore } from "../audit";
 import { recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
+import { AgentLimitReachedError } from "../trial/agent-limit";
 import {
   TrialCreateBlockedError,
   TrialInstructionsLockedError,
@@ -873,6 +874,12 @@ function mapStoreError(context: Context, error: unknown): Response {
   if (error instanceof TrialCreateBlockedError) {
     return context.json(
       { error: error.message, code: "trial_create_blocked" },
+      403,
+    );
+  }
+  if (error instanceof AgentLimitReachedError) {
+    return context.json(
+      { error: error.notice.en, errorEl: error.notice.el, code: error.code },
       403,
     );
   }

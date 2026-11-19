@@ -5,6 +5,7 @@ import type { AuditEventType } from "../audit";
 import { type AppVariables, requireAdmin } from "../auth/guards";
 import { parsePageLimit } from "../paging";
 import { createLimiter } from "../rate-limit";
+import { AgentLimitReachedError } from "../trial/agent-limit";
 import { TrialCreateBlockedError } from "../trial/service";
 import { isSecret } from "./sanitize";
 import { MarketplaceError, type MarketplaceStore } from "./store";
@@ -91,6 +92,12 @@ function refusal(
   if (error instanceof TrialCreateBlockedError) {
     return context.json(
       { error: error.message, code: "trial_create_blocked" },
+      403,
+    );
+  }
+  if (error instanceof AgentLimitReachedError) {
+    return context.json(
+      { error: error.notice.en, errorEl: error.notice.el, code: error.code },
       403,
     );
   }

@@ -8,6 +8,7 @@
  * A "bot" in `maxActiveBots` is counted only while it is hired AND has a run in progress. Installing
  * one, an idle one, and one that is only waiting for its next scheduled run never count.
  */
+import { translateText } from "./i18n/translate";
 
 export type PlanId = "agent" | "team" | "enterprise" | "internal";
 
@@ -39,11 +40,13 @@ export const PLANS: readonly Plan[] = [
   {
     id: "team",
     name: "Ark Team",
+    // The tier it starts from (AGENT_TIERS below); the tier's own price is what is charged.
     priceEurCents: 10_000,
     maxActiveBots: 15,
     seats: 1,
     purchasable: true,
-    summary: "Up to 15 digital employees working at the same time.",
+    summary:
+      "5, 10 or 20 digital employees per person, from €100 per person a month.",
   },
   {
     id: "enterprise",
@@ -83,6 +86,112 @@ export function nextPlanUp(id: string): Plan | undefined {
   return purchasablePlans().find(
     (plan) => (plan.maxActiveBots ?? Infinity) > (current.maxActiveBots ?? 0),
   );
+}
+
+/**
+ * Ark Team's tiers (v0.1.49; COO's live Stripe setup of 19 Nov, ordered by Amgad). Each is its own
+ * Stripe product, per seat (one seat per person) a month, in euro, before tax, so a customer can
+ * switch tiers in the billing portal. "Agents" are digital employees on the install.
+ *
+ * THE LIMIT IS PER INSTALL: agents per seat times seats, counted together. 3 seats on the 10 tier
+ * may have 30 digital employees on that computer, made by anybody. `maxActiveBots` (how many work
+ * at the same moment) is a separate limit and is unchanged.
+ */
+export type AgentsPerSeat = 5 | 10 | 20;
+
+export type AgentTier = { agentsPerSeat: AgentsPerSeat; priceEurCents: number };
+
+export const AGENT_TIERS: readonly AgentTier[] = [
+  { agentsPerSeat: 5, priceEurCents: 10_000 },
+  { agentsPerSeat: 10, priceEurCents: 14_000 },
+  { agentsPerSeat: 20, priceEurCents: 20_000 },
+];
+
+/** What a team licence without a tier counts as: keys from before v0.1.49, and trials. */
+export const DEFAULT_AGENTS_PER_SEAT: AgentsPerSeat = 5;
+
+/** The plans whose digital employees are counted. ArkAgent and Enterprise are unchanged. */
+const TIERED_PLANS: readonly string[] = ["team"];
+
+export function isAgentsPerSeat(value: unknown): value is AgentsPerSeat {
+  return AGENT_TIERS.some((tier) => tier.agentsPerSeat === value);
+}
+
+/** Whether this plan's digital employees are counted against a tier. */
+export function planHasAgentTiers(planId: string): boolean {
+  return TIERED_PLANS.includes(planId);
+}
+
+/**
+ * How many digital employees an install may have, or null for no limit (every plan but Ark Team).
+ * An install already above it keeps every one: it only cannot add more.
+ */
+export function agentLimitFor(licence: {
+  planId: string;
+  agentsPerSeat?: number | null;
+  seats?: number | null;
+}): number | null {
+  if (!planHasAgentTiers(licence.planId)) return null;
+  const perSeat = isAgentsPerSeat(licence.agentsPerSeat)
+    ? licence.agentsPerSeat
+    : DEFAULT_AGENTS_PER_SEAT;
+  const seats =
+    licence.seats && Number.isInteger(licence.seats) && licence.seats > 0
+      ? licence.seats
+      : 1;
+  return perSeat * seats;
+}
+
+/** The tier above, or undefined at the top. */
+export function nextAgentTier(agentsPerSeat: number): AgentTier | undefined {
+  return AGENT_TIERS.find((tier) => tier.agentsPerSeat > agentsPerSeat);
+}
+
+/*
+ * The sentence shown when an install has reached its limit: on the refusal and beside every "add"
+ * button. Written once in English with placeholders; the Greek is in i18n/el/trial.ts.
+ */
+export const AGENT_LIMIT_NEXT_TIER =
+  "Your Ark Team plan allows {limit} digital employees on this computer, and {inUse} are set up. To add more, move up to {next} digital employees per person ({price} per person a month) in the billing portal, or add a person to your subscription.";
+export const AGENT_LIMIT_TOP_TIER =
+  "Your Ark Team plan allows {limit} digital employees on this computer, and {inUse} are set up. To add more, add a person to your subscription in the billing portal: each person adds {perSeat}.";
+export const AGENT_LIMIT_TRIAL =
+  "Your trial allows {limit} digital employees on this computer, and {inUse} are set up. To have more, choose Ark Team with 10 or 20 digital employees per person when you buy.";
+
+export type AgentLimitNotice = {
+  en: string;
+  el: string;
+  /** The English template and its values, for a screen that translates for itself. */
+  template: string;
+  values: Record<string, string | number>;
+};
+
+export function agentLimitNotice(state: {
+  limit: number;
+  inUse: number;
+  agentsPerSeat: number;
+  trial: boolean;
+}): AgentLimitNotice {
+  const next = nextAgentTier(state.agentsPerSeat);
+  const template = state.trial
+    ? AGENT_LIMIT_TRIAL
+    : next
+      ? AGENT_LIMIT_NEXT_TIER
+      : AGENT_LIMIT_TOP_TIER;
+  const values: Record<string, string | number> = {
+    limit: state.limit,
+    inUse: state.inUse,
+    perSeat: state.agentsPerSeat,
+    ...(next
+      ? { next: next.agentsPerSeat, price: formatEur(next.priceEurCents) }
+      : {}),
+  };
+  return {
+    en: translateText("en", template, values),
+    el: translateText("el", template, values),
+    template,
+    values,
+  };
 }
 
 /** "€50" or "€49.50" for display. */

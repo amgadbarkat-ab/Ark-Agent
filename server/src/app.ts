@@ -1803,7 +1803,12 @@ export function createApp(
     if (trial.activation) {
       app.route(
         "/api/activation",
-        activationRoutes(requireUser, trial.activation, trial.audit),
+        activationRoutes(
+          requireUser,
+          trial.activation,
+          trial.audit,
+          trial.agentLimit,
+        ),
       );
     }
     if (trial.receiver) {

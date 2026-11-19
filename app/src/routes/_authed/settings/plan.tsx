@@ -36,7 +36,11 @@ import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { dateLocale, sentenceNow, tNow, useT } from "@/lib/i18n";
 import { usePurchasesAllowed } from "@/lib/store-app";
 import { queryClient } from "@/query-client";
-import { trialDaysLeft } from "../../../../../shared/plans";
+import {
+  AGENT_TIERS,
+  planHasAgentTiers,
+  trialDaysLeft,
+} from "../../../../../shared/plans";
 
 export const Route = createFileRoute("/_authed/settings/plan")({
   // `paid` is put on the address by the payment page when the customer comes back from paying.
@@ -452,12 +456,34 @@ function PlanRow({
         <ItemTitle>
           {sentenceNow(plan.name)}
           <span className="font-normal text-muted-foreground text-xs">
-            {tNow("{price} a month", { price: formatEur(plan.priceEurCents) })}
+            {planHasAgentTiers(plan.id)
+              ? tNow("From {price} per person a month", {
+                  price: formatEur(AGENT_TIERS[0]?.priceEurCents ?? 0),
+                })
+              : tNow("{price} a month", {
+                  price: formatEur(plan.priceEurCents),
+                })}
           </span>
         </ItemTitle>
         <ItemDescription className="line-clamp-none">
           {sentenceNow(plan.summary)}
         </ItemDescription>
+        {planHasAgentTiers(plan.id) ? (
+          // Ark Team's tiers (v0.1.49), each per person a month, before tax.
+          <ItemDescription className="line-clamp-none">
+            {tNow(
+              "{first} digital employees per person: {firstPrice}. {second}: {secondPrice}. {third}: {thirdPrice}.",
+              {
+                first: AGENT_TIERS[0]?.agentsPerSeat ?? 5,
+                firstPrice: formatEur(AGENT_TIERS[0]?.priceEurCents ?? 0),
+                second: AGENT_TIERS[1]?.agentsPerSeat ?? 10,
+                secondPrice: formatEur(AGENT_TIERS[1]?.priceEurCents ?? 0),
+                third: AGENT_TIERS[2]?.agentsPerSeat ?? 20,
+                thirdPrice: formatEur(AGENT_TIERS[2]?.priceEurCents ?? 0),
+              },
+            )}
+          </ItemDescription>
+        ) : null}
       </ItemContent>
       <ItemActions>
         {current ? (

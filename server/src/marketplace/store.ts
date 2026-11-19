@@ -36,6 +36,7 @@ import {
   pluginGrants,
   tenants,
 } from "../db/schema";
+import type { AgentLimit } from "../trial/agent-limit";
 import {
   companyFromAccountName,
   composeInstruction,
@@ -537,6 +538,11 @@ export function createMarketplaceStore(
   dependencies: {
     accounts: AccountStore;
     profiles: AgentProfileStore;
+    /**
+     * Ark Team's agent limit (v0.1.49). Asked before a hire so the refusal and its audit row name the
+     * marketplace; the profile store asks again on create, which is what holds every other path.
+     */
+    agentLimit?: Pick<AgentLimit, "refuseAdd">;
     /** For tests: a different set of official listings than the real ones. */
     official?: OfficialListing[];
     /**
@@ -969,6 +975,7 @@ export function createMarketplaceStore(
         );
       }
       const { install, role } = parseOfficialContent(listing.content);
+      await dependencies.agentLimit?.refuseAdd(actor, "marketplace");
       const tenantId = await accounts.ensureTenant(actor.id);
       const company = await companyName(tenantId);
       const instruction = role.iam

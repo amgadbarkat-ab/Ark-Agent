@@ -292,6 +292,25 @@ describe("activation (#109, v0.1.42)", () => {
     );
   });
 
+  test("a tier switch's key, same end but issued later, replaces the key on file (v0.1.49)", async () => {
+    const { activation } = harness();
+    expect((await activation.apply(license({ maxAgents: 5 }))).changed).toBe(
+      true,
+    );
+    // Re-signed for the same paid period after a switch in the billing portal: it is taken.
+    const switched = license({
+      maxAgents: 20,
+      issuedAt: "2026-11-18T08:00:00Z",
+    });
+    expect((await activation.apply(switched)).changed).toBe(true);
+    // One issued earlier for the same period is not.
+    await expect(
+      activation.apply(
+        license({ maxAgents: 10, issuedAt: "2026-11-17T09:00:00Z" }),
+      ),
+    ).rejects.toThrow("lasts as long or longer");
+  });
+
   test("a code for another customer than this computer's is refused", async () => {
     const { activation, trial } = harness();
     await trial.importProfile(profileFile());

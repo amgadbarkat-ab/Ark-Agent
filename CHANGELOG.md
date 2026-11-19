@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.49
+
 ### Activation reaches the app after payment (#109, v0.1.49)
 
 - **Desktop: paying unlocks ArkAgent by itself.** An install on a trial, or waiting on the Activate screen, now asks blackark.uk for its licence key on start-up and every five minutes, and every 20 seconds for 30 minutes after "Buy a licence" is pressed. When the key is there, it is applied exactly as a typed key would be, without a restart, and the app says "Payment received: ArkAgent is activated." (in Greek when chosen). Sent: the customer id, the install's random id, the version, and BlackArk's own signed trial file, activation code or licence key as proof. Nothing else.
@@ -25,6 +27,16 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 - **A real Save As dialog for files ArkAgent makes** (Propose a change's file, for one). It suggests the file's name in your Downloads folder; you choose where; Cancel saves nothing. After saving, the same box with the full path and "Show in folder". Other downloads (a file from the server, such as an export) still go straight to Downloads with that box.
 - **The permission behind it is one command and one place:** the ArkAgent window may ask the desktop to show Save As and write the text it was given to the file the person picked, only while it shows the app from its own address on this computer (`http://127.0.0.1:<port>`). No other page, port or window can, and nothing else changes for the desktop's other commands.
+
+### Ark Team tiers, the agent limit, and phone usage in Stripe (v0.1.49)
+
+- **Ark Team comes in three tiers, per person a month (before tax):** 5 digital employees for €100, 10 for €140, 20 for €200. The customer can switch tiers in Stripe's billing portal. ArkAgent (€50) and Ark Team Enterprise are unchanged, and so is how many employees may work at the same moment.
+- **The limit is for the whole computer:** the tier's number times the people (seats) on the subscription. For example, 3 people on the 10 tier may have 30 digital employees. A licence key now carries its tier, signed. A key from before this release counts as 5 per person. A trial allows as many employees as its signed profile sets up, or 5 when it sets up none.
+- **At the limit, no new digital employee is made:** not from the New form, an approved proposal from a colleague, Duplicate, or a marketplace hire. The refusal is recorded in the audit log (`agent.limit_refused`), and a sentence in Greek or English says how to move up a tier or add a person.
+- **The app says it before anybody presses:** at the limit, the add buttons (New, Duplicate, a proposed employee, marketplace Install) are off and show the same sentence. Settings, then Plan, shows Ark Team's three tiers and, on a licensed computer, "Digital employees on this computer: 12 of 30."
+- **blackark.uk (uploaded separately):** each Stripe price in the table names its tier (`max_agents`), and the key is signed with it. A tier switch or a seat change in the billing portal (`customer.subscription.updated`) signs a new key at once, and the renewal address hands it out. A failed payment (`invoice.payment_failed`) stops new keys until the next paid invoice. The buy page asks for the tier first (5, 10 or 20, per person, in Greek and English) and no longer offers the old single price. COO must enable two more webhook events; see `infra/blackark-checkin/README.md`.
+- **Phone usage shows in Stripe (blackark.uk):** each booked part of a call (incoming, landline, mobile) is sent to Stripe's meter as whole minutes, once per call and part. This is for the customer to see their usage only. Billing stays the prepaid 5-hour blocks. A missing key or customer, or Stripe being down, never affects the call or the balance: the event waits and is sent later. COO adds a second restricted key, `stripe_meter_key`.
+- **Nothing that exists is touched.** An install already above its limit, after a downgrade or a removed seat, keeps every employee, and every one keeps working. It just cannot add another.
 
 ### DT Lab's findings on v0.1.48 (#109)
 

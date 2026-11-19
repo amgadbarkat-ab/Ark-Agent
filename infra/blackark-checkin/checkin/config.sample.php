@@ -37,10 +37,21 @@ return [
     'license_renew_url' => 'https://blackark.uk/checkin/renew/',
     // The Stripe webhook's signing secret (whsec_…), from the Stripe dashboard. Never post it.
     'stripe_webhook_secret' => '',
-    // Which plan each Stripe price is. Price ids are not secret. Example:
-    //   'price_1AbC…' => ['plan' => 'team', 'seats' => 1, 'addons' => []],
+    // Which plan each Stripe price is. Price ids are not secret. A plan price is per seat (the
+    // quantity is the seats); `max_agents` is Ark Team's tier, signed into the key (v0.1.49).
     //   'price_1Phone…' => ['addon' => 'phone'],   // the phone add-on as its own price
-    'stripe_prices' => [],
+    'stripe_prices' => [
+        // Ark Team, 5 digital employees per seat, EUR 100 (prod_Vdzn1itHhHrV91).
+        'price_1Ud8FzKhgJyODeua2SX1TNos' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 5],
+        // Ark Team, 10 per seat, EUR 140 (prod_VeVI5ma2FGrmPR).
+        'price_1UdCIJKhgJyODeuaUPHF4RnX' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 10],
+        // Ark Team, 20 per seat, EUR 200 (prod_VeVIT7LAol18o2).
+        'price_1UdCIJKhgJyODeuaRpYa1gEb' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 20],
+        // The old single EUR 100 price: existing subscribers only, counted as the 5 tier. Not sold
+        // on the buy page. Remove only when the README's conditions for retiring it are met.
+        'price_1UchnkKhgJyODeuaDGI3UxBg' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 5],
+        // Add the phone add-on's monthly price here too: 'price_…' => ['addon' => 'phone'].
+    ],
 
     // ---- The buy page and the prepaid phone balance (v0.1.47) ----------------------------------
     // Where these pages are, for the links Stripe returns to. Leave as is on blackark.uk.
@@ -50,9 +61,22 @@ return [
     // A RESTRICTED Stripe key (rk_live_…). It needs: Checkout Sessions write; for automatic top-up
     // also Invoices write and Customers read. Nothing else. Never post it.
     'stripe_api_key' => '',
-    // The price ids the buy page puts in a checkout: the team plan (monthly), the phone add-on
-    // (monthly), and one prepaid 5-hour phone block (a one-off price of EUR 23.40).
-    'stripe_buy' => ['plan' => '', 'phone' => '', 'block' => ''],
+    // The price ids the buy page puts in a checkout: Ark Team's tier the customer picks (monthly, per
+    // seat; v0.1.49), the phone add-on (monthly), and one prepaid 5-hour phone block (a one-off price
+    // of EUR 23.40). The old single price is not offered here.
+    'stripe_buy' => [
+        'tiers' => [
+            5 => 'price_1Ud8FzKhgJyODeua2SX1TNos',
+            10 => 'price_1UdCIJKhgJyODeuaUPHF4RnX',
+            20 => 'price_1UdCIJKhgJyODeuaRpYa1gEb',
+        ],
+        'phone' => '',
+        'block' => '',
+    ],
+    // Phone usage to Stripe's meters (v0.1.49), for the customer to see only; billing stays the
+    // prepaid 5-hour blocks. A SECOND RESTRICTED key (rk_live_…) with "Billing meter events: write"
+    // and nothing else. Never post it. Empty: the usage waits here and is sent once it is set.
+    'stripe_meter_key' => '',
     // Let Stripe add VAT at checkout (Stripe Tax must be set up in the dashboard first).
     'stripe_automatic_tax' => false,
     // The secret the phone relay signs its balance and charge requests with: 32+ random characters,

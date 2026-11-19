@@ -295,6 +295,29 @@ describe("sessions", () => {
     });
   });
 
+  test("a form POST the browser sends with Origin null, but from the board itself, is taken", async () => {
+    // Chrome sends `Origin: null` on a navigation POST when the page's referrer policy hides it;
+    // `Sec-Fetch-Site: same-origin` still says it came from the board (the owner's setup, 19 Nov).
+    const t = await setup();
+    await t.addAccount("maria", "admin");
+    const browser = t.browser();
+    await browser.signIn("maria", t.code("maria"));
+    const csrf = Browser.csrfFrom((await browser.get("/accounts")).text);
+    const fromBoard = await browser.post(
+      "/accounts",
+      { csrf, action: "create", username: "nikos", role: "support" },
+      { "sec-fetch-site": "same-origin", origin: "null" },
+    );
+    expect(fromBoard.status).not.toBe(403);
+    const unknown = await browser.post(
+      "/accounts",
+      { csrf, action: "create", username: "eleni", role: "support" },
+      // No Sec-Fetch-Site saying it came from the board: an opaque origin is not trusted.
+      { "sec-fetch-site": "", origin: "null" },
+    );
+    expect(unknown.status).toBe(403);
+  });
+
   test("a POST from another site is refused even with the token", async () => {
     const t = await setup();
     await t.addAccount("maria", "admin");
