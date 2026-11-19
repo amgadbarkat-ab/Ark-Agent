@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.49
+
 ### Activation reaches the app after payment (#109, v0.1.49)
 
 - **Desktop: paying unlocks ArkAgent by itself.** An install on a trial, or waiting on the Activate screen, now asks blackark.uk for its licence key on start-up and every five minutes, and every 20 seconds for 30 minutes after "Buy a licence" is pressed. When the key is there, it is applied exactly as a typed key would be, without a restart, and the app says "Payment received: ArkAgent is activated." (in Greek when chosen). Sent: the customer id, the install's random id, the version, and BlackArk's own signed trial file, activation code or licence key as proof. Nothing else.
