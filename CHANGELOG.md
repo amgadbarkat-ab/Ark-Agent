@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Phone line: BlackArk's Cloudflare relay by default (v0.1.50).** Settings → Phone line fills in `https://blackark-phone.blackark.workers.dev` as the relay address for a new line, and the prepaid balance always offers "Add 5 hours" (BlackArk's Stripe page), not only once it runs low. Calls are answered once Twilio is set on the relay; until then the line connects and shows its balance.
 - **Desktop: no trial- or customer-specific screens (v0.1.50).** The setup window's "Import trial profile" button, the trial file picker on the Activate screen and the "Import trial profile" row in Settings → Plan are gone, and Settings → Plan no longer names the trial's customer. BlackArk staff load a signed profile in the setup session by putting the `.arktrial` file in `<app config dir>/import/` before opening the app; it is checked exactly as before, moved to `imported/` or `refused/`, and every attempt is written to `import/import.log` (docs/trials/README.md). A refused file is never shown to the customer. Typing a trial code or licence key is unchanged.
 
 ## 0.1.49

@@ -44,8 +44,11 @@ type Form = {
   enabled: boolean;
 };
 
+/** BlackArk's phone relay on Cloudflare Workers (19 Nov), where a new line connects by default. */
+export const BLACKARK_RELAY_URL = "https://blackark-phone.blackark.workers.dev";
+
 const EMPTY: Form = {
-  relayUrl: "",
+  relayUrl: BLACKARK_RELAY_URL,
   lineToken: "",
   speechKey: "",
   agentId: "",
@@ -241,7 +244,7 @@ function PhoneLineSettings() {
             }}
           >
             {text("relayUrl", t("Relay address"), {
-              placeholder: "https://phone.blackark.uk",
+              placeholder: BLACKARK_RELAY_URL,
             })}
             {text(
               "lineToken",
@@ -404,8 +407,8 @@ function PhoneLineSettings() {
 }
 
 /**
- * The prepaid phone balance (#109, v0.1.47): what is left, and in the last hour or once used up, a
- * button to buy 5 more hours on BlackArk's page (a Stripe checkout, in the browser).
+ * The prepaid phone balance (#109, v0.1.47): what is left, and a button to buy 5 more hours on
+ * BlackArk's page (a Stripe checkout, in the browser), offered at any time (v0.1.50).
  */
 export function PhoneBalanceNotice({ balance }: { balance: PhoneBalance }) {
   const t = useT();
@@ -436,7 +439,7 @@ export function PhoneBalanceNotice({ balance }: { balance: PhoneBalance }) {
       >
         {sentence}
       </p>
-      {urgent && balance.topUpUrl.startsWith("https://") ? (
+      {balance.topUpUrl.startsWith("https://") ? (
         <Button
           render={
             <a
@@ -446,7 +449,7 @@ export function PhoneBalanceNotice({ balance }: { balance: PhoneBalance }) {
             />
           }
           size="sm"
-          variant="outline"
+          variant={urgent ? "default" : "outline"}
         >
           {t("Add 5 hours")}
         </Button>
