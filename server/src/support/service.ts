@@ -17,7 +17,8 @@ import { randomUUID } from "node:crypto";
 import { arch, release, type } from "node:os";
 import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "../db/client";
-import { activationState, supportRequests, trialState } from "../db/schema";
+import { supportRequests } from "../db/schema";
+import { type InstallProof, installIdentity } from "../trial/install-proof";
 import type { RecentLogs } from "./scrub";
 
 export const DEFAULT_SUPPORT_URL = "https://blackark.uk/checkin/support/";
@@ -32,9 +33,7 @@ export type SupportInput = {
   language: "el" | "en";
 };
 
-export type SupportProof =
-  | { kind: "profile"; profile: string; signature: string }
-  | { kind: "code"; payload: string; signature: string };
+export type SupportProof = InstallProof;
 
 /** Exactly what is sent, as the person sees it before sending. */
 export type SupportPayload = {
@@ -130,55 +129,11 @@ export function createSupportService(
     );
   }
 
-  /** Who this install is, and BlackArk's own proof of it: a licence first, then the trial file. */
-  async function identity(): Promise<{
-    customerId: string;
-    installId: string;
-    proof: SupportProof;
-  } | null> {
-    const [activation] = await database.select().from(activationState).limit(1);
-    if (activation?.kind === "license") {
-      return {
-        customerId: activation.customerId,
-        installId: activation.installId,
-        proof: {
-          kind: "code",
-          payload: activation.payload,
-          signature: activation.signature,
-        },
-      };
-    }
-    const [trial] = await database.select().from(trialState).limit(1);
-    if (trial) {
-      return {
-        customerId: trial.customerId,
-        installId: trial.installId,
-        proof: {
-          kind: "profile",
-          profile: trial.profile,
-          signature: trial.signature,
-        },
-      };
-    }
-    if (activation) {
-      return {
-        customerId: activation.customerId,
-        installId: activation.installId,
-        proof: {
-          kind: "code",
-          payload: activation.payload,
-          signature: activation.signature,
-        },
-      };
-    }
-    return null;
-  }
-
   async function build(
     input: SupportInput,
     requestId: string,
   ): Promise<SupportPayload> {
-    const who = await identity();
+    const who = await installIdentity(database);
     if (!who) throw new SupportUnavailableError();
     return {
       requestId,
@@ -254,7 +209,7 @@ export function createSupportService(
   return {
     /** Whether this install can send a request at all (it needs BlackArk's proof). */
     async available(): Promise<boolean> {
-      return (await identity()) !== null;
+      return (await installIdentity(database)) !== null;
     },
 
     /** Exactly what would be sent, for the person to read first. */

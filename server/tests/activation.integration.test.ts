@@ -18,6 +18,8 @@ import {
 } from "../src/db/schema";
 import {
   createActivationService,
+  DEFAULT_LICENSE_URL,
+  keyFetchDue,
   NOT_ACTIVATED_MESSAGE,
 } from "../src/trial/activation";
 import { createTrialService, TrialRefusedError } from "../src/trial/service";
@@ -328,11 +330,12 @@ describe("activation (#109, v0.1.42)", () => {
     expect((await activation.entitlement(internal)).canRun).toBe(true);
   });
 
-  test("renewal sends ids only, and takes a renewed key", async () => {
+  test("renewal sends ids and the key as its proof, and takes a renewed key", async () => {
     const { activation, sent, answerWith, setClock } = harness();
-    await activation.apply(
-      license({ renewUrl: "https://blackark.example/checkin/renew/" }),
-    );
+    const first = license({
+      renewUrl: "https://blackark.example/checkin/renew/",
+    });
+    await activation.apply(first);
     const renewed = license({
       issuedAt: "2026-12-20T08:00:00Z",
       validUntil: "2027-01-24T00:00:00Z",
@@ -345,9 +348,14 @@ describe("activation (#109, v0.1.42)", () => {
       "customerId",
       "installId",
       "nonce",
+      "proof",
       "validUntil",
       "version",
     ]);
+    // The proof is the licence key itself, exactly as BlackArk signed it (v0.1.49).
+    const [payload, signature] = first.slice(CODE_PREFIX.length).split(".");
+    expect(sent[0]?.url).toBe("https://blackark.example/checkin/renew/");
+    expect(sent[0]?.body.proof).toEqual({ kind: "code", payload, signature });
     expect(await activation.current()).toMatchObject({
       until: "2027-01-24T00:00:00.000Z",
       renewHost: "blackark.example",
@@ -375,5 +383,155 @@ describe("activation (#109, v0.1.42)", () => {
     expect(await activation.addonEnabled("phone")).toBe(true);
     setClock("2026-12-18T00:00:00Z");
     expect(await activation.addonEnabled("phone")).toBe(false);
+  });
+});
+
+describe("activation after payment (#109, v0.1.49)", () => {
+  const toBlackArk = (sent: { url: string }[]) =>
+    sent.filter((request) => request.url === DEFAULT_LICENSE_URL);
+
+  test("a trial install asks blackark.uk with its signed profile, and the paid key unlocks it as a typed key would", async () => {
+    const { activation, trial, sent, answerWith, setClock } = harness();
+    await trial.importProfile(profileFile());
+    setClock("2026-12-16T00:00:01Z");
+    expect((await activation.current()).allowed).toBe(false);
+    const paid = license({ validUntil: "2027-01-23T00:00:00Z" });
+    answerWith(() => Response.json({ key: paid }));
+    expect(await activation.fetchKey()).toBe("activated");
+    const [request] = toBlackArk(sent);
+    expect(request?.body).toMatchObject({
+      customerId: "demo-shop",
+      // No key yet: the start of time, which today's renew/ (v0.1.44) also reads.
+      validUntil: "1970-01-01T00:00:00.000Z",
+      proof: { kind: "profile" },
+    });
+    expect(Object.keys(request?.body ?? {}).sort()).toEqual([
+      "customerId",
+      "installId",
+      "proof",
+      "validUntil",
+      "version",
+    ]);
+    const view = await activation.current();
+    expect(view).toMatchObject({
+      allowed: true,
+      state: "paid",
+      source: "license",
+      customerName: "Demo Shop",
+      until: "2027-01-23T00:00:00.000Z",
+      paymentReceivedAt: "2026-12-16T00:00:01.000Z",
+    });
+    expect(await activation.createBlocked()).toBe(false);
+    // Exactly what typing it would have done: the same key typed now changes nothing.
+    expect((await activation.apply(paid)).changed).toBe(false);
+  });
+
+  test("an install on a trial activation code sends that code as its proof", async () => {
+    const { activation, sent, answerWith } = harness();
+    const code = trialCode();
+    await activation.apply(code);
+    answerWith(() => Response.json({}));
+    expect(await activation.fetchKey()).toBe("unchanged");
+    const [payload, signature] = code.slice(CODE_PREFIX.length).split(".");
+    expect(toBlackArk(sent)[0]?.body.proof).toEqual({
+      kind: "code",
+      payload,
+      signature,
+    });
+    expect((await activation.current()).paymentReceivedAt).toBeNull();
+  });
+
+  test("an install with nothing to prove asks nothing", async () => {
+    const { activation, sent } = harness();
+    expect(await activation.fetchKey()).toBe("none");
+    expect(toBlackArk(sent)).toEqual([]);
+  });
+
+  test("a key for another customer, or a forged one, is not taken", async () => {
+    const { activation, trial, answerWith } = harness();
+    await trial.importProfile(profileFile());
+    answerWith(() =>
+      Response.json({ key: license({ customer: "other-shop" }) }),
+    );
+    expect(await activation.fetchKey()).toBe("failed");
+    answerWith(() => Response.json({ key: license({}, stranger.privateKey) }));
+    expect(await activation.fetchKey()).toBe("failed");
+    answerWith(() => Response.json({ key: trialCode() }));
+    expect(await activation.fetchKey()).toBe("failed");
+    expect(await activation.current()).toMatchObject({
+      state: "trial",
+      source: "trial-profile",
+      paymentReceivedAt: null,
+    });
+  });
+
+  test("the buy page link carries this install's customer id, until it is paid", async () => {
+    const { activation, trial, answerWith } = harness();
+    expect((await activation.current()).buyUrl).toBeNull();
+    await trial.importProfile(profileFile());
+    expect((await activation.current()).buyUrl).toBe(
+      "https://blackark.uk/checkin/buy/?customer=demo-shop",
+    );
+    answerWith(() => Response.json({ key: license() }));
+    await activation.fetchKey();
+    expect((await activation.current()).buyUrl).toBeNull();
+    // Not on a hosted deployment, where nothing is activated.
+    await clear();
+    const hosted = harness(false);
+    await hosted.trial.importProfile(profileFile());
+    expect((await hosted.activation.current()).buyUrl).toBeNull();
+  });
+
+  test("a trial with the phone add-on opens the buy page with the phone add-on", async () => {
+    const { activation, trial } = harness();
+    await trial.importProfile(profileFile({ addons: ["phone"] }));
+    expect((await activation.current()).buyUrl).toBe(
+      "https://blackark.uk/checkin/buy/?customer=demo-shop&phone=1",
+    );
+  });
+});
+
+describe("when the app asks for its key (#109, v0.1.49)", () => {
+  const start = new Date("2026-11-19T08:00:00Z");
+  const at = (ms: number) => new Date(start.getTime() + ms);
+  const base = {
+    paid: false,
+    lastAttemptAt: null,
+    lastRenewAt: null,
+    failed: false,
+    fastUntil: null,
+  };
+
+  test("on start-up, then every five minutes while it is not paid", () => {
+    expect(keyFetchDue({ ...base, now: start })).toBe(true);
+    const after = { ...base, lastAttemptAt: start };
+    expect(keyFetchDue({ ...after, now: at(4 * 60_000) })).toBe(false);
+    expect(keyFetchDue({ ...after, now: at(5 * 60_000) })).toBe(true);
+  });
+
+  test("every 20 seconds for 30 minutes after the buy page opens", () => {
+    const fast = { ...base, lastAttemptAt: start, fastUntil: at(30 * 60_000) };
+    expect(keyFetchDue({ ...fast, now: at(19_000) })).toBe(false);
+    expect(keyFetchDue({ ...fast, now: at(20_000) })).toBe(true);
+    const late = { ...fast, lastAttemptAt: at(30 * 60_000) };
+    expect(keyFetchDue({ ...late, now: at(30 * 60_000 + 20_000) })).toBe(false);
+  });
+
+  test("once paid, once a day, and hourly after a failure", () => {
+    const paid = {
+      ...base,
+      paid: true,
+      lastRenewAt: start,
+      lastAttemptAt: start,
+    };
+    expect(keyFetchDue({ ...paid, now: at(23 * 3_600_000) })).toBe(false);
+    expect(keyFetchDue({ ...paid, now: at(24 * 3_600_000) })).toBe(true);
+    const failed = { ...paid, failed: true };
+    expect(keyFetchDue({ ...failed, now: at(59 * 60_000) })).toBe(false);
+    expect(keyFetchDue({ ...failed, now: at(60 * 60_000) })).toBe(true);
+    // The buy page does not make a paid install ask faster.
+    expect(
+      keyFetchDue({ ...paid, fastUntil: at(30 * 60_000), now: at(20_000) }),
+    ).toBe(false);
   });
 });

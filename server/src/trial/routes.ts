@@ -269,6 +269,22 @@ export function activationRoutes(
     context.json({ activation: await activation.current() }),
   );
 
+  /*
+   * The buy button (v0.1.49): BlackArk's buy page for this customer, and from now the install asks
+   * for its key every 20 seconds for 30 minutes, so it unlocks moments after the payment. Anyone
+   * signed in: it changes nothing but how soon the app asks.
+   */
+  app.post("/buying", async (context) => {
+    const { buyUrl } = await activation.expectPayment();
+    if (!buyUrl) {
+      return context.json(
+        { error: "There is nothing to buy for this computer." },
+        409,
+      );
+    }
+    return context.json({ buyUrl });
+  });
+
   app.post("/code", async (context) => {
     const denied = requireAdmin(context);
     if (denied) return denied;

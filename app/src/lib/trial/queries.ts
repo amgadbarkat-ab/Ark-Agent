@@ -99,6 +99,10 @@ export type Activation = {
   lastRenewAt: string | null;
   lastRenewError: string | null;
   keys: { trial: boolean; license: boolean };
+  /** BlackArk's buy page for this customer, while there is something to buy (v0.1.49). */
+  buyUrl?: string | null;
+  /** When a key fetched after a payment activated this install (v0.1.49). */
+  paymentReceivedAt?: string | null;
 };
 
 /**

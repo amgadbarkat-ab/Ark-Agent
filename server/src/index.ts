@@ -355,6 +355,13 @@ const activation = createActivationService(database, {
   ),
   trial,
   version: appVersion(),
+  // blackark.uk unless set (v0.1.49): where the key is fetched before there is one, and the buy page.
+  ...(process.env.ARK_LICENSE_URL?.trim()
+    ? { licenseUrl: process.env.ARK_LICENSE_URL.trim() }
+    : {}),
+  ...(process.env.ARK_BUY_URL?.trim()
+    ? { buyUrl: process.env.ARK_BUY_URL.trim() }
+    : {}),
 });
 const accountStore = withTrialEntitlement(
   createAccountStore(database, {
@@ -1990,7 +1997,7 @@ trial.startCheckIns();
 // Help & support requests that could not be sent yet, every hour.
 support.startRetries();
 // Once a day, the renewed licence key from the address the key names; nothing when it names none.
-activation.startRenewals();
+activation.startKeyFetch();
 phoneLine.start();
 // Each mail employee's folders, From address and the AMKA block, from the trial profile (#109).
 useMailboxPolicy((botId) => trial.mailPolicyFor(botId));
