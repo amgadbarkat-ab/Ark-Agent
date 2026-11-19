@@ -693,6 +693,11 @@ grep -q 'Attached' <<<"$page" && ! grep -q 'sk-test-0123456789abcdef' <<<"$page"
 list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")" "$servers")"
 php -r '$o = json_decode($argv[1], true)["order"]; exit($o["status"] === "ready" && $o["baseUrl"] === "https://srv-1.example/v1" && $o["model"] === "qwen2.5:32b" && $o["apiKey"] === "sk-test-0123456789abcdef" ? 0 : 1);' "$list" \
   && { pass=$((pass+1)); echo "ok   once attached, the paying install gets its address, model and key"; } || { fail=$((fail+1)); echo "FAIL ready order: $list"; }
+# One server per customer, not per install (Amgad, 19 Nov 18:43): another install of the same customer
+# gets the same server.
+second="$(curl -s -X POST --data '{"customerId":"demo-shop","installId":"5c6d7e8f-0000-4000-8000-0000000000c2","proof":'"$(profile_proof "$good")"'}' "$servers")"
+php -r '$o = json_decode($argv[1], true)["order"]; exit($o["status"] === "ready" && $o["baseUrl"] === "https://srv-1.example/v1" && $o["apiKey"] === "sk-test-0123456789abcdef" ? 0 : 1);' "$second" \
+  && { pass=$((pass+1)); echo "ok   every install of the customer uses the same server"; } || { fail=$((fail+1)); echo "FAIL second install: $second"; }
 other_list="$(curl -s -X POST --data "$(srv_body demo-clinic "$(profile_proof "$other")")" "$servers")"
 ! grep -q 'sk-test' <<<"$other_list" && php -r 'exit(json_decode($argv[1], true)["order"] === null ? 0 : 1);' "$other_list" \
   && { pass=$((pass+1)); echo "ok   another customer never sees it"; } || { fail=$((fail+1)); echo "FAIL other customer sees server: $other_list"; }

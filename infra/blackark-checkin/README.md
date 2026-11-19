@@ -108,6 +108,9 @@ approved by Amgad on 19 Nov 17:45 (#149 comment 7014144068), are in `checkin/ser
   "Mark stopped" if it is taken down. The customer's app shows "ready" within a few minutes, and one click
   makes it their model.
 
+**One server per customer** (Amgad, 19 Nov 18:43): the order belongs to the customer id, so every
+install of that customer sees it and can use it.
+
 **Stripe:** the restricted key needs **Prices: Read** as well as Checkout Sessions: Write, to look the
 prices up. The webhook events are the ones it already takes.
 
