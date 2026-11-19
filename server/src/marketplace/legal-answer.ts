@@ -120,9 +120,11 @@ function withoutDisclaimers(text: string): string {
   return lines.join("\n").trim();
 }
 
-/** A row about a ban on hiring or soliciting staff, which belongs in no NDA. */
+/** A clause's name that says it bans hiring or soliciting staff, which belongs in no NDA. */
 const NO_HIRE =
-  /non[-\s]?solicit|no[-\s]?hire|no[-\s]?poach|\bhir(e|ing)\b|recruit|πρόσληψ|προσέλκυσ|απόσπασ/iu;
+  /non[-\s]?solicit|no[-\s]?hire|no[-\s]?poach|\bhir(e|ing)\b|recruit|πρόσληψ|προσέλκυσ|απόσπασ|απασχόλησ|(?<!\p{L})άγρα/iu;
+/** Staff, in a clause's text: hiring someone else's staff is the clause, hiring in general may not be. */
+const STAFF = /employee|staff|personnel|worker|εργαζόμεν|προσωπικ|υπάλληλ/iu;
 /** What a row says when the clause is not there at all. */
 const ABSENT =
   /\b(none|not present|absent|no such|not included|not found|n\/a)\b|δεν υπάρχει|δεν περιλαμβάν|δεν προβλέπ|καμία|κανένα/iu;
@@ -130,6 +132,9 @@ const COLOUR_ONLY =
   /green|yellow|amber|red|πράσιν\S*|κίτριν\S*|κόκκιν\S*|πορτοκαλ\S*|🟢|🟡|🟠|🔴|\bor\b|και|ή|[\s*_/\\\-–—,:.()+&]/giu;
 const OVERALL =
   /^[^\p{L}]*(overall(\s+rating)?|συνολικ\S*(\s+αξιολόγηση)?|τελικ\S*\s+αξιολόγηση)[^.;\n]*[.;]?\s*/iu;
+/** A line that starts a clause's part of a triage written as a list or under headings. */
+const SECTION_START =
+  /^\s*(#{1,6}\s|\d+[.)]\s|[-*+]\s|\*\*|(clause|άρθρο|όρος)\s*\d)/iu;
 
 function isColourCell(cell: string): boolean {
   return (
@@ -137,33 +142,55 @@ function isColourCell(cell: string): boolean {
   );
 }
 
+/** Whether a clause, from its name and its text, bans hiring or soliciting the other side's staff. */
+function isNoHire(name: string, text = ""): boolean {
+  if (NO_HIRE.test(name)) return true;
+  return NO_HIRE.test(text) && STAFF.test(text);
+}
+
+/** One line with every colour in it made Red, in the words the line used. */
+function madeRed(line: string, language: Language): string {
+  return line
+    .replace(/🟢|🟡|🟠/gu, "🔴")
+    .replace(/\b(green|yellow|amber)\b/giu, COLOUR_WORD.en.red)
+    .replace(/(πράσιν|κίτριν|πορτοκαλ)\p{L}*/giu, COLOUR_WORD.el.red)
+    .replace(
+      new RegExp(`(${COLOUR_WORD[language].red})(\\s*[/,]\\s*\\1)+`, "gu"),
+      "$1",
+    );
+}
+
 /**
- * An NDA triage with its rating made definite: a no-hire or non-solicit row is Red, and the answer ends
- * with exactly one overall rating, the worst colour in it.
+ * An NDA triage with its rating made definite: a no-hire or non-solicit clause is Red wherever it is
+ * rated, and the answer ends with exactly one overall rating, the worst colour in it.
  *
  * Code rather than only a stronger skill, because DT Lab saw both a no-hire clause rated Yellow and a
- * triage with no overall rating, and the skill already said what the right answer was. An answer with no
- * colour in it is not a triage yet (it may be asking for the document) and is left as it is.
+ * triage with no overall rating, and the skill already said what the right answer was. v0.1.49 forced
+ * only a table row whose first cell named the clause; DT Lab (#109, 19 Nov) still saw Yellow for a 3-year
+ * no-hire in English and a 2-year non-solicit in Greek. So the clause is found by its name in any cell
+ * before the colour, or by its text (hiring plus staff) anywhere in the row, and in a triage written as a
+ * list or under headings, by the line or the heading the colour sits under. An answer with no colour in
+ * it is not a triage yet (it may be asking for the document) and is left as it is.
  */
 function rated(text: string, language: Language): string {
   const found: Colour[] = [];
   const lines: string[] = [];
+  let section = "";
   for (const line of text.split("\n")) {
     if (line.trim().startsWith("|")) {
+      section = "";
       const cells = line
         .trim()
         .replace(/^\||\|$/g, "")
         .split("|");
-      const at = cells.findIndex((cell, i) => i > 0 && isColourCell(cell));
+      const at = cells.findIndex((cell) => isColourCell(cell));
       const cell = cells[at];
       if (cell !== undefined) {
         let colour = worst(coloursIn(cell)) as Colour;
         const says = cells[at + 1] ?? "";
-        if (
-          colour !== "red" &&
-          NO_HIRE.test(cells[0] ?? "") &&
-          !ABSENT.test(says)
-        ) {
+        const name = cells.slice(0, at).join(" ");
+        const rest = cells.slice(at + 1).join(" ");
+        if (colour !== "red" && isNoHire(name, rest) && !ABSENT.test(says)) {
           colour = "red";
           cells[at] = COLOUR_WORD[language].red;
           found.push(colour);
@@ -180,6 +207,18 @@ function rated(text: string, language: Language): string {
       found.push(...coloursIn(overall[0]));
       const rest = line.slice(overall[0].length).trim();
       if (rest) lines.push(rest);
+      continue;
+    }
+    if (SECTION_START.test(line)) section = line;
+    const colours = coloursIn(line);
+    if (
+      colours.length > 0 &&
+      !colours.every((colour) => colour === "red") &&
+      (isNoHire(line, line) || (section !== line && isNoHire(section))) &&
+      !ABSENT.test(line)
+    ) {
+      found.push("red");
+      lines.push(madeRed(line, language));
       continue;
     }
     lines.push(line);

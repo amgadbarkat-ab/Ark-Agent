@@ -203,6 +203,8 @@ key_proof() { php -r '[$p, $s] = explode(".", substr($argv[1], 5)); echo json_en
 key_nonce() { php -r '$p = explode(".", substr($argv[1], 5))[0]; echo json_decode(base64_decode(strtr($p, "-_", "+/")), true)["nonce"];' "$1"; }
 r1=3c4d5e6f-0000-4000-8000-0000000000
 expect "renewal without any proof is refused (a customer id is not enough)" 403 -X POST --data '{"customerId":"demo-shop","installId":"'"${r1}"'b1","validUntil":"2026-01-01T00:00:00Z"}' "$renew"
+expect "renewal with no proof and no install id is refused the same way (403, not 400)" 403 -X POST --data '{"customerId":"demo-shop","validUntil":"2026-01-01T00:00:00Z"}' "$renew"
+expect "a body that is not a request at all is still 400" 400 -X POST --data '{"customerId":"Not A Customer!"}' "$renew"
 expect "renewal with a made-up key number is refused" 403 -X POST --data '{"customerId":"demo-shop","installId":"'"${r1}"'b1","validUntil":"2026-01-01T00:00:00Z","nonce":"not-a-real-nonce"}' "$renew"
 got="$(ask_renew "$(renew_body demo-shop "${r1}b2" '"2026-01-01T00:00:00Z"' "$(key_proof "$key")")")"
 [[ "$got" == 200 ]] && grep -q '"key":"ARK1-' "$work/renew.out" && { pass=$((pass+1)); echo "ok   renewal with the install's own licence key hands the newer key"; } || { fail=$((fail+1)); echo "FAIL renew with key: $got $(cat "$work/renew.out")"; }
