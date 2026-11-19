@@ -748,7 +748,11 @@ export class LineObject {
     );
   }
 
-  async webSocketClose(socket: CfWebSocket) {
+  async webSocketClose(socket: CfWebSocket, code = 1000) {
+    // Completes the close the other end began, as Cloudflare's Hibernation examples do.
+    try {
+      socket.close(code === 1005 || code === 1006 ? 1000 : code, "closed");
+    } catch {}
     const attachment = socket.deserializeAttachment() as
       | DeskAttachment
       | TwilioAttachment;
