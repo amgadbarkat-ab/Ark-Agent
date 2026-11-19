@@ -9,6 +9,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { count, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { agentLimitNotice } from "../../shared/plans";
 import { createAccountStore } from "../src/accounts/store";
 import { createAgentProfileStore } from "../src/agents/profile-store";
 import { createDatabase } from "../src/db/client";
@@ -25,6 +26,7 @@ import {
   marketplaceRoutes,
 } from "../src/marketplace/routes";
 import { createMarketplaceStore } from "../src/marketplace/store";
+import { AgentLimitReachedError } from "../src/trial/agent-limit";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const database = createDatabase(testDatabaseUrl(), TEST_POOL);
@@ -343,6 +345,47 @@ describe("installing", () => {
     expect(events.map((e) => e.eventType)).toContain(
       "marketplace.listing_installed",
     );
+  });
+
+  test("hiring past Ark Team's agent limit is refused in both languages, and nothing is made (v0.1.49)", async () => {
+    const notice = agentLimitNotice({
+      limit: 10,
+      inUse: 10,
+      agentsPerSeat: 10,
+      trial: false,
+    });
+    const paths: string[] = [];
+    const limited = createMarketplaceStore(database, {
+      accounts,
+      profiles,
+      agentLimit: {
+        refuseAdd: async (_actor, path) => {
+          paths.push(path);
+          throw new AgentLimitReachedError(notice);
+        },
+      },
+    });
+    const limitedApp = new Hono().route(
+      "/api/marketplace",
+      marketplaceRoutes({ requireUser, market: limited, audit }),
+    );
+    const bea = await person();
+    const response = await limitedApp.request(
+      "/api/marketplace/listings/code-reviewer/install",
+      { method: "POST", headers: { "x-as": bea.as } },
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: notice.en,
+      errorEl: notice.el,
+      code: "agent_limit_reached",
+    });
+    expect(paths).toEqual(["marketplace"]);
+    const [installs] = await database
+      .select({ value: count() })
+      .from(marketplaceInstalls)
+      .where(eq(marketplaceInstalls.userId, bea.id));
+    expect(Number(installs?.value)).toBe(0);
   });
 });
 

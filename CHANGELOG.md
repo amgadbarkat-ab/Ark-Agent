@@ -8,6 +8,13 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Ark Team tiers, the agent limit, and phone usage in Stripe (v0.1.49)
+
+- **Ark Team comes in three tiers, per person a month (before tax):** 5 digital employees for €100, 10 for €140, 20 for €200. The customer can switch tiers in Stripe's billing portal. ArkAgent (€50) and Ark Team Enterprise are unchanged, and so is how many employees may work at the same moment.
+- **The limit is for the whole computer:** the tier's number times the people (seats) on the subscription. For example, 3 people on the 10 tier may have 30 digital employees. A licence key now carries its tier, signed. A key from before this release counts as 5 per person. A trial allows as many employees as its signed profile sets up, or 5 when it sets up none.
+- **At the limit, no new digital employee is made:** not from the New form, an approved proposal from a colleague, Duplicate, or a marketplace hire. The refusal is recorded in the audit log (`agent.limit_refused`), and a sentence in Greek or English says how to move up a tier or add a person.
+- **Nothing that exists is touched.** An install already above its limit, after a downgrade or a removed seat, keeps every employee, and every one keeps working. It just cannot add another.
+
 ### DT Lab's findings on v0.1.48 (#109)
 
 - **Legal Helper: the disclaimer is added by the server.** Every Legal Helper answer now opens and closes with exactly "Draft for review by a qualified lawyer. Not legal advice." (in Greek, «Προσχέδιο για έλεγχο από αρμόδιο δικηγόρο. Δεν αποτελεί νομική συμβουλή.» when the answer is in Greek). A version the model wrote itself is taken out, so the line appears once at each end. A Legal Helper's messages now appear whole rather than word by word.

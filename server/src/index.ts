@@ -216,6 +216,7 @@ import {
   synchronizeTenantPackage,
 } from "./tenant-package";
 import { createActivationService } from "./trial/activation";
+import { countOwnedAgents, createAgentLimit } from "./trial/agent-limit";
 import { installCounts } from "./trial/counts";
 import { guardProfiles, withTrialEntitlement } from "./trial/guard";
 import { applyProfileInstructions, seedTrialRoster } from "./trial/seed";
@@ -370,12 +371,34 @@ const unguardedProfileStore = createAgentProfileStore(
   agentVault,
   accountStore,
 );
-const agentProfileStore = guardProfiles(unguardedProfileStore, activation);
+/*
+ * Ark Team's agent limit (v0.1.49): agents per seat times seats, from the licence key or the trial.
+ * Every new digital employee is held to it on the store; nothing existing is ever touched. The audit
+ * store is made further down and is only read when a refusal happens, by then long made.
+ */
+const agentLimit = createAgentLimit({
+  activation,
+  countAgents: () => countOwnedAgents(database),
+  isSeeding: () => trial.isSeeding(),
+  audit: (event) =>
+    recordAuditEvent(bootAuditStore, {
+      eventType: event.eventType,
+      targetType: "agent",
+      actorUserId: event.actorUserId,
+      payload: event.payload,
+    }),
+});
+const agentProfileStore = guardProfiles(
+  unguardedProfileStore,
+  activation,
+  agentLimit,
+);
 // Ark's own digital employees, written to the database on every start so the catalogue in code is the
 // catalogue on screen.
 const marketplaceStore = createMarketplaceStore(database, {
   accounts: accountStore,
   profiles: agentProfileStore,
+  agentLimit,
   // Read when an install happens, which is after the plugin store below exists.
   skills: {
     install: (input) => pluginStore.installSkill(input),
@@ -1958,6 +1981,8 @@ const app = createApp(
       }),
     // Read-only instructions for the profile's employees; a paid licence lifts it (#116).
     lockedEmployees: () => activation.lockedEmployees(),
+    // Ark Team's agent limit (v0.1.49), shown beside the activation so the add buttons say it.
+    agentLimit,
     appVersion: appVersion(),
     activation,
     keyConfigured:

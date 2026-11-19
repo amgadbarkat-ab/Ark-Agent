@@ -27,8 +27,17 @@ import {
   codeAction,
   readActivationCode,
 } from "../../../shared/activation";
-import { planById } from "../../../shared/plans";
-import { type TrialAddon, TrialFormatError } from "../../../shared/trial";
+import {
+  agentLimitFor,
+  DEFAULT_AGENTS_PER_SEAT,
+  planById,
+  planHasAgentTiers,
+} from "../../../shared/plans";
+import {
+  CODE_PREFIX,
+  type TrialAddon,
+  TrialFormatError,
+} from "../../../shared/trial";
 import { signedByAny } from "../../../shared/trial-sign";
 import type { Entitlement } from "../accounts/store";
 import type { Database } from "../db/client";
@@ -61,6 +70,13 @@ export type ActivationView = {
   until: string | null;
   daysLeft: number | null;
   seats: number | null;
+  /**
+   * Ark Team's tier (v0.1.49): digital employees per seat from the licence key, 5 for a team key
+   * without one or a team trial code. Null for every other plan and for the trial setup file.
+   */
+  agentsPerSeat: number | null;
+  /** How many digital employees this install may have (agent-limit.ts). Null: no limit. */
+  agentLimit: number | null;
   addons: TrialAddon[];
   /** The renewal host only. */
   renewHost: string | null;
@@ -88,6 +104,24 @@ function addonsOf(row: Row | undefined): TrialAddon[] {
 
 function dayOf(iso: string): string {
   return iso.slice(0, 10);
+}
+
+/**
+ * The tier a stored code carries (v0.1.49), read back from its signed payload so no new column is
+ * needed: 5, 10 or 20 for a team key that names it, the default 5 for a team key or trial code that
+ * does not, null for every other plan.
+ */
+function agentsPerSeatOf(row: Row): number | null {
+  if (!planHasAgentTiers(row.planId)) return null;
+  try {
+    const { code } = readActivationCode(
+      `${CODE_PREFIX}${row.payload}.${row.signature}`,
+    );
+    if (code.action === "license" && code.maxAgents) return code.maxAgents;
+  } catch {
+    // A row this build wrote itself is always readable; the default is the safe answer anyway.
+  }
+  return DEFAULT_AGENTS_PER_SEAT;
 }
 
 export type ActivationService = ReturnType<typeof createActivationService>;
@@ -150,6 +184,8 @@ export function createActivationService(
     const base = {
       required: options.required,
       seats: null as number | null,
+      agentsPerSeat: null as number | null,
+      agentLimit: null as number | null,
       addons: [] as TrialAddon[],
       renewHost,
       lastRenewAt: row?.lastRenewAt?.toISOString() ?? null,
@@ -177,6 +213,14 @@ export function createActivationService(
       until: row?.validUntil.toISOString() ?? null,
       daysLeft: row ? daysLeft(row.validUntil, at) : null,
       seats: row?.seats ?? null,
+      agentsPerSeat: row ? agentsPerSeatOf(row) : null,
+      agentLimit: row
+        ? agentLimitFor({
+            planId: row.planId,
+            agentsPerSeat: agentsPerSeatOf(row),
+            seats: row.seats,
+          })
+        : null,
       addons: addonsOf(row),
     });
     const fromProfile = (state: ActivationState, view: TrialView) => ({
@@ -190,6 +234,12 @@ export function createActivationService(
       planName: view.planName,
       until: view.status === "paid" ? null : view.endsAt,
       daysLeft: view.status === "paid" ? null : view.daysLeft,
+      // The signed roster's own size, or 5 when it names nobody (Amgad's brief, 19 Nov).
+      agentLimit: planHasAgentTiers(view.planId)
+        ? view.rosterSize > 0
+          ? view.rosterSize
+          : DEFAULT_AGENTS_PER_SEAT
+        : null,
     });
     const rowActive = row ? at.getTime() < row.validUntil.getTime() : false;
     let view: ActivationView;

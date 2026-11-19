@@ -16,7 +16,12 @@
  *
  * Shape only here; the signature is checked on the server (`trial-sign.ts` needs `node:crypto`).
  */
-import { type PlanId, planById } from "./plans";
+import {
+  type AgentsPerSeat,
+  isAgentsPerSeat,
+  type PlanId,
+  planById,
+} from "./plans";
 import {
   CODE_PREFIX,
   decodeBase64Url,
@@ -45,8 +50,16 @@ export type LicenseKey = {
   nonce: string;
   issuedAt: string;
   plan: PlanId;
-  /** How many computers the customer paid for. This computer is one; the count is BlackArk's. */
+  /**
+   * How many seats (one per person) the customer pays for. Ark Team's agent limit on the install is
+   * `maxAgents` times this (shared/plans.ts).
+   */
   seats: number;
+  /**
+   * Ark Team's tier (v0.1.49): digital employees per seat, 5, 10 or 20, signed with the rest. Absent
+   * on keys from before it: an Ark Team key without it counts as 5.
+   */
+  maxAgents?: AgentsPerSeat;
   /** The paid period's end plus the grace, after which the app asks for a key again. */
   validUntil: string;
   addons?: TrialAddon[];
@@ -158,6 +171,9 @@ export function readActivationCode(typed: string): {
     ) {
       throw new TrialFormatError("This is not an activation code.");
     }
+    if (raw.maxAgents !== undefined && !isAgentsPerSeat(raw.maxAgents)) {
+      throw new TrialFormatError("This is not an activation code.");
+    }
     let renewUrl: string | undefined;
     if (raw.renewUrl !== undefined) {
       let parsed: URL;
@@ -178,6 +194,7 @@ export function readActivationCode(typed: string): {
         ...common,
         action: "license",
         seats,
+        ...(isAgentsPerSeat(raw.maxAgents) ? { maxAgents: raw.maxAgents } : {}),
         validUntil: moment(raw.validUntil),
         ...(renewUrl ? { renewUrl } : {}),
       },
