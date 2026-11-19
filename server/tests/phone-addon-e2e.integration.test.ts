@@ -338,9 +338,9 @@ describe.skipIf(!havePhp)("the phone add-on end to end (#109, v0.1.49)", () => {
   test("buy, answer, charge, the last hour, busy at zero, top up", async () => {
     // 1. The customer buys the plan with the phone add-on: the buy page opens Stripe's checkout
     //    with the first 5-hour block, and Stripe's "paid" credits it: EUR 23.40.
-    expect(await openBuyPage(`customer=${CUSTOMER}&tier=5&phone=1`)).toStartWith(
-      "https://checkout.stripe.com/",
-    );
+    expect(
+      await openBuyPage(`customer=${CUSTOMER}&tier=5&phone=1`),
+    ).toStartWith("https://checkout.stripe.com/");
     expect(decodeURIComponent(checkouts.at(-1) ?? "")).toContain(
       "line_items[2][price]=price_block5h",
     );
