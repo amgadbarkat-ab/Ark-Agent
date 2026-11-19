@@ -1,6 +1,6 @@
 # Phone relay on Cloudflare Workers + Durable Objects
 
-Status: claimed (sub-agent I, for PE; ordered by Amgad 19 Nov 12:21 Athens, top priority)
+Status: resolved (pending review and deploy) (sub-agent I, for PE; ordered by Amgad 19 Nov 12:21 Athens, top priority)
 Toolkit: Matt Pocock's skills (`/tdd`). Branch `claude/phone-relay-workers` from
 `origin/claude/phone-e2e-149` (`ac57583`: v0.1.49 plus the relay-only top-up fix).
 
@@ -38,3 +38,23 @@ Not tested through internals: no SQL is read by tests.
 - Admin: `POST /admin/*` with `Authorization: Bearer <ADMIN_TOKEN>` (a Worker secret). The CLI makes
   the line token locally and sends only its SHA-256.
 - Webhooks await their billing call (3 s timeout) instead of answering first: deterministic on Workers.
+- Alert email: Workers `connect()` blocks only port 25 (Cloudflare docs, read 19 Nov), and the board's
+  IMAP uses the same `connect()` with TLS, so `smtp.ts` was ported: its conversation now runs over web
+  streams for both relays. Not yet sent from a real Worker; every alert is recorded either way.
+- Unsent charges retried at most 40 per alarm (50 subrequests per invocation).
+
+## Free-plan estimate (README "What the Free plan carries")
+
+Durable Object requests bind first: about 166 per call-minute typical (Twilio's 50 msg/s at 20:1, the
+install's speech deltas, one alarm), about 301 worst case, so about 600 or 330 call-minutes a day.
+Assumes the Free daily limit counts WebSocket messages 20:1 as the pricing page does; if not, about
+30 call-minutes a day. CPU: about 3 µs per media message (stand-ins, Bun), DO CPU limit 30 s per message.
+
+## Comments
+
+- 19 Nov: core extracted (`df3a169`), Bun relay unchanged in behaviour, e2e green.
+- 19 Nov: Worker, line and directory objects, CLI, wrangler.toml, README section. 56 relay tests
+  pass (27 Workers), the phone add-on e2e test passes. Mutation checks: removing the balance push,
+  the minute set-aside or the one-call-while-down rule each fails its test.
+- Open: whether to allow several billed lines per customer (wallet object); a `cli.ts import` from a
+  VPS `lines.json` if a VPS relay is already live (tokens would carry over).

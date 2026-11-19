@@ -13,6 +13,7 @@ import {
   decoded,
   demoLine,
   hmacSha1,
+  mailServer,
   setup,
   until,
 } from "./harness";
@@ -394,6 +395,28 @@ describe("the prepaid balance on the Workers relay", () => {
     expect(await t.voice(billedLine, 34)).toContain("<Connect>");
     expect(await t.voice(billedLine, 35)).toContain('<Reject reason="busy"/>');
     expect((await alerts()).length).toBe(1);
+  });
+
+  test("the alert email goes over a Workers TCP socket, TLS from the first byte, port 465", async () => {
+    const mail = mailServer();
+    const t = await billed({
+      balance: 10_000,
+      alerts: true,
+      connect: mail.connect,
+    });
+    await deskWithBalance(t);
+    t.bank.reachable = false;
+    await t.voice(billedLine, 39);
+    expect(mail.opened).toEqual([
+      { hostname: "mail.example", port: 465, tls: "on" },
+    ]);
+    expect(mail.said).toContain("MAIL FROM:<alerts@blackark.example>");
+    expect(mail.said).toContain("RCPT TO:<ops@blackark.example>");
+    expect(mail.said.join("\n")).not.toContain("+3069");
+    const { alerts } = (await (await t.admin("alerts", {})).json()) as {
+      alerts: { outcome: string }[];
+    };
+    expect(alerts[0]?.outcome).toBe("sent");
   });
 
   test("blackark.uk down and no balance ever known: busy", async () => {

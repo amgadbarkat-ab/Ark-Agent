@@ -424,11 +424,12 @@ export class LineObject {
     this.log(`call ${callId} line=${name}: charge not taken yet, will retry`);
   }
 
+  /** One pass over unsent charges; at most 40, as Workers allows 50 outside calls per invocation. */
   private async retryCharges() {
     const customerId = this.customer();
     const rows = this.sql
       .exec<{ id: number; call: string; parts: string; first_at: number }>(
-        "SELECT id, call, parts, first_at FROM unsent ORDER BY id",
+        "SELECT id, call, parts, first_at FROM unsent ORDER BY id LIMIT 40",
       )
       .toArray();
     for (const row of rows) {

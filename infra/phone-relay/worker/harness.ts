@@ -255,6 +255,66 @@ export function setup(
   };
 }
 
+/**
+ * A stand-in for `connect()` from `cloudflare:sockets` with a mail server at the other end: it records
+ * the address and TLS option asked for and every line the relay says, and answers as SMTP does.
+ */
+export function mailServer() {
+  const said: string[] = [];
+  const opened: { hostname: string; port: number; tls?: string }[] = [];
+  const connect: Connect = (address, options) => {
+    opened.push({ ...address, tls: options?.secureTransport });
+    let push!: ReadableStreamDefaultController<Uint8Array>;
+    const readable = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = controller;
+        controller.enqueue(new TextEncoder().encode("220 ready\r\n"));
+      },
+    });
+    let inData = false;
+    let pending = "";
+    const reply = (text: string) =>
+      push.enqueue(new TextEncoder().encode(`${text}\r\n`));
+    const writable = new WritableStream<Uint8Array>({
+      write(chunk) {
+        pending += new TextDecoder().decode(chunk);
+        let at = pending.indexOf("\r\n");
+        while (at >= 0) {
+          const line = pending.slice(0, at);
+          pending = pending.slice(at + 2);
+          said.push(line);
+          if (inData) {
+            if (line === ".") {
+              inData = false;
+              reply("250 queued");
+            }
+          } else if (line.startsWith("EHLO")) reply("250 AUTH LOGIN");
+          else if (line === "AUTH LOGIN") reply("334 VXNlcm5hbWU6");
+          else if (said.at(-2) === "AUTH LOGIN") reply("334 UGFzc3dvcmQ6");
+          else if (said.at(-3) === "AUTH LOGIN") reply("235 ok");
+          else if (line === "DATA") {
+            inData = true;
+            reply("354 go");
+          } else if (line === "QUIT") reply("221 bye");
+          else reply("250 ok");
+          at = pending.indexOf("\r\n");
+        }
+      },
+    });
+    return {
+      readable,
+      writable,
+      opened: Promise.resolve(),
+      close: async () => {
+        try {
+          push.close();
+        } catch {}
+      },
+    };
+  };
+  return { connect, said, opened };
+}
+
 /** Twilio's REST bodies, decoded, for reading the TwiML in them. */
 export function decoded(body: string) {
   return decodeURIComponent(body.replace(/\+/g, " "));
