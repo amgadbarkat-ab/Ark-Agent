@@ -532,6 +532,11 @@ export const auditEventTypes = [
   "trial.profile_imported",
   "trial.code_applied",
   "activation.code_applied",
+  /**
+   * A new digital employee refused at Ark Team's agent limit (v0.1.49): which way (create,
+   * duplicate, marketplace), the limit, how many there were, the tier and the seats. Nothing else.
+   */
+  "agent.limit_refused",
   "marketplace.report_filed",
   "marketplace.report_dismissed",
 ] as const;

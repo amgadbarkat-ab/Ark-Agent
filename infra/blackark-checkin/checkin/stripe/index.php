@@ -9,6 +9,9 @@
  *   client_reference_id) and which checkout session, so the key page can find it.
  * - invoice.paid: the plan, seats and add-ons (from config's price table) and the paid period's end;
  *   a new key is signed, valid to that end plus the grace days.
+ * - customer.subscription.updated (v0.1.49): a tier switch or a seat change in the billing portal
+ *   updates the plan, seats and tier (`max_agents`) and signs a new key at once, for the same period.
+ * - invoice.payment_failed (v0.1.49): no new key until the next paid invoice.
  * - customer.subscription.deleted: no more keys; the last one runs out on its own.
  * - Prepaid phone balance (v0.1.47): a checkout the buy page opened with the phone add-on, or a
  *   top-up, credits a 5-hour block once Stripe says it is paid (checkout.session.completed with
@@ -112,10 +115,55 @@ function issue(PDO $db, string $subscription): void
         return;
     }
     $addons = $row['addons'] ? explode(',', (string) $row['addons']) : [];
-    $signed = ark_sign_license((string) $row['customer_id'], (string) $row['plan'], (int) $row['seats'], $addons, (int) $row['period_end']);
+    $maxAgents = $row['max_agents'] === null ? null : (int) $row['max_agents'];
+    $signed = ark_sign_license((string) $row['customer_id'], (string) $row['plan'], (int) $row['seats'], $addons, (int) $row['period_end'], $maxAgents);
     if ($signed) {
         upsert($db, $subscription, ['license_key' => $signed['key'], 'valid_until' => $signed['valid_until']]);
     }
+}
+
+/**
+ * The plan, seats, tier and add-ons that invoice lines or subscription items stand for, from the
+ * price table in config.php; null when no line is a plan in it. Each line's quantity is its seats.
+ * A plan price may carry `max_agents` (Ark Team's tier, v0.1.49); one without it is signed without a
+ * tier, which the app counts as 5.
+ */
+function licence_from(array $lines, callable $periodEndOf): ?array
+{
+    $prices = (array) ark_config('stripe_prices', []);
+    $plan = null;
+    $seats = 1;
+    $maxAgents = null;
+    $addons = [];
+    $periodEnd = 0;
+    foreach ($lines as $line) {
+        if (!is_array($line)) {
+            continue;
+        }
+        $price = (string) ($line['price']['id'] ?? ($line['pricing']['price_details']['price'] ?? ''));
+        $map = $prices[$price] ?? null;
+        if (is_array($map) && isset($map['plan'])) {
+            $plan = (string) $map['plan'];
+            $seats = max(1, (int) ($map['seats'] ?? 1) * max(1, (int) ($line['quantity'] ?? 1)));
+            $maxAgents = in_array($map['max_agents'] ?? null, ARK_AGENT_TIERS, true) ? (int) $map['max_agents'] : null;
+            foreach ((array) ($map['addons'] ?? []) as $addon) {
+                $addons[] = (string) $addon;
+            }
+        } elseif (is_array($map) && isset($map['addon'])) {
+            $addons[] = (string) $map['addon'];
+        }
+        $periodEnd = max($periodEnd, $periodEndOf($line));
+    }
+    if ($plan === null) {
+        return null;
+    }
+    return [
+        'plan' => $plan,
+        'seats' => $seats,
+        'max_agents' => $maxAgents,
+        'addons' => implode(',', array_unique($addons)),
+        'period_end' => $periodEnd,
+    ];
 }
 
 $subscription = (string) ($object['subscription'] ?? ($event['type'] === 'customer.subscription.deleted' ? ($object['id'] ?? '') : ''));
@@ -167,6 +215,8 @@ switch ($event['type']) {
         upsert($db, $subscription, [
             'customer_id' => customer_id_from($object['client_reference_id'] ?? null, $object['customer'] ?? ''),
             'session_id' => (string) ($object['id'] ?? ''),
+            // The buyer's Stripe customer, for every buyer (v0.1.49): the phone usage meters need it.
+            'stripe_customer' => preg_match('/^cus_[A-Za-z0-9]+$/', (string) ($object['customer'] ?? '')) === 1 ? (string) $object['customer'] : null,
         ]);
         issue($db, $subscription);
         reply(200);
@@ -182,36 +232,61 @@ switch ($event['type']) {
         if ($subscription === '') {
             reply(200, 'Not a subscription.');
         }
-        $prices = (array) ark_config('stripe_prices', []);
-        $plan = null;
-        $seats = 1;
-        $addons = [];
-        $periodEnd = 0;
-        foreach ((array) ($object['lines']['data'] ?? []) as $line) {
-            $price = (string) ($line['price']['id'] ?? ($line['pricing']['price_details']['price'] ?? ''));
-            $map = $prices[$price] ?? null;
-            if (is_array($map) && isset($map['plan'])) {
-                $plan = (string) $map['plan'];
-                $seats = max(1, (int) ($map['seats'] ?? 1) * max(1, (int) ($line['quantity'] ?? 1)));
-                foreach ((array) ($map['addons'] ?? []) as $addon) {
-                    $addons[] = (string) $addon;
-                }
-            } elseif (is_array($map) && isset($map['addon'])) {
-                $addons[] = (string) $map['addon'];
-            }
-            $periodEnd = max($periodEnd, (int) ($line['period']['end'] ?? 0));
-        }
-        if ($plan === null) {
+        $licence = licence_from((array) ($object['lines']['data'] ?? []), fn ($line) => (int) ($line['period']['end'] ?? 0));
+        if ($licence === null) {
             reply(200, 'No price in this invoice is in the price table.');
         }
         upsert($db, $subscription, [
-            'plan' => $plan,
-            'seats' => $seats,
-            'addons' => implode(',', array_unique($addons)),
-            'period_end' => $periodEnd ?: (int) ($object['period_end'] ?? 0),
+            'plan' => $licence['plan'],
+            'seats' => $licence['seats'],
+            'max_agents' => $licence['max_agents'],
+            'addons' => $licence['addons'],
+            'period_end' => $licence['period_end'] ?: (int) ($object['period_end'] ?? 0),
             'status' => 'active',
         ]);
         issue($db, $subscription);
+        reply(200);
+    case 'customer.subscription.updated':
+        // A tier switch or a seat change in the billing portal (v0.1.49): a new key at once, for the
+        // same paid period. The app's daily renewal check picks it up.
+        $subscription = (string) ($object['id'] ?? '');
+        if (preg_match('/^sub_[A-Za-z0-9_]+$/', $subscription) !== 1) {
+            reply(200, 'Not a subscription.');
+        }
+        $licence = licence_from((array) ($object['items']['data'] ?? []), fn ($item) => (int) ($item['current_period_end'] ?? 0));
+        if ($licence === null) {
+            reply(200, 'No price in this subscription is in the price table.');
+        }
+        $status = (string) ($object['status'] ?? '');
+        $fields = [
+            'plan' => $licence['plan'],
+            'seats' => $licence['seats'],
+            'max_agents' => $licence['max_agents'],
+            'addons' => $licence['addons'],
+        ];
+        $periodEnd = $licence['period_end'] ?: (int) ($object['current_period_end'] ?? 0);
+        $read = $db->prepare('SELECT period_end FROM licenses WHERE subscription_id = ?');
+        $read->execute([$subscription]);
+        $paidTo = (int) $read->fetchColumn();
+        if ($periodEnd > 0 && $paidTo > 0 && $periodEnd < $paidTo) {
+            // Never later than what was paid: a new period's end arrives with its invoice.paid, so a
+            // renewal whose payment then fails never gets a longer key from this event.
+            $fields['period_end'] = $periodEnd;
+        }
+        if (in_array($status, ['canceled', 'unpaid', 'incomplete_expired'], true)) {
+            $fields['status'] = 'canceled';
+        } elseif ($status === 'past_due') {
+            $fields['status'] = 'past_due';
+        }
+        upsert($db, $subscription, $fields);
+        issue($db, $subscription);
+        reply(200);
+    case 'invoice.payment_failed':
+        // No new key until the next paid invoice; the last one runs out on its own (its period end
+        // plus the grace days), as before. Stripe retries the card.
+        if ($subscription !== '') {
+            upsert($db, $subscription, ['status' => 'past_due']);
+        }
         reply(200);
     case 'customer.subscription.deleted':
         if ($subscription !== '') {

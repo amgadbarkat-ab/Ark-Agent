@@ -94,6 +94,10 @@ export type Activation = {
   until: string | null;
   daysLeft: number | null;
   seats: number | null;
+  /** Ark Team's tier (v0.1.49): digital employees per seat. Null for other plans. */
+  agentsPerSeat?: number | null;
+  /** How many digital employees this install may have. Null: no limit. */
+  agentLimit?: number | null;
   addons: string[];
   renewHost: string | null;
   lastRenewAt: string | null;
@@ -104,6 +108,43 @@ export type Activation = {
   /** When a key fetched after a payment activated this install (v0.1.49). */
   paymentReceivedAt?: string | null;
 };
+
+/**
+ * Ark Team's agent limit on this install (v0.1.49), as the server counts it. `notice` is the sentence
+ * shown once it is full, as an English template the shared Greek table translates.
+ */
+export type AgentAllowance = {
+  limit: number | null;
+  inUse: number;
+  canAdd: boolean;
+  agentsPerSeat: number | null;
+  seats: number | null;
+  notice: {
+    en: string;
+    el: string;
+    template: string;
+    values: Record<string, string | number>;
+  } | null;
+};
+
+/**
+ * The allowance, or null where the server does not say (an older server, a hosted one). Not kept
+ * long: making or removing an employee changes it, and every add button asks again when it shows.
+ */
+export function agentAllowanceQueryOptions() {
+  return queryOptions({
+    queryKey: [...trialKeys.all, "agents"] as const,
+    queryFn: async (): Promise<AgentAllowance | null> => {
+      const response = await tryClient("/api/activation");
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error("Could not check the activation");
+      return (
+        ((await response.json()) as { agents?: AgentAllowance }).agents ?? null
+      );
+    },
+    staleTime: 0,
+  });
+}
 
 /**
  * Activation, or null where the server has no such route (an older server, or a deployment with no

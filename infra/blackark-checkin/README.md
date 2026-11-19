@@ -125,8 +125,14 @@ itself.
    - Paste the two lines from that file into `checkin/config.php`, inside the array.
    - Post only the public key on #109, so it is built into the app.
 2. **In Stripe** → Developers → Webhooks:
-   - Add the endpoint `https://blackark.uk/checkin/stripe/` with the events
-     `checkout.session.completed`, `invoice.paid` and `customer.subscription.deleted`.
+   - Add the endpoint `https://blackark.uk/checkin/stripe/` with these events (all seven, from
+     v0.1.49):
+     - `checkout.session.completed`
+     - `checkout.session.async_payment_succeeded`
+     - `invoice.paid`
+     - `invoice.payment_failed`
+     - `customer.subscription.updated` (a tier switch or a seat change in the billing portal)
+     - `customer.subscription.deleted`
    - Copy its signing secret (`whsec_…`) into `'stripe_webhook_secret'`. Never post it.
 3. **Each Payment Link:**
    - Set **After payment** to *Don't show confirmation page → redirect to*
@@ -134,11 +140,58 @@ itself.
    - Send each customer the link with `?client_reference_id=<customer id>` added, so their key
      carries their id. Without it, the id becomes `stripe-<Stripe customer>`.
 4. **In `'stripe_prices'`**, map each Stripe price id to a plan:
-   - `'price_…' => ['plan' => 'team', 'seats' => 1]` for a plan;
+   - `'price_…' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 10]` for a plan. The line's
+     quantity is the seats; `max_agents` is Ark Team's tier, signed into the key;
    - `'price_…' => ['addon' => 'phone']` for the phone add-on sold as its own price.
 
 **Keys after cancelling:** when a subscription is cancelled, no new key is made. The last key runs
 out on its own, at its period end plus 7 days.
+
+## Ark Team tiers (v0.1.49)
+
+COO set these up live on 19 Nov. Each tier is its own product, so the billing portal
+(`bpc_1UciZVKhgJyODeuaxWydSv0V`) can switch between them. EUR, per seat (one per person) a month,
+tax exclusive. `config.sample.php` has all four in `'stripe_prices'`, and the three tiers in
+`'stripe_buy' → 'tiers'`.
+
+| Agents per seat | Price | Product | Price id |
+|---|---|---|---|
+| 5 | €100 | `prod_Vdzn1itHhHrV91` | `price_1Ud8FzKhgJyODeua2SX1TNos` |
+| 10 | €140 | `prod_VeVI5ma2FGrmPR` | `price_1UdCIJKhgJyODeuaUPHF4RnX` |
+| 20 | €200 | `prod_VeVIT7LAol18o2` | `price_1UdCIJKhgJyODeuaRpYa1gEb` |
+| 5 (old single price, existing subscribers only) | €100 | | `price_1UchnkKhgJyODeuaDGI3UxBg` |
+
+- **The key** carries `maxAgents` (5, 10 or 20) beside `seats`. The app allows `maxAgents × seats`
+  digital employees on the computer. A key without `maxAgents` counts as 5.
+- **A tier switch or a seat change** (`customer.subscription.updated`) signs a new key at once, for the
+  same paid period. `…/checkin/renew/` hands it to an install that sends the old key's nonce.
+- **A failed payment** (`invoice.payment_failed`): no new key until the next paid invoice. The last key
+  runs out on its own.
+- **The buy page** (`…/checkin/buy/?customer=<id>`) asks for the tier first. The old price is never
+  offered there.
+- **Not mapped:** `price_1Ud8G0KhgJyODeuauF67ovsh` and `price_1Ud8G1KhgJyODeuaA4eX9HPY`, deactivated
+  on 19 Nov. A payment on a price not in the table changes nothing and is answered "not in the price
+  table".
+
+## Phone usage in Stripe's meters (v0.1.49)
+
+**For the customer to see their usage only.** Billing stays the prepaid 5-hour blocks (EUR 23.40,
+never below zero). The per-minute prices on the phone add-on are not charged.
+
+- **When:** each time `…/checkin/phone/` books a call's charge, every part with minutes (`incoming`,
+  `landline`, `mobile`) is queued as one meter event: `arkagent_phone_minutes_<part>`, with
+  `payload[stripe_customer_id]`, `payload[value]` (whole minutes), and `identifier`
+  `call_<call id>_<part>`, so a retry is counted once by Stripe.
+- **Endpoint:** `POST https://api.stripe.com/v1/billing/meter_events`.
+- **Key:** `'stripe_meter_key'` in `config.php`: a second restricted key with **Billing meter events:
+  write** only. Never post it.
+- **The Stripe customer:** the `cus_…` of the paid checkout (`session.customer`), now kept for every
+  buyer, not only automatic top-up.
+- **Never fatal:** without the key, without the customer, or with Stripe down, the event waits in
+  `meter_events` and goes with a later call. The call and the balance are never affected. The export
+  says how many wait (`meterEventsWaiting`), for the Control Board.
+- **Customers who bought before v0.1.49** have no `cus_` kept unless they chose automatic top-up.
+  Their events wait until one is known; see the open question in the v0.1.49 report.
 
 ## The buy page and the prepaid phone balance (v0.1.47)
 

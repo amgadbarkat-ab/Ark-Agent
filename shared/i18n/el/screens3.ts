@@ -200,8 +200,13 @@ export const EL_SCREENS3: Record<string, string> = {
   "One digital employee, working for you.":
     "Ένας ψηφιακός υπάλληλος που δουλεύει για εσάς.",
   "Ark Team": "Ark Team",
-  "Up to 15 digital employees working at the same time.":
-    "Έως 15 ψηφιακοί υπάλληλοι που δουλεύουν ταυτόχρονα.",
+  "5, 10 or 20 digital employees per person, from €100 per person a month.":
+    "5, 10 ή 20 ψηφιακοί υπάλληλοι ανά άτομο, από €100 ανά άτομο τον μήνα.",
+  "From {price} per person a month": "Από {price} ανά άτομο τον μήνα",
+  "{first} digital employees per person: {firstPrice}. {second}: {secondPrice}. {third}: {thirdPrice}.":
+    "{first} ψηφιακοί υπάλληλοι ανά άτομο: {firstPrice}. {second}: {secondPrice}. {third}: {thirdPrice}.",
+  "Digital employees on this computer: {inUse} of {limit}.":
+    "Ψηφιακοί υπάλληλοι σε αυτόν τον υπολογιστή: {inUse} από {limit}.",
   "Ark Team Enterprise": "Ark Team Enterprise",
   "Up to 500 digital employees working at the same time.":
     "Έως 500 ψηφιακοί υπάλληλοι που δουλεύουν ταυτόχρονα.",

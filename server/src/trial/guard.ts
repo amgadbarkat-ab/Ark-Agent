@@ -18,6 +18,7 @@
 import type { AccountStore } from "../accounts/store";
 import type { AgentProfileStore } from "../agents/profile-store";
 import type { AgentProfile, CreateAgentInput } from "../agents/profile-types";
+import type { AgentLimit } from "./agent-limit";
 import {
   TrialCreateBlockedError,
   TrialInstructionsLockedError,
@@ -42,7 +43,22 @@ export function guardProfiles(
     TrialService,
     "refuseCreate" | "createBlocked" | "onRoster" | "instructionsLocked"
   >,
+  /**
+   * Ark Team's agent limit (v0.1.49, agent-limit.ts). Absent: no limit, as before. Bringing back a
+   * hidden employee is not checked against it: a hidden one is still counted.
+   */
+  limit?: Pick<AgentLimit, "refuseAdd">,
 ): AgentProfileStore {
+  /*
+   * One add at a time on this server, so two made at the same moment cannot both pass a count of
+   * one less than the limit. A desktop install is one server process.
+   */
+  let adding: Promise<unknown> = Promise.resolve();
+  function oneAtATime<T>(work: () => Promise<T>): Promise<T> {
+    const next = adding.then(work, work);
+    adding = next.catch(() => undefined);
+    return next;
+  }
   return {
     ...store,
     async update(actor, id, input) {
@@ -56,11 +72,17 @@ export function guardProfiles(
     },
     async create(actor, input) {
       await trial.refuseCreate();
-      return store.create(actor, input);
+      return oneAtATime(async () => {
+        await limit?.refuseAdd(actor, "create");
+        return store.create(actor, input);
+      });
     },
     async duplicate(actor, id) {
       await trial.refuseCreate();
-      return store.duplicate(actor, id);
+      return oneAtATime(async () => {
+        await limit?.refuseAdd(actor, "duplicate");
+        return store.duplicate(actor, id);
+      });
     },
     async setHidden(actor, id, hidden) {
       if (

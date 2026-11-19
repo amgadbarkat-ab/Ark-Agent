@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { MiddlewareHandler } from "hono";
 import { Hono } from "hono";
+import { agentLimitNotice } from "../../shared/plans";
 import {
   AgentNotFoundError,
   AgentNotManageableError,
@@ -15,7 +16,40 @@ import { createAgentRoutes, parseAgentInput } from "../src/agents/routes";
 import { createApp } from "../src/app";
 import type { AppVariables, AuthenticatedActor } from "../src/auth/guards";
 import { loadConfig } from "../src/config";
+import { AgentLimitReachedError } from "../src/trial/agent-limit";
 import { testEnvironment } from "./support/environment";
+
+describe("Ark Team's agent limit on the routes (v0.1.49)", () => {
+  const notice = agentLimitNotice({
+    limit: 5,
+    inUse: 5,
+    agentsPerSeat: 5,
+    trial: false,
+  });
+  test.each(["create", "duplicate"] as const)(
+    "a %s past the limit answers 403 with the sentence in English and Greek",
+    async (method) => {
+      const refuse = async () => {
+        throw new AgentLimitReachedError(notice);
+      };
+      const app = appFor(fakeStore({ [method]: refuse }));
+      const response =
+        method === "create"
+          ? await app.request("/", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(validInput),
+            })
+          : await app.request("/agent-1/duplicate", { method: "POST" });
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({
+        error: notice.en,
+        errorEl: notice.el,
+        code: "agent_limit_reached",
+      });
+    },
+  );
+});
 
 const actor = {
   id: "user-1",

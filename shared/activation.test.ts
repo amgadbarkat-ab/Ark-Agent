@@ -43,6 +43,38 @@ describe("trial activation codes and licence keys (#109, v0.1.42)", () => {
     });
   });
 
+  test("a licence key may carry its tier, 5, 10 or 20 agents per seat (v0.1.49)", () => {
+    for (const maxAgents of [5, 10, 20]) {
+      const { code } = readActivationCode(
+        make({
+          ...base,
+          action: "license",
+          seats: 3,
+          validUntil: "2026-12-24",
+          maxAgents,
+        }),
+      );
+      expect(code).toMatchObject({ action: "license", seats: 3, maxAgents });
+    }
+    const { code: old } = readActivationCode(
+      make({ ...base, action: "license", seats: 1, validUntil: "2026-12-24" }),
+    );
+    expect(old).not.toHaveProperty("maxAgents");
+    for (const maxAgents of [0, 7, 15, 25, "10", null]) {
+      expect(() =>
+        readActivationCode(
+          make({
+            ...base,
+            action: "license",
+            seats: 1,
+            validUntil: "2026-12-24",
+            maxAgents,
+          }),
+        ),
+      ).toThrow(TrialFormatError);
+    }
+  });
+
   test("anything else is refused", () => {
     for (const bad of [
       make({ ...base, action: "trial" }),

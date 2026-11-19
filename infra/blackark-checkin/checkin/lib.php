@@ -26,6 +26,9 @@ if (!is_file($configFile)) {
 }
 $CONFIG = require $configFile;
 
+/** Ark Team's tiers (v0.1.49): digital employees per seat, as shared/plans.ts has them. */
+const ARK_AGENT_TIERS = [5, 10, 20];
+
 function ark_config(string $key, $default = null)
 {
     global $CONFIG;
@@ -98,6 +101,14 @@ function ark_db(): PDO
         BEGIN INSERT OR IGNORE INTO licenses_issued (license_key, customer_id) VALUES (NEW.license_key, NEW.customer_id); END");
     $pdo->exec('INSERT OR IGNORE INTO licenses_issued (license_key, customer_id)
         SELECT license_key, customer_id FROM licenses WHERE license_key IS NOT NULL AND customer_id IS NOT NULL');
+    // Ark Team's tier (v0.1.49), and the buyer's Stripe customer (cus_…) for the usage meters:
+    // added to an existing file once, empty for older rows.
+    $licenceColumns = array_column($pdo->query('PRAGMA table_info(licenses)')->fetchAll(), 'name');
+    foreach (['max_agents' => 'INTEGER', 'stripe_customer' => 'TEXT'] as $column => $type) {
+        if (!in_array($column, $licenceColumns, true)) {
+            $pdo->exec("ALTER TABLE licenses ADD COLUMN $column $type");
+        }
+    }
     $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)');
     // Prepaid phone balance (v0.1.47): one account per customer, in mils (1/1000 euro, excl. VAT),
     // and every credit and charge, each under a reference that can be taken only once.
@@ -123,6 +134,18 @@ function ark_db(): PDO
         at TEXT NOT NULL
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS phone_ledger_customer ON phone_ledger (customer_id, id)');
+    // Phone usage for Stripe's meters (v0.1.49): one row per part of a call, sent once, kept to retry.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS meter_events (
+        identifier TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        minutes INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        sent_at TEXT
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS meter_events_waiting ON meter_events (sent_at, at)');
     return $pdo;
 }
 
@@ -266,8 +289,11 @@ function ark_base64url(string $bytes): string
  * base64url JSON, a dot, and the Ed25519 signature over exactly that base64url text, made with the
  * licence secret key in config.php. Null when this server has no licence key or no sodium.
  */
-function ark_sign_license(string $customerId, string $plan, int $seats, array $addons, int $periodEnd): ?array
+function ark_sign_license(string $customerId, string $plan, int $seats, array $addons, int $periodEnd, ?int $maxAgents = null): ?array
 {
+    // Ark Team's tier (v0.1.49): 5, 10 or 20 digital employees per seat, signed with the rest. Any
+    // other number is left out, and the app then counts the key as 5.
+    $maxAgents = in_array($maxAgents, ARK_AGENT_TIERS, true) ? $maxAgents : null;
     $secret = base64_decode((string) ark_config('license_secret_key', ''), true);
     if ($secret === false || strlen($secret) !== 64 || !function_exists('sodium_crypto_sign_detached')) {
         return null;
@@ -283,6 +309,9 @@ function ark_sign_license(string $customerId, string $plan, int $seats, array $a
         'seats' => $seats,
         'validUntil' => $validUntil,
     ];
+    if ($maxAgents !== null) {
+        $payload['maxAgents'] = $maxAgents;
+    }
     if ($addons) {
         $payload['addons'] = array_values($addons);
     }
@@ -495,6 +524,104 @@ function ark_stripe_api(string $path, array $form): ?array
     return is_array($decoded) ? $decoded : null;
 }
 
+
+// ---- Phone usage to Stripe's meters (v0.1.49; COO's setup of 19 Nov) -------------------------------
+//
+// ONLY SO CUSTOMERS SEE THEIR USAGE. Billing stays the prepaid 5-hour blocks above; the per-minute
+// prices on the phone add-on are not charged. Each part of a call booked by ark_phone_post is queued
+// here with its whole minutes, then sent as one meter event, with an identifier made of the call id
+// and the part so Stripe counts a retry once. Never fatal: without the key (`stripe_meter_key`, a
+// restricted key with "Billing meter events: write" only), without the buyer's Stripe customer, or
+// with Stripe down, the event waits and is tried again with the next call; the call and the balance
+// are not affected. The board shows how many wait.
+
+const ARK_METER_EVENTS = [
+    'incoming' => 'arkagent_phone_minutes_incoming',
+    'landline' => 'arkagent_phone_minutes_landline',
+    'mobile' => 'arkagent_phone_minutes_mobile',
+];
+
+/** Queues one part of a call for its meter, once per call and part. */
+function ark_meter_queue(PDO $db, string $customerId, string $callId, string $kind, int $minutes): void
+{
+    if ($minutes < 1 || !isset(ARK_METER_EVENTS[$kind])) {
+        return;
+    }
+    $db->prepare('INSERT OR IGNORE INTO meter_events (identifier, customer_id, kind, minutes, at) VALUES (?, ?, ?, ?, ?)')
+        ->execute(['call_' . $callId . '_' . $kind, $customerId, $kind, $minutes, time()]);
+}
+
+/** The buyer's Stripe customer (cus_…), from the paid checkout, or the automatic top-up's. */
+function ark_meter_customer(PDO $db, string $customerId): ?string
+{
+    $find = $db->prepare("SELECT stripe_customer FROM licenses WHERE customer_id = ? AND stripe_customer IS NOT NULL ORDER BY updated_at DESC LIMIT 1");
+    $find->execute([$customerId]);
+    $found = (string) ($find->fetchColumn() ?: '');
+    if ($found === '') {
+        $find = $db->prepare('SELECT stripe_customer FROM phone_accounts WHERE customer_id = ? AND stripe_customer IS NOT NULL');
+        $find->execute([$customerId]);
+        $found = (string) ($find->fetchColumn() ?: '');
+    }
+    return preg_match('/^cus_[A-Za-z0-9]+$/', $found) === 1 ? $found : null;
+}
+
+/** Sends what waits, oldest first, at most `$limit`. Returns how many went. Never throws. */
+function ark_meter_flush(PDO $db, int $limit = 20): int
+{
+    $key = (string) ark_config('stripe_meter_key', '');
+    if ($key === '') {
+        return 0;
+    }
+    $sent = 0;
+    try {
+        $waiting = $db->query('SELECT identifier, customer_id, kind, minutes, at FROM meter_events WHERE sent_at IS NULL ORDER BY at, identifier LIMIT ' . max(1, $limit))->fetchAll();
+        $base = rtrim((string) ark_config('stripe_api_base', 'https://api.stripe.com'), '/');
+        foreach ($waiting as $row) {
+            $customer = ark_meter_customer($db, (string) $row['customer_id']);
+            if ($customer === null) {
+                $db->prepare("UPDATE meter_events SET last_error = 'no Stripe customer yet' WHERE identifier = ?")->execute([$row['identifier']]);
+                continue;
+            }
+            $form = [
+                'event_name' => ARK_METER_EVENTS[$row['kind']] ?? '',
+                'payload' => ['stripe_customer_id' => $customer, 'value' => (string) $row['minutes']],
+                'identifier' => (string) $row['identifier'],
+                'timestamp' => (string) $row['at'],
+            ];
+            $context = stream_context_create(['http' => [
+                'method' => 'POST',
+                'header' => "Authorization: Bearer $key\r\nContent-Type: application/x-www-form-urlencoded\r\n",
+                'content' => http_build_query($form, '', '&'),
+                'timeout' => 5,
+                'ignore_errors' => true,
+            ]]);
+            $raw = @file_get_contents($base . '/v1/billing/meter_events', false, $context);
+            $status = 0;
+            foreach ((array) ($http_response_header ?? []) as $line) {
+                if (preg_match('#^HTTP/\S+\s+(\d{3})#', (string) $line, $match) === 1) {
+                    $status = (int) $match[1];
+                }
+            }
+            $answer = is_string($raw) ? json_decode($raw, true) : null;
+            $duplicate = $status === 400 && stripos((string) ($answer['error']['message'] ?? ''), 'identifier') !== false;
+            if (($status >= 200 && $status < 300) || $duplicate) {
+                // A duplicate identifier means Stripe already counted it: done, not again.
+                $db->prepare('UPDATE meter_events SET sent_at = ?, attempts = attempts + 1, last_error = NULL WHERE identifier = ?')
+                    ->execute([ark_now(), $row['identifier']]);
+                $sent += 1;
+                continue;
+            }
+            $db->prepare('UPDATE meter_events SET attempts = attempts + 1, last_error = ? WHERE identifier = ?')
+                ->execute([$status === 0 ? 'Stripe not reached' : "Stripe answered $status", $row['identifier']]);
+            if ($status === 0 || $status >= 500) {
+                break; // Stripe is down: the rest wait for the next call.
+            }
+        }
+    } catch (Throwable $error) {
+        error_log('ark-meter: ' . $error->getMessage());
+    }
+    return $sent;
+}
 
 /** Which approved text a customer's country gets (phone-emails.php), and whether it has its own. */
 function ark_phone_email_text(?string $country): array

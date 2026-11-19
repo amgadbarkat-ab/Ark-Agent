@@ -7,6 +7,14 @@ export const EL_TRIAL: Record<string, string> = {
   "During the trial you cannot create extra digital employees. The trial employees are already set up.":
     "Κατά τη δοκιμή δεν μπορείτε να δημιουργήσετε επιπλέον ψηφιακούς υπαλλήλους. Οι υπάλληλοι της δοκιμής έχουν ήδη οριστεί.",
 
+  // The agent limit of Ark Team's tiers (v0.1.49), on every create path and beside every add button.
+  "Your Ark Team plan allows {limit} digital employees on this computer, and {inUse} are set up. To add more, move up to {next} digital employees per person ({price} per person a month) in the billing portal, or add a person to your subscription.":
+    "Το πρόγραμμα Ark Team επιτρέπει {limit} ψηφιακούς υπαλλήλους σε αυτόν τον υπολογιστή και υπάρχουν ήδη {inUse}. Για περισσότερους, περάστε στους {next} ψηφιακούς υπαλλήλους ανά άτομο ({price} ανά άτομο τον μήνα) από την πύλη χρεώσεων ή προσθέστε ένα άτομο στη συνδρομή σας.",
+  "Your Ark Team plan allows {limit} digital employees on this computer, and {inUse} are set up. To add more, add a person to your subscription in the billing portal: each person adds {perSeat}.":
+    "Το πρόγραμμα Ark Team επιτρέπει {limit} ψηφιακούς υπαλλήλους σε αυτόν τον υπολογιστή και υπάρχουν ήδη {inUse}. Για περισσότερους, προσθέστε ένα άτομο στη συνδρομή σας από την πύλη χρεώσεων: κάθε άτομο προσθέτει {perSeat}.",
+  "Your trial allows {limit} digital employees on this computer, and {inUse} are set up. To have more, choose Ark Team with 10 or 20 digital employees per person when you buy.":
+    "Η δοκιμή σας επιτρέπει {limit} ψηφιακούς υπαλλήλους σε αυτόν τον υπολογιστή και υπάρχουν ήδη {inUse}. Για περισσότερους, επιλέξτε Ark Team με 10 ή 20 ψηφιακούς υπαλλήλους ανά άτομο όταν αγοράσετε.",
+
   // Day 31: the end of the trial.
   "Your {days}-day trial ended on {date}. Your conversations and settings are kept. Enter an unlock code in Settings, then Plan, to continue.":
     "Η δοκιμή {days} ημερών έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται. Για να συνεχίσετε, εισαγάγετε κωδικό ξεκλειδώματος στις Ρυθμίσεις, στο Πρόγραμμα.",
