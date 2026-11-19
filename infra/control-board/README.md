@@ -87,11 +87,19 @@ It holds **no signing key**. Licences are signed only on Amgad's PC.
 
 **Pages:** every page is sent with:
 - a strict Content-Security-Policy: scripts and styles only from the board (one script,
-  `/webauthn.js`, which asks the browser for the passkey), connections only to the board;
+  `/webauthn.js`, which asks the browser for the passkey), fonts and images only from the board,
+  connections only to the board;
 - `X-Frame-Options: DENY` and `Cache-Control: no-store`;
 - `noindex`.
 
 Every value on a page is escaped.
+
+**Look:** blackark.uk's (BlackArk Visual Identity v3, Ember): one dark theme, the ember accent, Geist and
+Geist Mono, the site's tile as the header logo. The board serves its own copies of the company's files from
+`brand/`: the favicons at the site's own paths (`/favicon.ico`, `/favicon-32.png`, `/favicon-192.png`,
+`/apple-touch-icon.png`) and the fonts at `/fonts/` (SIL Open Font License, `brand/fonts/LICENSE.txt`).
+They are embedded in `brand-assets.ts` by `bun infra/control-board/brand-assets.gen.ts`; run it again after
+`brand/` changes (`brand.test.ts` fails until you do). Geist has no Greek, so Greek is set in the system font.
 
 ### Roles
 
