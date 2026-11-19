@@ -85,6 +85,19 @@ function ark_db(): PDO
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_session ON licenses (session_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_customer ON licenses (customer_id)');
+    // Every key ever issued, by customer (v0.1.49), so an older install's key number still proves it
+    // after a newer key replaced its own in `licenses`. Filled by the database itself, whatever
+    // writes the key, and once from the keys already on file.
+    $pdo->exec('CREATE TABLE IF NOT EXISTS licenses_issued (
+        license_key TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL
+    )');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_issued_customer ON licenses_issued (customer_id)');
+    $pdo->exec("CREATE TRIGGER IF NOT EXISTS licenses_issued_keep AFTER UPDATE OF license_key ON licenses
+        WHEN NEW.license_key IS NOT NULL AND NEW.customer_id IS NOT NULL
+        BEGIN INSERT OR IGNORE INTO licenses_issued (license_key, customer_id) VALUES (NEW.license_key, NEW.customer_id); END");
+    $pdo->exec('INSERT OR IGNORE INTO licenses_issued (license_key, customer_id)
+        SELECT license_key, customer_id FROM licenses WHERE license_key IS NOT NULL AND customer_id IS NOT NULL');
     $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)');
     // Prepaid phone balance (v0.1.47): one account per customer, in mils (1/1000 euro, excl. VAT),
     // and every credit and charge, each under a reference that can be taken only once.
@@ -161,6 +174,78 @@ function ark_proof_ok($proof, string $customerId): ?bool
     $json = ark_base64url_decode($proof['profile']);
     $profile = $json === false ? null : json_decode($json, true);
     return is_array($profile) && (($profile['customer']['id'] ?? null) === $customerId);
+}
+
+/**
+ * Whether `proof` is an `ARK1-` code (its base64url payload and signature) made for this customer: a
+ * licence key checked against the licence public key, a trial activation code against the trial keys.
+ * True, false, or null when this server cannot check signatures.
+ */
+function ark_code_ok($proof, string $customerId): ?bool
+{
+    if (!is_array($proof) || !is_string($proof['payload'] ?? null) || !is_string($proof['signature'] ?? null)) {
+        return false;
+    }
+    if (!function_exists('sodium_crypto_sign_verify_detached')) {
+        return null;
+    }
+    $json = ark_base64url_decode($proof['payload']);
+    $code = $json === false ? null : json_decode($json, true);
+    if (!is_array($code) || ($code['customer'] ?? null) !== $customerId) {
+        return false;
+    }
+    $signature = ark_base64url_decode($proof['signature']);
+    if ($signature === false || strlen($signature) !== 64) {
+        return false;
+    }
+    $keys = ($code['action'] ?? '') === 'license'
+        ? [(string) ark_config('license_public_key', '')]
+        : (array) ark_config('trial_public_keys', []);
+    foreach ($keys as $encoded) {
+        $key = base64_decode((string) $encoded, true);
+        if ($key !== false && strlen($key) === 32 && sodium_crypto_sign_verify_detached($signature, $proof['payload'], $key)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * An install's proof that it is a real install of this customer (#149 Help & support, v0.1.49
+ * renewal): `{"kind":"profile", profile, signature}`, its BlackArk-signed trial profile, or
+ * `{"kind":"code", payload, signature}`, its signed activation code or licence key. True, false, or
+ * null when this server cannot check signatures.
+ */
+function ark_install_proof_ok($proof, string $customerId): ?bool
+{
+    $kind = is_array($proof) ? ($proof['kind'] ?? '') : '';
+    if ($kind === 'profile') {
+        return ark_proof_ok($proof, $customerId);
+    }
+    return $kind === 'code' ? ark_code_ok($proof, $customerId) : false;
+}
+
+/**
+ * Whether `nonce` is the number of a licence key this server issued to this customer (v0.1.49). An
+ * install from v0.1.44 to v0.1.48 sends its key's number, not the key, when it asks for a renewal;
+ * only the key's holder knows it, so it is that install's proof.
+ */
+function ark_issued_nonce_ok(PDO $db, string $customerId, string $nonce): bool
+{
+    if (preg_match('/^[A-Za-z0-9_-]{8,64}$/', $nonce) !== 1) {
+        return false;
+    }
+    $find = $db->prepare('SELECT license_key FROM licenses_issued WHERE customer_id = ?');
+    $find->execute([$customerId]);
+    foreach ($find->fetchAll(PDO::FETCH_COLUMN) as $key) {
+        $payload = explode('.', substr((string) $key, 5))[0];
+        $json = ark_base64url_decode($payload);
+        $code = $json === false ? null : json_decode($json, true);
+        if (is_array($code) && is_string($code['nonce'] ?? null) && hash_equals($code['nonce'], $nonce)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function ark_send_security_headers(): void

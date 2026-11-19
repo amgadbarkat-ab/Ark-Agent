@@ -48,6 +48,7 @@ return [
   'license_public_key' => '$license_public',
   'license_grace_days' => 7,
   'license_renew_url' => 'https://blackark.example/checkin/renew/',
+  'renew_per_install_per_hour' => 30,
   'stripe_webhook_secret' => 'whsec_test',
   'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1], 'price_phone' => ['addon' => 'phone']],
   'public_base_url' => 'https://blackark.example/checkin',
@@ -183,14 +184,41 @@ verdict="$(cd "$repo" && bun .checkin-verify.ts "$key" "$license_public" "$end")
 t="$(date +%s)"; sig="$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "whsec_test");' "$t" "$invoice")"
 again="$(curl -s -X POST -H "stripe-signature: t=$t,v1=$sig" --data "$invoice" "$stripe")"
 grep -q 'Already taken' <<<"$again" && { pass=$((pass+1)); echo "ok   the same event twice is taken once"; } || { fail=$((fail+1)); echo "FAIL replay: $again"; }
+# Renewal and activation after payment (v0.1.49): a key only to an install that proves who it is.
 renew="http://127.0.0.1:$port/checkin/renew/"
-got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2026-01-01T00:00:00Z"}' "$renew")"
-grep -q '"key":"ARK1-' <<<"$got" && { pass=$((pass+1)); echo "ok   renewal hands an older install the newer key"; } || { fail=$((fail+1)); echo "FAIL renew: $got"; }
-got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2099-01-01T00:00:00Z"}' "$renew")"
-[[ "$got" == '{}' ]] && { pass=$((pass+1)); echo "ok   and nothing to an install that is up to date"; } || { fail=$((fail+1)); echo "FAIL renew up to date: $got"; }
+ask_renew() { curl -s -o "$work/renew.out" -w '%{http_code}' -X POST -H 'content-type: application/json' --data "$1" "$renew"; }
+renew_body() { # customer install validUntil-json proof-json
+  echo "{\"customerId\":\"$1\",\"installId\":\"$2\",\"version\":\"0.1.49\",\"validUntil\":$3,\"proof\":$4}"
+}
+profile_proof() { php -r '$d = json_decode($argv[1], true); $d["kind"] = "profile"; echo json_encode($d);' "$1"; }
+key_proof() { php -r '[$p, $s] = explode(".", substr($argv[1], 5)); echo json_encode(["kind" => "code", "payload" => $p, "signature" => $s]);' "$1"; }
+key_nonce() { php -r '$p = explode(".", substr($argv[1], 5))[0]; echo json_decode(base64_decode(strtr($p, "-_", "+/")), true)["nonce"];' "$1"; }
+r1=3c4d5e6f-0000-4000-8000-0000000000
+expect "renewal without any proof is refused (a customer id is not enough)" 403 -X POST --data '{"customerId":"demo-shop","installId":"'"${r1}"'b1","validUntil":"2026-01-01T00:00:00Z"}' "$renew"
+expect "renewal with a made-up key number is refused" 403 -X POST --data '{"customerId":"demo-shop","installId":"'"${r1}"'b1","validUntil":"2026-01-01T00:00:00Z","nonce":"not-a-real-nonce"}' "$renew"
+got="$(ask_renew "$(renew_body demo-shop "${r1}b2" '"2026-01-01T00:00:00Z"' "$(key_proof "$key")")")"
+[[ "$got" == 200 ]] && grep -q '"key":"ARK1-' "$work/renew.out" && { pass=$((pass+1)); echo "ok   renewal with the install's own licence key hands the newer key"; } || { fail=$((fail+1)); echo "FAIL renew with key: $got $(cat "$work/renew.out")"; }
+got="$(ask_renew "$(renew_body demo-shop "${r1}b3" null "$(profile_proof "$good")")")"
+[[ "$got" == 200 && "$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["key"] ?? "";' "$work/renew.out")" == "$key" ]] \
+  && { pass=$((pass+1)); echo "ok   a trial install (signed profile, no key yet) gets the key its customer paid for, unchanged"; } || { fail=$((fail+1)); echo "FAIL renew for trial: $got $(cat "$work/renew.out")"; }
+trial_code="$(php -r 'echo rtrim(strtr(base64_encode(json_encode(["v" => 1, "action" => "trial", "customer" => "demo-shop", "nonce" => "t1", "issuedAt" => "2026-11-18T00:00:00Z", "plan" => "team", "until" => "2026-12-18T00:00:00Z"])), "+/", "-_"), "=");')"
+forged_sig="$(php -r 'echo rtrim(strtr(base64_encode(random_bytes(64)), "+/", "-_"), "=");')"
+expect "a trial code with a forged signature is refused" 403 -X POST --data "$(renew_body demo-shop "${r1}b4" null '{"kind":"code","payload":"'"$trial_code"'","signature":"'"$forged_sig"'"}')" "$renew"
+expect "a profile signed for another customer is refused" 403 -X POST --data "$(renew_body demo-shop "${r1}b5" null "$(profile_proof "$other")")" "$renew"
+expect "a profile signed with another key is refused" 403 -X POST --data "$(renew_body demo-shop "${r1}b5" null "$(profile_proof "$wrong")")" "$renew"
+expect "proof for one customer does not fetch another customer's key" 403 -X POST --data "$(renew_body demo-clinic "${r1}b6" null "$(profile_proof "$good")")" "$renew"
+got="$(ask_renew "$(renew_body demo-clinic "${r1}b7" null "$(profile_proof "$other")")")"
+[[ "$got" == 200 && "$(cat "$work/renew.out")" == '{}' ]] && { pass=$((pass+1)); echo "ok   a customer who has not paid gets nothing"; } || { fail=$((fail+1)); echo "FAIL renew unpaid: $got $(cat "$work/renew.out")"; }
+got="$(curl -s -X POST --data '{"customerId":"demo-shop","installId":"'"${r1}"'b8","version":"0.1.48","nonce":"'"$(key_nonce "$key")"'","validUntil":"2026-01-01T00:00:00Z"}' "$renew")"
+grep -q '"key":"ARK1-' <<<"$got" && { pass=$((pass+1)); echo "ok   an install from v0.1.44 to v0.1.48 still renews: the number of a key issued to its customer is its proof"; } || { fail=$((fail+1)); echo "FAIL legacy renew: $got"; }
+got="$(ask_renew "$(renew_body demo-shop "${r1}b9" '"2099-01-01T00:00:00Z"' "$(key_proof "$key")")")"
+[[ "$(cat "$work/renew.out")" == '{}' ]] && { pass=$((pass+1)); echo "ok   and nothing to an install that is up to date"; } || { fail=$((fail+1)); echo "FAIL renew up to date: $got"; }
+for _ in $(seq 1 30); do ask_renew "$(renew_body demo-shop "${r1}c1" null "$(profile_proof "$good")")" >/dev/null; done
+expect "the 31st request from one install in an hour is refused" 429 -X POST --data "$(renew_body demo-shop "${r1}c1" null "$(profile_proof "$good")")" "$renew"
+expect "and a request without proof from that install is refused the same way" 429 -X POST --data '{"customerId":"demo-shop","installId":"'"${r1}"'c1","validUntil":null}' "$renew"
 send_event '{"id":"evt_3","type":"customer.subscription.deleted","data":{"object":{"id":"sub_1"}}}' >/dev/null
-got="$(curl -s -X POST --data '{"customerId":"demo-shop","validUntil":"2026-01-01T00:00:00Z"}' "$renew")"
-[[ "$got" == '{}' ]] && { pass=$((pass+1)); echo "ok   a cancelled subscription gets no more keys"; } || { fail=$((fail+1)); echo "FAIL after cancel: $got"; }
+got="$(ask_renew "$(renew_body demo-shop "${r1}c2" '"2026-01-01T00:00:00Z"' "$(key_proof "$key")")")"
+[[ "$(cat "$work/renew.out")" == '{}' ]] && { pass=$((pass+1)); echo "ok   a cancelled subscription gets no more keys"; } || { fail=$((fail+1)); echo "FAIL after cancel: $got"; }
 page="$(curl -s "http://127.0.0.1:$port/checkin/key/?session_id=cs_unknownsession1")"
 grep -q 'ετοιμάζεται' <<<"$page" && { pass=$((pass+1)); echo "ok   an unknown session sees 'being prepared', no key"; } || { fail=$((fail+1)); echo "FAIL unknown session"; }
 
