@@ -263,6 +263,18 @@ async function deskWithBalance(t: ReturnType<typeof setup>) {
 }
 
 describe("the prepaid balance on the Workers relay", () => {
+  test("with Twilio not set yet, a billed install still gets its balance and top-up link", async () => {
+    const t = await billed({ balance: 23_400, twilio: false });
+    const desk = await deskWithBalance(t);
+    expect(desk.messages().at(-1)).toMatchObject({
+      type: "phone.balance",
+      balanceMils: 23_400,
+      state: "ok",
+      topUpUrl:
+        "https://blackark.example/checkin/buy/?topup=1&customer=demo-phone",
+    });
+  });
+
   test("a balance that cannot pay a first minute: busy (not answered, so Twilio does not bill it)", async () => {
     const t = await billed({ balance: 77 });
     await deskWithBalance(t);
