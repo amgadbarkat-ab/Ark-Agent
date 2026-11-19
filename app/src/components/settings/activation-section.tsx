@@ -43,7 +43,7 @@ export function ActivationSection({ admin }: { admin: boolean }) {
   return (
     <PageSection
       description={t(
-        "ArkAgent works on this computer with a trial activation code, a paid licence key or the trial setup file.",
+        "ArkAgent works on this computer with a trial activation code or a paid licence key.",
       )}
       title={t("Activation")}
     >
@@ -98,7 +98,7 @@ export function ActivationSection({ admin }: { admin: boolean }) {
             <Separator />
             <Item size="sm">
               <ItemContent>
-                <ActivationForm showFileImport={false} />
+                <ActivationForm />
               </ItemContent>
             </Item>
           </>

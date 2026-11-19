@@ -77,7 +77,6 @@ test("an accepted licence key says so and moves on", async () => {
         onActivated={() => {
           activated = true;
         }}
-        showFileImport={false}
       />,
     ),
   );

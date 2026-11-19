@@ -1,19 +1,17 @@
 /**
  * The one box that activates ArkAgent on this computer (#109, v0.1.42), on the Activate screen and
- * on Settings, then Plan: a trial activation code, a paid licence key, or an unlock code, and the
- * trial setup file that DT Lab imports in the setup session.
+ * on Settings, then Plan: a trial activation code, a paid licence key, or an unlock code. The same
+ * for every customer (v0.1.50): a trial profile is loaded by BlackArk staff in the setup session,
+ * from the import folder (docs/trials/README.md), never from a screen.
  */
-import { IconFileImport, IconKey } from "@tabler/icons-react";
+import { IconKey } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { dateLocale, useT } from "@/lib/i18n";
-import {
-  applyActivationCodeMutationOptions,
-  importTrialProfileMutationOptions,
-} from "@/lib/trial/mutations";
-import { type Activation, activationQueryOptions } from "@/lib/trial/queries";
+import { applyActivationCodeMutationOptions } from "@/lib/trial/mutations";
+import type { Activation } from "@/lib/trial/queries";
 import { queryClient } from "@/query-client";
 
 export function activationDay(iso: string): string {
@@ -59,18 +57,12 @@ export function useActivationLine() {
 
 export function ActivationForm({
   onActivated,
-  showFileImport = true,
 }: {
   onActivated?: (activation: Activation) => void;
-  showFileImport?: boolean;
 }) {
   const t = useT();
   const apply = useMutation(applyActivationCodeMutationOptions(queryClient));
-  const importProfile = useMutation(
-    importTrialProfileMutationOptions(queryClient),
-  );
   const [code, setCode] = useState("");
-  const fileInput = useRef<HTMLInputElement>(null);
   const codeId = useId();
 
   const done = apply.data
@@ -143,53 +135,6 @@ export function ActivationForm({
           </p>
         ) : null}
       </form>
-      {showFileImport ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2 text-sm">
-              <IconFileImport className="size-4" />
-              {t("Trial setup file (.arktrial)")}
-            </span>
-            <input
-              accept=".arktrial,application/json"
-              className="hidden"
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (!file) return;
-                importProfile.mutate(await file.text(), {
-                  onSuccess: async () => {
-                    const activation = await queryClient.fetchQuery(
-                      activationQueryOptions(),
-                    );
-                    if (activation?.allowed) onActivated?.(activation);
-                  },
-                });
-              }}
-              ref={fileInput}
-              type="file"
-            />
-            <Button
-              disabled={importProfile.isPending}
-              onClick={() => fileInput.current?.click()}
-              size="sm"
-              variant="outline"
-            >
-              {importProfile.isPending ? t("Importing…") : t("Choose file")}
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            {t(
-              "Used in the trial setup session: it sets up the trial and the trial employees.",
-            )}
-          </p>
-          {importProfile.error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {importProfile.error.message}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

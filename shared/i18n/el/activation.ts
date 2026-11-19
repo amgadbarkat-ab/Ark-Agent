@@ -13,9 +13,6 @@ export const EL_ACTIVATION: Record<string, string> = {
     "Κωδικός ενεργοποίησης δοκιμής ή κλειδί άδειας",
   "BlackArk gives you a trial activation code for a trial. After you pay, your licence key arrives by email; renewals come in by themselves.":
     "Για τη δοκιμή, η BlackArk σάς δίνει κωδικό ενεργοποίησης δοκιμής. Μετά την πληρωμή, το κλειδί άδειας έρχεται με email· οι ανανεώσεις έρχονται αυτόματα.",
-  "Trial setup file (.arktrial)": "Αρχείο ρύθμισης δοκιμής (.arktrial)",
-  "Used in the trial setup session: it sets up the trial and the trial employees.":
-    "Χρησιμοποιείται στη συνεδρία ρύθμισης της δοκιμής: ορίζει τη δοκιμή και τους υπαλλήλους της.",
   "Done. Your paid licence is active.":
     "Έγινε. Η άδεια επί πληρωμή είναι ενεργή.",
   "Done. Your trial is active.": "Έγινε. Η δοκιμή σας είναι ενεργή.",
@@ -36,8 +33,8 @@ export const EL_ACTIVATION: Record<string, string> = {
     "Η δοκιμή έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται.",
   "The licence ended on {date}. Your conversations and settings are kept.":
     "Η άδεια έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται.",
-  "ArkAgent works on this computer with a trial activation code, a paid licence key or the trial setup file.":
-    "Το ArkAgent λειτουργεί σε αυτόν τον υπολογιστή με κωδικό ενεργοποίησης δοκιμής, κλειδί άδειας επί πληρωμή ή το αρχείο ρύθμισης δοκιμής.",
+  "ArkAgent works on this computer with a trial activation code or a paid licence key.":
+    "Το ArkAgent λειτουργεί σε αυτόν τον υπολογιστή με κωδικό ενεργοποίησης δοκιμής ή κλειδί άδειας επί πληρωμή.",
   "Once a day this computer asks {host} for the renewed licence key. Only the customer id, this computer's random id, the version, the key's number and the key itself, as proof, are sent.":
     "Μία φορά την ημέρα αυτός ο υπολογιστής ζητά από το {host} το ανανεωμένο κλειδί άδειας. Στέλνονται μόνο το αναγνωριστικό πελάτη, ένα τυχαίο αναγνωριστικό του υπολογιστή, η έκδοση, ο αριθμός του κλειδιού και το ίδιο το κλειδί, ως απόδειξη.",
 

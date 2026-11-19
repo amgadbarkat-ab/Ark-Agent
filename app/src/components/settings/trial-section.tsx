@@ -1,20 +1,19 @@
 /**
- * The customer trial on this install (#109), on Settings, then Plan: whose it is, until when, how
- * many days are left, and the two things an administrator can do here, import the trial profile
- * BlackArk sent and enter an unlock code.
+ * The trial on this install (#109), on Settings, then Plan: until when, how many days are left, and
+ * an unlock code for an administrator. Shown only when there is a trial.
  *
- * Shown to everybody when there is a trial; the import row only to an administrator, so a deployment
- * with no trial does not offer anybody else something they cannot use.
+ * The same for every customer (v0.1.50): it never names the customer, and there is no profile import
+ * here. A trial profile is loaded by BlackArk staff in the setup session, from the import folder
+ * (docs/trials/README.md).
  */
-import { IconCalendarTime, IconFileImport, IconKey } from "@tabler/icons-react";
+import { IconCalendarTime, IconKey } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { PageRows, PageSection } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Item,
-  ItemActions,
   ItemContent,
   ItemDescription,
   ItemMedia,
@@ -22,10 +21,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { dateLocale, useT } from "@/lib/i18n";
-import {
-  applyUnlockCodeMutationOptions,
-  importTrialProfileMutationOptions,
-} from "@/lib/trial/mutations";
+import { applyUnlockCodeMutationOptions } from "@/lib/trial/mutations";
 import { type Trial, trialQueryOptions } from "@/lib/trial/queries";
 import { queryClient } from "@/query-client";
 
@@ -63,201 +59,117 @@ export function TrialSection({ admin }: { admin: boolean }) {
   const t = useT();
   const lines = useTrialLines();
   const overview = useQuery(trialQueryOptions());
-  const importProfile = useMutation(
-    importTrialProfileMutationOptions(queryClient),
-  );
   const unlock = useMutation(applyUnlockCodeMutationOptions(queryClient));
   const [code, setCode] = useState("");
-  const fileInput = useRef<HTMLInputElement>(null);
   const codeId = useId();
 
   const trial = overview.data?.trial ?? null;
-  if (overview.isPending || overview.error) return null;
-  if (!trial && !admin) return null;
+  if (overview.isPending || overview.error || !trial) return null;
 
-  const { period, state } = trial ? lines(trial) : { period: "", state: "" };
+  const { period, state } = lines(trial);
 
   return (
     <PageSection
-      description={
-        trial
-          ? t("Trial for {customer}, set by BlackArk.", {
-              customer: trial.customerName,
-            })
-          : t(
-              "If BlackArk sent you a trial profile (a file ending in .arktrial), import it here.",
-            )
-      }
+      description={t("Your trial, set by BlackArk.")}
       title={t("Trial")}
     >
       <PageRows>
-        {trial ? (
+        <Item size="sm">
+          <ItemMedia variant="icon">
+            <IconCalendarTime />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>{period}</ItemTitle>
+            <ItemDescription className="line-clamp-none">
+              {state}
+              {trial.createBlocked
+                ? ` ${t("{count} trial employees are set up; no others can be created.", { count: trial.rosterSize })}`
+                : ""}
+            </ItemDescription>
+          </ItemContent>
+        </Item>
+        {trial.checkInHost ? (
           <>
+            <Separator />
             <Item size="sm">
-              <ItemMedia variant="icon">
-                <IconCalendarTime />
-              </ItemMedia>
               <ItemContent>
-                <ItemTitle>{period}</ItemTitle>
+                <ItemTitle>{t("Daily check-in")}</ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  {state}
-                  {trial.createBlocked
-                    ? ` ${t("{count} trial employees are set up; no others can be created.", { count: trial.rosterSize })}`
-                    : ""}
+                  {t(
+                    "Once a day this computer tells {host} the trial status and the days left. Nothing about your conversations or files is sent.",
+                    { host: trial.checkInHost },
+                  )}{" "}
+                  {trial.lastCheckInError
+                    ? t("The last check-in did not go through.")
+                    : trial.lastCheckInAt
+                      ? t("Last check-in: {when}.", {
+                          when: new Date(trial.lastCheckInAt).toLocaleString(
+                            dateLocale(),
+                          ),
+                        })
+                      : ""}
                 </ItemDescription>
               </ItemContent>
             </Item>
-            {trial.checkInHost ? (
-              <>
-                <Separator />
-                <Item size="sm">
-                  <ItemContent>
-                    <ItemTitle>{t("Daily check-in")}</ItemTitle>
-                    <ItemDescription className="line-clamp-none">
-                      {t(
-                        "Once a day this computer tells {host} the trial status and the days left. Nothing about your conversations or files is sent.",
-                        { host: trial.checkInHost },
-                      )}{" "}
-                      {trial.lastCheckInError
-                        ? t("The last check-in did not go through.")
-                        : trial.lastCheckInAt
-                          ? t("Last check-in: {when}.", {
-                              when: new Date(
-                                trial.lastCheckInAt,
-                              ).toLocaleString(dateLocale()),
-                            })
-                          : ""}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-              </>
-            ) : null}
-            {admin && trial.status !== "paid" ? (
-              <>
-                <Separator />
-                <Item size="sm">
-                  <ItemMedia variant="icon">
-                    <IconKey />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>
-                      <label htmlFor={codeId}>{t("Unlock code")}</label>
-                    </ItemTitle>
-                    <ItemDescription className="line-clamp-none">
-                      {t(
-                        "From BlackArk, to extend the trial, end it, or turn it into a paid plan. Each code works once.",
-                      )}
-                    </ItemDescription>
-                    <form
-                      className="mt-2 flex gap-2"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        if (!code.trim()) return;
-                        unlock.mutate(code, { onSuccess: () => setCode("") });
-                      }}
-                    >
-                      <Input
-                        autoComplete="off"
-                        className="font-mono text-xs"
-                        id={codeId}
-                        onChange={(event) => setCode(event.target.value)}
-                        placeholder="ARK1-…"
-                        spellCheck={false}
-                        value={code}
-                      />
-                      <Button
-                        disabled={unlock.isPending || !code.trim()}
-                        size="sm"
-                        type="submit"
-                      >
-                        {unlock.isPending ? t("Checking…") : t("Use code")}
-                      </Button>
-                    </form>
-                    {unlock.error ? (
-                      <p className="mt-2 text-destructive text-sm" role="alert">
-                        {unlock.error.message}
-                      </p>
-                    ) : unlock.data ? (
-                      <p className="mt-2 text-sm" role="status">
-                        {unlock.data.action === "paid"
-                          ? t("Done. The trial is now a paid plan.")
-                          : unlock.data.action === "end"
-                            ? t("Done. The trial has ended.")
-                            : t("Done. The trial now ends on {end}.", {
-                                end: day(unlock.data.trial.endsAt),
-                              })}
-                      </p>
-                    ) : null}
-                  </ItemContent>
-                </Item>
-              </>
-            ) : null}
           </>
         ) : null}
-        {admin ? (
+        {admin && trial.status !== "paid" ? (
           <>
-            {trial ? <Separator /> : null}
+            <Separator />
             <Item size="sm">
               <ItemMedia variant="icon">
-                <IconFileImport />
+                <IconKey />
               </ItemMedia>
               <ItemContent>
-                <ItemTitle>{t("Import trial profile")}</ItemTitle>
+                <ItemTitle>
+                  <label htmlFor={codeId}>{t("Unlock code")}</label>
+                </ItemTitle>
                 <ItemDescription className="line-clamp-none">
-                  {overview.data?.keyConfigured === false
-                    ? t(
-                        "This version of ArkAgent has no BlackArk key yet, so it cannot check a trial profile or code. Ask BlackArk for the current version.",
-                      )
-                    : trial
-                      ? t(
-                          "Only a newer profile for {customer} can replace this one.",
-                          { customer: trial.customerName },
-                        )
-                      : t(
-                          "The trial employees are set up as soon as it is imported.",
-                        )}
+                  {t(
+                    "From BlackArk, to extend the trial, end it, or turn it into a paid plan. Each code works once.",
+                  )}
                 </ItemDescription>
-                {importProfile.error ? (
+                <form
+                  className="mt-2 flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!code.trim()) return;
+                    unlock.mutate(code, { onSuccess: () => setCode("") });
+                  }}
+                >
+                  <Input
+                    autoComplete="off"
+                    className="font-mono text-xs"
+                    id={codeId}
+                    onChange={(event) => setCode(event.target.value)}
+                    placeholder="ARK1-…"
+                    spellCheck={false}
+                    value={code}
+                  />
+                  <Button
+                    disabled={unlock.isPending || !code.trim()}
+                    size="sm"
+                    type="submit"
+                  >
+                    {unlock.isPending ? t("Checking…") : t("Use code")}
+                  </Button>
+                </form>
+                {unlock.error ? (
                   <p className="mt-2 text-destructive text-sm" role="alert">
-                    {importProfile.error.message}
+                    {unlock.error.message}
                   </p>
-                ) : importProfile.data ? (
+                ) : unlock.data ? (
                   <p className="mt-2 text-sm" role="status">
-                    {importProfile.data.changed
-                      ? t(
-                          "Imported. The trial employees are on your Digital Team.",
-                        )
-                      : t(
-                          "This profile was already imported. Nothing changed.",
-                        )}
+                    {unlock.data.action === "paid"
+                      ? t("Done. The trial is now a paid plan.")
+                      : unlock.data.action === "end"
+                        ? t("Done. The trial has ended.")
+                        : t("Done. The trial now ends on {end}.", {
+                            end: day(unlock.data.trial.endsAt),
+                          })}
                   </p>
                 ) : null}
               </ItemContent>
-              <ItemActions>
-                <input
-                  accept=".arktrial,application/json"
-                  className="hidden"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = "";
-                    if (!file) return;
-                    importProfile.mutate(await file.text());
-                  }}
-                  ref={fileInput}
-                  type="file"
-                />
-                <Button
-                  disabled={
-                    importProfile.isPending ||
-                    overview.data?.keyConfigured === false
-                  }
-                  onClick={() => fileInput.current?.click()}
-                  size="sm"
-                  variant="outline"
-                >
-                  {importProfile.isPending ? t("Importing…") : t("Choose file")}
-                </Button>
-              </ItemActions>
             </Item>
           </>
         ) : null}

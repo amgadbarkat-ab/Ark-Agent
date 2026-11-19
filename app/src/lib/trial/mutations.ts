@@ -13,22 +13,6 @@ function invalidate(queryClient: QueryClient) {
   ]);
 }
 
-export function importTrialProfileMutationOptions(queryClient: QueryClient) {
-  return mutationOptions({
-    mutationFn: async (
-      text: string,
-    ): Promise<{ trial: Trial | null; changed: boolean }> =>
-      (
-        await client("/api/trial/profile", {
-          method: "POST",
-          body: { text },
-          fallback: "Could not import the trial profile",
-        })
-      ).json(),
-    onSuccess: () => invalidate(queryClient),
-  });
-}
-
 export function applyUnlockCodeMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     mutationFn: async (
