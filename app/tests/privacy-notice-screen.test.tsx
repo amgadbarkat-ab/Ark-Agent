@@ -32,13 +32,16 @@ test("the public notice names the company, and shows every row of what is collec
   expect(heading.tagName).toBe("H1");
   const text = (document.body.textContent ?? "").replace(/\s+/g, " ");
   expect(text).toContain("Value Data IKE");
-  // The fourteen rows of the first table (and its header) are all in the page, not behind a scrollbox.
+  // The fifteen rows of the first table (and its header) are all in the page, not behind a scrollbox.
   // Cloud running is one of them: it is held about a person only if they choose it. The daily check-in,
-  // Help & support requests and support email (#149) are the last three.
-  expect(document.querySelectorAll("table")[0]?.rows.length).toBe(15);
+  // Help & support requests, Ark Private Server (#149, 19 Nov) and support email are the last four.
+  expect(document.querySelectorAll("table")[0]?.rows.length).toBe(16);
   expect(text).toContain("Cloud running");
   expect(text).toContain("The desktop app's daily check-in");
   expect(text).toContain("Help & support requests");
+  expect(text).toContain("Ark Private Server");
+  expect(text).toContain("Contabo");
+  expect(text).toContain("Hetzner");
   expect(text).toContain("Email to support@blackark.uk");
   expect(text).toContain(
     "we do not use your conversations or files to train AI models",
