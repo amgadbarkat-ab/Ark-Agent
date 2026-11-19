@@ -33,4 +33,14 @@ if ($row && strtotime((string) $row['valid_until']) > $has) {
     echo json_encode(['key' => $row['license_key']], JSON_UNESCAPED_SLASHES);
     exit;
 }
+// A tier switch or a seat change (v0.1.49) signs a new key for the same paid period: same end,
+// another nonce. The install that sends the old nonce gets it.
+$nonce = is_array($body) ? (string) ($body['nonce'] ?? '') : '';
+if ($row && $nonce !== '' && strtotime((string) $row['valid_until']) === $has) {
+    $payload = json_decode((string) ark_base64url_decode(explode('.', substr((string) $row['license_key'], 5))[0]), true);
+    if (is_array($payload) && ($payload['nonce'] ?? '') !== $nonce) {
+        echo json_encode(['key' => $row['license_key']], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}
 echo '{}';

@@ -16,6 +16,7 @@ import { type AppVariables, requireAdmin } from "../auth/guards";
 import type { Database } from "../db/client";
 import { trialCheckIns } from "../db/schema";
 import type { ActivationService } from "./activation";
+import type { AgentLimit } from "./agent-limit";
 import { TrialRefusedError, type TrialService } from "./service";
 
 type Middleware = MiddlewareHandler<{ Variables: AppVariables }>;
@@ -52,6 +53,8 @@ export type TrialRouteDependencies = {
   receiver?: { database: Database };
   /** Trial activation codes and licence keys (v0.1.42), at `/api/activation`. */
   activation?: ActivationService;
+  /** Ark Team's agent limit (v0.1.49), read beside the activation. */
+  agentLimit?: Pick<AgentLimit, "allowance">;
 };
 
 const profileBody = z.strictObject({ text: z.string().min(2).max(400_000) });
@@ -261,12 +264,17 @@ export function activationRoutes(
   requireUser: Middleware,
   activation: ActivationService,
   audit?: TrialAudit,
+  /** Ark Team's agent limit (v0.1.49): how many, how many in use, and the sentence once full. */
+  agentLimit?: Pick<AgentLimit, "allowance">,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("*", requireUser);
 
   app.get("/", async (context) =>
-    context.json({ activation: await activation.current() }),
+    context.json({
+      activation: await activation.current(),
+      ...(agentLimit ? { agents: await agentLimit.allowance() } : {}),
+    }),
   );
 
   app.post("/code", async (context) => {

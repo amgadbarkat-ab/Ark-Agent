@@ -85,7 +85,7 @@ type Calls = Array<{ method: string; url: string; body?: unknown }>;
 
 function serve(
   data: AccountOverview | "fail",
-  options: { calls?: Calls; checkoutUrl?: string } = {},
+  options: { calls?: Calls; checkoutUrl?: string; activation?: unknown } = {},
 ) {
   global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -98,6 +98,9 @@ function serve(
       return Response.json({
         checkoutUrl: options.checkoutUrl ?? "https://pay.example/checkout",
       });
+    }
+    if (url.endsWith("/api/activation") && options.activation) {
+      return Response.json(options.activation);
     }
     if (url.endsWith("/api/account/cancel"))
       return Response.json({ cancelAtPeriodEnd: true });
@@ -136,10 +139,62 @@ test("shows the plan, when it renews and how much of it is in use", async () => 
   expect(screen.getAllByText("ArkAgent").length).toBeGreaterThan(0);
 });
 
+test("a paid Ark Team licence shows how many digital employees are in use of its limit (v0.1.49)", async () => {
+  serve(overview(), {
+    activation: {
+      activation: {
+        required: true,
+        allowed: true,
+        state: "paid",
+        source: "license",
+        customerId: "demo-shop",
+        customerName: null,
+        planId: "team",
+        planName: "Ark Team",
+        until: "2026-12-24T00:00:00.000Z",
+        daysLeft: 30,
+        seats: 3,
+        agentsPerSeat: 10,
+        agentLimit: 30,
+        addons: [],
+        renewHost: null,
+        lastRenewAt: null,
+        lastRenewError: null,
+        keys: { trial: true, license: true },
+      },
+      agents: {
+        limit: 30,
+        inUse: 12,
+        canAdd: true,
+        agentsPerSeat: 10,
+        seats: 3,
+        notice: null,
+      },
+    },
+  });
+  const screen = renderPlan();
+  expect(
+    await screen.findByText(
+      "Digital employees on this computer: 12 of 30.",
+      {},
+      SLOW,
+    ),
+  ).toBeTruthy();
+});
+
 test("offers the three plans with their prices, and marks the one you have", async () => {
   serve(overview());
   const screen = renderPlan();
-  expect(await screen.findByText("€100 a month", {}, SLOW)).toBeTruthy();
+  // Ark Team is per person, in three tiers (v0.1.49).
+  expect(
+    await screen.findByText("From €100 per person a month", {}, SLOW),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      "5 digital employees per person: €100. 10: €140. 20: €200.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText("€100 a month")).toBeNull();
   expect(screen.getByText("€50 a month")).toBeTruthy();
   expect(screen.getByText("€250 a month")).toBeTruthy();
   // The plan you are on is marked, and cannot be chosen again.

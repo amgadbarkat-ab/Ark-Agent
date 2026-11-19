@@ -49,12 +49,13 @@ return [
   'license_grace_days' => 7,
   'license_renew_url' => 'https://blackark.example/checkin/renew/',
   'stripe_webhook_secret' => 'whsec_test',
-  'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1], 'price_phone' => ['addon' => 'phone']],
+  'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 5], 'price_tier10' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 10], 'price_tier20' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 20], 'price_phone' => ['addon' => 'phone']],
   'public_base_url' => 'https://blackark.example/checkin',
   'buy_url' => 'https://blackark.example/checkin/buy/',
   'stripe_api_key' => 'rk_test_fake',
+  'stripe_meter_key' => 'rk_test_meter',
   'stripe_api_base' => 'http://127.0.0.1:18766/fakestripe',
-  'stripe_buy' => ['plan' => 'price_team', 'phone' => 'price_phone', 'block' => 'price_block5h'],
+  'stripe_buy' => ['tiers' => [5 => 'price_team', 10 => 'price_tier10', 20 => 'price_tier20'], 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
   'export_secret' => 'export-secret-for-tests-0123456789abcdef',
   'intake_url' => 'http://127.0.0.1:18767/intake/app',
@@ -77,6 +78,13 @@ file_put_contents(__DIR__ . '/sent.log', $path . ' ' . ($_SERVER['HTTP_AUTHORIZA
 header('Content-Type: application/json');
 if ($path === '/fakestripe/v1/checkout/sessions') {
     echo json_encode(['id' => 'cs_test_fake', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_fake']);
+} elseif ($path === '/fakestripe/v1/billing/meter_events') {
+    if (is_file(__DIR__ . '/meter_down')) {
+        http_response_code(500);
+        echo '{"error":{"message":"down"}}';
+        exit;
+    }
+    echo json_encode(['object' => 'billing.meter_event']);
 } elseif ($path === '/fakestripe/v1/invoiceitems') {
     echo json_encode(['id' => 'ii_test_1']);
 } elseif (preg_match('#^/fakestripe/v1/invoices(/in_test_1/(finalize|pay))?$#', $path)) {
@@ -201,7 +209,7 @@ location() { curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "$1"; }
 last() { tail -n 1 "$work/fake/sent.log"; }
 sent_count() { grep -c "^$1 " "$work/fake/sent.log" || true; }
 expect "the buy page without a customer is refused" 400 "$buy"
-first="$(location "$buy?customer=demo-phone&phone=1")"
+first="$(location "$buy?customer=demo-phone&tier=5&phone=1")"
 [[ "$first" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
   && grep -q 'Bearer rk_test_fake' <(last) && grep -q 'mode=subscription' <(last) && grep -q 'client_reference_id=demo-phone' <(last) \
   && grep -q 'price%5D=price_team' <(last) && grep -q 'price%5D=price_phone' <(last) && grep -q 'price%5D=price_block5h' <(last) \
@@ -444,6 +452,112 @@ row="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); foreach ($d[
 old="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); foreach ($d["installs"] as $i) { if ($i["installId"] === $argv[2]) { echo json_encode([$i["people"], $i["os"]]); } }' "$work/export.b" 6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b)"
 [[ "$row" == '[5,3,41,true,"windows"]' && "$old" == '[null,null]' ]] \
   && { pass=$((pass+1)); echo "ok   the export carries the counts, and none for an older install"; } || { fail=$((fail+1)); echo "FAIL counts export: $row / $old"; }
+
+# Ark Team tiers (v0.1.49): the price table's max_agents, signed into the key; a tier switch or a seat
+# change in the portal re-signs at once; the old EUR 100 price is 5 agents; an unknown price changes
+# nothing; a failed payment stops new keys until the next paid invoice.
+key_of() { # customer -> the latest active key's payload as JSON, "none" if there is none
+  php -r '$db = new PDO("sqlite:" . $argv[1]); $q = $db->prepare("SELECT license_key FROM licenses WHERE customer_id = ? AND status = \"active\" ORDER BY updated_at DESC LIMIT 1"); $q->execute([$argv[2]]); $k = $q->fetchColumn(); if (!$k) { echo "none"; exit; } [$p, $s] = explode(".", substr($k, 5)); $ok = sodium_crypto_sign_verify_detached(base64_decode(strtr($s, "-_", "+/")), $p, base64_decode($argv[3])); $d = json_decode(base64_decode(strtr($p, "-_", "+/")), true); echo $ok ? json_encode([$d["plan"], $d["seats"], $d["maxAgents"] ?? null, $d["validUntil"]]) : "badsig";' "$work/checkin/data/checkins.sqlite" "$1" "$license_public"
+}
+nonce_of() { php -r '$db = new PDO("sqlite:" . $argv[1]); $q = $db->prepare("SELECT license_key FROM licenses WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 1"); $q->execute([$argv[2]]); [$p] = explode(".", substr((string) $q->fetchColumn(), 5)); echo json_decode(base64_decode(strtr($p, "-_", "+/")), true)["nonce"] ?? "";' "$work/checkin/data/checkins.sqlite" "$1"; }
+until_of() { php -r '$db = new PDO("sqlite:" . $argv[1]); $q = $db->prepare("SELECT valid_until FROM licenses WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 1"); $q->execute([$argv[2]]); echo $q->fetchColumn();' "$work/checkin/data/checkins.sqlite" "$1"; }
+tend=$(( $(date +%s) + 30*86400 ))
+want_until="$(php -r 'echo gmdate("Y-m-d\TH:i:s\Z", (int) $argv[1] + 7 * 86400);' "$tend")"
+send_event '{"id":"evt_tier1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_tier1","client_reference_id":"demo-tier","customer":"cus_9","subscription":"sub_9"}}}' >/dev/null
+send_event '{"id":"evt_tier2","type":"invoice.paid","data":{"object":{"subscription":"sub_9","lines":{"data":[{"price":{"id":"price_tier10"},"quantity":3,"period":{"end":'"$tend"'}}]}}}}' >/dev/null
+[[ "$(key_of demo-tier)" == '["team",3,10,"'"$want_until"'"]' ]] \
+  && { pass=$((pass+1)); echo "ok   a paid 10-agent tier with 3 seats signs team, 3 seats, maxAgents 10"; } || { fail=$((fail+1)); echo "FAIL tier key: $(key_of demo-tier)"; }
+before="$(nonce_of demo-tier)"
+switch='{"id":"evt_tier3","type":"customer.subscription.updated","data":{"object":{"id":"sub_9","object":"subscription","status":"active","customer":"cus_9","items":{"data":[{"price":{"id":"price_tier20"},"quantity":3,"current_period_end":'"$tend"'}]}}}}'
+[[ "$(send_event "$switch")" == 200 && "$(key_of demo-tier)" == '["team",3,20,"'"$want_until"'"]' && "$(nonce_of demo-tier)" != "$before" ]] \
+  && { pass=$((pass+1)); echo "ok   a tier switch in the portal signs a new key at once, maxAgents 20, same period"; } || { fail=$((fail+1)); echo "FAIL tier switch: $(key_of demo-tier)"; }
+got="$(curl -s -X POST --data '{"customerId":"demo-tier","nonce":"'"$before"'","validUntil":"'"$(until_of demo-tier)"'"}' "$renew")"
+grep -q '"key":"ARK1-' <<<"$got" && { pass=$((pass+1)); echo "ok   renewal hands the switched key to an install whose key has the same end but another nonce"; } || { fail=$((fail+1)); echo "FAIL renew after switch: $got"; }
+got="$(curl -s -X POST --data '{"customerId":"demo-tier","nonce":"'"$(nonce_of demo-tier)"'","validUntil":"'"$(until_of demo-tier)"'"}' "$renew")"
+[[ "$got" == '{}' ]] && { pass=$((pass+1)); echo "ok   and nothing to the install that already has it"; } || { fail=$((fail+1)); echo "FAIL renew same key: $got"; }
+seats='{"id":"evt_tier4","type":"customer.subscription.updated","data":{"object":{"id":"sub_9","object":"subscription","status":"active","customer":"cus_9","items":{"data":[{"price":{"id":"price_tier20"},"quantity":5,"current_period_end":'"$tend"'}]}}}}'
+[[ "$(send_event "$seats")" == 200 && "$(key_of demo-tier)" == '["team",5,20,"'"$want_until"'"]' ]] \
+  && { pass=$((pass+1)); echo "ok   a seat change signs a new key with 5 seats"; } || { fail=$((fail+1)); echo "FAIL seat change: $(key_of demo-tier)"; }
+before="$(nonce_of demo-tier)"
+unknown='{"id":"evt_tier5","type":"customer.subscription.updated","data":{"object":{"id":"sub_9","object":"subscription","status":"active","customer":"cus_9","items":{"data":[{"price":{"id":"price_nobody_knows"},"quantity":9,"current_period_end":'"$tend"'}]}}}}'
+answer="$(t="$(date +%s)"; curl -s -X POST -H "stripe-signature: t=$t,v1=$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "whsec_test");' "$t" "$unknown")" --data "$unknown" "$stripe")"
+[[ "$answer" == *"price table"* && "$(key_of demo-tier)" == '["team",5,20,"'"$want_until"'"]' && "$(nonce_of demo-tier)" == "$before" ]] \
+  && { pass=$((pass+1)); echo "ok   an unknown price changes nothing and says so"; } || { fail=$((fail+1)); echo "FAIL unknown price: $answer $(key_of demo-tier)"; }
+send_event '{"id":"evt_old1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_old1","client_reference_id":"demo-old","customer":"cus_8","subscription":"sub_8"}}}' >/dev/null
+send_event '{"id":"evt_old2","type":"invoice.paid","data":{"object":{"subscription":"sub_8","lines":{"data":[{"price":{"id":"price_team"},"quantity":2,"period":{"end":'"$tend"'}}]}}}}' >/dev/null
+[[ "$(key_of demo-old)" == '["team",2,5,"'"$want_until"'"]' ]] \
+  && { pass=$((pass+1)); echo "ok   the old EUR 100 price signs as the 5-agent tier"; } || { fail=$((fail+1)); echo "FAIL old price: $(key_of demo-old)"; }
+before="$(nonce_of demo-old)"
+send_event '{"id":"evt_old3","type":"invoice.payment_failed","data":{"object":{"subscription":"sub_8"}}}' >/dev/null
+send_event '{"id":"evt_old4","type":"customer.subscription.updated","data":{"object":{"id":"sub_8","object":"subscription","status":"past_due","customer":"cus_8","items":{"data":[{"price":{"id":"price_tier10"},"quantity":2,"current_period_end":'"$tend"'}]}}}}' >/dev/null
+[[ "$(nonce_of demo-old)" == "$before" && "$(key_of demo-old)" == none ]] \
+  && { pass=$((pass+1)); echo "ok   after a failed payment no new key is signed, and renewal hands out none"; } || { fail=$((fail+1)); echo "FAIL payment failed: $(key_of demo-old)"; }
+send_event '{"id":"evt_old5","type":"invoice.paid","data":{"object":{"subscription":"sub_8","lines":{"data":[{"price":{"id":"price_tier10"},"quantity":2,"period":{"end":'"$tend"'}}]}}}}' >/dev/null
+[[ "$(key_of demo-old)" == '["team",2,10,"'"$want_until"'"]' ]] \
+  && { pass=$((pass+1)); echo "ok   the next paid invoice brings it back, on the tier it is on now"; } || { fail=$((fail+1)); echo "FAIL after paid: $(key_of demo-old)"; }
+send_event '{"id":"evt_old6","type":"customer.subscription.deleted","data":{"object":{"id":"sub_8"}}}' >/dev/null
+[[ "$(key_of demo-old)" == none ]] && { pass=$((pass+1)); echo "ok   a deleted subscription gets no more keys"; } || { fail=$((fail+1)); echo "FAIL deleted: $(key_of demo-old)"; }
+cat > "$repo/.checkin-tier.ts" <<'TS'
+import { readActivationCode } from "./shared/activation";
+const read = readActivationCode(process.argv[2] ?? "");
+console.log(read.code.action === "license" ? `${read.code.seats}x${read.code.maxAgents}` : "no");
+TS
+tierkey="$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT license_key FROM licenses WHERE customer_id = \"demo-tier\"")->fetchColumn();' "$work/checkin/data/checkins.sqlite")"
+read_back="$(cd "$repo" && bun .checkin-tier.ts "$tierkey")"; rm -f "$repo/.checkin-tier.ts"
+[[ "$read_back" == "5x20" ]] && { pass=$((pass+1)); echo "ok   the app reads the signed tier: 5 seats x 20"; } || { fail=$((fail+1)); echo "FAIL app read: $read_back"; }
+
+# The buy page lets the customer choose the tier (v0.1.49), in Greek and English, per seat.
+choose="$(curl -s "$buy?customer=demo-buy&phone=1")"
+grep -q 'tier=5&amp;phone=1' <<<"$choose" && grep -q 'tier=10&amp;phone=1' <<<"$choose" && grep -q 'tier=20&amp;phone=1' <<<"$choose" \
+  && grep -q '€140' <<<"$choose" && grep -q '€200' <<<"$choose" && grep -q 'ανά άτομο' <<<"$choose" && grep -q 'per person a month' <<<"$choose" \
+  && ! grep -q 'price_' <<<"$choose" \
+  && { pass=$((pass+1)); echo "ok   without a tier the buy page offers 5, 10 and 20 with their prices per person, in both languages"; } || { fail=$((fail+1)); echo "FAIL tier choice page"; }
+[[ "$(location "$buy?customer=demo-buy&tier=10")" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
+  && grep -q 'price%5D=price_tier10' <(last) && ! grep -q 'price_team' <(last) && ! grep -q 'price_phone' <(last) \
+  && grep -q 'adjustable_quantity%5D%5Benabled%5D=true' <(last) \
+  && { pass=$((pass+1)); echo "ok   the 10 tier opens a checkout with its own price, the seats adjustable"; } || { fail=$((fail+1)); echo "FAIL tier checkout: $(last)"; }
+[[ "$(location "$buy?customer=demo-buy&tier=20&phone=1")" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
+  && grep -q 'price%5D=price_tier20' <(last) && grep -q 'price%5D=price_phone' <(last) && grep -q 'price%5D=price_block5h' <(last) \
+  && { pass=$((pass+1)); echo "ok   the 20 tier with the phone add-on and its first 5-hour block"; } || { fail=$((fail+1)); echo "FAIL tier + phone: $(last)"; }
+expect "a tier that is not sold is refused" 400 "$buy?customer=demo-buy&tier=15"
+
+# Phone usage to Stripe's meters (v0.1.49): one event per part, whole minutes, an identifier from the
+# call and the part so a retry never counts twice; never in the way of the call or the balance.
+meter_sent() { grep '^/fakestripe/v1/billing/meter_events ' "$work/fake/sent.log" || true; }
+waiting() { php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT COUNT(*) FROM meter_events WHERE sent_at IS NULL AND customer_id = " . $db->quote($argv[2]))->fetchColumn();' "$work/checkin/data/checkins.sqlite" "$1"; }
+mcall() { echo "{\"action\":\"charge\",\"customerId\":\"$1\",\"callId\":\"CA$(printf '%032d' "$2")\",\"parts\":$3}"; }
+send_event '{"id":"evt_m1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_meter1","client_reference_id":"demo-meter","customer":"cus_7","subscription":"sub_7","payment_status":"paid","metadata":{"kind":"subscription","phone_blocks":"1"}}}}' >/dev/null
+touch "$work/fake/meter_down"
+got="$(relay_call "$(mcall demo-meter 71 '[{"kind":"incoming","seconds":125},{"kind":"landline","seconds":60}]')")"
+[[ "$(field "$got" balanceMils)" == $((23400 - 3*78 - 88)) && "$(waiting demo-meter)" == 2 ]] \
+  && { pass=$((pass+1)); echo "ok   with Stripe down the call is still charged and answered; its two meter events wait"; } || { fail=$((fail+1)); echo "FAIL meter down: $got / $(waiting demo-meter)"; }
+rm -f "$work/fake/meter_down"
+relay_call "$(mcall demo-meter 72 '[{"kind":"mobile","seconds":30}]')" >/dev/null
+relay_call "$(mcall demo-meter 72 '[{"kind":"mobile","seconds":30}]')" >/dev/null
+ids="$(meter_sent | grep -c 'rk_test_meter' || true)"
+meter_sent | grep -q 'event_name=arkagent_phone_minutes_incoming&payload%5Bstripe_customer_id%5D=cus_7&payload%5Bvalue%5D=3&identifier=call_CA00000000000000000000000000000071_incoming' \
+  && meter_sent | grep -q 'event_name=arkagent_phone_minutes_landline&payload%5Bstripe_customer_id%5D=cus_7&payload%5Bvalue%5D=1&identifier=call_CA00000000000000000000000000000071_landline' \
+  && meter_sent | grep -q 'event_name=arkagent_phone_minutes_mobile&payload%5Bstripe_customer_id%5D=cus_7&payload%5Bvalue%5D=1&identifier=call_CA00000000000000000000000000000072_mobile' \
+  && [[ "$(waiting demo-meter)" == 0 ]] \
+  && { pass=$((pass+1)); echo "ok   once Stripe answers, the waiting events go too: per part, whole minutes, the call and part as identifier"; } || { fail=$((fail+1)); echo "FAIL meter send: $(meter_sent | tail -3)"; }
+[[ "$(meter_sent | grep -c '_CA00000000000000000000000000000072_mobile' || true)" == 1 && "$(meter_sent | grep -c '_CA00000000000000000000000000000071_incoming' || true)" == 2 ]] \
+  && { pass=$((pass+1)); echo "ok   a repeated relay report sends nothing again; a failed send is retried under the same identifier"; } || { fail=$((fail+1)); echo "FAIL meter retry: $(meter_sent | grep -c CA)"; }
+php -r '$db = new PDO("sqlite:" . $argv[1]); $db->exec("INSERT OR IGNORE INTO phone_accounts (customer_id, balance_mils, updated_at) VALUES (\"demo-nocus\", 23400, \"now\")");' "$work/checkin/data/checkins.sqlite"
+before="$(meter_sent | wc -l)"
+got="$(relay_call "$(mcall demo-nocus 73 '[{"kind":"incoming","seconds":60}]')")"
+[[ "$(field "$got" balanceMils)" == $((23400 - 78)) && "$(waiting demo-nocus)" == 1 && "$(meter_sent | wc -l)" == "$before" ]] \
+  && { pass=$((pass+1)); echo "ok   without a Stripe customer the call is charged and the event waits, unsent"; } || { fail=$((fail+1)); echo "FAIL no customer: $got"; }
+cp "$work/checkin/config.php" "$work/config.keep"
+sed -i "s/'stripe_meter_key' => 'rk_test_meter',/'stripe_meter_key' => '',/" "$work/checkin/config.php"
+sleep 3 # PHP's opcache reads a changed file again only after 2 seconds
+got="$(relay_call "$(mcall demo-meter 74 '[{"kind":"incoming","seconds":60}]')")"
+[[ "$(field "$got" state)" == '"ok"' && "$(waiting demo-meter)" == 1 && "$(meter_sent | wc -l)" == "$before" ]] \
+  && { pass=$((pass+1)); echo "ok   without the meter key the call is charged and the event waits, unsent"; } || { fail=$((fail+1)); echo "FAIL no key: $got $(waiting demo-meter) $(meter_sent | wc -l) $before"; }
+cp "$work/config.keep" "$work/checkin/config.php"; sleep 3
+t="$(date +%s)"; n="nonce-$(php -r 'echo bin2hex(random_bytes(8));')"
+export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")" >/dev/null
+[[ "$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo json_encode($d["meterEventsWaiting"] ?? null);' "$work/export.b")" == 2 ]] && ! grep -q 'cus_' "$work/export.b" \
+  && { pass=$((pass+1)); echo "ok   the export says how many meter events wait, and still no Stripe id"; } || { fail=$((fail+1)); echo "FAIL export waiting: $(grep -o '"meterEventsWaiting":[0-9a-z]*' "$work/export.b")"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

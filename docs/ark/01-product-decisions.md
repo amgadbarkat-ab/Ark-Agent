@@ -20,7 +20,7 @@ layer enforces the limits. Every plan is **per single user account**: there are 
 | Plan | Price | Bots included (per user) |
 | --- | --- | --- |
 | ArkAgent | EUR 50 / month | 1 |
-| Ark Team | EUR 100 / month | up to 15 |
+| Ark Team | EUR 100 / 140 / 200 per person a month (5 / 10 / 20 digital employees per person, v0.1.49) | up to 15 at once |
 | Ark Team Enterprise | EUR 250 / month | up to 500 |
 
 - Ark Team is a separate product from ArkAgent, not a bigger version of it.
@@ -141,6 +141,11 @@ was the working assumption and is now **confirmed by the owner (2026-10-08)**; P
 - "Hired" is not a separate step: a bot counts while it has a run in progress, and installing one from
   the marketplace costs nothing against the limit. Built in Phase 5. (2026-10-08)
 - Every plan is per single user, no shared seats, including Ark Team. (2026-10-08)
+- **Ark Team tiers (2026-11-19, Amgad; COO's Stripe setup).** Ark Team is sold per seat (one per
+  person) a month in three tiers: 5 digital employees per seat for EUR 100, 10 for EUR 140, 20 for
+  EUR 200, tax exclusive. The install's limit is the tier times the seats, counted together; older keys
+  count as 5. At the limit nothing new is made; nothing existing is removed or stopped. The "at once"
+  limit (15) is unchanged.
 - Enterprise at EUR 250 for 500 bots is intended, with bots mostly on customers' machines. (2026-10-08)
 
 - **Dark is the default, light is a setting (2026-10-18).** The look follows Grok and openbot.run with BlackArk's Ember as

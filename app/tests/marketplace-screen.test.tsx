@@ -167,7 +167,7 @@ test("an official digital employee shows what it starts with and can be installe
   // The trial is asked about as well (#109); the only write is the install.
   expect(
     calls
-      .filter((c) => c.url !== "/api/trial")
+      .filter((c) => c.url !== "/api/trial" && c.url !== "/api/activation")
       .map((c) => `${c.method} ${c.url}`),
   ).toEqual(["POST /api/marketplace/listings/research-analyst/install"]);
   expect(
@@ -207,6 +207,45 @@ test("during a trial with a fixed team, Install is off and says why (#109)", asy
       SLOW,
     ),
   ).toBeTruthy();
+  const install = screen.getByRole("button", { name: "Install" });
+  expect((install as HTMLButtonElement).disabled).toBe(true);
+  expect(calls.some((c) => c.method === "POST")).toBe(false);
+  appQueryClient.removeQueries({ queryKey: ["trial"] });
+});
+
+test("at Ark Team's agent limit, Install is off and says how to move up (v0.1.49)", async () => {
+  appQueryClient.removeQueries({ queryKey: ["trial"] });
+  const sentence =
+    "Your Ark Team plan allows 10 digital employees on this computer, and 12 are set up. To add more, move up to 20 digital employees per person (€200 per person a month) in the billing portal, or add a person to your subscription.";
+  const calls = serve({
+    "GET /api/trial": () => Response.json({ keyConfigured: true, trial: null }),
+    "GET /api/activation": () =>
+      Response.json({
+        activation: { state: "paid", agentLimit: 10, agentsPerSeat: 10 },
+        agents: {
+          limit: 10,
+          inUse: 12,
+          canAdd: false,
+          agentsPerSeat: 10,
+          seats: 1,
+          notice: {
+            en: sentence,
+            el: "…",
+            template:
+              "Your Ark Team plan allows {limit} digital employees on this computer, and {inUse} are set up. To add more, move up to {next} digital employees per person ({price} per person a month) in the billing portal, or add a person to your subscription.",
+            values: {
+              limit: 10,
+              inUse: 12,
+              perSeat: 10,
+              next: 20,
+              price: "€200",
+            },
+          },
+        },
+      }),
+  });
+  const screen = inRouter(<ListingView backButton={back} listing={official} />);
+  expect(await screen.findByText(sentence, {}, SLOW)).toBeTruthy();
   const install = screen.getByRole("button", { name: "Install" });
   expect((install as HTMLButtonElement).disabled).toBe(true);
   expect(calls.some((c) => c.method === "POST")).toBe(false);

@@ -326,6 +326,9 @@ export function createTrialService(
 
     createBlocked,
 
+    /** Whether the signed roster is being set up right now (agent-limit.ts does not refuse it). */
+    isSeeding: (): boolean => seeding.getStore() === true,
+
     /** Refuses with the sentence the app shows, when making employees is blocked. */
     async refuseCreate(): Promise<void> {
       if (await createBlocked()) throw new TrialCreateBlockedError();

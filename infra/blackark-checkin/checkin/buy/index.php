@@ -2,6 +2,10 @@
 /**
  * https://blackark.uk/checkin/buy/ — opens a Stripe Checkout (#109, v0.1.47; Amgad 17 Nov).
  *
+ *   ?customer=<id>[&phone=1] without a tier: a page where the customer chooses Ark Team's tier, 5, 10
+ *                            or 20 digital employees per person, with each price (v0.1.49)
+ *   &tier=5|10|20            that tier's price, per seat, the seats adjustable on Stripe's page; the old
+ *                            single price is never offered
  *   ?customer=<id>&phone=1   the team plan, the phone add-on and the first prepaid 5-hour block, so
  *                            the customer sees every price, per-minute ones included, before paying
  *   ?customer=<id>           the team plan alone
@@ -65,9 +69,40 @@ if ($topup) {
     }
 }
 
+// Ark Team's tier (v0.1.49): the customer chooses 5, 10 or 20 digital employees per person. The old
+// single price is never offered here; existing subscribers keep it.
+$tiers = [5 => 10000, 10 => 14000, 20 => 20000];
+$tier = null;
+if (!$topup) {
+    if (!isset($_GET['tier'])) {
+        $links = '';
+        foreach ($tiers as $agents => $cents) {
+            $href = '?customer=' . rawurlencode($customer) . '&tier=' . $agents . ($phone ? '&phone=1' : '');
+            $euro = '€' . intdiv($cents, 100);
+            $links .= '<li><a href="' . h($href) . '"><strong>' . $agents . ' ψηφιακοί υπάλληλοι ανά άτομο</strong> · '
+                . h($euro) . ' ανά άτομο τον μήνα</a><br><span lang="en">' . $agents . ' digital employees per person · '
+                . h($euro) . ' per person a month</span></li>';
+        }
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!doctype html><html lang="el"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">'
+            . '<title>Ark Team</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 16px;color:#1d1d1f;background:#fafafa}main{max-width:640px;margin:0 auto}li{margin:0 0 16px}</style>'
+            . '</head><body><main><h1>Ark Team</h1>'
+            . '<p>Επιλέξτε πόσους ψηφιακούς υπαλλήλους χρειάζεται κάθε άτομο. Τιμές χωρίς ΦΠΑ. Το πλήθος των ατόμων το ορίζετε στη σελίδα πληρωμής και το αλλάζετε αργότερα.</p>'
+            . '<p lang="en">Choose how many digital employees each person needs. Prices before VAT. You set the number of people on the payment page and can change it later.</p>'
+            . '<ul>' . $links . '</ul></main></body></html>';
+        exit;
+    }
+    $tier = (int) $_GET['tier'];
+    if (!isset($tiers[$tier]) || (string) $tier !== (string) $_GET['tier']) {
+        page(400, 'ArkAgent', 'Αυτή η επιλογή δεν διατίθεται.', 'This choice is not available.');
+    }
+}
+
 $items = [];
 if (!$topup) {
-    $items[] = (string) ($prices['plan'] ?? '');
+    $items[] = (string) ($prices['tiers'][$tier] ?? '');
 }
 if ($phone && !$topup) {
     $items[] = (string) ($prices['phone'] ?? '');
@@ -91,6 +126,11 @@ $form = [
 ];
 foreach (array_values($items) as $index => $price) {
     $form['line_items'][$index] = ['price' => $price, 'quantity' => 1];
+}
+if (!$topup) {
+    // The tier is per seat (one per person): the customer sets how many on Stripe's page.
+    $form['line_items'][0]['adjustable_quantity'] = ['enabled' => 'true', 'minimum' => 1, 'maximum' => 100];
+    $form['metadata']['max_agents'] = (string) $tier;
 }
 if ($phone && !$topup) {
     // Automatic top-up is the customer's choice, off unless they pick yes (Amgad, 17 Nov).
