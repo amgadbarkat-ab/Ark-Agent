@@ -238,6 +238,26 @@ describe("Ark Team's agent limit (v0.1.49)", () => {
     expect(await countMine()).toBe(5);
   });
 
+  test("two adds at the same moment with one place left: only one gets through", async () => {
+    const { activation, add, profiles } = harness();
+    await activation.apply(license({ maxAgents: 5 }));
+    await fill(add, 4);
+    const [first] = await profiles.list(actor);
+    const results = await Promise.allSettled([
+      add("Racer A"),
+      add("Racer B"),
+      profiles.duplicate(actor, first?.id ?? ""),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled").length).toBe(1);
+    expect(
+      results.filter(
+        (r) =>
+          r.status === "rejected" && r.reason instanceof AgentLimitReachedError,
+      ).length,
+    ).toBe(2);
+    expect(await countMine()).toBe(5);
+  });
+
   test("each tier allows its own number", async () => {
     for (const maxAgents of [5, 10, 20]) {
       await clear();
