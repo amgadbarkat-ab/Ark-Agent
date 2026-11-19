@@ -26,6 +26,9 @@ if (!is_file($configFile)) {
 }
 $CONFIG = require $configFile;
 
+/** Ark Team's tiers (v0.1.49): digital employees per seat, as shared/plans.ts has them. */
+const ARK_AGENT_TIERS = [5, 10, 20];
+
 function ark_config(string $key, $default = null)
 {
     global $CONFIG;
@@ -85,6 +88,14 @@ function ark_db(): PDO
     )');
     $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_session ON licenses (session_id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS licenses_customer ON licenses (customer_id)');
+    // Ark Team's tier (v0.1.49), and the buyer's Stripe customer (cus_…) for the usage meters:
+    // added to an existing file once, empty for older rows.
+    $licenceColumns = array_column($pdo->query('PRAGMA table_info(licenses)')->fetchAll(), 'name');
+    foreach (['max_agents' => 'INTEGER', 'stripe_customer' => 'TEXT'] as $column => $type) {
+        if (!in_array($column, $licenceColumns, true)) {
+            $pdo->exec("ALTER TABLE licenses ADD COLUMN $column $type");
+        }
+    }
     $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL)');
     // Prepaid phone balance (v0.1.47): one account per customer, in mils (1/1000 euro, excl. VAT),
     // and every credit and charge, each under a reference that can be taken only once.
@@ -181,8 +192,11 @@ function ark_base64url(string $bytes): string
  * base64url JSON, a dot, and the Ed25519 signature over exactly that base64url text, made with the
  * licence secret key in config.php. Null when this server has no licence key or no sodium.
  */
-function ark_sign_license(string $customerId, string $plan, int $seats, array $addons, int $periodEnd): ?array
+function ark_sign_license(string $customerId, string $plan, int $seats, array $addons, int $periodEnd, ?int $maxAgents = null): ?array
 {
+    // Ark Team's tier (v0.1.49): 5, 10 or 20 digital employees per seat, signed with the rest. Any
+    // other number is left out, and the app then counts the key as 5.
+    $maxAgents = in_array($maxAgents, ARK_AGENT_TIERS, true) ? $maxAgents : null;
     $secret = base64_decode((string) ark_config('license_secret_key', ''), true);
     if ($secret === false || strlen($secret) !== 64 || !function_exists('sodium_crypto_sign_detached')) {
         return null;
@@ -198,6 +212,9 @@ function ark_sign_license(string $customerId, string $plan, int $seats, array $a
         'seats' => $seats,
         'validUntil' => $validUntil,
     ];
+    if ($maxAgents !== null) {
+        $payload['maxAgents'] = $maxAgents;
+    }
     if ($addons) {
         $payload['addons'] = array_values($addons);
     }
