@@ -247,6 +247,30 @@ first="$(location "$buy?customer=demo-phone&tier=5&phone=1")"
   && { pass=$((pass+1)); echo "ok   buying with the phone add-on opens one checkout: plan, add-on, first block, automatic top-up choice"; } || { fail=$((fail+1)); echo "FAIL buy page ($first): $(last)"; }
 expect "a top-up for a customer with no phone add-on is refused" 404 "$buy?customer=nobody-here&topup=1"
 
+# One BlackArk look on every page a customer sees (Amgad, 19 Nov 2026): blackark.uk's colours, Geist,
+# the company's tile and favicons, all served from checkin/brand/ and nothing from another site.
+branded() { # name, url
+  local page headers; page="$(curl -s "$2")"; headers="$(curl -s -D - -o /dev/null "$2")"
+  if grep -q 'href="../brand/brand.css"' <<<"$page" && grep -q 'href="../brand/favicon.ico"' <<<"$page" \
+    && grep -q '<rect width="160" height="160" rx="28" fill="#FF7A1A"/>' <<<"$page" \
+    && ! grep -q 'system-ui,sans-serif;margin:0;padding:32px 16px;color:#1d1d1f' <<<"$page" \
+    && ! grep -qE 'https?://[^"]*(fonts\.googleapis|fonts\.gstatic|cdn)' <<<"$page" \
+    && grep -qi "content-security-policy: default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'" <<<"$headers"; then
+    pass=$((pass+1)); echo "ok   $1 is in the BlackArk look"
+  else fail=$((fail+1)); echo "FAIL $1 is not in the BlackArk look"; fi
+}
+branded "the tier page" "$buy?customer=demo-shop&phone=1"
+branded "the top-up thank-you page" "$buy?done=1"
+branded "the refusal page" "$buy?customer=demo-shop&tier=7"
+branded "the licence key page" "http://127.0.0.1:$port/checkin/key/?session_id=cs_test_not_paid_yet"
+grep -q 'class="choices"' <(curl -s "$buy?customer=demo-shop") && grep -q '<span class="price">€140</span>' <(curl -s "$buy?customer=demo-shop") \
+  && { pass=$((pass+1)); echo "ok   the tiers are cards with their price in Geist Mono"; } || { fail=$((fail+1)); echo "FAIL tier cards"; }
+for asset in brand.css geist.woff2 geist-mono.woff2 favicon.ico favicon-32.png favicon-192.png apple-touch-icon.png; do
+  expect "brand/$asset is served" 200 "http://127.0.0.1:$port/checkin/brand/$asset"
+done
+cmp -s "$here/checkin/brand/geist.woff2" "$repo/brand/fonts/Geist-Variable.woff2" && cmp -s "$here/checkin/brand/favicon.ico" "$repo/brand/official/favicon.ico" \
+  && { pass=$((pass+1)); echo "ok   the fonts and icons are the company's own files, unchanged"; } || { fail=$((fail+1)); echo "FAIL brand files drifted from brand/"; }
+
 phone="http://127.0.0.1:$port/checkin/phone/"
 sign_relay() { php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2], "relay-secret-for-tests-0123456789abcdef");' "$1" "$2"; }
 relay_call() { # json -> body; signed like the relay: HMAC-SHA256 of "<time>.<body>" with relay_secret

@@ -73,6 +73,16 @@ unverified. You can check with a one-line `phpinfo()` file; delete it afterwards
 To remove the test row, delete `checkin/data/checkins.sqlite`. It is made again, empty, on the next
 check-in.
 
+## The BlackArk look (19 Nov 2026)
+
+Every page a customer sees here (the tier page, the top-up thank-you, the refusals and the licence key
+page) is in BlackArk's look, Amgad's standing rule of 19 Nov: blackark.uk's colours, Geist and Geist Mono,
+the company's tile and favicons. They all come from `checkin/brand/`, which ships with the rest of
+`checkin/`; nothing is loaded from another site, and the Content-Security-Policy allows styles, fonts and
+images from this site only. The fonts and icons are the company's own files from the repository's `brand/`
+(the tests check they have not drifted); `FONTS-LICENSE.txt` is Geist's SIL Open Font License, kept beside
+the fonts and not served. Upload `brand/` with the pages; a page without it falls back to the system font.
+
 ## Limits
 
 - One check-in per install every 5 minutes (`rate_limit_seconds`). Installs send one a day, and

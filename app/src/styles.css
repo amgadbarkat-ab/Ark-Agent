@@ -80,19 +80,20 @@ html {
 
 .dark {
   color-scheme: dark;
-  /* BlackArk v3 (Ember): paper black with a warm cast, raised paper for what sits on it. */
-  --background: #0a0705;
+  /* BlackArk v3 (Ember), exactly blackark.uk's (brand/brand-tokens.css; Amgad 19 Nov: one look): paper,
+     raised paper for cards, card-dark for popovers, slate for muted text. */
+  --background: #070504;
   --foreground: #f3f2ef;
-  --card: #130d09;
+  --card: #110b07;
   --card-foreground: #f3f2ef;
-  --popover: #170f0a;
+  --popover: #160f0a;
   --popover-foreground: #f3f2ef;
   --primary: #ff7a1a;
   --primary-foreground: #1a0b03;
   --secondary: #1e1610;
   --secondary-foreground: #f3f2ef;
   --muted: #1e1610;
-  --muted-foreground: #a9a49d;
+  --muted-foreground: #9b9893;
   --accent: #26190f;
   --accent-foreground: #f3f2ef;
   --destructive: oklch(0.704 0.191 22.216);
@@ -105,7 +106,7 @@ html {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: #080504;
+  --sidebar: #070504;
   --sidebar-foreground: #f3f2ef;
   --sidebar-primary: #ff7a1a;
   --sidebar-primary-foreground: #1a0b03;
