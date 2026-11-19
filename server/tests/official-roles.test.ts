@@ -185,6 +185,24 @@ describe("the roles added from the knowledge-work plugins (#127)", () => {
     expect(legal.role.outreach).toBeUndefined();
   });
 
+  /*
+   * DT Lab (v0.1.48) saw an NDA with a no-hire clause rated Yellow, and a triage with no overall rating.
+   * The server now forces both (legal-answer.ts); the skill says the same, so the model aims for it.
+   */
+  test("an NDA triage rates a no-hire or non-solicit clause Red and ends with exactly one overall rating", () => {
+    const legal = listing("legal-helper");
+    expect(legal.version).toBe(2);
+    const triage = legal.role.skills.find((s) => s.slug === "legal-nda-triage")
+      ?.instructions as string;
+    expect(triage).toContain(
+      "A ban on hiring or soliciting the other side's staff (a no-hire or non-solicit clause) is always red",
+    );
+    expect(triage).toContain(
+      "End with exactly one overall rating, the worst colour in the table: 'Overall rating: Green', 'Overall rating: Yellow' or 'Overall rating: Red'",
+    );
+    expect(triage).not.toMatch(/Yellow\/Red/);
+  });
+
   test("the playbook starts blank or from an EU, Greek or UK starter, with no US default", () => {
     const playbook = listing("legal-helper").role.skills.find(
       (s) => s.slug === "legal-playbook",

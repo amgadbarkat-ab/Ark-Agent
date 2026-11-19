@@ -6,6 +6,7 @@ pub mod bridge;
 pub mod crash_log;
 pub mod deployment;
 pub mod deployment_release;
+pub mod downloads;
 pub mod engine;
 pub mod env;
 pub mod harness;
