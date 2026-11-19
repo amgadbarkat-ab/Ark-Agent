@@ -66,6 +66,8 @@ export function setup(
     };
     connect?: Connect;
     alerts?: boolean;
+    /** False: deployed before Twilio exists (no Account SID or Auth Token yet). */
+    twilio?: boolean;
   } = {},
 ) {
   const logs: string[] = [];
@@ -119,8 +121,9 @@ export function setup(
   });
   const env = {
     PUBLIC_BASE_URL: base,
-    TWILIO_ACCOUNT_SID: accountSid,
-    TWILIO_AUTH_TOKEN: authToken,
+    ...(options.twilio === false
+      ? {}
+      : { TWILIO_ACCOUNT_SID: accountSid, TWILIO_AUTH_TOKEN: authToken }),
     ADMIN_TOKEN: adminToken,
     ...(options.billing === false
       ? {}

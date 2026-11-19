@@ -93,6 +93,21 @@ describe("the install's socket", () => {
   });
 });
 
+describe("deployed before Twilio exists (19 Nov: Twilio waits for the first customer)", () => {
+  test("lines can be added and installs connect; only Twilio's routes wait", async () => {
+    const t = fresh({ billing: false, twilio: false });
+    expect((await t.relay("/health")).status).toBe(200);
+    expect((await t.admin("add", { line: demoLine })).status).toBe(200);
+    const desk = await t.connectedDesk();
+    expect(desk.messages()[0]).toMatchObject({
+      type: "hello",
+      line: "demo-shop",
+    });
+    const voice = await t.relay("/twilio/voice", { method: "POST", body: "" });
+    expect(voice.status).toBe(503);
+  });
+});
+
 describe("a call on the Workers relay", () => {
   test("is carried both ways, the media key works once, and the hand-over uses the line's fallback", async () => {
     const t = fresh({ billing: false });

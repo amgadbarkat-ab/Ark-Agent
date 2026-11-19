@@ -251,7 +251,7 @@ W="npx --yes wrangler@4.20.0"   # the same pin as the board
 ```
 
 **2. The plain settings in `wrangler.toml`.** None of these are secrets.
-- `TWILIO_ACCOUNT_SID`: from the Twilio console. Until it is set, the relay answers 503 and nothing works.
+- `TWILIO_ACCOUNT_SID`: from the Twilio console. It can be set later: until it is, lines can be added and installs connect, and only Twilio's routes (`/twilio/…`) answer 503.
 - `ALERT_SMTP_USER`, `ALERT_FROM`, `ALERT_TO`: BlackArk's own mailbox and addresses. Leave them empty and alerts are only recorded.
 - `PUBLIC_BASE_URL` is already `https://blackark-phone.blackark.workers.dev`. Twilio signs this exact address.
 

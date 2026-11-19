@@ -150,7 +150,12 @@ export function createWorker(platform: Platform) {
       const url = new URL(request.url);
       const path = url.pathname;
       if (path === "/health") return new Response("ok");
-      if (!ACCOUNT_SID.test(env.TWILIO_ACCOUNT_SID ?? ""))
+      // Twilio can come after the deploy (19 Nov): lines and installs work without it; only
+      // Twilio's own routes wait for its Account SID.
+      if (
+        path.startsWith("/twilio/") &&
+        !ACCOUNT_SID.test(env.TWILIO_ACCOUNT_SID ?? "")
+      )
         return new Response("TWILIO_ACCOUNT_SID is not set.", { status: 503 });
       if (path === "/line") return desk(request, env);
       if (path.startsWith("/twilio/media/")) {
