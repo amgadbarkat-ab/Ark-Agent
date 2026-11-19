@@ -129,7 +129,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
     "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
   "x-content-type-options": "nosniff",
-  "referrer-policy": "no-referrer",
+  "referrer-policy": "same-origin",
   "x-frame-options": "DENY",
   "cross-origin-opener-policy": "same-origin",
   "cross-origin-resource-policy": "same-origin",
@@ -261,6 +261,9 @@ export function createBoard(options: BoardOptions) {
     const site = request.headers.get("sec-fetch-site");
     if (site && site !== "same-origin" && site !== "none") return true;
     const from = request.headers.get("origin");
+    // A browser sends `Origin: null` on a form POST when the referrer policy hides the origin. It is
+    // taken only when the browser also says, in `Sec-Fetch-Site`, that it came from the board.
+    if (from === "null") return site !== "same-origin";
     return !!(from && from !== origin.origin);
   }
 
