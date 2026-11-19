@@ -38,6 +38,7 @@ your apps, and running tasks on a schedule. To do that, we hold what you tell th
 | **Server logs** | Running and securing the service | Legitimate interests |
 | **The desktop app's daily check-in**, on a computer with a BlackArk trial or licence: the customer id BlackArk gave you, a random id for that computer, the app version, the trial's state and days left, and, from version 0.1.49, **counts only**: how many people have an account on that computer, how many of them used it in the last 7 days, how many conversations were started in the last 7 days, whether a phone line is set up, and whether it runs Windows, macOS or Linux. Never a name, an email address, a conversation or anything anyone wrote. | To know that a trial or licence is in use, to see an install that stopped working, and to plan support | Legitimate interests (running the trial and the service you bought), and contract |
 | **Help & support requests**, only when you send one from the app: what you write, whether it stops your work, your language, the customer id, the computer's random id, the app version, and BlackArk's own signed trial file or licence key that proves the request comes from your computer. If you tick "Include diagnostics", also the system (for example "Windows 10") and the computer's recent warnings and errors, with names, email and web addresses, numbers, ids and keys removed. You see all of it before it is sent. Never your conversations, mail, files or keys. | To answer your request, within our support hours | Contract (support for the service you use) |
+| **Ark Private Server**, only if you order one from the app: which server you ordered, when you paid and until when, its status, and the address, model name and key BlackArk gives your server. Your payment is taken by Stripe; we never see your card number. | To set up and run the server you ordered, and to connect your app to it | Contract |
 | **Email to support@blackark.uk**: the message, its sender and the other addresses on it | To answer it as a support request | Contract, or legitimate interests (answering people who write to us) |
 
 We do not collect more than this, we do not sell your data, we do not use it for advertising, and **we
@@ -51,6 +52,8 @@ do not use your conversations or files to train AI models**.
 | **Paddle** | Your name, address, country and what you buy | Paddle is the seller of your plan: it takes payment, collects tax and sends invoices, under its own privacy notice. We never see your card number. |
 | **The AI model provider you choose** (for example Anthropic, OpenAI or Google, or a model running on your own computer) | The text and files of the conversation your coworker is having | To produce the answers. You connect your own account with that provider, so the data goes where you told it to, under that provider's terms. With a model on your own computer, it goes nowhere. |
 | **Composio** | The connection to the apps you link, and the calls your coworker makes through them | To let a coworker use your apps |
+| **Contabo** (Small, Medium and Large) and **Hetzner** (GPU Entry and GPU High), servers in Germany, only if you order an Ark Private Server | What your digital employees send to the model on your private server: the text and files of their conversations | To run the model on the server you ordered, under their EU data processing terms (GDPR data processing agreements) |
+| **Stripe** | Your name, email address, country and card, when you buy an Ark Private Server | Stripe takes the payment and sends invoices, under its own privacy notice. We never see your card number. |
 | **Google** | That you signed in | Sign-in with Google, under Google's own notice |
 | **BlackArk's own support systems**: the check-in service at blackark.uk (hosted by one.com in the EU) and the support board (on a server in the EU, reached only through Cloudflare's secure tunnel) | The check-ins and Help & support requests above | To run trials and licences, and to answer support requests. Only BlackArk staff with their own account and two-step sign-in can see them. [Lawyer to confirm the hosting providers' names and contracts.] |
 
@@ -78,6 +81,8 @@ maintain. [Lawyer to confirm the wording per provider.]
 - **Help & support requests and support emails:** while the request is open, [and for N months after
   it is closed]. A copy of each request you sent also stays on your own computer, under Help &
   support, until you remove the app.
+- **Ark Private Server:** while you have it. After you cancel, the server and everything on it are kept
+  for 6 days, then deleted.
 - **Payment and tax records:** held by Paddle, as the seller, for as long as the law requires.
 
 ## Your rights

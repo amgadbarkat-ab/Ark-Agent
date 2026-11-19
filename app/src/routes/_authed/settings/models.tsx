@@ -15,6 +15,7 @@ import {
   PageShell,
 } from "@/components/layout/page-shell";
 import { ModelDialog } from "@/components/settings/model-dialog";
+import { PrivateServerSection } from "@/components/settings/private-server-section";
 import { Button } from "@/components/ui/button";
 import {
   Item,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { type AgentProfile, agentListQueryOptions } from "@/lib/agents/queries";
+import { currentUserQueryOptions } from "@/lib/auth/queries";
 import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
   clearDefaultModelMutationOptions,
@@ -79,6 +81,8 @@ function ModelsPage() {
   const coworkers = useQuery(agentListQueryOptions());
   const choices = useQuery(botModelChoicesQueryOptions());
   const local = useQuery(localModelsQueryOptions());
+  const { data: currentUser } = useQuery(currentUserQueryOptions());
+  const isAdmin = currentUser?.role === "admin";
   const offline = local.data?.offline ?? null;
   const [editing, setEditing] = useState<Editing>({ kind: "none" });
 
@@ -92,6 +96,8 @@ function ModelsPage() {
   // to do, and it appears again by itself when the model starts.
   const offered = (catalogue.data?.providers ?? []).filter((provider) => {
     if (provider.unavailable) return false;
+    // Added by the Ark Private Server card once BlackArk has it ready, never typed in.
+    if (provider.id === "blackark-private-server") return false;
     if (provider.tier !== "local") return true;
     return (
       local.data?.servers.find((server) => server.providerId === provider.id)
@@ -175,6 +181,8 @@ function ModelsPage() {
           </PageRows>
         )}
       </PageSection>
+
+      {isAdmin ? <PrivateServerSection /> : null}
 
       <PageSection
         description={t(

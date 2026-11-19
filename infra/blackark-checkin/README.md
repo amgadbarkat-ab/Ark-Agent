@@ -83,6 +83,37 @@ images from this site only. The fonts and icons are the company's own files from
 (the tests check they have not drifted); `FONTS-LICENSE.txt` is Geist's SIL Open Font License, kept beside
 the fonts and not served. Upload `brand/` with the pages; a page without it falls back to the system font.
 
+## Ark Private Server (#149, 19 Nov 2026)
+
+A private server BlackArk sets up for one customer to run an open model on. COO's five tiers, prices
+approved by Amgad on 19 Nov 17:45 (#149 comment 7014144068), are in `checkin/servers-catalogue.php`
+(denied to the web): what the app and the buy page show.
+
+- **`…/checkin/servers/`** (POST, the install's own proof, as renew/ and support/): the tiers, the buy
+  page's address, and this customer's latest order. Once staff have attached the server, the order
+  carries its address, model and key, sent only to that customer's install. At most 60 requests an
+  hour per install.
+- **`…/checkin/buy/?customer=<id>&server=<tier>`**: a subscription Checkout with the tier's monthly price
+  and, for the GPU tiers, the one-time activation as a second line. The prices are found **by lookup key**
+  (`private_server_<tier>_monthly`, `_activation`) and checked against the catalogue: if Stripe's amount,
+  currency or interval differs, nothing is sold (503) and the log says which. Back to
+  `buy/?done=server`, in the BlackArk look.
+- **The webhook**: a paid checkout with metadata `kind=private_server` becomes an order, "setting_up",
+  in the `private_servers` table, never in `licenses`, so it signs no licence key. Each `invoice.paid`
+  moves "paid until"; `customer.subscription.deleted` marks it cancelled and its key is no longer sent.
+  The server log says "ark-server: new order …" for each new order.
+- **Setting it up (by hand, phase 1)**: order the server from the supplier, install a runtime that serves
+  an OpenAI-compatible API over HTTPS, then in `…/checkin/admin/` → "Ark Private Server orders" attach
+  its address (ending in `/v1`), the model name it answers to and its key. The key is not shown again.
+  "Mark stopped" if it is taken down. The customer's app shows "ready" within a few minutes, and one click
+  makes it their model.
+
+**One server per customer** (Amgad, 19 Nov 18:43): the order belongs to the customer id, so every
+install of that customer sees it and can use it.
+
+**Stripe:** the restricted key needs **Prices: Read** as well as Checkout Sessions: Write, to look the
+prices up. The webhook events are the ones it already takes.
+
 ## Limits
 
 - One check-in per install every 5 minutes (`rate_limit_seconds`). Installs send one a day, and

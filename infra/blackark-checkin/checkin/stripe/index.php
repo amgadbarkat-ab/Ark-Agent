@@ -203,6 +203,64 @@ function credit_phone(PDO $db, array $session): void
     }
 }
 
+/*
+ * Ark Private Server (#149, 19 Nov): a subscription the buy page opened with metadata kind
+ * "private_server". Kept in private_servers, never in licenses, so it signs no licence key and a
+ * licence's end never touches it. A paid checkout records the order as "setting_up" (BlackArk orders
+ * the server and sets it up by hand); each paid invoice moves "paid until"; the subscription's end
+ * marks it cancelled. Handled here, before the licence events, and answered.
+ */
+ark_private_servers_table($db);
+$serverRow = null;
+if ($subscription !== '') {
+    $read = $db->prepare('SELECT * FROM private_servers WHERE subscription_id = ?');
+    $read->execute([$subscription]);
+    $serverRow = $read->fetch() ?: null;
+}
+$serverMeta = (array) ($object['metadata'] ?? []);
+if (($serverMeta['kind'] ?? '') !== 'private_server') {
+    $serverMeta = (array) ($object['subscription_details']['metadata'] ?? ($object['parent']['subscription_details']['metadata'] ?? []));
+}
+$isServer = $serverRow !== null || ($serverMeta['kind'] ?? '') === 'private_server';
+if ($isServer) {
+    switch ($event['type']) {
+        case 'checkout.session.completed':
+        case 'checkout.session.async_payment_succeeded':
+            $customer = strtolower(trim((string) ($object['client_reference_id'] ?? '')));
+            $tier = (string) ($serverMeta['server_tier'] ?? '');
+            $paid = in_array($object['payment_status'] ?? '', ['paid', 'no_payment_required'], true);
+            if (!$paid || preg_match('/^sub_[A-Za-z0-9_]+$/', $subscription) !== 1
+                || preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1 || !isset(ark_server_catalogue()[$tier])) {
+                reply(200, 'Server order not paid yet, or not complete.');
+            }
+            $db->prepare('INSERT OR IGNORE INTO private_servers (subscription_id, customer_id, tier, status, session_id, ordered_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$subscription, $customer, $tier, 'setting_up', (string) ($object['id'] ?? ''), $now, $now]);
+            error_log('ark-server: new order ' . $tier . ' for ' . $customer . ': set it up, then attach it in checkin/admin/.');
+            reply(200, 'Server ordered.');
+        case 'invoice.paid':
+            if ($serverRow !== null) {
+                $periodEnd = 0;
+                foreach ((array) ($object['lines']['data'] ?? []) as $line) {
+                    $periodEnd = max($periodEnd, (int) ($line['period']['end'] ?? 0));
+                }
+                if ($periodEnd > (int) $serverRow['paid_until']) {
+                    $db->prepare('UPDATE private_servers SET paid_until = ?, updated_at = ? WHERE subscription_id = ?')
+                        ->execute([$periodEnd, $now, $subscription]);
+                }
+            }
+            reply(200, 'Server paid.');
+        case 'customer.subscription.deleted':
+            if ($serverRow !== null) {
+                $db->prepare("UPDATE private_servers SET status = 'cancelled', updated_at = ? WHERE subscription_id = ?")
+                    ->execute([$now, $subscription]);
+            }
+            reply(200, 'Server cancelled.');
+        default:
+            reply(200, 'Server event ignored.');
+    }
+}
+
 switch ($event['type']) {
     case 'checkout.session.async_payment_succeeded':
         credit_phone($db, $object);
