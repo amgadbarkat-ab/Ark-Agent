@@ -265,7 +265,7 @@ export function createPrivateServerService(
         !order.apiKey
       ) {
         throw new PrivateServerNotReadyError(
-          "Your private server is not ready yet. BlackArk is setting it up.",
+          "Your private server is not ready yet. It will be ready within 1 working day of payment.",
         );
       }
       const verdict = checkConnectionInput({

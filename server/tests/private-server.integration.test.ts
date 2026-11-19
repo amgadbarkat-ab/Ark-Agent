@@ -205,7 +205,8 @@ describe("Ark Private Server in the app", () => {
     });
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      error: "Your private server is not ready yet. BlackArk is setting it up.",
+      error:
+        "Your private server is not ready yet. It will be ready within 1 working day of payment.",
     });
   });
 

@@ -104,7 +104,7 @@ test("every tier shows its storage, the model it suits and its price, and Choose
   expect(choose[0]?.getAttribute("target")).toBe("_blank");
 });
 
-test("a paid order shows as being set up by BlackArk, and its tier is marked as yours", async () => {
+test("a paid order shows it will be ready within 1 working day, and its tier is marked as yours", async () => {
   serve({
     available: true,
     tiers,
@@ -123,7 +123,7 @@ test("a paid order shows as being set up by BlackArk, and its tier is marked as 
   });
   const screen = show();
   expect((await screen.findByRole("status")).textContent).toContain(
-    "BlackArk is setting up your server",
+    "Your server will be ready within 1 working day",
   );
   expect(screen.getByText("Your server")).toBeTruthy();
   expect(screen.getAllByRole("button", { name: "Choose" })).toHaveLength(1);

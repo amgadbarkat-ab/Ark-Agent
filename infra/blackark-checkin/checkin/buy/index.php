@@ -50,7 +50,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     page(405, 'ArkAgent', 'Μη αποδεκτό αίτημα.', 'Not accepted.');
 }
 if (($_GET['done'] ?? '') === 'server') {
-    page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Η BlackArk ετοιμάζει τώρα τον ιδιωτικό σας διακομιστή. Το ArkAgent δείχνει πότε είναι έτοιμος, στις Ρυθμίσεις, Μοντέλα.', 'Thank you. BlackArk is now setting up your private server. ArkAgent shows when it is ready, in Settings, Models.');
+    page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Ο ιδιωτικός σας διακομιστής θα είναι έτοιμος μέσα σε 1 εργάσιμη ημέρα. Το ArkAgent δείχνει πότε είναι έτοιμος, στις Ρυθμίσεις, Μοντέλα.', 'Thank you. Your private server will be ready within 1 working day. ArkAgent shows when it is ready, in Settings, Models.');
 }
 if (isset($_GET['done'])) {
     page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Οι 5 ώρες προστίθενται στο υπόλοιπο τηλεφωνίας σε λίγα λεπτά και εμφανίζονται στο ArkAgent.', 'Thank you. The 5 hours are added to the phone balance within a few minutes and show in ArkAgent.');

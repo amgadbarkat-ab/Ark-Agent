@@ -45,7 +45,7 @@ function day(iso: string | null): string {
  * Ark Private Server (#149; COO's tiers, prices approved by Amgad 19 Nov 17:45): a server BlackArk sets
  * up for this business alone, to run an open model on. Each tier with its storage, the model it suits
  * and its price; "Choose" opens BlackArk's buy page (Stripe Checkout, in BlackArk's look) in the
- * browser. After payment the order shows as being set up by BlackArk, and once it is ready one click
+ * browser. After payment the order shows as ready within 1 working day, and once it is ready one click
  * makes it the person's model. For administrators; hidden when this build has no BlackArk to ask.
  */
 export function PrivateServerSection() {
@@ -56,7 +56,7 @@ export function PrivateServerSection() {
   return (
     <PageSection
       description={t(
-        "A server BlackArk sets up for your business alone, to run an open model. Your conversations stay on it, not with a model company. Prices exclude VAT and are billed monthly through Stripe.",
+        "A server BlackArk sets up for your business alone, to run an open model. Ready within 1 working day of payment. Prices exclude VAT and are billed monthly through Stripe. After you cancel, the server and its data are kept for 6 days, then deleted.",
       )}
       title={t("Ark Private Server")}
     >
@@ -172,7 +172,7 @@ function OrderRow({
   const sentence =
     order.status === "setting_up"
       ? t(
-          "Paid on {date}. BlackArk is setting up your server; this page shows when it is ready.",
+          "Paid on {date}. Your server will be ready within 1 working day; this page shows when it is.",
           { date: day(order.orderedAt) },
         )
       : order.status === "ready"
@@ -185,7 +185,9 @@ function OrderRow({
             })
         : order.status === "stopped"
           ? t("Stopped by BlackArk. Contact BlackArk in Help & support.")
-          : t("Cancelled. Choose a server below to order again.");
+          : t(
+              "Cancelled. The server and its data are deleted 6 days after cancelling. Choose a server below to order again.",
+            );
   return (
     <div className="mt-4 rounded-xl border border-border bg-card p-4">
       <p className="font-medium text-sm">{name}</p>
