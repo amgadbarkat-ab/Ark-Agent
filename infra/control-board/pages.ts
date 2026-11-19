@@ -60,13 +60,21 @@ function nav(frame: Frame): Html {
       const current =
         href === "/" ? frame.path === "/" : frame.path.startsWith(href);
       return html`<a href="${href}"${current ? html` aria-current="page"` : ""}>${t(frame.lang, label)}</a>`;
-    })}</nav>
-  <form method="post" action="/logout" class="signout">
+    })}</nav>`;
+}
+
+function signOut(frame: Frame): Html {
+  const account = frame.account;
+  if (!account) return html``;
+  return html`<form method="post" action="/logout" class="signout">
     <input type="hidden" name="csrf" value="${frame.csrf ?? ""}">
     <span>${account.username} · ${roleName(frame.lang, account.role)}</span>
-    <button type="submit">${t(frame.lang, "Sign out")}</button>
+    <button type="submit" class="ghost">${t(frame.lang, "Sign out")}</button>
   </form>`;
 }
+
+/** The company's tile, as blackark.uk draws it in its header (brand/mark.svg), inline: no request. */
+const MARK = html`<svg viewBox="0 0 160 160" width="28" height="28" aria-hidden="true" focusable="false"><rect width="160" height="160" rx="28" fill="#FF7A1A"/><rect x="34" y="88" width="26" height="42" rx="6" fill="#1A0B03"/><rect x="67" y="64" width="26" height="66" rx="6" fill="#1A0B03"/><rect x="100" y="34" width="26" height="96" rx="6" fill="#1A0B03"/></svg>`;
 
 export function layout(frame: Frame, title: string, body: Html): string {
   return `<!doctype html>${html`<html lang="${frame.lang}">
@@ -74,11 +82,16 @@ export function layout(frame: Frame, title: string, body: Html): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#070504">
 <title>${title} · ${t(frame.lang, "BlackArk Control Board")}</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/board.css">
 </head>
 <body>
-<header><strong>${t(frame.lang, "BlackArk Control Board")}</strong>${langSwitch(frame)}${nav(frame)}</header>
+<header><div class="bar"><a class="brand" href="/">${MARK}<span>${t(frame.lang, "BlackArk Control Board")}</span></a>${nav(frame)}<div class="tools">${langSwitch(frame)}${signOut(frame)}</div></div></header>
 <main>
 <h1>${title}</h1>
 ${body}
@@ -577,7 +590,7 @@ ${
       (account) =>
         html`<tr><td>${account.username}</td><td>${roleName(l, account.role)}</td><td>${t(l, statusText[account.status] ?? account.status)}</td><td>${when(l, account.created_at)}${account.created_by ? html` <small class="muted">${account.created_by}</small>` : ""}</td><td>${
           canManageRow(account)
-            ? html`<form method="post" action="/accounts" class="inline"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="username" value="${account.username}"><button name="action" value="reset">${t(l, "Reset passkey and 2FA")}</button>${account.status !== "disabled" ? html` <button name="action" value="disable">${t(l, "Disable")}</button>` : ""}</form>`
+            ? html`<form method="post" action="/accounts" class="inline"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="username" value="${account.username}"><button name="action" value="reset" class="ghost">${t(l, "Reset passkey and 2FA")}</button>${account.status !== "disabled" ? html` <button name="action" value="disable" class="ghost danger">${t(l, "Disable")}</button>` : ""}</form>`
             : ""
         }</td></tr>`,
     )}</tbody></table></div>
