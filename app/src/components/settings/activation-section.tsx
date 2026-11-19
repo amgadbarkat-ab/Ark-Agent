@@ -9,6 +9,10 @@ import {
   ActivationForm,
   useActivationLine,
 } from "@/components/activation/activation-form";
+import {
+  BuyLicence,
+  PaymentReceived,
+} from "@/components/activation/buy-licence";
 import { PageRows, PageSection } from "@/components/layout/page-shell";
 import {
   Item,
@@ -27,7 +31,11 @@ import {
 export function ActivationSection({ admin }: { admin: boolean }) {
   const t = useT();
   const line = useActivationLine();
-  const activation = useQuery(activationQueryOptions()).data;
+  // Read again by itself while there is something to buy (v0.1.49), so a payment shows up here.
+  const activation = useQuery({
+    ...activationQueryOptions(),
+    refetchInterval: (query) => (query.state.data?.buyUrl ? 15_000 : false),
+  }).data;
   const agents = useQuery(agentAllowanceQueryOptions()).data;
   if (!activation) return null;
   if (!activation.required && activation.state === "none") return null;
@@ -46,6 +54,7 @@ export function ActivationSection({ admin }: { admin: boolean }) {
           </ItemMedia>
           <ItemContent>
             <ItemTitle>{line(activation)}</ItemTitle>
+            <PaymentReceived activation={activation} />
             {agents && agents.limit !== null ? (
               // Ark Team's agent limit (v0.1.49), for the whole computer.
               <ItemDescription className="line-clamp-none">
@@ -58,7 +67,7 @@ export function ActivationSection({ admin }: { admin: boolean }) {
             {activation.renewHost ? (
               <ItemDescription className="line-clamp-none">
                 {t(
-                  "Once a day this computer asks {host} for the renewed licence key. Only the customer id, this computer's random id, the version and the key's number are sent.",
+                  "Once a day this computer asks {host} for the renewed licence key. Only the customer id, this computer's random id, the version, the key's number and the key itself, as proof, are sent.",
                   { host: activation.renewHost },
                 )}{" "}
                 {activation.lastRenewError
@@ -74,6 +83,16 @@ export function ActivationSection({ admin }: { admin: boolean }) {
             ) : null}
           </ItemContent>
         </Item>
+        {activation.buyUrl ? (
+          <>
+            <Separator />
+            <Item size="sm">
+              <ItemContent>
+                <BuyLicence activation={activation} />
+              </ItemContent>
+            </Item>
+          </>
+        ) : null}
         {admin ? (
           <>
             <Separator />

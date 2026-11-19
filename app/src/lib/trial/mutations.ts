@@ -65,3 +65,19 @@ export function applyActivationCodeMutationOptions(queryClient: QueryClient) {
     onSuccess: () => invalidate(queryClient),
   });
 }
+
+/**
+ * The buy button (v0.1.49): tells the server the buy page is being opened, so it asks for the key
+ * every 20 seconds for the next half hour, and gets back the page for this install's customer.
+ */
+export function openBuyPageMutationOptions() {
+  return mutationOptions({
+    mutationFn: async (): Promise<{ buyUrl: string }> =>
+      (
+        await client("/api/activation/buying", {
+          method: "POST",
+          fallback: "Could not open the buy page",
+        })
+      ).json(),
+  });
+}

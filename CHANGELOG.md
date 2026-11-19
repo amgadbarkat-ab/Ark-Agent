@@ -8,6 +8,19 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+### Activation reaches the app after payment (#109, v0.1.49)
+
+- **Desktop: paying unlocks ArkAgent by itself.** An install on a trial, or waiting on the Activate screen, now asks blackark.uk for its licence key on start-up and every five minutes, and every 20 seconds for 30 minutes after "Buy a licence" is pressed. When the key is there, it is applied exactly as a typed key would be, without a restart, and the app says "Payment received: ArkAgent is activated." (in Greek when chosen). Sent: the customer id, the install's random id, the version, and BlackArk's own signed trial file, activation code or licence key as proof. Nothing else.
+- **Desktop: "Buy a licence"** on the Activate screen and on Settings, then Plan, opens BlackArk's existing buy page for this install's customer in your browser (with the phone add-on when the trial has it). Shown only while activation is required and nothing is paid.
+- An install that has neither a trial file nor a code (a fresh install on the Activate screen) still needs its code typed once: there is nothing yet to say whose install it is.
+
+- **blackark.uk: a licence key goes only to the install itself.** `checkin/renew/` used to hand the current key to anyone who sent a customer id. It now needs the install's proof, checked as Help & support checks it: its BlackArk-signed trial profile, or its signed activation code or licence key, made for that customer. An install from v0.1.44 to v0.1.48, which sends only its key's number, is still answered when that number belongs to a key issued to the same customer. Anything else is refused (403). One install may ask at most 150 times an hour (429).
+
+### Desktop: Save As (#109, v0.1.49)
+
+- **A real Save As dialog for files ArkAgent makes** (Propose a change's file, for one). It suggests the file's name in your Downloads folder; you choose where; Cancel saves nothing. After saving, the same box with the full path and "Show in folder". Other downloads (a file from the server, such as an export) still go straight to Downloads with that box.
+- **The permission behind it is one command and one place:** the ArkAgent window may ask the desktop to show Save As and write the text it was given to the file the person picked, only while it shows the app from its own address on this computer (`http://127.0.0.1:<port>`). No other page, port or window can, and nothing else changes for the desktop's other commands.
+
 ### Ark Team tiers, the agent limit, and phone usage in Stripe (v0.1.49)
 
 - **Ark Team comes in three tiers, per person a month (before tax):** 5 digital employees for €100, 10 for €140, 20 for €200. The customer can switch tiers in Stripe's billing portal. ArkAgent (€50) and Ark Team Enterprise are unchanged, and so is how many employees may work at the same moment.

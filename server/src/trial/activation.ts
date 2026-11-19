@@ -16,9 +16,14 @@
  * THE CLOCK. Every end is compared with the later of the computer's clock and the latest time this
  * install has seen, as for the trial, so turning the clock back does not bring a key back.
  *
- * RENEWAL. A licence key may name `renewUrl`. Once a day this install sends that address the
- * customer id, this install's random id, the version and the key's nonce, and takes back a renewed
- * key if the answer carries one. Nothing else: no conversation, name or file.
+ * FETCHING THE KEY (v0.1.44 renewal; v0.1.49 also before there is one). The install asks
+ * blackark.uk (the key's `renewUrl`, or `checkin/renew/`) for its licence key: on start-up, every
+ * five minutes while on a trial or waiting on Activate, every 20 seconds for 30 minutes after the
+ * buy page is opened from the app, and once a day when paid. It sends the customer id, this
+ * install's random id, the version, the end and number of the key in hand, and BlackArk's own proof
+ * that this is that customer's install (its signed trial setup file, activation code or licence key,
+ * exactly as BlackArk issued it; install-proof.ts). Nothing else: no conversation, name or file. A
+ * key that comes back is applied exactly as a typed key is, so a payment unlocks the app by itself.
  */
 import type { KeyObject } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -42,6 +47,7 @@ import { signedByAny } from "../../../shared/trial-sign";
 import type { Entitlement } from "../accounts/store";
 import type { Database } from "../db/client";
 import { activationState } from "../db/schema";
+import { installIdentity } from "./install-proof";
 import {
   TrialRefusedError,
   type TrialService,
@@ -84,7 +90,49 @@ export type ActivationView = {
   lastRenewError: string | null;
   /** Whether this build can check each kind of signature at all. */
   keys: { trial: boolean; license: boolean };
+  /**
+   * BlackArk's buy page for this install's customer (v0.1.49), while there is something to buy:
+   * activation is required, the customer is known, and it is not paid. Null otherwise.
+   */
+  buyUrl: string | null;
+  /** When a key fetched after a payment activated this install, since the server started. */
+  paymentReceivedAt: string | null;
 };
+
+/** Where an install asks for its licence key when the key it has names none, or it has none yet. */
+export const DEFAULT_LICENSE_URL = "https://blackark.uk/checkin/renew/";
+/** BlackArk's buy page (infra/blackark-checkin/checkin/buy/), opened with the customer id. */
+export const DEFAULT_BUY_URL = "https://blackark.uk/checkin/buy/";
+
+/** After the buy page opens, ask this often for this long (Amgad, 19 Nov: no manual step). */
+const FAST_EVERY = 20 * 1000;
+const FAST_FOR = 30 * MINUTE;
+/** While on a trial or waiting on Activate. */
+const SLOW_EVERY = 5 * MINUTE;
+
+/**
+ * Whether to ask blackark.uk for the key now (v0.1.49): on start-up; every 20 seconds for 30 minutes
+ * after the buy page opened; every five minutes while not paid; once paid, once a day as before, and
+ * hourly after a failure.
+ */
+export function keyFetchDue(state: {
+  paid: boolean;
+  lastAttemptAt: Date | null;
+  lastRenewAt: Date | null;
+  failed: boolean;
+  fastUntil: Date | null;
+  now: Date;
+}): boolean {
+  const now = state.now.getTime();
+  const since = (at: Date | null) =>
+    at ? now - at.getTime() : Number.POSITIVE_INFINITY;
+  if (state.paid) {
+    if (state.failed) return since(state.lastAttemptAt) >= 60 * MINUTE;
+    return since(state.lastRenewAt) >= DAY - 5 * MINUTE;
+  }
+  const fast = state.fastUntil !== null && now < state.fastUntil.getTime();
+  return since(state.lastAttemptAt) >= (fast ? FAST_EVERY : SLOW_EVERY);
+}
 
 export type AppliedCode = {
   kind: "trial" | "license" | "extend" | "end" | "paid";
@@ -136,11 +184,26 @@ export function createActivationService(
     version: string;
     now?: () => Date;
     fetch?: typeof fetch;
+    /** Where to ask for the key when the key in hand names no renewal address (v0.1.49). */
+    licenseUrl?: string;
+    buyUrl?: string;
+    /** How often the scheduler looks whether asking is due; tests make it short. */
+    tickMs?: number;
   },
 ) {
   const { trial } = options;
   const now = options.now ?? (() => new Date());
   const send = options.fetch ?? fetch;
+  const licenseUrl = options.licenseUrl ?? DEFAULT_LICENSE_URL;
+  const buyUrl = options.buyUrl ?? DEFAULT_BUY_URL;
+  /** In memory: since this server started. A restart asks again at once, which is what is wanted. */
+  const fetching = {
+    lastAttemptAt: null as Date | null,
+    lastError: null as string | null,
+    lastSuccessAt: null as Date | null,
+    fastUntil: null as Date | null,
+    paymentReceivedAt: null as Date | null,
+  };
 
   async function load(): Promise<Row | undefined> {
     const [row] = await database.select().from(activationState).limit(1);
@@ -188,12 +251,21 @@ export function createActivationService(
       agentLimit: null as number | null,
       addons: [] as TrialAddon[],
       renewHost,
-      lastRenewAt: row?.lastRenewAt?.toISOString() ?? null,
-      lastRenewError: row?.lastRenewError ?? null,
+      // A licence key keeps its renewal on file; before there is one, what this server last heard.
+      lastRenewAt:
+        (row?.kind === "license"
+          ? row.lastRenewAt
+          : fetching.lastSuccessAt
+        )?.toISOString() ?? null,
+      lastRenewError:
+        (row?.kind === "license" ? row.lastRenewError : fetching.lastError) ??
+        null,
       keys: {
         trial: options.trialKeys.length > 0,
         license: options.licenseKeys.length > 0,
       },
+      buyUrl: null as string | null,
+      paymentReceivedAt: fetching.paymentReceivedAt?.toISOString() ?? null,
     };
     const fromRow = (state: ActivationState) => ({
       ...base,
@@ -264,6 +336,13 @@ export function createActivationService(
         daysLeft: null,
       };
     }
+    if (options.required && view.customerId && view.state !== "paid") {
+      // The existing buy page (buy/index.php): the plan, and the phone add-on when this install's
+      // trial carries it, so the customer pays for what they tried in one checkout.
+      const phone =
+        view.addons.includes("phone") || (await trial.addonEnabled("phone"));
+      view.buyUrl = `${buyUrl}?customer=${encodeURIComponent(view.customerId)}${phone ? "&phone=1" : ""}`;
+    }
     return { view, row, profile };
   }
 
@@ -326,9 +405,18 @@ export function createActivationService(
           "This computer already has a paid licence. A trial code is not needed.",
         );
       }
+      // A tier switch or a seat change (v0.1.49) re-signs the key for the same paid period: same end,
+      // issued later. That one replaces the key on file; anything else that ends no later does not.
+      const reissued =
+        isLicense &&
+        row.kind === "license" &&
+        row.customerId === code.customer &&
+        row.validUntil.getTime() === until.getTime() &&
+        new Date(code.issuedAt).getTime() > row.issuedAt.getTime();
       if (
         row.kind === code.action &&
-        row.validUntil.getTime() >= until.getTime()
+        row.validUntil.getTime() >= until.getTime() &&
+        !reissued
       ) {
         if (quiet) return false;
         throw new TrialRefusedError(
@@ -385,22 +473,39 @@ export function createActivationService(
     };
   }
 
-  /** Asks the licence's renewal address for a renewed key, and takes it if it is one. */
-  async function renew(): Promise<"renewed" | "unchanged" | "none" | "failed"> {
+  /**
+   * Asks blackark.uk for this install's licence key, and takes it if it is a newer one (v0.1.44
+   * renewal; v0.1.49 also before there is a key, so a payment unlocks the app with nothing typed).
+   *
+   * Sent: the customer id, this install's random id, the version, the end of the key in hand (null
+   * the start of time when there is none), its number, and BlackArk's own proof that this is that customer's install
+   * (install-proof.ts). A key that comes back is applied exactly as a typed one: the same signature
+   * check, the same customer check, the same rule that only a longer key replaces one.
+   */
+  async function fetchKey(): Promise<
+    "activated" | "renewed" | "unchanged" | "none" | "failed"
+  > {
+    const who = await installIdentity(database);
+    if (!who) return "none";
     const row = await load();
-    if (row?.kind !== "license" || !row.renewUrl) return "none";
+    const license = row?.kind === "license" ? row : undefined;
+    const url = license?.renewUrl ?? licenseUrl;
+    const wasPaid = (await current()).state === "paid";
+    fetching.lastAttemptAt = now();
     let error: string | null = null;
-    let outcome: "renewed" | "unchanged" = "unchanged";
+    let outcome: "activated" | "renewed" | "unchanged" = "unchanged";
     try {
-      const response = await send(row.renewUrl, {
+      const response = await send(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          customerId: row.customerId,
-          installId: row.installId,
+          customerId: who.customerId,
+          installId: who.installId,
           version: options.version,
-          nonce: row.nonce,
-          validUntil: row.validUntil.toISOString(),
+          ...(license ? { nonce: license.nonce } : {}),
+          // No key yet: the start of time, so today's renew/ (which needs a date) answers too.
+          validUntil: (license?.validUntil ?? new Date(0)).toISOString(),
+          proof: who.proof,
         }),
         signal: AbortSignal.timeout(15_000),
       });
@@ -417,7 +522,7 @@ export function createActivationService(
           } else if (
             await activate(read.payload, read.signature, read.code, true)
           ) {
-            outcome = "renewed";
+            outcome = wasPaid ? "renewed" : "activated";
           }
         }
       }
@@ -429,14 +534,24 @@ export function createActivationService(
             ? "The renewal did not send a licence key."
             : "The renewal address could not be reached.";
     }
-    await database
-      .update(activationState)
-      .set(
-        error
-          ? { lastRenewError: error }
-          : { lastRenewAt: now(), lastRenewError: null },
-      )
-      .where(eq(activationState.id, row.id));
+    fetching.lastError = error;
+    if (!error) fetching.lastSuccessAt = now();
+    if (outcome === "activated") fetching.paymentReceivedAt = now();
+    if (license) {
+      await database
+        .update(activationState)
+        .set(
+          error
+            ? { lastRenewError: error }
+            : { lastRenewAt: now(), lastRenewError: null },
+        )
+        .where(eq(activationState.id, license.id));
+    } else if (outcome === "activated") {
+      await database
+        .update(activationState)
+        .set({ lastRenewAt: now(), lastRenewError: null })
+        .where(eq(activationState.id, "install"));
+    }
     return error ? "failed" : outcome;
   }
 
@@ -540,36 +655,61 @@ export function createActivationService(
       return trial.addonEnabled(name);
     },
 
-    renew,
+    fetchKey,
+    /** The v0.1.44 name: a renewal is the same request. */
+    renew: fetchKey,
 
-    /** At start and then once a day; hourly after a failure. Returns the stop function. */
-    startRenewals(): () => void {
+    /**
+     * The person opened the buy page from the app (v0.1.49): ask every 20 seconds for the next 30
+     * minutes, so the key arrives moments after Stripe says paid. Returns the page to open.
+     */
+    async expectPayment(): Promise<{ buyUrl: string | null }> {
+      fetching.fastUntil = new Date(now().getTime() + FAST_FOR);
+      return { buyUrl: (await current()).buyUrl };
+    },
+
+    /**
+     * Asks for the key when `keyFetchDue` says so: on start-up, every few minutes while on a trial
+     * or waiting on Activate, every 20 seconds after the buy page opens, daily once paid. Returns the
+     * stop function.
+     */
+    startKeyFetch(): () => void {
       let stopped = false;
+      let running = false;
       const tick = async () => {
-        if (stopped) return;
+        if (stopped || running) return;
+        running = true;
         try {
           const row = await load();
-          if (row?.kind !== "license" || !row.renewUrl) return;
-          const last = row.lastRenewAt?.getTime() ?? 0;
-          if (
-            now().getTime() - last >= DAY - 5 * MINUTE ||
-            row.lastRenewError
-          ) {
-            await renew();
-          }
+          const license = row?.kind === "license" ? row : undefined;
+          const paid = (await current()).state === "paid";
+          const due = keyFetchDue({
+            paid,
+            lastAttemptAt: fetching.lastAttemptAt,
+            lastRenewAt: license?.lastRenewAt ?? null,
+            failed: license
+              ? license.lastRenewError !== null
+              : fetching.lastError !== null,
+            fastUntil: fetching.fastUntil,
+            now: now(),
+          });
+          if (due) await fetchKey();
         } catch (error) {
           console.error(
             JSON.stringify({
-              type: "license-renewal-failed",
+              type: "license-fetch-failed",
               error: String(error),
             }),
           );
+        } finally {
+          running = false;
         }
       };
-      const first = setTimeout(tick, 45_000);
-      const every = setInterval(tick, 60 * MINUTE);
-      first.unref?.();
+      const every = setInterval(tick, options.tickMs ?? FAST_EVERY);
       every.unref?.();
+      // Soon after start, not at once: the server is still opening everything else.
+      const first = setTimeout(tick, options.tickMs ?? 5_000);
+      first.unref?.();
       return () => {
         stopped = true;
         clearTimeout(first);

@@ -38,8 +38,20 @@ export const EL_ACTIVATION: Record<string, string> = {
     "Η άδεια έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται.",
   "ArkAgent works on this computer with a trial activation code, a paid licence key or the trial setup file.":
     "Το ArkAgent λειτουργεί σε αυτόν τον υπολογιστή με κωδικό ενεργοποίησης δοκιμής, κλειδί άδειας επί πληρωμή ή το αρχείο ρύθμισης δοκιμής.",
-  "Once a day this computer asks {host} for the renewed licence key. Only the customer id, this computer's random id, the version and the key's number are sent.":
-    "Μία φορά την ημέρα αυτός ο υπολογιστής ζητά από το {host} το ανανεωμένο κλειδί άδειας. Στέλνονται μόνο το αναγνωριστικό πελάτη, ένα τυχαίο αναγνωριστικό του υπολογιστή, η έκδοση και ο αριθμός του κλειδιού.",
+  "Once a day this computer asks {host} for the renewed licence key. Only the customer id, this computer's random id, the version, the key's number and the key itself, as proof, are sent.":
+    "Μία φορά την ημέρα αυτός ο υπολογιστής ζητά από το {host} το ανανεωμένο κλειδί άδειας. Στέλνονται μόνο το αναγνωριστικό πελάτη, ένα τυχαίο αναγνωριστικό του υπολογιστή, η έκδοση, ο αριθμός του κλειδιού και το ίδιο το κλειδί, ως απόδειξη.",
+
+  // Buying from the app, and the key that arrives by itself (v0.1.49).
+  "Buy a licence": "Αγορά άδειας",
+  "Opens BlackArk's payment page in your browser. After you pay, ArkAgent unlocks by itself.":
+    "Ανοίγει τη σελίδα πληρωμής της BlackArk στο πρόγραμμα περιήγησής σας. Μετά την πληρωμή, το ArkAgent ξεκλειδώνει μόνο του.",
+  "Waiting for your payment. ArkAgent unlocks by itself as soon as it is paid; nothing needs to be typed.":
+    "Αναμονή της πληρωμής σας. Το ArkAgent ξεκλειδώνει μόνο του μόλις ολοκληρωθεί η πληρωμή· δεν χρειάζεται να πληκτρολογήσετε τίποτα.",
+  "Payment received: ArkAgent is activated.":
+    "Η πληρωμή ελήφθη: το ArkAgent ενεργοποιήθηκε.",
+  "Could not open the buy page": "Η σελίδα αγοράς δεν άνοιξε",
+  "There is nothing to buy for this computer.":
+    "Δεν υπάρχει κάτι προς αγορά για αυτόν τον υπολογιστή.",
   "The last renewal check did not go through.":
     "Ο τελευταίος έλεγχος ανανέωσης δεν ολοκληρώθηκε.",
   "Last checked: {when}.": "Τελευταίος έλεγχος: {when}.",

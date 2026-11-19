@@ -42,36 +42,6 @@ function support_answer(int $status, array $body): void
     exit;
 }
 
-/** An `ARK1-` code's payload (base64url JSON) and signature, checked against the right key. */
-function support_code_ok($proof, string $customerId): ?bool
-{
-    if (!is_array($proof) || !is_string($proof['payload'] ?? null) || !is_string($proof['signature'] ?? null)) {
-        return false;
-    }
-    if (!function_exists('sodium_crypto_sign_verify_detached')) {
-        return null;
-    }
-    $json = ark_base64url_decode($proof['payload']);
-    $code = $json === false ? null : json_decode($json, true);
-    if (!is_array($code) || ($code['customer'] ?? null) !== $customerId) {
-        return false;
-    }
-    $signature = ark_base64url_decode($proof['signature']);
-    if ($signature === false || strlen($signature) !== 64) {
-        return false;
-    }
-    $keys = ($code['action'] ?? '') === 'license'
-        ? [(string) ark_config('license_public_key', '')]
-        : (array) ark_config('trial_public_keys', []);
-    foreach ($keys as $encoded) {
-        $key = base64_decode((string) $encoded, true);
-        if ($key !== false && strlen($key) === 32 && sodium_crypto_sign_verify_detached($signature, $proof['payload'], $key)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     support_answer(405, ['error' => 'POST only.']);
 }
@@ -105,9 +75,7 @@ if (
     support_answer(400, ['error' => 'Not a support request.']);
 }
 
-$proof = $in['proof'] ?? null;
-$kind = is_array($proof) ? ($proof['kind'] ?? '') : '';
-$ok = $kind === 'profile' ? ark_proof_ok($proof, $customer) : ($kind === 'code' ? support_code_ok($proof, $customer) : false);
+$ok = ark_install_proof_ok($in['proof'] ?? null, $customer);
 if ($ok === null) {
     support_answer(503, ['error' => 'This server cannot check signatures.']);
 }

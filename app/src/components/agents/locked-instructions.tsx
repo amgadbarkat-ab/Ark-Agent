@@ -163,8 +163,10 @@ function ProposeChangeForm({
         event.preventDefault();
         const made = file();
         if (!made) return;
-        downloadProposalFile(made);
-        setSaved(true);
+        // Cancelled in the Save As dialog: nothing saved, the form stays.
+        void downloadProposalFile(made).then((saved) => {
+          if (saved) setSaved(true);
+        });
       }}
     >
       <DialogHeader>
