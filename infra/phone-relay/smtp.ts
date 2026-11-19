@@ -1,7 +1,10 @@
 /**
  * One plain-text email through BlackArk's own mailbox (#109, v0.1.47): the relay's internal alert
  * when blackark.uk stops answering. Implicit TLS (port 465, as one.com's send.one.com), AUTH LOGIN,
- * one message, QUIT. No dependency: the relay installs nothing beyond Bun.
+ * one message, QUIT. No dependency: the relay installs nothing beyond its runtime.
+ *
+ * The conversation (`sendMailOver`) runs over any byte stream: `Bun.connect` in the Bun relay
+ * (`sendMail`), Cloudflare's `connect()` with `secureTransport: "on"` in the Workers relay.
  *
  * Only BlackArk's own addresses are written to, and nothing about a customer's callers is in it.
  */
@@ -17,10 +20,20 @@ export type SmtpConfig = {
   timeoutMs?: number;
 };
 
+/** A connection as web streams, the shape Cloudflare's `connect()` gives. */
+export type MailTransport = {
+  readable: ReadableStream<Uint8Array>;
+  writable: WritableStream<Uint8Array>;
+  close(): Promise<void> | void;
+};
+
 const ADDRESS = /^[^\s<>@,]+@[^\s<>@,]+\.[^\s<>@,]+$/;
 
 function base64(text: string): string {
-  return Buffer.from(text, "utf8").toString("base64");
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text))
+    binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
 /** The message as it goes after DATA: headers, a base64 body, and the end-of-data line. */
@@ -45,36 +58,25 @@ export function messageText(
   return `${lines.join("\r\n")}\r\n.\r\n`;
 }
 
-export async function sendMail(
+export function checkAddresses(config: Pick<SmtpConfig, "from" | "to">) {
+  if (!ADDRESS.test(config.from) || config.to.some((to) => !ADDRESS.test(to)))
+    throw new Error("An alert address is not an email address.");
+}
+
+/** The SMTP conversation over an open connection. Closes it at the end, sent or not. */
+export async function sendMailOver(
+  transport: MailTransport,
   config: SmtpConfig,
   subject: string,
   body: string,
 ): Promise<void> {
-  if (!ADDRESS.test(config.from) || config.to.some((to) => !ADDRESS.test(to)))
-    throw new Error("An alert address is not an email address.");
-  let buffer = "";
-  let waiter: (() => void) | null = null;
-  let closed = false;
-  const socket = await Bun.connect({
-    hostname: config.host,
-    port: config.port,
-    tls: config.tls ?? true,
-    socket: {
-      data(_socket, chunk) {
-        buffer += new TextDecoder().decode(chunk);
-        waiter?.();
-      },
-      close() {
-        closed = true;
-        waiter?.();
-      },
-      error() {
-        closed = true;
-        waiter?.();
-      },
-    },
-  });
+  checkAddresses(config);
+  const reader = transport.readable.getReader();
+  const writer = transport.writable.getWriter();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
   const deadline = Date.now() + (config.timeoutMs ?? 20_000);
+  let buffer = "";
 
   /** One reply: lines "250-…" until "250 …". Throws unless its code is one of `ok`. */
   async function reply(...ok: number[]): Promise<void> {
@@ -88,18 +90,26 @@ export async function sendMail(
           throw new Error(`The mail server said: ${text.slice(0, 200)}`);
         return;
       }
-      if (closed) throw new Error("The mail server closed the connection.");
       const left = deadline - Date.now();
       if (left <= 0) throw new Error("The mail server did not answer in time.");
-      await new Promise<void>((resolve) => {
-        waiter = resolve;
-        setTimeout(resolve, left);
-      });
-      waiter = null;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const read = await Promise.race([
+        reader.read(),
+        new Promise<"late">((resolve) => {
+          timer = setTimeout(() => resolve("late"), left);
+        }),
+      ]);
+      clearTimeout(timer);
+      if (read === "late")
+        throw new Error("The mail server did not answer in time.");
+      if (read.done || !read.value)
+        throw new Error("The mail server closed the connection.");
+      buffer += decoder.decode(read.value, { stream: true });
     }
   }
+  const write = (text: string) => writer.write(encoder.encode(text));
   const say = async (line: string, ...ok: number[]) => {
-    socket.write(`${line}\r\n`);
+    await write(`${line}\r\n`);
     await reply(...ok);
   };
 
@@ -112,10 +122,60 @@ export async function sendMail(
     await say(`MAIL FROM:<${config.from}>`, 250);
     for (const to of config.to) await say(`RCPT TO:<${to}>`, 250, 251);
     await say("DATA", 354);
-    socket.write(messageText(config, subject, body));
+    await write(messageText(config, subject, body));
     await reply(250);
-    socket.write("QUIT\r\n");
+    await write("QUIT\r\n");
   } finally {
-    socket.end();
+    reader.releaseLock();
+    writer.releaseLock();
+    await Promise.resolve(transport.close()).catch(() => undefined);
   }
+}
+
+/** `Bun.connect` as web streams. */
+async function bunTransport(config: SmtpConfig): Promise<MailTransport> {
+  let push: ReadableStreamDefaultController<Uint8Array> | null = null;
+  const readable = new ReadableStream<Uint8Array>({
+    start(controller) {
+      push = controller;
+    },
+  });
+  const finish = () => {
+    try {
+      push?.close();
+    } catch {}
+  };
+  const socket = await Bun.connect({
+    hostname: config.host,
+    port: config.port,
+    tls: config.tls ?? true,
+    socket: {
+      data(_socket, chunk) {
+        push?.enqueue(new Uint8Array(chunk));
+      },
+      close: finish,
+      error: finish,
+    },
+  });
+  return {
+    readable,
+    writable: new WritableStream<Uint8Array>({
+      write(chunk) {
+        socket.write(chunk);
+      },
+    }),
+    close: () => {
+      socket.end();
+    },
+  };
+}
+
+/** The Bun relay's alert: connects (TLS unless a test says not), then the conversation. */
+export async function sendMail(
+  config: SmtpConfig,
+  subject: string,
+  body: string,
+): Promise<void> {
+  checkAddresses(config);
+  await sendMailOver(await bunTransport(config), config, subject, body);
 }
