@@ -17,6 +17,7 @@
  * Nothing here fetches a source: the Cron Trigger does (cron.ts) and pages read its snapshots, so a
  * page stays within the Worker's 10 ms of CPU.
  */
+import { Buffer } from "node:buffer";
 import { timingSafeEqual } from "node:crypto";
 import type { AccessCheck } from "./access";
 import {
@@ -51,6 +52,7 @@ import {
 } from "./accounts";
 import { appendAudit, countAudit, readAudit } from "./audit";
 import { CSS } from "./board-css";
+import { BRAND_ASSETS } from "./brand-assets";
 import { type Lang, t } from "./i18n";
 import * as pages from "./pages";
 import { can, canManage, type Permission } from "./roles";
@@ -127,7 +129,7 @@ const ACCESS_EXEMPT = new Set(["/healthz", "/intake/app"]);
 
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
-    "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
   "x-content-type-options": "nosniff",
   "referrer-policy": "same-origin",
   "x-frame-options": "DENY",
@@ -979,6 +981,19 @@ export function createBoard(options: BoardOptions) {
           headers: {
             "content-type": "text/css; charset=utf-8",
             "cache-control": "max-age=3600",
+            ...SECURITY_HEADERS,
+          },
+        });
+      }
+      const asset = Object.hasOwn(BRAND_ASSETS, url.pathname)
+        ? BRAND_ASSETS[url.pathname]
+        : undefined;
+      if (asset && (request.method === "GET" || request.method === "HEAD")) {
+        // The company's favicons and the Geist fonts, from brand/, served by the board itself.
+        return new Response(Buffer.from(asset.base64, "base64"), {
+          headers: {
+            "content-type": asset.type,
+            "cache-control": "max-age=86400",
             ...SECURITY_HEADERS,
           },
         });

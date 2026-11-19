@@ -35,53 +35,65 @@
  * ONE PROCESS. The relay is a single process by design (a few calls at once need 1 vCPU); its state
  * is per process. Run one copy per line set, not several behind a load balancer.
  */
-import {
-  createHash,
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import type { Server, ServerWebSocket } from "bun";
+import {
+  ALERT_GAP_MS,
+  type BalanceView,
+  BUSY,
+  balanceMessage,
+  CALL_SID,
+  type CallPart,
+  CUSTOMER_ID,
+  costOf,
+  DEFAULT_RATES,
+  deskToTwilio,
+  E164,
+  forwardKind,
+  GIVE_UP_MS,
+  handOver,
+  type Line,
+  MARGIN_MS,
+  MAX_CALL_MS,
+  MAX_FRAME,
+  MINUTE_MS,
+  outageAlert,
+  PENDING_MS,
+  parseBalanceView,
+  parseDeskMessage,
+  parseTwilioEvent,
+  type Rates,
+  REFRESH_MS,
+  RETRY_MS,
+  redirectRequest,
+  SORRY,
+  sameText,
+  signatureBase,
+  TIME_UP,
+  twilioToDesk,
+  twiml,
+  xml,
+} from "./core";
 import { type SmtpConfig, sendMail } from "./smtp";
 
-export type Line = {
-  /** A short name for logs, e.g. "demo-shop". */
-  name: string;
-  /** The Twilio number calls arrive on, E.164, e.g. "+302101234567". */
-  number: string;
-  /** SHA-256 (hex) of the line token the install presents. */
-  tokenSha256: string;
-  /** Where a call goes when the install hands it over, or is not connected. E.164. Optional. */
-  fallback?: string;
-  /** The ArkAgent customer whose prepaid phone balance pays for this line. None: not billed. */
-  customerId?: string;
-};
+export {
+  type BalanceView,
+  type CallPart,
+  costOf,
+  forwardKind,
+  type Line,
+  type Rates,
+} from "./core";
 
-/** Where the prepaid phone balance is kept (blackark.uk/checkin/phone/), and the shared secret. */
 export type Billing = {
   url: string;
   secret: string;
   /** A minute, and how long before its end the next one is set aside or the call ended. For tests. */
   minuteMs?: number;
   marginMs?: number;
-};
-
-export type Rates = { incoming: number; landline: number; mobile: number };
-
-/** The balance as blackark.uk answers it (mils, 1/1000 euro), and as the install is told. */
-export type BalanceView = {
-  customerId: string;
-  balanceMils: number;
-  state: "ok" | "low" | "empty";
-  minutesLeftAtLeast: number;
-  topUpUrl: string;
-  rates: Rates;
-};
-
-export type CallPart = {
-  kind: "incoming" | "landline" | "mobile";
-  seconds: number;
+  /** How often a low or used-up balance is asked again for a connected install. For tests. */
+  refreshMs?: number;
 };
 
 export type RelayConfig = {
@@ -99,23 +111,9 @@ export type RelayConfig = {
   alert?: (subject: string, body: string) => Promise<void>;
 };
 
-/** Desk → relay messages. Anything else is dropped. */
-type DeskMessage =
-  | { type: "media"; callId: string; payload: string }
-  | { type: "clear"; callId: string }
-  | { type: "mark"; callId: string; name: string }
-  | { type: "transfer"; callId: string }
-  | { type: "hangup"; callId: string };
-
 type SocketData =
   | { kind: "desk"; line: Line }
   | { kind: "twilio"; callId?: string; streamSid?: string; line?: Line };
-
-const E164 = /^\+[1-9]\d{6,14}$/;
-const CALL_SID = /^CA[0-9a-f]{32}$/;
-const MAX_FRAME = 64 * 1024;
-const MAX_AUDIO_B64 = 16 * 1024;
-const PENDING_MS = 30_000;
 
 export function sha256Hex(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -127,80 +125,10 @@ export function twilioSignature(
   url: string,
   params: Record<string, string>,
 ): string {
-  const data =
-    url +
-    Object.keys(params)
-      .sort()
-      .map((key) => key + params[key])
-      .join("");
-  return createHmac("sha1", authToken).update(data).digest("base64");
+  return createHmac("sha1", authToken)
+    .update(signatureBase(url, params))
+    .digest("base64");
 }
-
-function sameText(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function xml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function twiml(body: string): Response {
-  return new Response(
-    `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,
-    {
-      headers: { "content-type": "text/xml; charset=utf-8" },
-    },
-  );
-}
-
-/** Greek first: the callers are in Greece. */
-const SORRY =
-  '<Say language="el-GR">Λυπούμαστε, η γραμμή δεν είναι διαθέσιμη αυτή τη στιγμή. Παρακαλούμε καλέστε ξανά αργότερα.</Say><Hangup/>';
-
-/** Dials the line's fallback. `action`, when billed, is where Twilio reports the forwarded minutes. */
-function handOver(line: Line | undefined, action?: string): string {
-  if (!line?.fallback || !E164.test(line.fallback)) return SORRY;
-  return action
-    ? `<Dial action="${xml(action)}">${xml(line.fallback)}</Dial>`
-    : `<Dial>${xml(line.fallback)}</Dial>`;
-}
-
-/** Greek landlines start +302; anything else is charged at the mobile rate, the higher one. */
-export function forwardKind(number: string): "landline" | "mobile" {
-  return /^\+302\d{9}$/.test(number) ? "landline" : "mobile";
-}
-
-/** Not answered: the balance cannot pay a first minute. A rejected call is not billed by Twilio. */
-const BUSY = '<Reject reason="busy"/>';
-
-/** The last seconds of a call the balance cannot pay another minute of. */
-const TIME_UP =
-  '<Say language="el-GR">Ο διαθέσιμος χρόνος της γραμμής τελείωσε. Παρακαλούμε καλέστε ξανά αργότερα.</Say><Hangup/>';
-
-/** What parts of a call cost: whole minutes, each at its rate. */
-export function costOf(parts: CallPart[], rates: Rates): number {
-  return parts.reduce(
-    (sum, part) =>
-      sum + Math.ceil(Math.max(0, part.seconds) / 60) * rates[part.kind],
-    0,
-  );
-}
-
-const CUSTOMER_ID = /^[a-z0-9][a-z0-9-]{1,63}$/;
-const STATES = new Set(["ok", "low", "empty"]);
-const RETRY_MS = 60_000;
-/** Alerts about one outage, or the next one, are at least this far apart. */
-const ALERT_GAP_MS = 3600_000;
-const GIVE_UP_MS = 24 * 3600_000;
-/** No call is longer than this; a meter past it is let go (a lost end-of-call report). */
-const MAX_CALL_MS = 4 * 3600_000;
 
 /** Reads the lines file, again only when it changes. */
 export function linesFromFile(path: string): () => Line[] {
@@ -271,8 +199,8 @@ export function createRelay(config: RelayConfig) {
     ending: boolean;
   };
 
-  const minuteMs = config.billing?.minuteMs ?? 60_000;
-  const marginMs = config.billing?.marginMs ?? 12_000;
+  const minuteMs = config.billing?.minuteMs ?? MINUTE_MS;
+  const marginMs = config.billing?.marginMs ?? MARGIN_MS;
   /** The last balance blackark.uk gave, per customer. */
   const wallets = new Map<string, BalanceView>();
   const meters = new Map<string, Meter>();
@@ -288,14 +216,7 @@ export function createRelay(config: RelayConfig) {
     log("billing: blackark.uk is not answering");
     if (Date.now() - lastAlertAt < ALERT_GAP_MS) return;
     lastAlertAt = Date.now();
-    const subject = "ArkAgent phone relay: blackark.uk is not answering";
-    const body = [
-      `Since ${new Date().toISOString()} (UTC) the phone relay cannot reach ${config.billing?.url ?? "the balance page"}.`,
-      "",
-      "Until it answers again, on each billed line ONE call per customer is answered on the last balance the relay knew, and further calls hear busy. The cost of that one call beyond what is later booked is BlackArk's, never the customer's.",
-      "",
-      "Please check blackark.uk (the checkin/phone page and its config). No further alert is sent for this outage; the relay logs when it recovers.",
-    ].join("\n");
+    const { subject, body } = outageAlert(config.billing?.url, new Date());
     if (!config.alert) {
       log("billing: ALERT (no mailbox set up): blackark.uk is not answering");
       return;
@@ -359,21 +280,8 @@ export function createRelay(config: RelayConfig) {
       billingFailed();
       return null;
     }
-    const view = (await response
-      .json()
-      .catch(() => null)) as BalanceView | null;
-    const rates = view?.rates;
-    const valid = Boolean(
-      view &&
-        typeof view.balanceMils === "number" &&
-        STATES.has(view.state) &&
-        typeof view.topUpUrl === "string" &&
-        rates &&
-        [rates.incoming, rates.landline, rates.mobile].every(
-          (rate) => Number.isInteger(rate) && rate > 0,
-        ),
-    );
-    if (!valid) {
+    const view = parseBalanceView(await response.json().catch(() => null));
+    if (!view) {
       billingFailed();
       return null;
     }
@@ -382,13 +290,7 @@ export function createRelay(config: RelayConfig) {
   }
 
   function tellDesk(line: Line, view: BalanceView) {
-    toDesk(line, {
-      type: "phone.balance",
-      balanceMils: view.balanceMils,
-      state: view.state,
-      minutesLeftAtLeast: view.minutesLeftAtLeast,
-      topUpUrl: view.topUpUrl,
-    });
+    toDesk(line, balanceMessage(view));
   }
 
   /** The balance less what live calls have set aside and what is not yet charged. */
@@ -404,13 +306,7 @@ export function createRelay(config: RelayConfig) {
   }
 
   function ratesFor(line: BilledLine): Rates {
-    return (
-      wallets.get(line.customerId)?.rates ?? {
-        incoming: 78,
-        landline: 88,
-        mobile: 139,
-      }
-    );
+    return wallets.get(line.customerId)?.rates ?? DEFAULT_RATES;
   }
 
   async function balanceFor(line: Line): Promise<BalanceView | null> {
@@ -479,6 +375,9 @@ export function createRelay(config: RelayConfig) {
     forwarded: boolean,
   ): Promise<string | null> {
     const view = await balanceFor(line);
+    // The install hears what blackark.uk said, so a top-up shows in the app with the next call,
+    // not only once a call has been charged (v0.1.49 end-to-end test).
+    if (view) tellDesk(line, view);
     if (!view) {
       // blackark.uk is not answering: one call per customer on the last balance known, then busy.
       if (
@@ -602,6 +501,25 @@ export function createRelay(config: RelayConfig) {
   if (config.billing)
     setInterval(() => void retryCharges(), RETRY_MS).unref?.();
 
+  /**
+   * A connected install whose balance is in its last hour or used up asks again every few minutes
+   * (v0.1.49 end-to-end test): a top-up then shows in the app even when no call comes in. A balance
+   * that is fine is not asked about; the next call or charge says when it changes.
+   */
+  async function refreshLowBalances() {
+    for (const line of config.lines()) {
+      if (!billed(line) || !desks.has(line.name)) continue;
+      if (wallets.get(line.customerId)?.state === "ok") continue;
+      const view = await balanceFor(line);
+      if (view) tellDesk(line, view);
+    }
+  }
+  if (config.billing)
+    setInterval(
+      () => void refreshLowBalances(),
+      config.billing.refreshMs ?? REFRESH_MS,
+    ).unref?.();
+
   async function signedForm(
     request: Request,
     path: string,
@@ -623,18 +541,14 @@ export function createRelay(config: RelayConfig) {
 
   /** Moves a live call to new TwiML through Twilio's API: hand-over or hang-up. */
   async function redirect(callId: string, body: string): Promise<boolean> {
-    if (!CALL_SID.test(callId)) return false;
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(config.accountSid)}/Calls/${callId}.json`;
-    const response = await send(url, {
-      method: "POST",
-      headers: {
-        authorization: `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString("base64")}`,
-        "content-type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        Twiml: `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,
-      }).toString(),
-    }).catch(() => null);
+    const call = redirectRequest(
+      config.accountSid,
+      config.authToken,
+      callId,
+      body,
+    );
+    if (!call) return false;
+    const response = await send(call.url, call.init).catch(() => null);
     return Boolean(response?.ok);
   }
 
@@ -663,7 +577,7 @@ export function createRelay(config: RelayConfig) {
 
   async function fetchHandler(
     request: Request,
-    server: Server,
+    server: Server<SocketData>,
   ): Promise<Response | undefined> {
     const url = new URL(request.url);
     sweep();
@@ -797,87 +711,32 @@ export function createRelay(config: RelayConfig) {
     desk: ServerWebSocket<SocketData> & { data: { kind: "desk"; line: Line } },
     raw: string,
   ) {
-    let message: DeskMessage;
-    try {
-      message = JSON.parse(raw) as DeskMessage;
-    } catch {
-      return;
-    }
-    if (
-      !message ||
-      typeof message !== "object" ||
-      typeof message.callId !== "string"
-    )
-      return;
+    const message = parseDeskMessage(raw);
+    if (!message) return;
     const call = calls.get(message.callId);
     // An install may only act on calls on its own line.
     if (!call || call.line.name !== desk.data.line.name) return;
-    const streamSid = (call.twilio.data as { streamSid?: string }).streamSid;
-    switch (message.type) {
-      case "media":
-        if (
-          typeof message.payload === "string" &&
-          message.payload.length <= MAX_AUDIO_B64 &&
-          streamSid
-        ) {
-          call.twilio.send(
-            JSON.stringify({
-              event: "media",
-              streamSid,
-              media: { payload: message.payload },
-            }),
-          );
-        }
-        return;
-      case "clear":
-        if (streamSid)
-          call.twilio.send(JSON.stringify({ event: "clear", streamSid }));
-        return;
-      case "mark":
-        if (
-          streamSid &&
-          typeof message.name === "string" &&
-          message.name.length <= 64
-        ) {
-          call.twilio.send(
-            JSON.stringify({
-              event: "mark",
-              streamSid,
-              mark: { name: message.name },
-            }),
-          );
-        }
-        return;
-      case "transfer":
-        transfer(message.callId, call.line, "the install asked");
-        return;
-      case "hangup":
-        void redirect(message.callId, "<Hangup/>");
-        return;
+    if (message.type === "transfer") {
+      transfer(message.callId, call.line, "the install asked");
+      return;
     }
+    if (message.type === "hangup") {
+      void redirect(message.callId, "<Hangup/>");
+      return;
+    }
+    const frame = deskToTwilio(
+      message,
+      (call.twilio.data as { streamSid?: string }).streamSid,
+    );
+    if (frame) call.twilio.send(frame);
   }
 
   function onTwilioMessage(
     socket: ServerWebSocket<SocketData> & { data: { kind: "twilio" } },
     raw: string,
   ) {
-    let event: {
-      event?: string;
-      start?: {
-        callSid?: string;
-        streamSid?: string;
-        customParameters?: Record<string, string>;
-      };
-      streamSid?: string;
-      media?: { payload?: string; track?: string };
-      dtmf?: { digit?: string };
-      mark?: { name?: string };
-    };
-    try {
-      event = JSON.parse(raw);
-    } catch {
-      return;
-    }
+    const event = parseTwilioEvent(raw);
+    if (!event) return;
     const data = socket.data as {
       kind: "twilio";
       callId?: string;
@@ -885,8 +744,6 @@ export function createRelay(config: RelayConfig) {
       line?: Line;
     };
     switch (event.event) {
-      case "connected":
-        return;
       case "start": {
         const key = event.start?.customParameters?.key ?? "";
         const entry = pending.get(key);
@@ -923,47 +780,16 @@ export function createRelay(config: RelayConfig) {
         log(`call ${entry.callId} line=${entry.line.name} started`);
         return;
       }
-      case "media":
-        if (
-          data.callId &&
-          data.line &&
-          typeof event.media?.payload === "string" &&
-          event.media.payload.length <= MAX_AUDIO_B64
-        ) {
-          toDesk(data.line, {
-            type: "media",
-            callId: data.callId,
-            payload: event.media.payload,
-          });
-        }
-        return;
-      case "dtmf":
-        if (
-          data.callId &&
-          data.line &&
-          /^[0-9*#]$/.test(event.dtmf?.digit ?? "")
-        ) {
-          toDesk(data.line, {
-            type: "dtmf",
-            callId: data.callId,
-            digit: event.dtmf?.digit,
-          });
-        }
-        return;
-      case "mark":
-        if (data.callId && data.line)
-          toDesk(data.line, {
-            type: "mark",
-            callId: data.callId,
-            name: event.mark?.name ?? "",
-          });
-        return;
       case "stop":
         if (data.callId) endCall(data.callId, "caller or Twilio ended it");
         return;
+      default: {
+        if (!data.callId || !data.line) return;
+        const message = twilioToDesk(event, data.callId);
+        if (message) toDesk(data.line, message);
+      }
     }
   }
-
   const websocket = {
     maxPayloadLength: MAX_FRAME,
     idleTimeout: 120,

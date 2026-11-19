@@ -1,0 +1,47 @@
+# BlackArk phone relay on Cloudflare Workers + Durable Objects, Free plan. Deploy steps: ../README.md
+# ("On Cloudflare Workers"). NOT DEPLOYED until Amgad's yes; COO deploys.
+#
+# Written by hand: wrangler is not a dependency of this repository. COO runs it pinned, from this
+# directory:  npx --yes wrangler@4.20.0 deploy
+# Secrets are never written here: `wrangler secret put NAME` (hidden prompt) for TWILIO_AUTH_TOKEN,
+# RELAY_SECRET, ADMIN_TOKEN and, for the alert email, ALERT_SMTP_PASSWORD.
+#
+# Free plan: SQLite-backed Durable Objects only (`new_sqlite_classes`). No D1, KV, R2, Access or
+# Zero Trust: nothing here needs payment details on the account.
+
+name = "blackark-phone"
+main = "main.ts"
+compatibility_date = "2025-09-01"
+# The address Twilio is given: https://blackark-phone.blackark.workers.dev
+workers_dev = true
+
+[vars]
+# Exactly the address in the Twilio console; Twilio signs this URL, so it must match to the letter.
+PUBLIC_BASE_URL = "https://blackark-phone.blackark.workers.dev"
+# Not a secret. COO fills it in before the first deploy (Twilio console → Account info).
+TWILIO_ACCOUNT_SID = "AC________________________________"
+BILLING_URL = "https://blackark.uk/checkin/phone/"
+# BlackArk's internal alert when blackark.uk stops answering (SMTP, TLS from the first byte).
+ALERT_SMTP_HOST = "send.one.com"
+ALERT_SMTP_PORT = "465"
+# COO fills these in (BlackArk's own mailbox and addresses); empty: the alert is only recorded.
+ALERT_SMTP_USER = ""
+ALERT_FROM = ""
+ALERT_TO = ""
+
+[[durable_objects.bindings]]
+name = "LINE"
+class_name = "PhoneLine"
+
+[[durable_objects.bindings]]
+name = "DIRECTORY"
+class_name = "PhoneDirectory"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PhoneLine", "PhoneDirectory"]
+
+[observability]
+# Request logs would carry paths and Twilio's form fields (the caller's number among them); off.
+# `wrangler tail` still shows the relay's own log lines live, which never carry a caller's number.
+enabled = false

@@ -13,7 +13,7 @@ this folder is where the change starts.
 | `mark.svg` | The app tile: an ember square with three ascending bars, as the company publishes it on its website (its favicon and home-screen icon). |
 | `official/` | The company's own published icon files (`favicon.ico`, `favicon-32.png`, `favicon-192.png`, `apple-touch-icon.png`), identical to the kit's `favicon/`. Used as they are, not redrawn. |
 | `logos/` | The company's logo files: the lockups on dark, on light and transparent, and the three-bar icon as PNG and as true vector. For store listings, the About screen and documents; the app tile above is what goes on a home screen. |
-| `fonts/` | Geist and Geist Mono (SIL Open Font License; the licence text is in the folder). Kept for when the interface moves to the v3 type; not loaded by any screen yet. |
+| `fonts/` | Geist and Geist Mono (SIL Open Font License; the licence text is in the folder). Used by the Control Board (`infra/control-board/`, the variable files, embedded by its `brand-assets.gen.ts`); the apps do not load them yet. |
 | `og-image.png` | The 1200 by 630 share image, the same file the website serves. |
 | `arkagent/` | **The ArkAgent character**: the owner's poster (`arkagent-poster.jpg`, unaltered) and the head and shoulders cropped from it (`portrait.jpg`). See below. |
 | `render-icons.mjs` | Draws every other icon Ark ships from `mark.svg` and writes it where it is used. |
@@ -93,7 +93,7 @@ from the new master as `desktop/src-tauri/icons/README.md` says.
 - **The web app's screens are still the inherited OpenBot design**: its own greys, its own type. Moving
   the interface to the v3 tokens (ember accent, paper surfaces, Geist) is a design change to every
   screen and is not done. It needs a decision on how far to go, and on whether the product is dark first.
-- The lockup and fonts are in this folder but no screen uses them yet. Store listings also need screenshots,
+- The lockup is in this folder but no screen uses it yet; the fonts are used only by the Control Board. Store listings also need screenshots,
   a feature graphic for Google Play (1024 by 500) and a short description, which are the company's to
   supply or approve.
 - The lockup PNGs are recoloured from the v2 artwork, so their lettering still uses a stand-in typeface
