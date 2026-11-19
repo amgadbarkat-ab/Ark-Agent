@@ -1,6 +1,6 @@
 # v0.1.50: no trial-specific UI; staff load a signed profile from a folder
 
-Status: claimed (sub-agent J, for PE). Toolkit: Matt Pocock's skills (`/tdd`).
+Status: resolved on branch claude/v0150-hide-trial-import (sub-agent J, for PE); not merged. Toolkit: Matt Pocock's skills (`/tdd`).
 Ordered by Amgad, 19 Nov 2026 12:57 Athens. Rule of 16 Nov: one general release; nothing trial- or
 customer-specific visible in the app; customer specifics loaded only in the on-site setup session.
 
@@ -33,3 +33,19 @@ customer-specific visible in the app; customer specifics loaded only in the on-s
 
 `<app config dir>/import/*.arktrial`, picked up when ArkAgent opens its app (after the server is up).
 Paths per OS in docs/trials/README.md.
+
+Why the folder, not a key combination (b) or a flag (c):
+
+- No hidden UI: a key combination is still a picker in the customer's window, can be hit by
+  accident, and in a public repo is no secret.
+- The same on Windows, macOS and Linux: a flag needs a terminal or an edited shortcut, `open --args`
+  on macOS, and reaches an already running single instance only through argument forwarding.
+- Least new code: it is the pending-file path the button already used (kept in the config folder,
+  sent once the server runs), with a folder, a log and `imported/` / `refused/` added.
+- Whoever can write to the user's config folder can already change ArkAgent; the file must still be
+  BlackArk-signed, and the server checks it as before.
+
+## Open questions for PE
+
+- Should the server also audit refused attempts? Today only `import/import.log` records them.
+- Should a running app watch the folder, or is "picked up when the app opens" enough on site?
