@@ -33,27 +33,65 @@
   --hot: #f2551b;
   --good: #249057;
   --line: rgba(255, 255, 255, 0.11);
-  --grad: linear-gradient(105deg, #ffb067 0%, #ff7a1a 38%, #f2551b 78%, #e5481a 100%);
+  --grad: linear-gradient(
+    105deg,
+    #ffb067 0%,
+    #ff7a1a 38%,
+    #f2551b 78%,
+    #e5481a 100%
+  );
   --sans: "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: dark;
 }
-* { box-sizing: border-box; }
-html { background: var(--paper); }
+* {
+  box-sizing: border-box;
+}
+html {
+  background: var(--paper);
+}
 body {
   margin: 0;
   min-height: 100vh;
   background: var(--paper);
   color: var(--ink);
-  font: 16px/1.55 var(--sans);
+  font: 16px / 1.55 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
-header.site { border-bottom: 1px solid var(--line); background: var(--paper-raised); }
-header.site .bar, main, footer.site { max-width: 680px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
-header.site .bar { display: flex; align-items: center; gap: 0.6rem; height: 60px; font-weight: 600; }
-header.site svg { width: 26px; height: 26px; flex: none; }
-main { padding-top: 40px; padding-bottom: 48px; }
-h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 1.25rem; letter-spacing: -0.01em; }
+header.site {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-raised);
+}
+header.site .bar,
+main,
+footer.site {
+  max-width: 680px;
+  margin: 0 auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+header.site .bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  height: 60px;
+  font-weight: 600;
+}
+header.site svg {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+main {
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  margin: 0 0 1.25rem;
+  letter-spacing: -0.01em;
+}
 h1::after {
   content: "";
   display: block;
@@ -63,12 +101,31 @@ h1::after {
   border-radius: 2px;
   background: var(--grad);
 }
-p { margin: 0 0 1rem; }
-p[lang="en"], .en { color: var(--slate); }
-a { color: var(--gold); }
-a:hover { color: var(--red); }
-hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
-ul.choices { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 12px; }
+p {
+  margin: 0 0 1rem;
+}
+p[lang="en"],
+.en {
+  color: var(--slate);
+}
+a {
+  color: var(--gold);
+}
+a:hover {
+  color: var(--red);
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.5rem 0;
+}
+ul.choices {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  display: grid;
+  gap: 12px;
+}
 ul.choices a {
   display: block;
   padding: 16px 18px;
@@ -78,10 +135,26 @@ ul.choices a {
   color: var(--ink);
   text-decoration: none;
 }
-ul.choices a:hover, ul.choices a:focus-visible { border-color: var(--red); background: var(--card-dark-raised); outline: none; }
-ul.choices strong { display: block; font-size: 1.05rem; }
-ul.choices .price { color: var(--gold); font-family: var(--mono); font-weight: 500; }
-ul.choices .en { display: block; font-size: 0.9rem; margin-top: 4px; }
+ul.choices a:hover,
+ul.choices a:focus-visible {
+  border-color: var(--red);
+  background: var(--card-dark-raised);
+  outline: none;
+}
+ul.choices strong {
+  display: block;
+  font-size: 1.05rem;
+}
+ul.choices .price {
+  color: var(--gold);
+  font-family: var(--mono);
+  font-weight: 500;
+}
+ul.choices .en {
+  display: block;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
 textarea.key {
   width: 100%;
   min-height: 9em;
@@ -90,12 +163,25 @@ textarea.key {
   border-radius: 10px;
   background: var(--card-dark);
   color: var(--ink);
-  font: 13px/1.45 var(--mono);
+  font: 13px / 1.45 var(--mono);
   resize: vertical;
 }
-textarea.key:focus { outline: 2px solid var(--red); outline-offset: 1px; }
-footer.site { padding-top: 20px; padding-bottom: 32px; border-top: 1px solid var(--line); color: var(--slate); font-size: 0.85rem; }
+textarea.key:focus {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+footer.site {
+  padding-top: 20px;
+  padding-bottom: 32px;
+  border-top: 1px solid var(--line);
+  color: var(--slate);
+  font-size: 0.85rem;
+}
 @media (max-width: 480px) {
-  h1 { font-size: 1.45rem; }
-  main { padding-top: 28px; }
+  h1 {
+    font-size: 1.45rem;
+  }
+  main {
+    padding-top: 28px;
+  }
 }

@@ -9,6 +9,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 ## Unreleased
 
 - **One BlackArk look on blackark.uk's customer pages (Amgad, 19 Nov).** The Ark Team tier page, the phone top-up thank-you, the refusals and the licence key page now use blackark.uk's colours, Geist and Geist Mono, and the company's tile and favicons, served from `checkin/brand/` with nothing from another site. The app's dark theme now uses blackark.uk's exact paper, raised paper, card and slate values.
+
 ## 0.1.50
 
 - **Legal Helper: a no-hire or non-solicit clause is Red however the triage is written (DT Lab, #109).** v0.1.49 forced only a table row whose first cell named the clause, and DT Lab still saw Yellow for a 3-year no-hire (English) and a 2-year non-solicit (Greek). The server now finds the clause by its name in any cell before the colour, by its text (hiring plus the other side's staff) anywhere in the row, and in a triage written as a list or under headings. Because it is the server, every Legal Helper gets it, including those hired with role version 1, with no reinstall.
