@@ -276,7 +276,40 @@ function ark_send_security_headers(): void
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
     header('X-Frame-Options: DENY');
-    header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+    // Styles, fonts and icons from this site only (brand/): the BlackArk look with nothing from elsewhere.
+    header("Content-Security-Policy: default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'");
+}
+
+/** The company's tile, as blackark.uk draws it in its header (brand/mark.svg), inline: no request. */
+const ARK_MARK = '<svg viewBox="0 0 160 160" aria-hidden="true"><rect width="160" height="160" rx="28" fill="#FF7A1A"/>'
+    . '<rect x="34" y="88" width="26" height="42" rx="6" fill="#1A0B03"/><rect x="67" y="64" width="26" height="66" rx="6" fill="#1A0B03"/>'
+    . '<rect x="100" y="34" width="26" height="96" rx="6" fill="#1A0B03"/></svg>';
+
+/**
+ * The start of every page a customer sees here, in BlackArk's look (Amgad, 19 Nov 2026: one unified
+ * look on every customer-facing page): blackark.uk's colours, Geist, the company's tile and favicons,
+ * all from brand/ on this site. `$title` is plain text; `$head` is extra markup for <head>, already safe.
+ * The pages are one folder down (buy/, key/), so brand/ is one level up.
+ */
+function ark_page_open(string $title, string $lang = 'el', string $head = ''): string
+{
+    $t = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return '<!doctype html><html lang="' . htmlspecialchars($lang, ENT_QUOTES, 'UTF-8') . '"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">'
+        . '<meta name="theme-color" content="#070504">'
+        . '<title>' . $t . '</title>'
+        . '<link rel="icon" href="../brand/favicon.ico" sizes="any">'
+        . '<link rel="icon" type="image/png" sizes="32x32" href="../brand/favicon-32.png">'
+        . '<link rel="icon" type="image/png" sizes="192x192" href="../brand/favicon-192.png">'
+        . '<link rel="apple-touch-icon" href="../brand/apple-touch-icon.png">'
+        . '<link rel="stylesheet" href="../brand/brand.css">' . $head
+        . '</head><body><header class="site"><div class="bar">' . ARK_MARK . '<span>BlackArk</span></div></header><main>';
+}
+
+/** The end of a page opened with ark_page_open. */
+function ark_page_close(): string
+{
+    return '</main><footer class="site">BlackArk · <a href="https://blackark.uk/">blackark.uk</a></footer></body></html>';
 }
 
 function ark_base64url(string $bytes): string

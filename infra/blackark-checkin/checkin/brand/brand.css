@@ -1,0 +1,101 @@
+/* BlackArk's look for every page a customer sees on blackark.uk/checkin (Amgad, 19 Nov 2026: one
+   unified BlackArk look). blackark.uk's own colours (BlackArk Visual Identity v3, Ember;
+   brand/brand-tokens.css in the ArkAgent repository), Geist and Geist Mono by Vercel (SIL Open Font
+   License 1.1, https://openfontlicense.org), served from this folder: nothing comes from another site. */
+@font-face {
+  font-family: "Geist";
+  src: url("geist.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  /* Not Greek: Geist has only a few Greek letters, so Greek words use the system's Greek face. */
+  unicode-range: U+0000-036F, U+0400-1EFF, U+2000-10FFFF;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("geist-mono.woff2") format("woff2");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-036F, U+0400-1EFF, U+2000-10FFFF;
+}
+:root {
+  --paper: #070504;
+  --paper-raised: #110b07;
+  --card-dark: #160f0a;
+  --card-dark-raised: #1b130e;
+  --ink: #f3f2ef;
+  --slate: #9b9893;
+  --red: #ff7a1a;
+  --red-deep: #e8650f;
+  --red-fg: #1a0b03;
+  --gold: #ff9a3c;
+  --hot: #f2551b;
+  --good: #249057;
+  --line: rgba(255, 255, 255, 0.11);
+  --grad: linear-gradient(105deg, #ffb067 0%, #ff7a1a 38%, #f2551b 78%, #e5481a 100%);
+  --sans: "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+header.site { border-bottom: 1px solid var(--line); background: var(--paper-raised); }
+header.site .bar, main, footer.site { max-width: 680px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+header.site .bar { display: flex; align-items: center; gap: 0.6rem; height: 60px; font-weight: 600; }
+header.site svg { width: 26px; height: 26px; flex: none; }
+main { padding-top: 40px; padding-bottom: 48px; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 1.25rem; letter-spacing: -0.01em; }
+h1::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 3px;
+  margin-top: 0.9rem;
+  border-radius: 2px;
+  background: var(--grad);
+}
+p { margin: 0 0 1rem; }
+p[lang="en"], .en { color: var(--slate); }
+a { color: var(--gold); }
+a:hover { color: var(--red); }
+hr { border: 0; border-top: 1px solid var(--line); margin: 1.5rem 0; }
+ul.choices { list-style: none; padding: 0; margin: 1.5rem 0 0; display: grid; gap: 12px; }
+ul.choices a {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card-dark);
+  color: var(--ink);
+  text-decoration: none;
+}
+ul.choices a:hover, ul.choices a:focus-visible { border-color: var(--red); background: var(--card-dark-raised); outline: none; }
+ul.choices strong { display: block; font-size: 1.05rem; }
+ul.choices .price { color: var(--gold); font-family: var(--mono); font-weight: 500; }
+ul.choices .en { display: block; font-size: 0.9rem; margin-top: 4px; }
+textarea.key {
+  width: 100%;
+  min-height: 9em;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-dark);
+  color: var(--ink);
+  font: 13px/1.45 var(--mono);
+  resize: vertical;
+}
+textarea.key:focus { outline: 2px solid var(--red); outline-offset: 1px; }
+footer.site { padding-top: 20px; padding-bottom: 32px; border-top: 1px solid var(--line); color: var(--slate); font-size: 0.85rem; }
+@media (max-width: 480px) {
+  h1 { font-size: 1.45rem; }
+  main { padding-top: 28px; }
+}

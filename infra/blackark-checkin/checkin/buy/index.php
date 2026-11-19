@@ -34,10 +34,9 @@ function page(int $status, string $title, string $greek, string $english): void
 {
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
-    echo '<!doctype html><html lang="el"><head><meta charset="utf-8">'
-        . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">'
-        . '<title>' . h($title) . '</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 16px;color:#1d1d1f;background:#fafafa}main{max-width:640px;margin:0 auto}</style>'
-        . '</head><body><main><h1>' . h($title) . '</h1><p>' . h($greek) . '</p><p lang="en">' . h($english) . '</p></main></body></html>';
+    echo ark_page_open($title)
+        . '<h1>' . h($title) . '</h1><p>' . h($greek) . '</p><p lang="en">' . h($english) . '</p>'
+        . ark_page_close();
     exit;
 }
 
@@ -79,19 +78,17 @@ if (!$topup) {
         foreach ($tiers as $agents => $cents) {
             $href = '?customer=' . rawurlencode($customer) . '&tier=' . $agents . ($phone ? '&phone=1' : '');
             $euro = '€' . intdiv($cents, 100);
-            $links .= '<li><a href="' . h($href) . '"><strong>' . $agents . ' ψηφιακοί υπάλληλοι ανά άτομο</strong> · '
-                . h($euro) . ' ανά άτομο τον μήνα</a><br><span lang="en">' . $agents . ' digital employees per person · '
-                . h($euro) . ' per person a month</span></li>';
+            $links .= '<li><a href="' . h($href) . '"><strong>' . $agents . ' ψηφιακοί υπάλληλοι ανά άτομο</strong>'
+                . '<span class="price">' . h($euro) . '</span> ανά άτομο τον μήνα'
+                . '<span class="en" lang="en">' . $agents . ' digital employees per person · ' . h($euro) . ' per person a month</span></a></li>';
         }
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><html lang="el"><head><meta charset="utf-8">'
-            . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">'
-            . '<title>Ark Team</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:32px 16px;color:#1d1d1f;background:#fafafa}main{max-width:640px;margin:0 auto}li{margin:0 0 16px}</style>'
-            . '</head><body><main><h1>Ark Team</h1>'
+        echo ark_page_open('Ark Team')
+            . '<h1>Ark Team</h1>'
             . '<p>Επιλέξτε πόσους ψηφιακούς υπαλλήλους χρειάζεται κάθε άτομο. Τιμές χωρίς ΦΠΑ. Το πλήθος των ατόμων το ορίζετε στη σελίδα πληρωμής και το αλλάζετε αργότερα.</p>'
             . '<p lang="en">Choose how many digital employees each person needs. Prices before VAT. You set the number of people on the payment page and can change it later.</p>'
-            . '<ul>' . $links . '</ul></main></body></html>';
+            . '<ul class="choices">' . $links . '</ul>' . ark_page_close();
         exit;
     }
     $tier = (int) $_GET['tier'];
