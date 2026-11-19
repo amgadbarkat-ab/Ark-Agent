@@ -173,6 +173,26 @@ tax exclusive. `config.sample.php` has all four in `'stripe_prices'`, and the th
   on 19 Nov. A payment on a price not in the table changes nothing and is answered "not in the price
   table".
 
+## Phone usage in Stripe's meters (v0.1.49)
+
+**For the customer to see their usage only.** Billing stays the prepaid 5-hour blocks (EUR 23.40,
+never below zero). The per-minute prices on the phone add-on are not charged.
+
+- **When:** each time `…/checkin/phone/` books a call's charge, every part with minutes (`incoming`,
+  `landline`, `mobile`) is queued as one meter event: `arkagent_phone_minutes_<part>`, with
+  `payload[stripe_customer_id]`, `payload[value]` (whole minutes), and `identifier`
+  `call_<call id>_<part>`, so a retry is counted once by Stripe.
+- **Endpoint:** `POST https://api.stripe.com/v1/billing/meter_events`.
+- **Key:** `'stripe_meter_key'` in `config.php`: a second restricted key with **Billing meter events:
+  write** only. Never post it.
+- **The Stripe customer:** the `cus_…` of the paid checkout (`session.customer`), now kept for every
+  buyer, not only automatic top-up.
+- **Never fatal:** without the key, without the customer, or with Stripe down, the event waits in
+  `meter_events` and goes with a later call. The call and the balance are never affected. The export
+  says how many wait (`meterEventsWaiting`), for the Control Board.
+- **Customers who bought before v0.1.49** have no `cus_` kept unless they chose automatic top-up.
+  Their events wait until one is known; see the open question in the v0.1.49 report.
+
 ## The buy page and the prepaid phone balance (v0.1.47)
 
 Amgad decided on 17 Nov (#109 6945084979 and 6945455933):

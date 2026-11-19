@@ -53,6 +53,7 @@ return [
   'public_base_url' => 'https://blackark.example/checkin',
   'buy_url' => 'https://blackark.example/checkin/buy/',
   'stripe_api_key' => 'rk_test_fake',
+  'stripe_meter_key' => 'rk_test_meter',
   'stripe_api_base' => 'http://127.0.0.1:18766/fakestripe',
   'stripe_buy' => ['tiers' => [5 => 'price_team', 10 => 'price_tier10', 20 => 'price_tier20'], 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
@@ -77,6 +78,13 @@ file_put_contents(__DIR__ . '/sent.log', $path . ' ' . ($_SERVER['HTTP_AUTHORIZA
 header('Content-Type: application/json');
 if ($path === '/fakestripe/v1/checkout/sessions') {
     echo json_encode(['id' => 'cs_test_fake', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_fake']);
+} elseif ($path === '/fakestripe/v1/billing/meter_events') {
+    if (is_file(__DIR__ . '/meter_down')) {
+        http_response_code(500);
+        echo '{"error":{"message":"down"}}';
+        exit;
+    }
+    echo json_encode(['object' => 'billing.meter_event']);
 } elseif ($path === '/fakestripe/v1/invoiceitems') {
     echo json_encode(['id' => 'ii_test_1']);
 } elseif (preg_match('#^/fakestripe/v1/invoices(/in_test_1/(finalize|pay))?$#', $path)) {
@@ -512,6 +520,44 @@ grep -q 'tier=5&amp;phone=1' <<<"$choose" && grep -q 'tier=10&amp;phone=1' <<<"$
   && grep -q 'price%5D=price_tier20' <(last) && grep -q 'price%5D=price_phone' <(last) && grep -q 'price%5D=price_block5h' <(last) \
   && { pass=$((pass+1)); echo "ok   the 20 tier with the phone add-on and its first 5-hour block"; } || { fail=$((fail+1)); echo "FAIL tier + phone: $(last)"; }
 expect "a tier that is not sold is refused" 400 "$buy?customer=demo-buy&tier=15"
+
+# Phone usage to Stripe's meters (v0.1.49): one event per part, whole minutes, an identifier from the
+# call and the part so a retry never counts twice; never in the way of the call or the balance.
+meter_sent() { grep '^/fakestripe/v1/billing/meter_events ' "$work/fake/sent.log" || true; }
+waiting() { php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT COUNT(*) FROM meter_events WHERE sent_at IS NULL AND customer_id = " . $db->quote($argv[2]))->fetchColumn();' "$work/checkin/data/checkins.sqlite" "$1"; }
+mcall() { echo "{\"action\":\"charge\",\"customerId\":\"$1\",\"callId\":\"CA$(printf '%032d' "$2")\",\"parts\":$3}"; }
+send_event '{"id":"evt_m1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_meter1","client_reference_id":"demo-meter","customer":"cus_7","subscription":"sub_7","payment_status":"paid","metadata":{"kind":"subscription","phone_blocks":"1"}}}}' >/dev/null
+touch "$work/fake/meter_down"
+got="$(relay_call "$(mcall demo-meter 71 '[{"kind":"incoming","seconds":125},{"kind":"landline","seconds":60}]')")"
+[[ "$(field "$got" balanceMils)" == $((23400 - 3*78 - 88)) && "$(waiting demo-meter)" == 2 ]] \
+  && { pass=$((pass+1)); echo "ok   with Stripe down the call is still charged and answered; its two meter events wait"; } || { fail=$((fail+1)); echo "FAIL meter down: $got / $(waiting demo-meter)"; }
+rm -f "$work/fake/meter_down"
+relay_call "$(mcall demo-meter 72 '[{"kind":"mobile","seconds":30}]')" >/dev/null
+relay_call "$(mcall demo-meter 72 '[{"kind":"mobile","seconds":30}]')" >/dev/null
+ids="$(meter_sent | grep -c 'rk_test_meter' || true)"
+meter_sent | grep -q 'event_name=arkagent_phone_minutes_incoming&payload%5Bstripe_customer_id%5D=cus_7&payload%5Bvalue%5D=3&identifier=call_CA00000000000000000000000000000071_incoming' \
+  && meter_sent | grep -q 'event_name=arkagent_phone_minutes_landline&payload%5Bstripe_customer_id%5D=cus_7&payload%5Bvalue%5D=1&identifier=call_CA00000000000000000000000000000071_landline' \
+  && meter_sent | grep -q 'event_name=arkagent_phone_minutes_mobile&payload%5Bstripe_customer_id%5D=cus_7&payload%5Bvalue%5D=1&identifier=call_CA00000000000000000000000000000072_mobile' \
+  && [[ "$(waiting demo-meter)" == 0 ]] \
+  && { pass=$((pass+1)); echo "ok   once Stripe answers, the waiting events go too: per part, whole minutes, the call and part as identifier"; } || { fail=$((fail+1)); echo "FAIL meter send: $(meter_sent | tail -3)"; }
+[[ "$(meter_sent | grep -c '_CA00000000000000000000000000000072_mobile' || true)" == 1 && "$(meter_sent | grep -c '_CA00000000000000000000000000000071_incoming' || true)" == 2 ]] \
+  && { pass=$((pass+1)); echo "ok   a repeated relay report sends nothing again; a failed send is retried under the same identifier"; } || { fail=$((fail+1)); echo "FAIL meter retry: $(meter_sent | grep -c CA)"; }
+php -r '$db = new PDO("sqlite:" . $argv[1]); $db->exec("INSERT OR IGNORE INTO phone_accounts (customer_id, balance_mils, updated_at) VALUES (\"demo-nocus\", 23400, \"now\")");' "$work/checkin/data/checkins.sqlite"
+before="$(meter_sent | wc -l)"
+got="$(relay_call "$(mcall demo-nocus 73 '[{"kind":"incoming","seconds":60}]')")"
+[[ "$(field "$got" balanceMils)" == $((23400 - 78)) && "$(waiting demo-nocus)" == 1 && "$(meter_sent | wc -l)" == "$before" ]] \
+  && { pass=$((pass+1)); echo "ok   without a Stripe customer the call is charged and the event waits, unsent"; } || { fail=$((fail+1)); echo "FAIL no customer: $got"; }
+cp "$work/checkin/config.php" "$work/config.keep"
+sed -i "s/'stripe_meter_key' => 'rk_test_meter',/'stripe_meter_key' => '',/" "$work/checkin/config.php"
+sleep 3 # PHP's opcache reads a changed file again only after 2 seconds
+got="$(relay_call "$(mcall demo-meter 74 '[{"kind":"incoming","seconds":60}]')")"
+[[ "$(field "$got" state)" == '"ok"' && "$(waiting demo-meter)" == 1 && "$(meter_sent | wc -l)" == "$before" ]] \
+  && { pass=$((pass+1)); echo "ok   without the meter key the call is charged and the event waits, unsent"; } || { fail=$((fail+1)); echo "FAIL no key: $got $(waiting demo-meter) $(meter_sent | wc -l) $before"; }
+cp "$work/config.keep" "$work/checkin/config.php"; sleep 3
+t="$(date +%s)"; n="nonce-$(php -r 'echo bin2hex(random_bytes(8));')"
+export_call "$t" "$n" "$(sign_export "$t" "$n" "$want")" >/dev/null
+[[ "$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo json_encode($d["meterEventsWaiting"] ?? null);' "$work/export.b")" == 2 ]] && ! grep -q 'cus_' "$work/export.b" \
+  && { pass=$((pass+1)); echo "ok   the export says how many meter events wait, and still no Stripe id"; } || { fail=$((fail+1)); echo "FAIL export waiting: $(grep -o '"meterEventsWaiting":[0-9a-z]*' "$work/export.b")"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

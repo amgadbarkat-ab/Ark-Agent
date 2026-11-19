@@ -103,11 +103,13 @@ foreach ($db->query('SELECT customer_id, install_id, version, status, days_left,
 }
 
 $licences = [];
-foreach ($db->query('SELECT customer_id, plan, seats, addons, status, period_end, valid_until, updated_at FROM licenses ORDER BY customer_id, updated_at DESC LIMIT 5000') as $row) {
+foreach ($db->query('SELECT customer_id, plan, seats, max_agents, addons, status, period_end, valid_until, updated_at FROM licenses ORDER BY customer_id, updated_at DESC LIMIT 5000') as $row) {
     $licences[] = [
         'customerId' => $row['customer_id'] === null ? null : (string) $row['customer_id'],
         'plan' => $row['plan'] === null ? null : (string) $row['plan'],
         'seats' => $row['seats'] === null ? null : (int) $row['seats'],
+        // Ark Team's tier, digital employees per seat (v0.1.49). Null: a key without one (counts as 5).
+        'maxAgents' => $row['max_agents'] === null ? null : (int) $row['max_agents'],
         'addons' => $row['addons'] ? explode(',', (string) $row['addons']) : [],
         'status' => (string) $row['status'],
         'periodEnd' => $row['period_end'] ? gmdate('Y-m-d\TH:i:s\Z', (int) $row['period_end']) : null,
@@ -149,6 +151,8 @@ $answer = json_encode([
     'licences' => $licences,
     'phone' => $phone,
     'ledger' => $ledger,
+    // Phone usage events waiting to reach Stripe's meters (v0.1.49): a count only.
+    'meterEventsWaiting' => (int) $db->query('SELECT COUNT(*) FROM meter_events WHERE sent_at IS NULL')->fetchColumn(),
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 $answeredAt = (string) time();
 header('X-Ark-Time: ' . $answeredAt);

@@ -73,8 +73,15 @@ foreach ($parts as $part) {
     $cost = ark_phone_cost($part['kind'], $part['seconds']);
     if ($cost['mils'] > 0) {
         ark_phone_post($db, $customer, 'call:' . $callId . ':' . $part['kind'], $part['kind'], $cost['minutes'], -$cost['mils']);
+        // For the customer's usage in Stripe only (v0.1.49); once per call and part, never fatal.
+        try {
+            ark_meter_queue($db, $customer, $callId, $part['kind'], $cost['minutes']);
+        } catch (Throwable $error) {
+            error_log('ark-meter: not queued: ' . $error->getMessage());
+        }
     }
 }
+ark_meter_flush($db, 50);
 $view = ark_phone_view($db, $customer);
 if ($view['state'] !== 'ok') {
     ark_phone_low_email($db, $customer, $view);

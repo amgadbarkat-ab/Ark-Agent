@@ -73,6 +73,10 @@ return [
         'phone' => '',
         'block' => '',
     ],
+    // Phone usage to Stripe's meters (v0.1.49), for the customer to see only; billing stays the
+    // prepaid 5-hour blocks. A SECOND RESTRICTED key (rk_live_…) with "Billing meter events: write"
+    // and nothing else. Never post it. Empty: the usage waits here and is sent once it is set.
+    'stripe_meter_key' => '',
     // Let Stripe add VAT at checkout (Stripe Tax must be set up in the dashboard first).
     'stripe_automatic_tax' => false,
     // The secret the phone relay signs its balance and charge requests with: 32+ random characters,
