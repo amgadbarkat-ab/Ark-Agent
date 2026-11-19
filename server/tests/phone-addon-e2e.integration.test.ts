@@ -275,8 +275,8 @@ return [
   'data_dir' => __DIR__ . '/data',
   'trial_public_keys' => [],
   'stripe_webhook_secret' => '${WEBHOOK_SECRET}',
-  'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1], 'price_phone' => ['addon' => 'phone']],
-  'stripe_buy' => ['plan' => 'price_team', 'phone' => 'price_phone', 'block' => 'price_block5h'],
+  'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1, 'max_agents' => 5], 'price_phone' => ['addon' => 'phone']],
+  'stripe_buy' => ['tiers' => [5 => 'price_team'], 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'stripe_api_key' => 'rk_test_fake',
   'stripe_api_base' => 'http://127.0.0.1:${stripeApi.port}',
   'public_base_url' => '${checkin}',
@@ -338,7 +338,7 @@ describe.skipIf(!havePhp)("the phone add-on end to end (#109, v0.1.49)", () => {
   test("buy, answer, charge, the last hour, busy at zero, top up", async () => {
     // 1. The customer buys the plan with the phone add-on: the buy page opens Stripe's checkout
     //    with the first 5-hour block, and Stripe's "paid" credits it: EUR 23.40.
-    expect(await openBuyPage(`customer=${CUSTOMER}&phone=1`)).toStartWith(
+    expect(await openBuyPage(`customer=${CUSTOMER}&tier=5&phone=1`)).toStartWith(
       "https://checkout.stripe.com/",
     );
     expect(decodeURIComponent(checkouts.at(-1) ?? "")).toContain(
