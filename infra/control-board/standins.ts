@@ -121,6 +121,7 @@ export function demoExport(now: number): CheckinExport {
         customerId: "demo-taverna",
         plan: "team",
         seats: 2,
+        maxAgents: 10,
         addons: ["phone"],
         status: "active",
         periodEnd: ahead(25 * DAY),
@@ -170,6 +171,7 @@ export function demoExport(now: number): CheckinExport {
         at: ago(4 * HOUR + 60_000),
       },
     ],
+    meterEventsWaiting: 3,
   };
 }
 

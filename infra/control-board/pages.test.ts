@@ -55,6 +55,16 @@ describe("Overview", () => {
     expect(tile(page, "Phone balances low")).toBe(1);
   });
 
+  test("counts paying Ark Team customers per tier, and meter events waiting (v0.1.49)", async () => {
+    const { browser } = await signedIn();
+    const page = (await browser.get("/")).text;
+    // demo-shop's key names no tier, so it counts as 5; demo-taverna is on 10.
+    expect(tile(page, "Ark Team, 5 per seat")).toBe(1);
+    expect(tile(page, "Ark Team, 10 per seat")).toBe(1);
+    expect(tile(page, "Ark Team, 20 per seat")).toBe(0);
+    expect(tile(page, "Phone usage waiting for Stripe")).toBe(3);
+  });
+
   test("shows each service up, down or not connected", async () => {
     const { t, browser } = await signedIn();
     t.sources.relayDown = true;
@@ -217,6 +227,31 @@ describe("Customers", () => {
       "–",
       "–",
     ]);
+  });
+
+  test("a customer's page shows the tier, seats, the agent limit and this month's phone minutes per part (v0.1.49)", async () => {
+    const { browser } = await signedIn();
+    const facts = (page: string) =>
+      Object.fromEntries(
+        [...page.matchAll(/<dt>([^<]+)<\/dt><dd>([\s\S]*?)<\/dd>/g)].map(
+          (m) => [m[1], (m[2] ?? "").replace(/<[^>]+>/g, "").trim()],
+        ),
+      );
+    const taverna = facts((await browser.get("/customers/demo-taverna")).text);
+    expect(taverna).toMatchObject({
+      "Agents per seat": "10",
+      Seats: "2",
+      "Max agents": "20",
+      "Agents in use": "not reported",
+      "Phone minutes this month": "incoming 3 · landline 0 · mobile 2",
+    });
+    const shop = facts((await browser.get("/customers/demo-shop")).text);
+    expect(shop).toMatchObject({
+      "Agents per seat": "5 (key without a tier)",
+      Seats: "1",
+      "Max agents": "5",
+      "Phone minutes this month": "incoming 0 · landline 0 · mobile 0",
+    });
   });
 
   test("an unknown customer has an empty page; a malformed id is not found", async () => {

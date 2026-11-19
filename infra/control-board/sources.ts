@@ -38,6 +38,8 @@ export type Licence = {
   customerId: string | null;
   plan: string | null;
   seats: number | null;
+  /** Ark Team's tier, digital employees per seat (v0.1.49). Null or absent: no tier, counted as 5. */
+  maxAgents?: number | null;
   addons: string[];
   status: string;
   periodEnd: string | null;
@@ -69,6 +71,8 @@ export type CheckinExport = {
   licences: Licence[];
   phone: PhoneAccount[];
   ledger: LedgerEntry[];
+  /** Phone usage events waiting to reach Stripe's meters (v0.1.49). Absent from older exports. */
+  meterEventsWaiting?: number;
 };
 
 export interface CheckinSource {

@@ -255,6 +255,18 @@ export function overviewPage(
             "/customers?plan=phone-low",
             n.phoneLow > 0,
           ),
+          // Ark Team's tiers (v0.1.49): paying customers per tier.
+          tile("Ark Team, 5 per seat", n.perTier[5], "/customers?plan=paid"),
+          tile("Ark Team, 10 per seat", n.perTier[10], "/customers?plan=paid"),
+          tile("Ark Team, 20 per seat", n.perTier[20], "/customers?plan=paid"),
+          n.meterEventsWaiting === null
+            ? ""
+            : tile(
+                "Phone usage waiting for Stripe",
+                n.meterEventsWaiting,
+                "/services",
+                n.meterEventsWaiting > 0,
+              ),
           failedPayments === null
             ? ""
             : tile(
@@ -426,6 +438,11 @@ export function customerPage(
 <dt>${t(l, "Plan")}</dt><dd>${planLabel(l, row)}</dd>
 <dt>${t(l, "Days left")}</dt><dd>${row.daysLeft ?? "–"}</dd>
 <dt>${t(l, "Phone balance")}</dt><dd>${phoneLabel(l, row)}</dd>
+<dt>${t(l, "Agents per seat")}</dt><dd>${row.agentsPerSeat === null ? "–" : row.tierNamed ? String(row.agentsPerSeat) : t(l, "{n} (key without a tier)", { n: row.agentsPerSeat })}</dd>
+<dt>${t(l, "Seats")}</dt><dd>${row.seats ?? "–"}</dd>
+<dt>${t(l, "Max agents")}</dt><dd>${row.maxAgents ?? "–"}</dd>
+<dt>${t(l, "Agents in use")}</dt><dd>${row.agentsInUse ?? t(l, "not reported")}</dd>
+<dt>${t(l, "Phone minutes this month")}</dt><dd>${t(l, "incoming {incoming} · landline {landline} · mobile {mobile}", row.minutesThisMonth)}</dd>
 <dt>${t(l, "Last seen")}</dt><dd>${row.lastSeen ? when(l, row.lastSeen) : "–"}</dd>
 </dl>
 <h2>${t(l, "Installs")}</h2>
