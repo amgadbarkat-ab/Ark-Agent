@@ -13,6 +13,13 @@ Twilio ◀── wss /twilio/media (μ-law 8 kHz) ──▶ relay ◀── wss 
 install ◀──▶ speech service (customer's own key; the relay never sees it)
 ```
 
+**Two ways to run it, with the same behaviour and the same shared logic (`core.ts`):**
+
+- **On Cloudflare Workers + Durable Objects, Free plan** (`worker/`): no server to keep.
+  See [On Cloudflare Workers](#on-cloudflare-workers-free-plan). The address is
+  `https://blackark-phone.blackark.workers.dev`.
+- **On a Linux VPS with Docker** (`relay.ts`, Bun, behind Caddy). See [Deploy](#deploy).
+
 ## What it keeps
 
 - **No audio, no transcripts and no speech keys.**
@@ -137,3 +144,176 @@ The test checks that:
 - **What is sent:** the call id, each part (incoming, or forwarded to a landline or a mobile) and its seconds. **Never the caller's number.**
 - **If it fails:** a report blackark.uk did not take is held against the balance and sent again every minute, for a day.
 - **The install:** gets the new balance on its line connection, and the app shows it under Settings → Phone line, with **Add 5 hours** in the last hour.
+
+## On Cloudflare Workers (Free plan)
+
+Ordered by Amgad on 19 Nov 2026. **Not deployed:** COO deploys it.
+
+**The address:** `https://blackark-phone.blackark.workers.dev`. The Worker is `blackark-phone`, on account subdomain `blackark`.
+
+**Same as the Bun relay:**
+- the same endpoints, TwiML and messages to the install;
+- the same prepaid-balance rules, including the v0.1.49 top-up fix;
+- the same logic, from `core.ts`.
+
+**What differs is where state lives:**
+
+| Part | Bun (`relay.ts`) | Workers (`worker/`) |
+|---|---|---|
+| The install's `/line` socket | `Bun.serve`, in memory | one **line** Durable Object per line, socket held with the **Hibernation API** |
+| A call's media socket | `wss /twilio/media` | `wss /twilio/media/<line>`: the same line object, Hibernation API. Twilio gets this URL from the relay's TwiML; nothing to configure |
+| The one-time media key | memory, 30 s | the line object's SQLite, **SHA-256 only**, 30 s, single use |
+| The caller's number | memory, for the 30 s of the key | **not kept at all**: Twilio hands it back in the stream's own `<Parameter>`, and it goes straight to the install |
+| Lines (number, token SHA-256, fallback, customer) | `data/lines.json` | the **directory** Durable Object's SQLite, changed with `worker/cli.ts` |
+| Set-asides, unsent charges, last balance | memory | the line object's SQLite: survives eviction and restarts |
+| Minute timing, retries, 5-minute re-ask | `setTimeout` / `setInterval` | the line object's **alarm**, set to the earliest of these |
+| blackark.uk outage, one alert per outage | memory | the directory object (one state for all lines), alerts recorded in SQLite |
+| The alert email | `Bun.connect`, TLS, port 465 | `connect()` from `cloudflare:sockets`, `secureTransport: "on"`, port 465 |
+| Heartbeat | Bun's own pings | protocol pings are answered by the runtime. `{"type":"ping"}` is auto-answered `{"type":"pong"}` without waking the object (the install sends neither today) |
+| Twilio's signature, SHA-256, billing HMAC | `node:crypto` | WebCrypto, checked against `node:crypto` in `core.test.ts` |
+
+**Nothing new is installed in the repository:**
+- no `wrangler` and no `@cloudflare/workers-types`;
+- `worker/types.ts` declares the few types used;
+- `worker/wrangler.toml` is written by hand;
+- the bundle is about 43 KB, with no Node built-ins.
+
+### What the Free plan carries
+
+**The limits,** from Cloudflare's pricing and limits pages, read on 19 Nov 2026:
+
+| Limit | Free plan |
+|---|---|
+| Workers requests | 100,000 a day, 10 ms CPU each |
+| Durable Objects requests | 100,000 a day. Incoming WebSocket messages count **20 to 1**; outgoing messages, protocol pings and auto-responses are not counted |
+| Durable Objects duration | 13,000 GB-s a day (128 MB per awake object) |
+| SQLite | 5 million rows read and 100,000 written a day |
+
+- **Over a limit:** that kind of operation **fails** until 00:00 UTC. That is an outage, not a bill.
+- **CPU for an object:** 30 s, reset by each incoming message.
+
+**What one call uses:**
+
+- **Twilio's audio to the relay:** 50 messages a second, sent all through the call (silence included). That is 3,000 a minute, which counts as **150 requests a minute**.
+- **The install's audio to the relay:** the speech service's deltas, sent as they come, each a few hundred milliseconds of audio, and only while the employee speaks. That is about 300 a minute (**15 requests**).
+  - **Worst case:** the same 50 a second as Twilio (**150 requests a minute**).
+- **Other per-minute costs:** the alarm, about 1 request a minute.
+- **Once per call:** about 4 Worker requests (the voice webhook, the media socket, the status callback, the forwarded leg's report) and about 8 Durable Object requests.
+- **Not requests:** the relay's calls to blackark.uk and to Twilio's API are subrequests.
+
+| Per call-minute | Durable Object requests | How many call-minutes a day Free carries |
+|---|---|---|
+| Typical (Twilio 50/s, install about 5/s) | about 166 | **about 600 (10 hours)** |
+| Worst case (both 50/s) | about 301 | **about 330 (5.5 hours)** |
+
+**So plan on about 300 to 600 call-minutes a day,** roughly 100 to 200 calls of 3 minutes. Durable Object requests are the limit that binds first.
+
+**The other limits come nowhere near:**
+- **Workers requests:** about 25,000 calls a day.
+- **Duration:** about 1,700 call-minutes. An idle line, with its install connected, hibernates and costs nothing.
+- **SQLite writes:** a few per call-minute.
+
+**CPU per message is not a problem.** Measured with the stand-ins (`bun test infra/phone-relay/worker/cpu.test.ts`, Bun's engine, stand-in overhead included): **about 3 µs per media message** each way. That is thousands of times under any limit. On Cloudflare's V8 the figure differs, but not by orders of magnitude.
+
+**One assumption to check after the first test calls:**
+- **The assumption:** that the Free plan's 100,000-a-day limit counts WebSocket messages at the same **20 to 1** as the pricing page.
+- **If it does not:** each message would count as a request, and Free would carry only **about 30 call-minutes a day**. Workers Paid (USD 5 a month) would then be needed. Paid needs Amgad's yes.
+- **How COO checks:** look at the Durable Objects request graph in the dashboard after a few test calls.
+
+### What is different, or only in the Bun relay
+
+- **One billed line per customer on Workers.**
+  - **The rule:** `cli.ts bill-line` refuses a second line for a customer who already pays for one.
+  - **Why:** each line object holds its own set-asides, so two objects could together spend a balance twice, below zero. The Bun relay shares one balance across a customer's lines.
+  - **If it is needed:** a wallet object per customer can be added later.
+- **The alert email:**
+  - **What is known:** Cloudflare blocks only port 25 for `connect()`, and the board's IMAP already uses the same `connect()` with TLS (port 993).
+  - **What is tested:** the SMTP conversation runs against a stand-in mail server.
+  - **What is not:** it has not yet been sent from a real Worker.
+  - **Either way:** every alert is recorded (`cli.ts alerts` shows the last 20, with "sent", "NOT SENT (why)" or "recorded only").
+- **A deploy drops every socket.** Installs reconnect on their own within a second. A call in progress when COO deploys is cut: deploy outside business hours.
+- **Changing lines:** a line's changes are seen at the next call; there is no caching. Removing a line closes its install's socket at once.
+- **Moving from a VPS:** lines are not copied. Each line gets a new token, and its install needs it typed in again.
+
+### Deploy (COO, after Amgad's yes)
+
+**1. The API token.**
+- **Account and scopes:** the same Cloudflare account and the same token scopes as the board: **Workers Scripts: Edit** and **Account Settings: Read**.
+  - No D1, R2 or KV is used.
+  - Durable Objects need nothing extra on Free: Workers Scripts Edit covers them, and SQLite-backed objects are allowed on Free.
+- **Where it lives:** only in COO's own terminal.
+
+```bash
+read -rs CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN
+export CLOUDFLARE_ACCOUNT_ID=<the account id; not a secret>
+cd infra/phone-relay/worker
+W="npx --yes wrangler@4.20.0"   # the same pin as the board
+```
+
+**2. The plain settings in `wrangler.toml`.** None of these are secrets.
+- `TWILIO_ACCOUNT_SID`: from the Twilio console. It can be set later: until it is, lines can be added and installs connect, and only Twilio's routes (`/twilio/…`) answer 503.
+- `ALERT_SMTP_USER`, `ALERT_FROM`, `ALERT_TO`: BlackArk's own mailbox and addresses. Leave them empty and alerts are only recorded.
+- `PUBLIC_BASE_URL` is already `https://blackark-phone.blackark.workers.dev`. Twilio signs this exact address.
+
+**3. Deploy, then the secrets.** Each secret is typed at wrangler's hidden prompt. Never put one in a file, a commit or a chat.
+
+```bash
+$W deploy
+$W secret put TWILIO_AUTH_TOKEN      # Twilio console → Account info → Auth Token
+$W secret put RELAY_SECRET           # the same as relay_secret in blackark.uk's checkin/config.php
+$W secret put ADMIN_TOKEN            # 32+ random characters (openssl rand -hex 32); keep it in BlackArk's password manager
+$W secret put ALERT_SMTP_PASSWORD    # the alert mailbox's password; optional
+curl -fsS https://blackark-phone.blackark.workers.dev/health   # ok
+```
+
+**4. The lines.** Run from COO's terminal in `infra/phone-relay/worker`.
+
+```bash
+read -rs PHONE_ADMIN_TOKEN && export PHONE_ADMIN_TOKEN    # the ADMIN_TOKEN, typed hidden
+bun cli.ts add-line demo-shop +30XXXXXXXXXX +30YYYYYYYYYY # Twilio number, fallback person
+#   → prints the line token ONCE, on the terminal: the on-site installer types it into the install's masked field
+bun cli.ts bill-line demo-shop <customer-id>               # pays its calls from that prepaid balance
+bun cli.ts lines | bun cli.ts remove-line <name> | bun cli.ts alerts
+```
+
+**5. Twilio console, for each number** (Phone Numbers → the number → Voice configuration):
+- **A call comes in:** Webhook, `https://blackark-phone.blackark.workers.dev/twilio/voice`, **HTTP POST**.
+- **Call status changes:** `https://blackark-phone.blackark.workers.dev/twilio/status`, **HTTP POST**.
+
+**6. The install:** Settings → Phone line.
+- **Relay address:** `https://blackark-phone.blackark.workers.dev`.
+- **Line token:** the token from step 4.
+
+**Logs:** `$W tail` shows the relay's own lines live. They carry call ids, line names and durations, never a caller's number. Cloudflare's stored request logs are off (`[observability] enabled = false`), because they would hold Twilio's form fields.
+
+### Test (no Cloudflare, no Twilio)
+
+```bash
+bun test infra/phone-relay        # the Bun relay, the shared core, the Workers relay and its CLI
+```
+
+**What the Workers tests cover,** over stand-ins for the runtime (`worker/stand-ins.ts`), blackark.uk, Twilio's API and a mail server (`worker/harness.ts`):
+- **Webhooks:** a signed and an unsigned webhook, and one for another account.
+- **No install:** the call goes to the fallback.
+- **Tokens:** an unknown line token.
+- **Carrying a call:**
+  - audio both ways;
+  - the one-time key, which a second stream cannot reuse;
+  - the hand-over to the line's own fallback;
+  - eviction (hibernation) mid-call;
+  - the install dropping mid-call;
+  - a newer install replacing an older one;
+  - the auto-answered heartbeat.
+- **Billing:**
+  - busy at zero, and the forwarded leg in the first minute;
+  - the balance pushed on every incoming call;
+  - a call charged per part (forwarded leg, then incoming);
+  - an unanswered call not charged;
+  - the next minute set aside, and the cut with the Greek sentence;
+  - the 5-minute re-ask by alarm;
+  - one call while blackark.uk is down, busy after it, and one alert per outage, sent over the `connect()` stand-in on port 465 with TLS;
+  - an unsent charge held and retried;
+  - the second billed line refused.
+- **Admin:** the admin door, and a removed line's install let go.
+- **The CLI:** the token printed once, on stderr only.
+- **Logs:** after every test, no log line holds a caller's number.

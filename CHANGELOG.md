@@ -18,6 +18,11 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 - **blackark.uk: a licence key goes only to the install itself.** `checkin/renew/` used to hand the current key to anyone who sent a customer id. It now needs the install's proof, checked as Help & support checks it: its BlackArk-signed trial profile, or its signed activation code or licence key, made for that customer. An install from v0.1.44 to v0.1.48, which sends only its key's number, is still answered when that number belongs to a key issued to the same customer. Anything else is refused (403). One install may ask at most 150 times an hour (429).
 
+### The phone add-on, tested end to end (#109, v0.1.49)
+
+- **One test runs the whole add-on on one machine:** the real phone relay, the real blackark.uk buy page, Stripe webhook and phone balance, and this install's phone line. Twilio and Stripe are stand-ins. It covers: buying credits EUR 23.40; a call is answered and charged per part; the balance falls in the app; the last hour is shown; at zero the next call hears busy; topping up restores it.
+- **Phone relay: a top-up now reaches the app by itself.** Before, after a top-up the app kept saying the balance was used up and calls were not answered, until a call had been charged. The relay now tells the install the balance with every incoming call. While a connected install is in its last hour or used up, it also asks blackark.uk again every five minutes. A relay update (the relay is deployed separately from the app).
+
 ### Desktop: Save As (#109, v0.1.49)
 
 - **A real Save As dialog for files ArkAgent makes** (Propose a change's file, for one). It suggests the file's name in your Downloads folder; you choose where; Cancel saves nothing. After saving, the same box with the full path and "Show in folder". Other downloads (a file from the server, such as an export) still go straight to Downloads with that box.
