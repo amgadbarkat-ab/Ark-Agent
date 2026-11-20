@@ -44,7 +44,8 @@ export function ConversationRequests({ channelId }: { channelId: string }) {
           {decide.error.message}
         </p>
       ) : null}
-      <ul className="flex flex-col gap-2">
+      {/* On a phone several waiting requests scroll in their own box, so the message box stays on screen. */}
+      <ul className="flex flex-col gap-2 max-sm:max-h-[45dvh] max-sm:overflow-y-auto">
         {rows.map((row) => (
           <li key={row.id}>
             <ApprovalItem

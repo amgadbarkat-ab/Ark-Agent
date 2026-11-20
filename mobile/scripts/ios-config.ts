@@ -1,16 +1,18 @@
 /**
- * What the iOS app is told about the deployment it belongs to, checked before anything is built, and
- * the two things done to the project Capacitor generates from it.
+ * What the iOS app is told, checked before anything is built, and the two things done to the project
+ * Capacitor generates from it.
  *
- * Like the Android app, the iOS app is a window onto one site and nothing in the repository says
- * which: the bundle identifier, the site, the name under the icon and the address scheme the system
- * browser returns to all belong to a deployment the owner has yet to choose (docs/ark/19-mobile.md),
- * and none has a default. A missing or wrong one stops the build here, in a sentence.
+ * The iOS app is one app for every customer (#149): a window onto Ark Link, the BlackArk relay a
+ * customer's own desktop ArkAgent connects out to. A phone that is not paired yet is shown the pair
+ * screen there; a paired one is shown its desktop's own app, through the relay. So the bundle
+ * identifier is the product's (`blackark.arkagent`, the owner's choice, permanent once published) and
+ * the start address is the Ark Link host, which is given at build time and has no default: a build
+ * that silently pointed at a host nobody runs would look like a broken app.
  *
  * Pure: the environment goes in, checked values and edited text come out. `prepare-ios.ts` does the
  * reading, writing and running.
  */
-import { isAppUrlScheme, isIosAppId } from "../../server/src/mobile/links";
+import { isAppUrlScheme } from "../../server/src/mobile/links";
 import {
   APP_NAME,
   APP_NAME_RULE,
@@ -19,15 +21,27 @@ import {
   siteFrom,
 } from "./shared";
 
+/** The app's bundle identifier. Permanent once published (docs/ark/20-accounts-and-keys.md). */
+export const BUNDLE_ID = "blackark.arkagent";
+
+const TEAM_ID = /^[A-Z0-9]{10}$/;
+
 export type IosConfig = {
-  /** The Apple developer team that signs it. */
-  teamId: string;
   bundleId: string;
+  /** The Apple developer team that signs it; null for an unsigned build, which needs none. */
+  teamId: string | null;
   appName: string;
-  siteUrl: string;
-  siteHost: string;
-  /** Where the system browser sends a person back to the app. */
-  urlScheme: string;
+  /** The Ark Link host the app opens, `https://host`. */
+  linkUrl: string;
+  linkHost: string;
+  /**
+   * Where the system browser sends a person back to the app after signing in, or null for none.
+   *
+   * The hand-off exists for a hosted deployment that signs in with Google, which refuses a web view
+   * (server/src/auth/native-browser.ts). A desktop reached through Ark Link signs in inside the app,
+   * so a build for Ark Link registers no scheme unless one is asked for.
+   */
+  urlScheme: string | null;
   /** `CFBundleShortVersionString`: up to three whole numbers. */
   versionName: string;
   /** `CFBundleVersion`: a whole number that goes up with every upload to App Store Connect. */
@@ -44,15 +58,12 @@ export function iosConfigFrom(
   /** The repository's version, used when no version name is given. */
   defaultVersionName: string,
 ): IosConfig {
-  const appId = need(environment, "ARK_IOS_APP_ID");
-  if (!isIosAppId(appId)) {
+  const teamId = environment.ARK_IOS_TEAM_ID?.trim() || null;
+  if (teamId !== null && !TEAM_ID.test(teamId)) {
     throw new Error(
-      "ARK_IOS_APP_ID is not an iOS app identifier: the ten-character team id, a dot, then the bundle identifier (such as ABCDE12345.com.example.ark).",
+      "ARK_IOS_TEAM_ID is the Apple developer team id: ten capital letters and digits, as App Store Connect shows it (such as ABCDE12345).",
     );
   }
-  const dot = appId.indexOf(".");
-  const teamId = appId.slice(0, dot);
-  const bundleId = appId.slice(dot + 1);
 
   const appName = need(environment, "ARK_APP_NAME");
   if (!APP_NAME.test(appName)) {
@@ -61,10 +72,10 @@ export function iosConfigFrom(
     );
   }
 
-  const site = siteFrom(need(environment, "ARK_APP_URL"));
+  const link = linkFrom(need(environment, "ARK_LINK_URL"));
 
-  const urlScheme = need(environment, "ARK_IOS_URL_SCHEME");
-  if (!isAppUrlScheme(urlScheme)) {
+  const urlScheme = environment.ARK_IOS_URL_SCHEME?.trim() || null;
+  if (urlScheme !== null && !isAppUrlScheme(urlScheme)) {
     throw new Error(
       "ARK_IOS_URL_SCHEME is not an app's own address scheme: three to thirty-two lowercase letters, digits, dots, plus signs or hyphens, starting with a letter, and not one the system already uses (such as https).",
     );
@@ -92,34 +103,48 @@ export function iosConfigFrom(
   }
 
   return {
+    bundleId: BUNDLE_ID,
     teamId,
-    bundleId,
     appName,
-    siteUrl: site.url,
-    siteHost: site.host,
+    linkUrl: link.url,
+    linkHost: link.host,
     urlScheme,
     versionName,
     buildNumber,
   };
 }
 
+/** The Ark Link host as an origin the app can open and stay on, or a sentence saying what it must be. */
+function linkFrom(address: string): { url: string; host: string } {
+  try {
+    return siteFrom(address);
+  } catch {
+    throw new Error(
+      "ARK_LINK_URL is the Ark Link host the app opens: https and a domain name, with no path, port, user name, query or fragment (such as https://link.blackark.uk).",
+    );
+  }
+}
+
 /**
  * The file Capacitor reads to make the project.
  *
- * `server.url` is what makes the app a window onto the site: nothing of the web app is bundled, so
- * it is always the version the server is running. `allowNavigation` keeps the window on that site;
- * a link to anywhere else opens in the system browser instead of inside the app.
+ * `server.url` is what makes the app a window onto Ark Link: nothing of the web app is bundled, so
+ * a paired phone always shows the version its desktop is running. `allowNavigation` keeps the window
+ * on that host; a link to anywhere else opens in the system browser instead of inside the app.
+ * `errorPath` shows the app's own page (`www/index.html`) when the host cannot be reached, instead of
+ * a blank window.
  */
 export function capacitorConfigFor(config: IosConfig) {
   return {
     appId: config.bundleId,
     appName: config.appName,
-    // Required to exist, and shown only if the site cannot be reached at all.
+    // Required to exist; its page is shown when the host cannot be reached.
     webDir: "www",
     server: {
-      url: config.siteUrl,
+      url: config.linkUrl,
       cleartext: false,
-      allowNavigation: [config.siteHost],
+      allowNavigation: [config.linkHost],
+      errorPath: "index.html",
     },
     ios: {
       appendUserAgent: USER_AGENT_TOKEN,
@@ -128,20 +153,45 @@ export function capacitorConfigFor(config: IosConfig) {
   };
 }
 
+const EMPTY_LINK = ' data-link=""';
+
+/**
+ * The app's own page (`www/index.html`, shown when the host cannot be reached) with the host its
+ * "Try again" goes back to. The host is a checked origin, so it needs no escaping in an attribute.
+ */
+export function errorPageFor(html: string, config: IosConfig): string {
+  if (html.split(EMPTY_LINK).length !== 2) {
+    throw new Error(
+      'www/index.html must have exactly one empty data-link="" for the Ark Link host; it was not edited.',
+    );
+  }
+  return html.replace(EMPTY_LINK, ` data-link="${config.linkUrl}"`);
+}
+
 const PLIST_END = /<\/dict>\s*<\/plist>\s*$/;
 
 /**
  * Add to the generated Info.plist what Capacitor's template has no setting for:
  *
- *  - the address scheme, so the system browser can open the app again after signing in;
+ *  - the address scheme, when one is given, so the system browser can open the app again after
+ *    signing in;
  *  - the export-compliance answer: the app uses only the encryption in the system's own HTTPS, which
- *    is exempt, and without this App Store Connect asks on every upload.
+ *    is exempt, and without this App Store Connect asks on every upload;
+ *  - why it asks for the microphone and the camera. The desktop's pages ask for the microphone to
+ *    dictate and to talk to an employee, and a file picker offers to take a photo; Capacitor's web
+ *    view grants a page that, and iOS then ends the app on the spot if the reason is missing.
+ *    This is the English; the Greek is in `el.lproj/InfoPlist.strings` (`addLocalizedInfoPlist`).
  *
- * Refuses a file that already has either key rather than adding a second one: an Info.plist with a
- * key twice is read by taking one of them, and which one is not something to leave to chance.
+ * Refuses a file that already has any of these keys rather than adding a second one: an Info.plist
+ * with a key twice is read by taking one of them, and which one is not something to leave to chance.
  */
 export function patchInfoPlist(xml: string, config: IosConfig): string {
-  for (const key of ["CFBundleURLTypes", "ITSAppUsesNonExemptEncryption"]) {
+  for (const key of [
+    "CFBundleURLTypes",
+    "ITSAppUsesNonExemptEncryption",
+    "NSMicrophoneUsageDescription",
+    "NSCameraUsageDescription",
+  ]) {
     if (xml.includes(`<key>${key}</key>`)) {
       throw new Error(`Info.plist already has ${key}; it was not edited.`);
     }
@@ -151,25 +201,173 @@ export function patchInfoPlist(xml: string, config: IosConfig): string {
       "Info.plist is not in the shape expected; it was not edited.",
     );
   }
+  const scheme = config.urlScheme
+    ? [
+        "\t<key>CFBundleURLTypes</key>",
+        "\t<array>",
+        "\t\t<dict>",
+        "\t\t\t<key>CFBundleTypeRole</key>",
+        "\t\t\t<string>Editor</string>",
+        "\t\t\t<key>CFBundleURLName</key>",
+        `\t\t\t<string>${config.bundleId}</string>`,
+        "\t\t\t<key>CFBundleURLSchemes</key>",
+        "\t\t\t<array>",
+        `\t\t\t\t<string>${config.urlScheme}</string>`,
+        "\t\t\t</array>",
+        "\t\t</dict>",
+        "\t</array>",
+      ]
+    : [];
   const addition = [
-    "\t<key>CFBundleURLTypes</key>",
-    "\t<array>",
-    "\t\t<dict>",
-    "\t\t\t<key>CFBundleTypeRole</key>",
-    "\t\t\t<string>Editor</string>",
-    "\t\t\t<key>CFBundleURLName</key>",
-    `\t\t\t<string>${config.bundleId}</string>`,
-    "\t\t\t<key>CFBundleURLSchemes</key>",
-    "\t\t\t<array>",
-    `\t\t\t\t<string>${config.urlScheme}</string>`,
-    "\t\t\t</array>",
-    "\t\t</dict>",
-    "\t</array>",
+    ...scheme,
     "\t<key>ITSAppUsesNonExemptEncryption</key>",
     "\t<false/>",
+    ...Object.entries(USAGE_REASONS.en).flatMap(([key, reason]) => [
+      `\t<key>${key}</key>`,
+      `\t<string>${reason}</string>`,
+    ]),
     "",
   ].join("\n");
   return xml.replace(PLIST_END, (end) => `${addition}${end}`);
+}
+
+/**
+ * Why the app asks for the microphone and the camera, in each language the app is offered in.
+ *
+ * The English goes into Info.plist itself; each language also gets `<language>.lproj/InfoPlist.strings`,
+ * which is what iOS reads for a phone set to that language. Written without `<`, `>` or `&`, so the
+ * English needs no escaping in the plist.
+ */
+export const USAGE_REASONS = {
+  en: {
+    NSMicrophoneUsageDescription:
+      "ArkAgent uses the microphone when you dictate a message or talk to a digital employee.",
+    NSCameraUsageDescription:
+      "ArkAgent uses the camera when you take a photo to attach to a message.",
+  },
+  el: {
+    NSMicrophoneUsageDescription:
+      "Το ArkAgent χρησιμοποιεί το μικρόφωνο όταν υπαγορεύετε ένα μήνυμα ή μιλάτε με έναν ψηφιακό υπάλληλο.",
+    NSCameraUsageDescription:
+      "Το ArkAgent χρησιμοποιεί την κάμερα όταν τραβάτε μια φωτογραφία για να την επισυνάψετε σε ένα μήνυμα.",
+  },
+} as const;
+
+export type AppLanguage = keyof typeof USAGE_REASONS;
+export const APP_LANGUAGES = Object.keys(USAGE_REASONS) as AppLanguage[];
+
+/** One line of a `.strings` file. */
+export function stringsLine(key: string, value: string): string {
+  const quoted = value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  return `"${key}" = "${quoted}";`;
+}
+
+/** `<language>.lproj/InfoPlist.strings`: UTF-8, which Xcode accepts and converts as it copies it. */
+export function infoPlistStrings(language: AppLanguage): string {
+  return `${Object.entries(USAGE_REASONS[language])
+    .map(([key, value]) => stringsLine(key, value))
+    .join("\n")}\n`;
+}
+
+/**
+ * Object ids for what `addLocalizedInfoPlist` adds: 24 hex digits like Xcode's own, with a prefix no
+ * generated id has, so a second edit is caught by finding the first.
+ */
+const LOCALIZED_IDS = {
+  buildFile: "0A4C1E550000000000000001",
+  variantGroup: "0A4C1E550000000000000002",
+  en: "0A4C1E550000000000000003",
+  el: "0A4C1E550000000000000004",
+} as const;
+
+/** Insert `text` before the first match of `anchor`, or say the project is not what was expected. */
+function insertBefore(source: string, anchor: RegExp, text: string): string {
+  const match = anchor.exec(source);
+  if (!match) {
+    throw new Error(
+      "project.pbxproj is not in the shape expected; it was not edited.",
+    );
+  }
+  return source.slice(0, match.index) + text + source.slice(match.index);
+}
+
+/**
+ * Add `InfoPlist.strings` to the generated Xcode project as one localized resource (English and
+ * Greek), and Greek to the languages it knows, the way Xcode itself records one.
+ *
+ * Text edits anchored on the sections Capacitor's template has (checked against Capacitor 8.5.3's, in
+ * `mobile/tests/fixtures`). Refuses a project it has edited before or whose shape it does not find,
+ * rather than writing a project Xcode might half read.
+ */
+export function addLocalizedInfoPlist(pbxproj: string): string {
+  if (pbxproj.includes(LOCALIZED_IDS.variantGroup)) {
+    throw new Error(
+      "project.pbxproj already has InfoPlist.strings; it was not edited.",
+    );
+  }
+  const ids = LOCALIZED_IDS;
+  let out = pbxproj;
+  out = insertBefore(
+    out,
+    /\/\* End PBXBuildFile section \*\//,
+    `\t\t${ids.buildFile} /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.variantGroup} /* InfoPlist.strings */; };\n`,
+  );
+  out = insertBefore(
+    out,
+    /\/\* End PBXFileReference section \*\//,
+    APP_LANGUAGES.map(
+      (language) =>
+        `\t\t${ids[language]} /* ${language} */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ${language}; path = ${language}.lproj/InfoPlist.strings; sourceTree = "<group>"; };\n`,
+    ).join(""),
+  );
+  // The App group: listed after Info.plist.
+  out = insertBefore(
+    out,
+    /(?<=\t\t\t\t[0-9A-F]{24} \/\* Info\.plist \*\/,\n)/,
+    `\t\t\t\t${ids.variantGroup} /* InfoPlist.strings */,\n`,
+  );
+  // The app target's Resources phase.
+  out = insertBefore(
+    out,
+    /(?<=isa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = \d+;\n\t\t\tfiles = \(\n)/,
+    `\t\t\t\t${ids.buildFile} /* InfoPlist.strings in Resources */,\n`,
+  );
+  out = insertBefore(
+    out,
+    /\/\* End PBXVariantGroup section \*\//,
+    [
+      `\t\t${ids.variantGroup} /* InfoPlist.strings */ = {`,
+      "\t\t\tisa = PBXVariantGroup;",
+      "\t\t\tchildren = (",
+      ...APP_LANGUAGES.map(
+        (language) => `\t\t\t\t${ids[language]} /* ${language} */,`,
+      ),
+      "\t\t\t);",
+      "\t\t\tname = InfoPlist.strings;",
+      '\t\t\tsourceTree = "<group>";',
+      "\t\t};",
+      "",
+    ].join("\n"),
+  );
+  const regions = /knownRegions = \(\n((?:\t\t\t\t[\w-]+,\n)*)(\t\t\t\);)/.exec(
+    out,
+  );
+  if (!regions) {
+    throw new Error(
+      "project.pbxproj is not in the shape expected; it was not edited.",
+    );
+  }
+  const known = regions[1] ?? "";
+  const missing = APP_LANGUAGES.filter(
+    (language) => !known.includes(`\t${language},\n`),
+  )
+    .map((language) => `\t\t\t\t${language},\n`)
+    .join("");
+  return (
+    out.slice(0, regions.index) +
+    `knownRegions = (\n${known}${missing}${regions[2]}` +
+    out.slice(regions.index + regions[0].length)
+  );
 }
 
 /** What `xcodebuild` is told so the version comes from the deployment, not from the generated project. */

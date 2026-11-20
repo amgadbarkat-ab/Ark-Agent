@@ -119,6 +119,10 @@ function stagedModality(attachment: Attachment) {
 const MAX_HEIGHT_PX = 220;
 /**
  * Tracks the compact `text-sm` line box so PromptArea stays vertically centered in one row.
+ *
+ * On a phone the editor is `text-base` (16px) instead: Safari, and the iOS app's web view, zoom the
+ * whole page in when a field under 16px takes the caret, and do not zoom back out. The line box is
+ * then a few pixels taller than this minimum, which only makes the row that much taller.
  */
 const COMPACT_MIN_HEIGHT_PX = 19;
 const COMPACT_MAX_HEIGHT_PX = 96;
@@ -1589,7 +1593,7 @@ export function Composer({
               <PromptArea
                 aria-label={t("Message")}
                 className={cn(
-                  "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none",
+                  "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none max-sm:text-base",
                   editorClassName,
                 )}
                 disabled={disabled}
@@ -1647,7 +1651,7 @@ export function Composer({
               aria-label={t("Message")}
               autoGrow
               className={cn(
-                "w-full border-0 bg-transparent p-0 text-sm shadow-none",
+                "w-full border-0 bg-transparent p-0 text-sm shadow-none max-sm:text-base",
                 editorClassName,
               )}
               disabled={disabled}

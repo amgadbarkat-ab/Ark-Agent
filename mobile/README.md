@@ -6,7 +6,7 @@ to provide are in [docs/ark/19-mobile.md](../docs/ark/19-mobile.md).
 ```
 mobile/
   android/   The Google Play app: a Trusted Web Activity (Gradle project, no code of our own)
-  ios/       The App Store app: a thin Capacitor shell around the site (the Xcode project is generated)
+  ios/       The App Store app: a thin Capacitor shell that opens Ark Link (the Xcode project is generated)
   scripts/   Check the deployment's names, and make or configure each app's project from them
   tests/     Tests for those checks
 ```
@@ -87,28 +87,34 @@ Google Play's lowest accepted `targetSdk` (raised every August; it is `targetSdk
 
 ## iOS
 
-The app is a window onto the deployment's own site: nothing of the web app is bundled, so it is always
-the version the server is running. Apple has no equivalent of Android's Trusted Web Activity, so this is
-a native shell (Capacitor) around a web view. Two things follow from that, and both are handled:
+One app for every customer (#149). It opens **Ark Link**, the BlackArk relay that a customer's own desktop
+ArkAgent connects out to: a phone that is not paired yet is shown the pair screen there, and a paired one
+is shown its desktop's own app, through the relay. Nothing of the web app is bundled, so a paired phone
+always shows the version its desktop is running. Apple has no equivalent of Android's Trusted Web
+Activity, so this is a native shell (Capacitor) around a web view.
 
-- **Google refuses to sign anybody in inside a web view.** Signing in opens the system browser at
-  `/api/auth/native` on the server, which signs in with the chosen provider and sends a one-time code
-  back to the app by opening its own address (`<scheme>://signed-in`). The code is bound to a secret
-  that never leaves the phone, works once, and is exchanged for a session of the app's own. Google and
-  Microsoft sign-in work this way; company sign-in (Okta, a registered identity provider) is not offered
-  in the app yet.
+- **No sign-in on the phone.** The person signs in on the desktop before pairing; a paired phone acts as
+  the person who confirmed it there, with that person's role. Through Ark Link `/api/auth/*` answers
+  "Sign in on your computer", so the app never shows a sign-in. The system-browser hand-off
+  (`/api/auth/native`, `<scheme>://signed-in`) is for a hosted deployment that signs in with Google,
+  which refuses a web view; a build registers its scheme only when `ARK_IOS_URL_SCHEME` is given.
 - **Apple does not allow Web Push in a web view.** The app has no notifications yet. They would need
-  Apple's own push service (APNs) and a second sending path on the server; see the decision record.
+  Apple's own push service (APNs) and a second sending path; see the decision record.
+- **When the host cannot be reached** the app shows its own page (`www/index.html`, in Greek and
+  English) with a way to try again, instead of a blank window.
 
 ### The names it needs
 
+The bundle identifier is not a setting: it is `blackark.arkagent` (the owner's choice, permanent once
+published).
+
 | Setting | What it is |
 | --- | --- |
-| `ARK_IOS_APP_ID` | The Apple team id, a dot, then the bundle identifier: `ABCDE12345.com.example.ark`. The same value the server publishes in `apple-app-site-association`. The bundle identifier is permanent once published. |
-| `ARK_APP_URL` | The site, `https://host`, with no path. |
+| `ARK_LINK_URL` | The Ark Link host the app opens, `https://host` with no path, such as `https://link.blackark.uk`. No default. |
 | `ARK_APP_NAME` | The name under the icon. |
-| `ARK_IOS_URL_SCHEME` | The address scheme the system browser returns to, such as `arkapp`. Set the same value on the server (`ARK_IOS_URL_SCHEME`), which is what makes the sign-in page exist. Another app can claim the same scheme, which is why the code in it is useless without the secret. |
 | `ARK_IOS_BUILD_NUMBER` | A whole number that goes up with every upload to App Store Connect. |
+| `ARK_IOS_TEAM_ID` | Optional for an unsigned build, required to sign: the Apple developer team id, `ABCDE12345`. |
+| `ARK_IOS_URL_SCHEME` | Optional. The address scheme the system browser returns to, for a hosted deployment's Google sign-in. Not used with Ark Link. |
 | `ARK_IOS_VERSION_NAME` | Optional, up to three numbers (`1.4.0`). Defaults to the repository's version. |
 
 The App Store icon is a brand asset the owner provides at `mobile/ios/brand/AppIcon-1024.png`: a PNG of
@@ -119,23 +125,25 @@ it the app carries Capacitor's placeholder icon, which the App Store refuses.
 
 ```sh
 (cd mobile/ios && bun install)
-ARK_IOS_APP_ID=ABCDE12345.com.example.ark ARK_APP_URL=https://ark.example ARK_APP_NAME=Ark \
-ARK_IOS_URL_SCHEME=arkapp ARK_IOS_BUILD_NUMBER=1 bun mobile/scripts/prepare-ios.ts
+ARK_LINK_URL=https://link.blackark.uk ARK_APP_NAME=ArkAgent ARK_IOS_BUILD_NUMBER=1 \
+bun mobile/scripts/prepare-ios.ts
 ```
 
 This works on any machine (Capacitor makes the Xcode project without Xcode), checks the names first, and
-starts the project afresh each time so nothing from an earlier deployment's names can be left in it.
-It adds the address scheme and the export-compliance answer to `Info.plist`, copies the icon, and prints
-the version settings to hand to `xcodebuild`. **Building needs a Mac.** Open
-`mobile/ios/ios/App/App.xcodeproj`, or run the commands in `.github/workflows/mobile-ios.yml`.
+starts the project afresh each time so nothing from an earlier build's names can be left in it. It adds
+the export-compliance answer (and the address scheme, if given) to `Info.plist`, writes the host into the
+app's own page, copies the icon, and prints the version settings to hand to `xcodebuild`. **Building needs
+a Mac.** Open `mobile/ios/ios/App/App.xcodeproj`, or run the commands in `.github/workflows/mobile-ios.yml`.
 
 ### The release workflow
 
-`.github/workflows/mobile-ios.yml` makes the project against made-up names and builds it for the
-simulator on every change, and a person can start it by hand to archive and export the signed app. For
-the by-hand run the owner sets, in the same `mobile-release` GitHub environment as Android:
+`.github/workflows/mobile-ios.yml` makes the project against a made-up host and builds it for the
+simulator on every change (and every push to a `claude/ios-*` branch), reads the built app back, opens
+it in a simulator and keeps a picture, and a person can start it by hand to archive and export the
+signed app. For the by-hand run the owner sets, in the same `mobile-release` GitHub environment as
+Android:
 
-- variables `ARK_IOS_APP_ID`, `ARK_APP_URL`, `ARK_APP_NAME`, `ARK_IOS_URL_SCHEME`;
+- variables `ARK_LINK_URL`, `ARK_IOS_TEAM_ID`, `ARK_APP_NAME`;
 - secrets `ARK_IOS_ASC_KEY_BASE64` (an App Store Connect API key, the `.p8` file, base64),
   `ARK_IOS_ASC_KEY_ID`, `ARK_IOS_ASC_ISSUER_ID`.
 
@@ -145,10 +153,8 @@ the store is done in App Store Connect.
 
 ### Not done, and why
 
-- **The project has never been compiled.** Capacitor makes it here; Xcode builds it, and there is no
-  Xcode here. The workflow's first run is the first build.
-- **No offline page in the app.** It would need the web view's app-bound-domains setting for a service
-  worker to run, and an app that cannot be tested here should not be given a setting that can make the
-  whole window refuse to load.
+- **No offline copy of the app.** Beyond the "cannot be reached" page, working offline would need the
+  web view's app-bound-domains setting for a service worker to run, and an app that cannot be tested
+  here should not be given a setting that can make the whole window refuse to load.
 - **Links into the site do not open the app** (universal links). They need an Associated Domains
   capability in the project. Signing in does not depend on them.
