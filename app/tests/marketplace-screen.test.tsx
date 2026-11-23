@@ -1,4 +1,12 @@
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  expect,
+  setDefaultTimeout,
+  test,
+} from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -28,6 +36,13 @@ import { Route as ReviewRoute } from "@/routes/_authed/admin/marketplace";
 
 beforeAll(() => GlobalRegistrator.register());
 afterEach(cleanup);
+/*
+ * The app's own query client is one object for the whole `bun test` process, and Install's success
+ * waits for the refetches it asks of it. Whatever an earlier file left there was being refetched too:
+ * on CI, in the full suite only, the button still read "Installing…" after 10 seconds, three runs on
+ * 23 Nov, while this file alone answers in milliseconds. Each test starts from an empty client.
+ */
+beforeEach(() => appQueryClient.clear());
 afterAll(() => GlobalRegistrator.unregister());
 
 const originalFetch = global.fetch;
@@ -36,6 +51,13 @@ afterEach(() => {
 });
 
 const SLOW = { timeout: 5000 };
+/*
+ * A test may wait on SLOW more than once (the listing, then the install's answer), so the test's own
+ * budget has to cover them. With bun's default of 5 seconds for the whole test, the first wait could
+ * use it all: on a busy CI runner "shows what it starts with and can be installed" timed out at
+ * 5001 ms twice running (23 Nov, the v0.1.51 release PR) while each wait was still within its own 5.
+ */
+setDefaultTimeout(15_000);
 
 const official: ListingDetail = {
   id: "o1",
@@ -161,8 +183,15 @@ test("an official digital employee shows what it starts with and can be installe
   await userEvent
     .setup({ document })
     .click(screen.getByRole("button", { name: "Install" }));
+  // Up to 10 seconds for the install's answer. Locally it comes about 3 ms after the click (one POST,
+  // then /api/activation refetched for the agent limit), but on CI the runner was still showing
+  // "Installing…" after 5 seconds three times running on 23 Nov.
   expect(
-    await screen.findByText(/is now one of your digital employees/, {}, SLOW),
+    await screen.findByText(
+      /is now one of your digital employees/,
+      {},
+      { timeout: 10_000 },
+    ),
   ).toBeTruthy();
   // The trial is asked about as well (#109); the only write is the install.
   expect(
