@@ -18,12 +18,14 @@
  * most `limit` messages (5 by default), so it stays well inside a Worker's 50 subrequests:
  * 1 token + 4 pages + 5 reads + 5 marks = 15.
  */
+import { Buffer } from "node:buffer";
 import {
   type MailMessage,
   type MailSource,
   SUPPORT_ADDRESS,
   sentToSupport,
 } from "./intake";
+import type { OutgoingMail, ReplyMailer } from "./replies";
 
 /** The Worker's log line names only the error's name, so it is set: never a message, never a secret. */
 export class GraphError extends Error {
@@ -234,6 +236,121 @@ export function graphMailbox(
     },
     async close() {
       token = null;
+    },
+  };
+}
+
+// ---- Replies (Gap 3) ---------------------------------------------------------------------------
+
+const MIME_EMAIL = /^[^\s@<>()",;:]{1,64}@[A-Za-z0-9.-]{1,253}$/;
+
+function base64Lines(text: string): string {
+  const encoded = Buffer.from(text, "utf8").toString("base64");
+  return encoded.match(/.{1,76}/g)?.join("\r\n") ?? "";
+}
+
+/** A header value as RFC 2047 encoded words, each well under 76 characters. */
+function encodedWords(text: string): string {
+  if (/^[\x20-\x7e]*$/.test(text)) return text;
+  const words: string[] = [];
+  let chunk = "";
+  for (const char of text) {
+    if (Buffer.byteLength(chunk + char, "utf8") > 42) {
+      words.push(chunk);
+      chunk = "";
+    }
+    chunk += char;
+  }
+  if (chunk) words.push(chunk);
+  return words
+    .map(
+      (word) => `=?UTF-8?B?${Buffer.from(word, "utf8").toString("base64")}?=`,
+    )
+    .join("\r\n ");
+}
+
+/**
+ * One reply as a MIME message: plain text and HTML, From and Reply-To the support address. Built
+ * here rather than as Graph's JSON message so the email carries both parts, and so nothing a person
+ * typed can reach a header (the address is checked, the subject encoded).
+ */
+export function replyMime(
+  mail: OutgoingMail,
+  options: { from: string; fromName?: string; now: number; random: string },
+): string {
+  if (!MIME_EMAIL.test(mail.to) || !MIME_EMAIL.test(options.from))
+    throw new GraphError("not an email address");
+  const boundary = `ark-${options.random}`;
+  const name = options.fromName ?? "BlackArk Support";
+  const date = new Date(options.now).toUTCString().replace("GMT", "+0000");
+  return [
+    `From: ${name} <${options.from}>`,
+    `Reply-To: ${name} <${options.from}>`,
+    `To: <${mail.to}>`,
+    `Subject: ${encodedWords(mail.subject.replace(/[\r\n]+/g, " "))}`,
+    `Date: ${date}`,
+    `Message-ID: <case-${mail.caseNumber}.${options.random}@blackark.uk>`,
+    `Content-Language: ${mail.language}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=utf-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    base64Lines(mail.text),
+    `--${boundary}`,
+    "Content-Type: text/html; charset=utf-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    base64Lines(mail.html),
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+}
+
+/**
+ * Sends replies from General@ through Graph `sendMail` (application permission Mail.Send, limited
+ * to General@ by the same ApplicationAccessPolicy as the reader). From and Reply-To are support@:
+ * if Exchange shows General@ as the sender instead, the customer's answer still goes to support@
+ * and comes back to the case by its "[Case #N]" tag. A copy stays in General@'s Sent Items.
+ */
+export function graphSender(
+  settings: GraphSettings,
+  options: {
+    from?: string;
+    fetch?: typeof fetch;
+    now?: () => number;
+    random?: () => string;
+  } = {},
+): ReplyMailer {
+  const fetcher = options.fetch ?? fetch;
+  const from = options.from ?? SUPPORT_ADDRESS;
+  return {
+    async send(mail) {
+      const mime = replyMime(mail, {
+        from,
+        now: (options.now ?? Date.now)(),
+        random:
+          options.random?.() ??
+          Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString(
+            "hex",
+          ),
+      });
+      const token = await graphToken(settings, fetcher);
+      const response = await fetcher(
+        `${GRAPH}/users/${encodeURIComponent(settings.mailbox)}/sendMail`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "text/plain",
+          },
+          body: Buffer.from(mime, "utf8").toString("base64"),
+        },
+      );
+      if (response.status !== 202 && !response.ok)
+        throw new GraphError(`sendMail refused (HTTP ${response.status})`);
     },
   };
 }

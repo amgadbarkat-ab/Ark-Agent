@@ -252,6 +252,36 @@ export const EL: Record<string, string> = {
     "Αυτό το αναγνωριστικό πελάτη δεν είναι έγκυρο.",
   "Give the case a subject.": "Δώστε θέμα στην υπόθεση.",
   "No notes yet.": "Καμία σημείωση ακόμη.",
+  "Replies to the customer": "Απαντήσεις στον πελάτη",
+  "No replies yet.": "Καμία απάντηση ακόμη.",
+  Emailed: "Στάλθηκε με email",
+  "Email failed": "Το email δεν στάλθηκε",
+  "In the app only": "Μόνο στην εφαρμογή",
+  "and in the app": "και στην εφαρμογή",
+  "English copy": "Αγγλικό αντίγραφο",
+  "by email to": "με email στο",
+  "in the customer's app (Help & support)":
+    "στην εφαρμογή του πελάτη (Βοήθεια και υποστήριξη)",
+  and: "και",
+  "Reply in Greek": "Απάντηση στα ελληνικά",
+  "Reply in English": "Απάντηση στα αγγλικά",
+  "English copy (shown below the Greek)":
+    "Αγγλικό αντίγραφο (εμφανίζεται κάτω από τα ελληνικά)",
+  "The customer sees this reply": "Ο πελάτης βλέπει αυτή την απάντηση",
+  "Write in plain words, in GCC English for the English. Never paste passwords, keys or another customer's data.":
+    "Γράψτε απλά, και στα αγγλικά με αγγλικά GCC. Μην επικολλάτε ποτέ κωδικούς, κλειδιά ή δεδομένα άλλου πελάτη.",
+  "Send the reply": "Αποστολή απάντησης",
+  "Replies by email are not switched on for this board yet, and this case did not come from the app. Answer the customer another way and add a note.":
+    "Οι απαντήσεις με email δεν έχουν ενεργοποιηθεί ακόμη σε αυτόν τον πίνακα, και η υπόθεση δεν ήρθε από την εφαρμογή. Απαντήστε στον πελάτη με άλλον τρόπο και προσθέστε σημείωση.",
+  "This case has no email address and did not come from the app, so the board cannot reply. Answer the customer another way and add a note.":
+    "Η υπόθεση δεν έχει διεύθυνση email και δεν ήρθε από την εφαρμογή, οπότε ο πίνακας δεν μπορεί να απαντήσει. Απαντήστε στον πελάτη με άλλον τρόπο και προσθέστε σημείωση.",
+  "Write the reply in Greek and its English copy.":
+    "Γράψτε την απάντηση στα ελληνικά και το αγγλικό της αντίγραφο.",
+  "Write the reply.": "Γράψτε την απάντηση.",
+  "The board has no way to reach this customer.":
+    "Ο πίνακας δεν έχει τρόπο να φτάσει σε αυτόν τον πελάτη.",
+  "The email could not be sent. The reply is kept and shown in the app if the case came from there; check the board's mail settings, then answer the customer another way if needed.":
+    "Το email δεν στάλθηκε. Η απάντηση κρατήθηκε και εμφανίζεται στην εφαρμογή, αν η υπόθεση ήρθε από εκεί· ελέγξτε τις ρυθμίσεις email του πίνακα και, αν χρειάζεται, απαντήστε στον πελάτη με άλλον τρόπο.",
   "Linked to GitHub issue #{n}": "Συνδέθηκε με το θέμα GitHub #{n}",
   "Issue number, or empty": "Αριθμός θέματος, ή κενό",
   "Customer id": "Αναγνωριστικό πελάτη",

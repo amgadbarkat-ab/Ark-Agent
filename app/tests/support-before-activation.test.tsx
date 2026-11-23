@@ -75,7 +75,10 @@ const sent: SupportRequest = {
   payload,
 };
 
-function serve(verified = false) {
+function serve(
+  verified = false,
+  extra: { requests?: SupportRequest[]; replies?: unknown } = {},
+) {
   const calls: Array<{ url: string; body?: unknown }> = [];
   global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -86,8 +89,14 @@ function serve(verified = false) {
     if (url.endsWith("/api/support/preview")) return Response.json({ payload });
     if (url.endsWith("/api/support/requests"))
       return Response.json({ request: sent }, { status: 201 });
+    if (url.endsWith("/api/support/replies"))
+      return Response.json(extra.replies ?? { available: true, cases: [] });
     if (url.endsWith("/api/support"))
-      return Response.json({ available: true, verified, requests: [] });
+      return Response.json({
+        available: true,
+        verified,
+        requests: extra.requests ?? [],
+      });
     return new Response(null, { status: 404 });
   }) as unknown as typeof fetch;
   return calls;
@@ -164,4 +173,51 @@ test("once activated (verified), the same dialog asks for no email", async () =>
     .click(await screen.findByText("Need help? Write to BlackArk", {}, SLOW));
   expect(await screen.findByLabelText("Subject", {}, SLOW)).toBeTruthy();
   expect(screen.queryByLabelText("Your email (optional)")).toBeNull();
+});
+
+test("BlackArk's reply shows under the request: the customer's language, then the English copy", async () => {
+  const calls = serve(false, {
+    requests: [sent],
+    replies: {
+      available: true,
+      cases: [
+        {
+          case: 12,
+          status: "waiting",
+          replies: [
+            {
+              at: "2026-11-24T11:00:00.000Z",
+              language: "el",
+              text: "Δοκιμάστε ξανά τώρα.",
+              english: "Please try again now.",
+            },
+          ],
+        },
+        // Somebody else's case on this computer is never drawn.
+        { case: 99, status: "waiting", replies: [] },
+      ],
+    },
+  });
+  const screen = render(inClient(<ActivateHelp />));
+  expect(
+    await screen.findByText("Case #12 · BlackArk answered", {}, SLOW),
+  ).toBeTruthy();
+  const greek = screen.getByText("Δοκιμάστε ξανά τώρα.");
+  expect(greek.getAttribute("lang")).toBe("el");
+  expect(screen.getByText("Please try again now.").getAttribute("lang")).toBe(
+    "en",
+  );
+  expect(calls.some((call) => call.url.endsWith("/api/support/replies"))).toBe(
+    true,
+  );
+});
+
+test("no replies yet, or none can be fetched: the request shows its case number only", async () => {
+  serve(false, {
+    requests: [sent],
+    replies: { available: false, cases: [] },
+  });
+  const screen = render(inClient(<ActivateHelp />));
+  expect(await screen.findByText("Case #12", {}, SLOW)).toBeTruthy();
+  expect(screen.queryByText(/BlackArk replied/)).toBeNull();
 });

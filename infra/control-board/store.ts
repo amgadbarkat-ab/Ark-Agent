@@ -130,6 +130,30 @@ export const SCHEMA: string[] = [
     nonce TEXT PRIMARY KEY,
     at INTEGER NOT NULL
   )`,
+  // How a case's customer can be answered (replies.ts): the install it came from, for the app, and
+  // an email address, for mail. New tables, so a running board needs no table rebuilt.
+  `CREATE TABLE IF NOT EXISTS case_reach (
+    case_number INTEGER PRIMARY KEY REFERENCES cases (number),
+    install_id TEXT,
+    email TEXT
+  )`,
+  "CREATE INDEX IF NOT EXISTS case_reach_install ON case_reach (install_id)",
+  `CREATE TABLE IF NOT EXISTS case_replies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_number INTEGER NOT NULL REFERENCES cases (number),
+    at TEXT NOT NULL,
+    author TEXT NOT NULL,
+    language TEXT NOT NULL CHECK (language IN ('el', 'en')),
+    body TEXT NOT NULL,
+    english TEXT,
+    emailed_to TEXT,
+    email TEXT NOT NULL CHECK (email IN ('sent', 'failed', 'none'))
+  )`,
+  "CREATE INDEX IF NOT EXISTS case_replies_case ON case_replies (case_number, id)",
+  `CREATE TRIGGER IF NOT EXISTS case_replies_no_update BEFORE UPDATE ON case_replies
+    BEGIN SELECT RAISE(ABORT, 'Replies are kept as sent.'); END`,
+  `CREATE TRIGGER IF NOT EXISTS case_replies_no_delete BEFORE DELETE ON case_replies
+    BEGIN SELECT RAISE(ABORT, 'Replies are kept as sent.'); END`,
 ];
 
 export async function migrate(sql: Sql): Promise<void> {

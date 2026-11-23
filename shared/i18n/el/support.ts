@@ -71,4 +71,9 @@ export const EL_SUPPORT: Record<string, string> = {
   "BlackArk could not be reached. It will be sent again.":
     "Η BlackArk δεν ήταν διαθέσιμη. Θα σταλεί ξανά.",
   "Could not reach Help & support": "Η βοήθεια και υποστήριξη δεν απάντησε",
+  // BlackArk's replies (Gap 3, Amgad 23 Nov 2026).
+  "BlackArk answered": "Η BlackArk απάντησε",
+  Solved: "Λύθηκε",
+  "BlackArk's replies": "Απαντήσεις της BlackArk",
+  "BlackArk replied": "Απάντηση της BlackArk",
 };

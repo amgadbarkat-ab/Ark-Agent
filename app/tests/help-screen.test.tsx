@@ -19,7 +19,12 @@ import { Route as HelpRoute } from "@/routes/_authed/settings/help";
 
 beforeAll(() => GlobalRegistrator.register());
 afterEach(cleanup);
-afterAll(() => GlobalRegistrator.unregister());
+afterAll(async () => {
+  // React's queued work (the replies query among it) reads `window`: let it run before the page
+  // goes (see store-app.test.tsx).
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  GlobalRegistrator.unregister();
+});
 
 const originalFetch = global.fetch;
 afterEach(() => {

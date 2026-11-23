@@ -21,6 +21,7 @@ import {
   findBySource,
   getCase,
   openCase,
+  setReach,
   UNVERIFIED_CUSTOMER,
 } from "./cases";
 import type { Sql } from "./sql";
@@ -49,7 +50,7 @@ export function signIntake(
     .digest("hex");
 }
 
-function json(status: number, body: unknown): Response {
+export function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -57,6 +58,53 @@ function json(status: number, body: unknown): Response {
       "cache-control": "no-store",
     },
   });
+}
+
+/**
+ * A request blackark.uk signed with INTAKE_SECRET (X-Ark-Time, X-Ark-Nonce, X-Ark-Signature over
+ * "<time>.<nonce>.<body>"), within 5 minutes, each nonce once. Gives back the parsed body, or the
+ * refusal to send.
+ */
+export async function readSigned(
+  db: Sql,
+  request: Request,
+  secret: string,
+  now: number,
+): Promise<{ json: unknown } | Response> {
+  if (request.method !== "POST") return json(405, { error: "POST only." });
+  if (Number(request.headers.get("content-length") ?? "0") > MAX_BODY)
+    return json(413, { error: "Too large." });
+  const body = (await request.text()).slice(0, MAX_BODY + 1);
+  if (body.length > MAX_BODY) return json(413, { error: "Too large." });
+  const time = request.headers.get("x-ark-time") ?? "";
+  const nonce = request.headers.get("x-ark-nonce") ?? "";
+  const signature = Buffer.from(request.headers.get("x-ark-signature") ?? "");
+  const expected = Buffer.from(signIntake(secret, time, nonce, body));
+  if (
+    !/^\d{1,12}$/.test(time) ||
+    !/^[A-Za-z0-9_-]{16,64}$/.test(nonce) ||
+    signature.length !== expected.length ||
+    !timingSafeEqual(signature, expected)
+  ) {
+    return json(403, { error: "Bad signature." });
+  }
+  if (Math.abs(now / 1000 - Number(time)) > WINDOW_SECONDS)
+    return json(403, { error: "Stale request." });
+  await db.run(
+    "DELETE FROM intake_nonces WHERE at < ?",
+    now - 2 * WINDOW_SECONDS * 1000,
+  );
+  const taken = await db.run(
+    "INSERT OR IGNORE INTO intake_nonces (nonce, at) VALUES (?, ?)",
+    nonce,
+    now,
+  );
+  if (taken.changes === 0) return json(409, { error: "Already used." });
+  try {
+    return { json: JSON.parse(body) };
+  } catch {
+    return json(400, { error: "Not JSON." });
+  }
 }
 
 /** What the customer chose to send besides their words: never conversations, mail, files or keys. */
@@ -184,45 +232,9 @@ export function appIntake(
     },
     async handlePublic(request, url) {
       if (url.pathname !== "/intake/app") return null;
-      if (request.method !== "POST") return json(405, { error: "POST only." });
-      if (Number(request.headers.get("content-length") ?? "0") > MAX_BODY)
-        return json(413, { error: "Too large." });
-      const body = (await request.text()).slice(0, MAX_BODY + 1);
-      if (body.length > MAX_BODY) return json(413, { error: "Too large." });
-      const time = request.headers.get("x-ark-time") ?? "";
-      const nonce = request.headers.get("x-ark-nonce") ?? "";
-      const signature = Buffer.from(
-        request.headers.get("x-ark-signature") ?? "",
-      );
-      const expected = Buffer.from(
-        signIntake(options.secret, time, nonce, body),
-      );
-      if (
-        !/^\d{1,12}$/.test(time) ||
-        !/^[A-Za-z0-9_-]{16,64}$/.test(nonce) ||
-        signature.length !== expected.length ||
-        !timingSafeEqual(signature, expected)
-      ) {
-        return json(403, { error: "Bad signature." });
-      }
-      if (Math.abs(now() / 1000 - Number(time)) > WINDOW_SECONDS)
-        return json(403, { error: "Stale request." });
-      await db.run(
-        "DELETE FROM intake_nonces WHERE at < ?",
-        now() - 2 * WINDOW_SECONDS * 1000,
-      );
-      const taken = await db.run(
-        "INSERT OR IGNORE INTO intake_nonces (nonce, at) VALUES (?, ?)",
-        nonce,
-        now(),
-      );
-      if (taken.changes === 0) return json(409, { error: "Already used." });
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(body);
-      } catch {
-        return json(400, { error: "Not JSON." });
-      }
+      const signed = await readSigned(db, request, options.secret, now());
+      if (signed instanceof Response) return signed;
+      const parsed = signed.json;
       const input = readAppRequest(parsed);
       if (!input) return json(400, { error: "Not a support request." });
       const already = await findBySource(db, `app:${input.requestId}`);
@@ -272,6 +284,11 @@ export function appIntake(
         now(),
         options.calendar,
       );
+      // So BlackArk's replies reach this install (and the address given before activation).
+      await setReach(db, made.number, {
+        installId: input.installId,
+        email: input.contactEmail,
+      });
       if (input.diagnostics) {
         const d = input.diagnostics;
         await addNote(
@@ -338,6 +355,12 @@ export function sentToSupport(
   return [...message.to, ...message.cc].some(
     (one) => one.toLowerCase() === want,
   );
+}
+
+/** The address in "Name <address>" or a bare address; null when it is not one. */
+export function senderAddress(from: string): string | null {
+  const address = (from.match(/<([^<>]+)>\s*$/)?.[1] ?? from).trim();
+  return address.length <= 254 && EMAIL.test(address) ? address : null;
 }
 
 const CASE_TAG = /\[(?:Case|Υπόθεση) #(\d{1,9})\]/i;
@@ -427,6 +450,8 @@ export async function pollMailbox(
         },
         now,
       );
+      const address = senderAddress(message.from);
+      if (address) await setReach(db, made.number, { email: address });
       touched.push(made.number);
     }
     await mailbox.markSeen(message.id);

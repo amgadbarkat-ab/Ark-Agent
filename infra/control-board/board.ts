@@ -124,8 +124,8 @@ const SESSION_COOKIE = "__Host-ark_board";
 const PRE_COOKIE = "__Host-ark_board_pre";
 const LANG_COOKIE = "ark_board_lang";
 export const CUSTOMER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$/;
-/** Not behind Cloudflare Access: Docker-style health, and the intake signed with its own secret. */
-const ACCESS_EXEMPT = new Set(["/healthz", "/intake/app"]);
+/** Not behind Cloudflare Access: Docker-style health, and the intake (and its replies) signed with its own secret. */
+const ACCESS_EXEMPT = new Set(["/healthz", "/intake/app", "/intake/replies"]);
 
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
