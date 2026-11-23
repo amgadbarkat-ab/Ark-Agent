@@ -47,7 +47,16 @@ afterEach(cleanup);
 afterEach(() => queryClient.clear());
 const originalDefaults = queryClient.getDefaultOptions();
 afterAll(() => queryClient.setDefaultOptions(originalDefaults));
-afterAll(() => GlobalRegistrator.unregister());
+/*
+ * React finishes a render with a task it schedules for later (its passive effects), and that task
+ * reads `window`. Removing the page straight after the last test left one still queued: it ran into a
+ * missing `window` between this file and the next, "1 error" with every test passed (CI, 23 Nov, twice
+ * running). So the queue is let run before the page goes.
+ */
+afterAll(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  GlobalRegistrator.unregister();
+});
 
 const originalFetch = global.fetch;
 afterEach(() => {
