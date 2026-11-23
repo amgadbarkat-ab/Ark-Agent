@@ -130,3 +130,14 @@ export const supportRequests = pgTable("support_requests", {
   createdAt: at("created_at").notNull().defaultNow(),
   sentAt: at("sent_at"),
 });
+
+/**
+ * Help & support before activation (Amgad, 23 Nov 2026, v0.1.52): this install's random id while it
+ * has no trial file, activation code or licence of its own to name it. One row, keyed "install",
+ * made the first time such a request is written. Never anything about the person.
+ */
+export const supportInstall = pgTable("support_install", {
+  id: text("id").primaryKey().default("install"),
+  installId: uuid("install_id").notNull().defaultRandom(),
+  createdAt: at("created_at").notNull().defaultNow(),
+});

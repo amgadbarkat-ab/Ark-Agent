@@ -16,11 +16,25 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { appendAudit } from "./audit";
 import { CUSTOMER_ID, type Extension } from "./board";
 import type { Calendar } from "./business-hours";
-import { addNote, findBySource, getCase, openCase } from "./cases";
+import {
+  addNote,
+  findBySource,
+  getCase,
+  openCase,
+  UNVERIFIED_CUSTOMER,
+} from "./cases";
 import type { Sql } from "./sql";
 
 const WINDOW_SECONDS = 300;
 const MAX_PER_CUSTOMER_PER_DAY = 20;
+/**
+ * All installs that are not activated yet share one customer id, so they share their own daily
+ * ceiling: blackark.uk already limits each to 3 a day per install and per address; this stops a
+ * flood of new installs from filling the board.
+ */
+const MAX_UNVERIFIED_PER_DAY = 50;
+const EMAIL =
+  /^[^\s@<>()",;:]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$/;
 const MAX_BODY = 65_536;
 const MAX_LOG_LINES = 200;
 
@@ -63,9 +77,14 @@ export type AppRequest = {
   subject: string;
   message: string;
   urgent: boolean;
-  /** From blackark.uk's licences, which signed the forward: paid when an active licence exists. */
-  plan: "trial" | "paid";
+  /**
+   * From blackark.uk's licences, which signed the forward: paid when an active licence exists.
+   * "none" only for an install that is not activated yet, whose customer id is "unverified".
+   */
+  plan: "trial" | "paid" | "none";
   diagnostics: Diagnostics | null;
+  /** Only on an unverified request: an address the person chose to give, not checked by anyone. */
+  contactEmail: string | null;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -106,8 +125,17 @@ export function readAppRequest(value: unknown): AppRequest | null {
   const message = text("message", 8000);
   const language =
     body.language === "el" || body.language === "en" ? body.language : null;
-  const plan = body.plan === "paid" || body.plan === "trial" ? body.plan : null;
+  const plan =
+    body.plan === "paid" || body.plan === "trial" || body.plan === "none"
+      ? body.plan
+      : null;
   const diagnostics = readDiagnostics(body.diagnostics);
+  const unverified = customerId === UNVERIFIED_CUSTOMER;
+  const contact = body.contactEmail;
+  const contactEmail =
+    typeof contact === "string" && contact.length <= 254 && EMAIL.test(contact)
+      ? contact
+      : null;
   if (
     !requestId ||
     !UUID.test(requestId) ||
@@ -119,6 +147,11 @@ export function readAppRequest(value: unknown): AppRequest | null {
     !message ||
     !language ||
     !plan ||
+    // An unverified request is plan "none", and only it; it alone may carry a contact address.
+    unverified !== (plan === "none") ||
+    (contact !== undefined &&
+      contact !== null &&
+      (!unverified || !contactEmail)) ||
     typeof body.urgent !== "boolean" ||
     diagnostics === "bad"
   ) {
@@ -135,6 +168,7 @@ export function readAppRequest(value: unknown): AppRequest | null {
     urgent: body.urgent,
     plan,
     diagnostics,
+    contactEmail: unverified ? contactEmail : null,
   };
 }
 
@@ -205,8 +239,14 @@ export function appIntake(
             new Date(now() - 86_400_000).toISOString(),
           )
         )?.n ?? 0;
-      if (today >= MAX_PER_CUSTOMER_PER_DAY)
+      if (
+        today >=
+        (input.plan === "none"
+          ? MAX_UNVERIFIED_PER_DAY
+          : MAX_PER_CUSTOMER_PER_DAY)
+      )
         return json(429, { error: "Too many today." });
+      const from = `From install ${input.installId.slice(0, 8)} (v${input.appVersion}):`;
       const made = await openCase(
         db,
         {
@@ -214,9 +254,18 @@ export function appIntake(
           channel: "in-app",
           language: input.language,
           priority: input.urgent ? "urgent" : "normal",
-          plan: input.plan,
+          // The cases table takes trial or paid; "none" shows from the unverified customer id.
+          plan: input.plan === "none" ? "trial" : input.plan,
           subject: input.subject,
-          note: `From install ${input.installId.slice(0, 8)} (v${input.appVersion}):\n${input.message}`,
+          note:
+            input.plan === "none"
+              ? [
+                  "UNVERIFIED: sent before this install was activated. No BlackArk proof says whose install it is.",
+                  `Contact email given: ${input.contactEmail ?? "none"}${input.contactEmail ? " (not checked)" : ""}`,
+                  from,
+                  input.message,
+                ].join("\n")
+              : `${from}\n${input.message}`,
           sourceRef: `app:${input.requestId}`,
         },
         "intake:app",

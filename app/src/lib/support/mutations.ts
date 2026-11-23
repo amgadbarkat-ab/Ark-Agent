@@ -12,6 +12,8 @@ export type SupportInput = {
   urgent: boolean;
   includeDiagnostics: boolean;
   language: "el" | "en";
+  /** Before activation only: where BlackArk may answer, if the person gives it. */
+  contactEmail?: string;
   /** The preview the person read, so that exactly it is sent. */
   previewId?: string;
 };

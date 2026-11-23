@@ -1,6 +1,7 @@
+import { IconLifebuoy } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivationForm,
   useActivationLine,
@@ -10,13 +11,20 @@ import {
   PaymentReceived,
 } from "@/components/activation/buy-licence";
 import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
+import { PageRows } from "@/components/layout/page-shell";
+import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n";
+import { supportStateQueryOptions } from "@/lib/support/queries";
 import { activationQueryOptions } from "@/lib/trial/queries";
+import { RequestRow, WriteDialog } from "./settings/help";
 
 /**
  * The Activate screen (#109, v0.1.42). On a desktop install that has no trial activation code, no
  * paid licence key and no trial profile, or whose trial or licence has ended, this is the only
  * screen: nothing else opens until one of them is entered. Nothing is deleted while it shows.
+ *
+ * Help & support is here too (Amgad, 23 Nov 2026): somebody stuck before activation can still write
+ * to BlackArk. The request goes unverified, with an email address if they give one.
  */
 export const Route = createFileRoute("/_authed/activate")({
   beforeLoad: async ({ context }) => {
@@ -79,7 +87,50 @@ function Activate() {
             void navigate({ to: "/" });
           }}
         />
+        <ActivateHelp />
       </div>
+    </div>
+  );
+}
+
+/** "Write to BlackArk" on the Activate screen, and what was sent from here. */
+export function ActivateHelp() {
+  const t = useT();
+  const state = useQuery(supportStateQueryOptions());
+  const [writing, setWriting] = useState(false);
+  if (!state.data?.available) return null;
+  const requests = state.data.requests.slice(0, 3);
+  return (
+    <div className="flex w-full flex-col items-center gap-3">
+      <Button
+        onClick={() => setWriting(true)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <IconLifebuoy />
+        {t("Need help? Write to BlackArk")}
+      </Button>
+      {requests.length > 0 ? (
+        <div className="w-full text-left">
+          <p className="sr-only">{t("Your requests")}</p>
+          <PageRows>
+            {requests.map((request, index) => (
+              <RequestRow
+                first={index === 0}
+                key={request.id}
+                request={request}
+              />
+            ))}
+          </PageRows>
+        </div>
+      ) : null}
+      {writing ? (
+        <WriteDialog
+          onOpenChange={setWriting}
+          unverified={state.data.verified === false}
+        />
+      ) : null}
     </div>
   );
 }

@@ -445,6 +445,26 @@ expect "not a support request" 400 -X POST --data '{"customerId":"demo-shop"}' "
 for _ in $(seq 1 8); do send_support "$(support_body demo-shop "$inst" "$(profile_proof "$good")")" >/dev/null; done
 expect "the 11th request from one install in a day is refused" 429 -X POST --data "$(support_body demo-shop "$inst" "$(profile_proof "$good")")" "$support"
 
+# Before activation (Amgad, 23 Nov): no proof, customer "unverified", 3 a day per install and per address.
+unverified_body() { # install [extra-json-fields]
+  echo "{\"requestId\":\"$(uuid)\",\"customerId\":\"unverified\",\"installId\":\"$1\",\"appVersion\":\"0.1.52\",\"language\":\"en\",\"subject\":\"I cannot activate\",\"message\":\"The code is refused.\",\"urgent\":false,\"diagnostics\":null,\"proof\":null${2:-}}"
+}
+fresh=1b2c3d4e-0000-4000-8000-0000000000b1
+got="$(send_support "$(unverified_body "$fresh" ',"contactEmail":"maria@example.com"')")"
+[[ "$got" == 200 && "$(php -r '$d = json_decode(file_get_contents($argv[1]), true); echo $d["customerId"], " ", $d["plan"], " ", $d["contactEmail"], " ", array_key_exists("proof", $d) ? "proof!" : "no-proof";' "$received")" == "unverified none maria@example.com no-proof" ]] \
+  && { pass=$((pass+1)); echo "ok   before activation: a request with no proof is forwarded as customer unverified, plan none, with the contact address"; } || { fail=$((fail+1)); echo "FAIL unverified forward: $got $(cat "$work/support.out") $(head -c 300 "$received")"; }
+expect "an unverified request with any proof is refused (proof means a customer is named)" 400 -X POST --data "$(support_body unverified "$fresh" "$(profile_proof "$good")")" "$support"
+expect "a contact address on a signed request is refused" 400 -X POST --data "$(php -r '$d = json_decode($argv[1], true); $d["contactEmail"] = "a@b.cd"; echo json_encode($d);' "$(support_body demo-phone 1b2c3d4e-0000-4000-8000-0000000000a2 "$licence")")" "$support"
+expect "a contact address that is not one is refused" 400 -X POST --data "$(unverified_body "$fresh" ',"contactEmail":"a@b.cd\r\nBcc: x@y.z"')" "$support"
+expect "a customer id with no proof is still refused" 403 -X POST --data "$(support_body demo-shop "$fresh" null)" "$support"
+send_support "$(unverified_body "$fresh")" >/dev/null; send_support "$(unverified_body "$fresh")" >/dev/null
+expect "the 4th unverified request from one install in a day is refused" 429 -X POST --data "$(unverified_body "$fresh")" "$support"
+expect "and from the same address, a new install is refused too" 429 -X POST --data "$(unverified_body 1b2c3d4e-0000-4000-8000-0000000000b2)" "$support"
+got="$(send_support "$(support_body demo-phone 1b2c3d4e-0000-4000-8000-0000000000a2 "$licence")")"
+[[ "$got" == 200 ]] && { pass=$((pass+1)); echo "ok   a signed install from that address still gets through (its own limit is 10)"; } || { fail=$((fail+1)); echo "FAIL signed after unverified: $got"; }
+[[ "$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT COUNT(*) FROM support_unverified")->fetchColumn(), " ", $db->query("SELECT COUNT(*) FROM support_unverified WHERE address_hash LIKE \"%127.0.0.1%\" OR length(address_hash) <> 64")->fetchColumn();' "$work/checkin/data/checkins.sqlite")" == "3 0" ]] \
+  && { pass=$((pass+1)); echo "ok   the address is kept only as a keyed hash"; } || { fail=$((fail+1)); echo "FAIL address stored"; }
+
 # The Control Board's off-site audit copy (#149): signed, append-only, only a batch that continues
 # the chain; driven by the board's own client (cron.ts) against a throwaway board store.
 copy_url="http://127.0.0.1:$port/checkin/audit-copy/"

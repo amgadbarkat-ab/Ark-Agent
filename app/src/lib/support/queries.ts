@@ -5,7 +5,8 @@ import { tryClient } from "@/lib/client";
  * Help & support (#149): the person's requests to BlackArk from this computer.
  *
  * `payload` is exactly what was (or will be) sent, so the screen can show it again. The proof in it
- * is BlackArk's own signed trial file or licence key, as BlackArk issued it.
+ * is BlackArk's own signed trial file or licence key, as BlackArk issued it; before activation there
+ * is none, the customer is "unverified", and the person may have given an email address.
  */
 export type SupportPayload = {
   requestId: string;
@@ -19,7 +20,10 @@ export type SupportPayload = {
   diagnostics: { appVersion: string; os: string; logs: string[] } | null;
   proof:
     | { kind: "profile"; profile: string; signature: string }
-    | { kind: "code"; payload: string; signature: string };
+    | { kind: "code"; payload: string; signature: string }
+    | null;
+  /** Only on a request sent before activation: the address the person gave, or null. */
+  contactEmail?: string | null;
 };
 
 export type SupportRequest = {
@@ -37,6 +41,11 @@ export type SupportRequest = {
 export type SupportState = {
   /** False until this computer is activated with a BlackArk trial or licence. */
   available: boolean;
+  /**
+   * False before activation (Amgad, 23 Nov 2026): a request still goes, but BlackArk cannot tell whose
+   * computer it is, so the person may give an email address. Absent from an older server: true.
+   */
+  verified?: boolean;
   requests: SupportRequest[];
 };
 

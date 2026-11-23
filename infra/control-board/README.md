@@ -200,6 +200,11 @@ audit log records that a note was added, and its length, never its text.
    - adds the diagnostics as a second note;
    - limits each customer to 20 a day.
 4. **If the board cannot be reached:** blackark.uk answers 502, and the app keeps the request and sends it again every hour. The same request id gives back the same case.
+5. **Before activation** (Amgad, 23 Nov 2026): the Activate screen has "Need help? Write to BlackArk".
+   - The app sends customer `unverified`, the computer's random id, no proof, and an email address only if the person gives one.
+   - blackark.uk takes it without proof, at most 3 a day per computer and 3 a day per internet address (a keyed hash, kept 24 hours).
+   - The board opens the case as customer `unverified`, shows its plan as **none**, and starts its first note with `UNVERIFIED:` and the contact address. All unverified installs together get at most 50 cases a day.
+   - The cases table's plan column takes only `trial` or `paid`, and a running board's table is not rebuilt for this: underneath, such a case is `trial`, which also gives it the normal answer time.
 
 ### Support mail
 

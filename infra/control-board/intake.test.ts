@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readAudit } from "./audit";
-import { getCase, listCases, notes } from "./cases";
+import { getCase, listCases, notes, shownPlan } from "./cases";
 import {
   appIntake,
   type MailMessage,
@@ -176,6 +176,100 @@ describe("the app's Help & support, forwarded by blackark.uk", () => {
     for (let i = 0; i < 20; i++)
       expect((await post(t, JSON.stringify(forwarded()))).status).toBe(201);
     expect((await post(t, JSON.stringify(forwarded()))).status).toBe(429);
+  });
+
+  test("before activation: an unverified case, plan none, with the contact address the person gave", async () => {
+    const t = await setup();
+    const answer = await post(
+      t,
+      JSON.stringify(
+        forwarded({
+          customerId: "unverified",
+          plan: "none",
+          urgent: true,
+          contactEmail: "maria@example.com",
+          subject: "I cannot activate",
+          message: "The code is refused.",
+        }),
+      ),
+    );
+    expect(answer.status).toBe(201);
+    const made = await getCase(t.sql, 1);
+    expect(made).toMatchObject({
+      customer_id: "unverified",
+      channel: "in-app",
+      subject: "I cannot activate",
+    });
+    expect(made && shownPlan(made)).toBe("none");
+    // Not activated means not paid: urgent or not, the normal answer time.
+    expect(made?.plan).toBe("trial");
+    expect((await notes(t.sql, 1))[0]?.body).toBe(
+      [
+        "UNVERIFIED: sent before this install was activated. No BlackArk proof says whose install it is.",
+        "Contact email given: maria@example.com (not checked)",
+        "From install aaaa1111 (v0.1.49):",
+        "The code is refused.",
+      ].join("\n"),
+    );
+    const without = await post(
+      t,
+      JSON.stringify(forwarded({ customerId: "unverified", plan: "none" })),
+    );
+    expect(without.status).toBe(201);
+    expect((await notes(t.sql, 2))[0]?.body).toContain(
+      "Contact email given: none\n",
+    );
+  });
+
+  test("unverified and plan none go together; a contact address only on an unverified request, and a real one", async () => {
+    const t = await setup();
+    for (const bad of [
+      { customerId: "unverified", plan: "trial" },
+      { customerId: "demo-bakery", plan: "none" },
+      { contactEmail: "maria@example.com" },
+      {
+        customerId: "unverified",
+        plan: "none",
+        contactEmail: "not an address",
+      },
+      {
+        customerId: "unverified",
+        plan: "none",
+        contactEmail: "a@b.c\r\nBcc: x@y.z",
+      },
+      {
+        customerId: "unverified",
+        plan: "none",
+        contactEmail: `${"a".repeat(250)}@b.cd`,
+      },
+    ]) {
+      expect((await post(t, JSON.stringify(forwarded(bad)))).status).toBe(400);
+    }
+    expect(await listCases(t.sql, { openOnly: false })).toEqual([]);
+  });
+
+  test("all unverified installs together open at most 50 cases a day", async () => {
+    const t = await setup();
+    const one = () =>
+      post(
+        t,
+        JSON.stringify(forwarded({ customerId: "unverified", plan: "none" })),
+      );
+    for (let i = 0; i < 50; i++) expect((await one()).status).toBe(201);
+    expect((await one()).status).toBe(429);
+    // A real customer is not held back by them.
+    expect((await post(t, JSON.stringify(forwarded()))).status).toBe(201);
+  });
+
+  test("a case keeps its plan on the page; only an unverified one on trial shows none", () => {
+    expect(shownPlan({ customer_id: "demo-bakery", plan: "trial" })).toBe(
+      "trial",
+    );
+    expect(shownPlan({ customer_id: "unverified", plan: "trial" })).toBe(
+      "none",
+    );
+    // A person who finds out the customer pays sets it by hand, and it shows.
+    expect(shownPlan({ customer_id: "unverified", plan: "paid" })).toBe("paid");
   });
 
   test("needs no session, but nothing else opens without one", async () => {

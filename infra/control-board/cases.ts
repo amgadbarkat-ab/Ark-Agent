@@ -40,6 +40,22 @@ export const LANGUAGES = ["el", "en"] as const;
 export const PRIORITIES = ["urgent", "normal"] as const;
 export const PLANS = ["trial", "paid"] as const;
 export const STATUSES = ["new", "open", "waiting", "solved", "closed"] as const;
+
+/**
+ * The customer id of a case sent from an install that is not activated yet (Help & support before
+ * activation, Amgad 23 Nov 2026): no BlackArk proof says whose install it is. Its plan shows as
+ * "none". The cases table keeps "trial" underneath (its plan column takes only trial or paid, and a
+ * running board's table is not rebuilt for this), which also gives it the normal answer time.
+ */
+export const UNVERIFIED_CUSTOMER = "unverified";
+
+/** The plan a person sees: "none" for an unverified case still on its first plan. */
+export function shownPlan(row: Pick<Case, "customer_id" | "plan">): string {
+  return row.customer_id === UNVERIFIED_CUSTOMER && row.plan === "trial"
+    ? "none"
+    : row.plan;
+}
+
 export type Channel = (typeof CHANNELS)[number];
 export type Priority = (typeof PRIORITIES)[number];
 export type Status = (typeof STATUSES)[number];
@@ -367,7 +383,7 @@ function casePage(
 <dt>${t(l, "Customer")}</dt><dd><a href="/customers/${encodeURIComponent(row.customer_id)}">${row.customer_id}</a></dd>
 <dt>${t(l, "Channel")}</dt><dd>${t(l, CHANNEL_NAMES[row.channel])}</dd>
 <dt>${t(l, "Language")}</dt><dd>${t(l, LANGUAGE_NAMES[row.language] ?? row.language)}</dd>
-<dt>${t(l, "Plan")}</dt><dd>${t(l, row.plan)}</dd>
+<dt>${t(l, "Plan")}</dt><dd>${t(l, shownPlan(row))}</dd>
 <dt>${t(l, "Priority")}</dt><dd>${t(l, row.priority)}</dd>
 <dt>${t(l, "Status")}</dt><dd>${t(l, row.status)}</dd>
 <dt>${t(l, "Assigned to")}</dt><dd>${row.owner ?? t(l, "Nobody yet")}</dd>

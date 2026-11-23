@@ -9,6 +9,12 @@
  * DIAGNOSTICS, only when the person ticks them: the app version, the kind of system, and recent
  * warnings and errors, scrubbed (scrub.ts). Never conversations, mail, files or keys.
  *
+ * BEFORE ACTIVATION (Amgad, 23 Nov 2026). On a desktop install that has no trial file, code or
+ * licence yet, the person can still write: the request goes as customer "unverified", with this
+ * install's random id, no proof, and an email address only if they choose to give one. blackark.uk
+ * limits these to 3 a day per install and per address, and BlackArk's board marks the case
+ * unverified.
+ *
  * WHERE. blackark.uk/checkin/support/ checks the proof and forwards the request to BlackArk's
  * support board, which answers a case number. If it cannot be reached, the request waits here and
  * is sent again every hour with the same id, so it becomes one case, never two.
@@ -17,13 +23,15 @@ import { randomUUID } from "node:crypto";
 import { arch, release, type } from "node:os";
 import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "../db/client";
-import { supportRequests } from "../db/schema";
+import { supportInstall, supportRequests } from "../db/schema";
 import { type InstallProof, installIdentity } from "../trial/install-proof";
 import type { RecentLogs } from "./scrub";
 
 export const DEFAULT_SUPPORT_URL = "https://blackark.uk/checkin/support/";
 const HOUR = 60 * 60 * 1000;
 const PREVIEW_MS = 30 * 60 * 1000;
+/** The customer id of a request from an install that is not activated yet. */
+export const UNVERIFIED_CUSTOMER = "unverified";
 
 export type SupportInput = {
   subject: string;
@@ -31,6 +39,8 @@ export type SupportInput = {
   urgent: boolean;
   includeDiagnostics: boolean;
   language: "el" | "en";
+  /** Only before activation, and only if the person gives one: where BlackArk may answer. */
+  contactEmail?: string | null;
 };
 
 export type SupportProof = InstallProof;
@@ -46,7 +56,10 @@ export type SupportPayload = {
   message: string;
   urgent: boolean;
   diagnostics: { appVersion: string; os: string; logs: string[] } | null;
-  proof: SupportProof;
+  /** BlackArk's own proof of whose install this is; null before activation (customer "unverified"). */
+  proof: SupportProof | null;
+  /** Present only on a request sent before activation: the address the person gave, or null. */
+  contactEmail?: string | null;
 };
 
 export type SupportRequestView = {
@@ -104,6 +117,11 @@ export function createSupportService(
     version: string;
     logs?: RecentLogs;
     url?: string;
+    /**
+     * A desktop install, where activation is required: with no trial or licence yet, a request
+     * still goes, unverified. Elsewhere Help & support needs BlackArk's proof, as before.
+     */
+    beforeActivation?: boolean;
     fetch?: typeof fetch;
     now?: () => Date;
     system?: () => string;
@@ -121,6 +139,7 @@ export function createSupportService(
 
   function sameRequest(payload: SupportPayload, input: SupportInput): boolean {
     return (
+      (payload.contactEmail ?? null) === contactOf(input) &&
       payload.subject === input.subject.trim() &&
       payload.message === input.message.trim() &&
       payload.urgent === input.urgent &&
@@ -129,16 +148,29 @@ export function createSupportService(
     );
   }
 
+  function contactOf(input: SupportInput): string | null {
+    return input.contactEmail?.trim() || null;
+  }
+
+  /** This install's own random id before activation, made once. */
+  async function unverifiedInstallId(): Promise<string> {
+    await database.insert(supportInstall).values({}).onConflictDoNothing();
+    const [row] = await database.select().from(supportInstall).limit(1);
+    if (!row) throw new Error("The install id could not be kept.");
+    return row.installId;
+  }
+
   async function build(
     input: SupportInput,
     requestId: string,
   ): Promise<SupportPayload> {
     const who = await installIdentity(database);
-    if (!who) throw new SupportUnavailableError();
+    if (!who && !options.beforeActivation) throw new SupportUnavailableError();
+    const unverified = who === null;
     return {
       requestId,
-      customerId: who.customerId,
-      installId: who.installId,
+      customerId: who?.customerId ?? UNVERIFIED_CUSTOMER,
+      installId: who?.installId ?? (await unverifiedInstallId()),
       appVersion: options.version,
       language: input.language,
       subject: input.subject.trim(),
@@ -151,7 +183,9 @@ export function createSupportService(
             logs: options.logs?.lines(now().getTime(), 50) ?? [],
           }
         : null,
-      proof: who.proof,
+      proof: who?.proof ?? null,
+      // Only an unverified request may carry an address; blackark.uk refuses it on any other.
+      ...(unverified ? { contactEmail: contactOf(input) } : {}),
     };
   }
 
@@ -207,8 +241,16 @@ export function createSupportService(
   }
 
   return {
-    /** Whether this install can send a request at all (it needs BlackArk's proof). */
+    /** Whether this install can send a request at all (it needs BlackArk's proof, or a desktop install). */
     async available(): Promise<boolean> {
+      return (
+        options.beforeActivation === true ||
+        (await installIdentity(database)) !== null
+      );
+    },
+
+    /** Whether a request from here names a customer, with BlackArk's proof; false before activation. */
+    async verified(): Promise<boolean> {
       return (await installIdentity(database)) !== null;
     },
 

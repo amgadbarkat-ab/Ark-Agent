@@ -1,6 +1,7 @@
 /**
  * Help & support over HTTP (#149), at `/api/support`, for the signed-in person:
- * - GET  /           whether this install can send a request, and the person's requests
+ * - GET  /           whether this install can send a request, whether it is verified (activated,
+ *                    so BlackArk knows whose it is), and the person's requests
  * - POST /preview    exactly what would be sent, for the person to read first
  * - POST /requests   send it (kept and sent again later if BlackArk cannot be reached)
  */
@@ -17,6 +18,10 @@ const body = z.strictObject({
   urgent: z.boolean(),
   includeDiagnostics: z.boolean(),
   language: z.enum(["el", "en"]),
+  // Before activation only; empty means none given.
+  contactEmail: z
+    .union([z.literal(""), z.string().trim().email().max(254)])
+    .optional(),
 });
 const sendBody = body.extend({ previewId: z.string().uuid().optional() });
 
@@ -30,6 +35,7 @@ export function supportRoutes(
   app.get("/", async (context) =>
     context.json({
       available: await service.available(),
+      verified: await service.verified(),
       requests: await service.list(context.var.actor.id),
     }),
   );

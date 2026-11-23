@@ -150,7 +150,7 @@ function HelpPage() {
   );
 }
 
-function RequestRow({
+export function RequestRow({
   first,
   request,
 }: {
@@ -191,19 +191,30 @@ function RequestRow({
 /** Everything that would be sent, field by field, as the person reads it before sending. */
 function PayloadView({ payload }: { payload: SupportPayload }) {
   const t = useT();
+  const unverified = payload.proof === null;
   const rows: Array<[string, string]> = [
     [t("Subject"), payload.subject],
     [t("What happened"), payload.message],
     [t("It stops our work"), payload.urgent ? t("Yes") : t("No")],
     [t("Language"), payload.language === "el" ? "Ελληνικά" : "English"],
-    [t("Customer"), payload.customerId],
+    [
+      t("Customer"),
+      unverified ? t("Not known yet: not activated") : payload.customerId,
+    ],
+    ...(unverified
+      ? ([[t("Your email"), payload.contactEmail ?? t("None given")]] as Array<
+          [string, string]
+        >)
+      : []),
     [t("This computer's random id"), payload.installId],
     [t("App version"), payload.appVersion],
   ];
   const proof =
-    payload.proof.kind === "profile"
-      ? `${payload.proof.profile}.${payload.proof.signature}`
-      : `${payload.proof.payload}.${payload.proof.signature}`;
+    payload.proof === null
+      ? null
+      : payload.proof.kind === "profile"
+        ? `${payload.proof.profile}.${payload.proof.signature}`
+        : `${payload.proof.payload}.${payload.proof.signature}`;
   return (
     <div className="space-y-3 text-sm">
       <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1">
@@ -233,37 +244,52 @@ function PayloadView({ payload }: { payload: SupportPayload }) {
       ) : (
         <p className="text-muted-foreground">{t("No diagnostics.")}</p>
       )}
-      <details>
-        <summary className="cursor-pointer">
-          {payload.proof.kind === "profile"
-            ? t("BlackArk's signed trial file, as BlackArk issued it")
-            : t(
-                "BlackArk's signed activation code or licence key, as BlackArk issued it",
-              )}
-        </summary>
-        <p className="mt-1 text-muted-foreground">
+      {payload.proof === null || proof === null ? (
+        <p className="text-muted-foreground">
           {t(
-            "It proves to BlackArk that this request comes from your computer. Nothing in it was written by you.",
+            "This computer is not activated yet, so nothing proves to BlackArk whose it is. BlackArk sees this request as unverified.",
           )}
         </p>
-        <pre className="mt-1 max-h-32 overflow-auto break-all rounded bg-muted p-2 text-xs whitespace-pre-wrap">
-          {proof}
-        </pre>
-      </details>
+      ) : (
+        <details>
+          <summary className="cursor-pointer">
+            {payload.proof.kind === "profile"
+              ? t("BlackArk's signed trial file, as BlackArk issued it")
+              : t(
+                  "BlackArk's signed activation code or licence key, as BlackArk issued it",
+                )}
+          </summary>
+          <p className="mt-1 text-muted-foreground">
+            {t(
+              "It proves to BlackArk that this request comes from your computer. Nothing in it was written by you.",
+            )}
+          </p>
+          <pre className="mt-1 max-h-32 overflow-auto break-all rounded bg-muted p-2 text-xs whitespace-pre-wrap">
+            {proof}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }
 
-function WriteDialog({
+/**
+ * Writing to BlackArk, read before it is sent. `unverified`: this computer is not activated yet
+ * (Amgad, 23 Nov 2026), so the person may give an email address for the answer.
+ */
+export function WriteDialog({
   onOpenChange,
+  unverified = false,
 }: {
   onOpenChange: (open: boolean) => void;
+  unverified?: boolean;
 }) {
   const t = useT();
   const language = useLanguage();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [urgent, setUrgent] = useState(false);
+  const [contactEmail, setContactEmail] = useState("");
   const [diagnostics, setDiagnostics] = useState(false);
   const [preview, setPreview] = useState<SupportPayload | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -276,8 +302,14 @@ function WriteDialog({
     urgent,
     includeDiagnostics: diagnostics,
     language,
+    ...(unverified ? { contactEmail: contactEmail.trim() } : {}),
   };
-  const ready = subject.trim().length >= 3 && message.trim().length >= 10;
+  const emailOk =
+    !unverified ||
+    contactEmail.trim() === "" ||
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
+  const ready =
+    subject.trim().length >= 3 && message.trim().length >= 10 && emailOk;
   const done = send.data;
 
   return (
@@ -336,6 +368,27 @@ function WriteDialog({
                   value={message}
                 />
               </Field>
+              {unverified ? (
+                <Field>
+                  <FieldLabel htmlFor="support-email">
+                    {t("Your email (optional)")}
+                  </FieldLabel>
+                  <Input
+                    aria-invalid={!emailOk}
+                    autoComplete="email"
+                    id="support-email"
+                    maxLength={254}
+                    onChange={(event) => setContactEmail(event.target.value)}
+                    type="email"
+                    value={contactEmail}
+                  />
+                  <p className="text-muted-foreground text-sm">
+                    {t(
+                      "This computer is not activated yet, so BlackArk cannot tell whose it is. Give an email address if you want BlackArk to answer you by email.",
+                    )}
+                  </p>
+                </Field>
+              ) : null}
               <div className="flex items-center gap-2">
                 <Checkbox
                   checked={urgent}

@@ -52,6 +52,16 @@ export const EL_SUPPORT: Record<string, string> = {
     "Συμπερίληψη διαγνωστικών: η έκδοση της εφαρμογής, το σύστημα και πρόσφατα σφάλματα, χωρίς ονόματα, διευθύνσεις, αριθμούς και κλειδιά. Ποτέ συνομιλίες, αλληλογραφία, αρχεία ή κλειδιά.",
   "Send to BlackArk": "Αποστολή στην BlackArk",
   "See what will be sent": "Δείτε τι θα σταλεί",
+  // Before activation (Amgad, 23 Nov 2026).
+  "Need help? Write to BlackArk": "Χρειάζεστε βοήθεια; Γράψτε στην BlackArk",
+  "Your email (optional)": "Το email σας (προαιρετικό)",
+  "This computer is not activated yet, so BlackArk cannot tell whose it is. Give an email address if you want BlackArk to answer you by email.":
+    "Ο υπολογιστής δεν έχει ενεργοποιηθεί ακόμη, οπότε η BlackArk δεν μπορεί να ξέρει σε ποιον ανήκει. Δώστε ένα email αν θέλετε η BlackArk να σας απαντήσει με email.",
+  "Not known yet: not activated": "Άγνωστος ακόμη: χωρίς ενεργοποίηση",
+  "Your email": "Το email σας",
+  "None given": "Δεν δόθηκε",
+  "This computer is not activated yet, so nothing proves to BlackArk whose it is. BlackArk sees this request as unverified.":
+    "Ο υπολογιστής δεν έχει ενεργοποιηθεί ακόμη, οπότε τίποτα δεν αποδεικνύει στην BlackArk σε ποιον ανήκει. Η BlackArk βλέπει αυτό το αίτημα ως μη επαληθευμένο.",
   // What the server says.
   "Write a subject and what happened.": "Γράψτε θέμα και τι έγινε.",
   "BlackArk did not accept this request. Please contact BlackArk another way.":

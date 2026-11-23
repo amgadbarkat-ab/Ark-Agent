@@ -328,6 +328,8 @@ const recentLogLines = captureConsole();
 const support = createSupportService(database, {
   version: appVersion(),
   logs: recentLogLines,
+  // A desktop install can ask for help before it is activated (Amgad, 23 Nov 2026), unverified.
+  beforeActivation: process.env.ARK_ACTIVATION_REQUIRED?.trim() === "true",
   ...(process.env.ARK_SUPPORT_URL?.trim()
     ? { url: process.env.ARK_SUPPORT_URL.trim() }
     : {}),
