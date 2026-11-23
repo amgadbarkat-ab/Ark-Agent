@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Control Board: support mail through Microsoft Graph, not IMAP (Amgad, 23 Nov, #149).** The board reads General@blackark.uk as an Entra app (`MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET` as Worker secrets; application permission `Mail.ReadWrite`, limited to General@ by an Exchange ApplicationAccessPolicy). As before, it takes only unread mail whose To or Cc is support@, opens a case or adds the reply to its case, and marks only that message read. It now looks at the last 14 days of unread mail, newest first. `MAIL_IMAP_HOST`, `MAIL_IMAP_PORT` and the `MAIL_PASSWORD` secret are gone: delete `MAIL_PASSWORD` from the Worker after the deploy (`wrangler secret delete MAIL_PASSWORD`). Setup steps: infra/control-board/README.md, "Setting up the Graph app".
+
 ## 0.1.51
 
 - **Ark Private Server (#149).** Settings → Models has a new card for administrators: BlackArk's five private server tiers (Small €9.50, Medium €23.50, Large €42.00 a month; GPU Entry €357.00 and GPU High €1,665.00 a month plus a one-time activation), each with its storage, the model it suits and its price, excluding VAT. "Choose" opens BlackArk's buy page, a Stripe Checkout in the BlackArk look, with prices found by their Stripe lookup keys and checked against what was shown. After payment the order shows as being set up by BlackArk; once BlackArk attaches the server, "Use this server" makes it the person's default model, its key kept encrypted with their other model keys and never sent to the browser.

@@ -9,7 +9,7 @@
  *    is set. The app's own request id makes a retry return the same case, so a request the app had
  *    to queue never opens two.
  * 2. THE SUPPORT ADDRESS. support@blackark.uk is an alias delivering to General@; the poller
- *    (`pollMailbox`, with the IMAP reader in mail.ts) takes only what was sent to support@.
+ *    (`pollMailbox`, with the Microsoft Graph reader in mail.ts) takes only what was sent to support@.
  */
 import { Buffer } from "node:buffer";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -270,7 +270,7 @@ export type MailMessage = {
 };
 
 /**
- * A mailbox: `imapMailbox` in mail.ts (General@ over IMAP, only what was sent to support@), or the
+ * A mailbox: `graphMailbox` in mail.ts (General@ through Microsoft Graph, only what was sent to support@), or the
  * in-memory stand-in below. `unseen` must not mark anything read; `markSeen` marks one message.
  */
 export interface MailSource {

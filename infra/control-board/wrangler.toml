@@ -18,8 +18,8 @@ CHECKIN_EXPORT_URL = "https://blackark.uk/checkin/export/"
 RELAY_HEALTH_URL = ""
 GITHUB_REPO = "amgadbarkat-ab/Ark-Agent"
 SUPPORT_ADDRESS = "support@blackark.uk"
-MAIL_IMAP_HOST = "imap.one.com"
-MAIL_IMAP_PORT = "993"
+# The mailbox the board reads through Microsoft Graph (support@ is an alias of it). The app's
+# MS_TENANT_ID, MS_CLIENT_ID and MS_CLIENT_SECRET are secrets: `wrangler secret put`, never here.
 MAIL_USER = "General@blackark.uk"
 BOARD_HOLIDAYS = ""
 # "blackark" (blackark.uk's checkin/audit-copy/), "r2" (the bucket below) or "none".
