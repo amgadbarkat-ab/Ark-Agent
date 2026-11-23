@@ -1,4 +1,11 @@
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  expect,
+  setDefaultTimeout,
+  test,
+} from "bun:test";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -36,6 +43,13 @@ afterEach(() => {
 });
 
 const SLOW = { timeout: 5000 };
+/*
+ * A test may wait on SLOW more than once (the listing, then the install's answer), so the test's own
+ * budget has to cover them. With bun's default of 5 seconds for the whole test, the first wait could
+ * use it all: on a busy CI runner "shows what it starts with and can be installed" timed out at
+ * 5001 ms twice running (23 Nov, the v0.1.51 release PR) while each wait was still within its own 5.
+ */
+setDefaultTimeout(15_000);
 
 const official: ListingDetail = {
   id: "o1",
