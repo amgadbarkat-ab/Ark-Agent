@@ -131,6 +131,17 @@ if (!hash_equals($want, $_SERVER['HTTP_X_ARK_SIGNATURE'] ?? '') || abs(time() - 
     echo '{}';
     exit;
 }
+if (str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/intake/replies')) {
+    // The replies stand-in: one case with one reply for install …c1, and a field the app must not get.
+    file_put_contents(__DIR__ . '/replies.json', $body);
+    $asked = json_decode($body, true);
+    echo json_encode(['cases' => ($asked['installId'] ?? '') === '1b2c3d4e-0000-4000-8000-0000000000c1' ? [[
+        'case' => 9, 'subject' => 'Δεν ανοίγει', 'status' => 'waiting', 'openedAt' => '2026-11-24T10:00:00.000Z',
+        'notes' => ['internal'],
+        'replies' => [['at' => '2026-11-24T11:00:00.000Z', 'language' => 'el', 'text' => 'Δοκιμάστε ξανά.', 'english' => 'Please try again.', 'author' => 'maria']],
+    ]] : []], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 file_put_contents(__DIR__ . '/received.json', $body);
 if ((json_decode($body, true)['subject'] ?? '') === 'board-down') {
     http_response_code(503);
@@ -476,6 +487,25 @@ got="$(send_support "$(support_body demo-phone 1b2c3d4e-0000-4000-8000-000000000
 [[ "$got" == 200 ]] && { pass=$((pass+1)); echo "ok   a signed install from that address still gets through (its own limit is 10)"; } || { fail=$((fail+1)); echo "FAIL signed after unverified: $got"; }
 [[ "$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT COUNT(*) FROM support_unverified")->fetchColumn(), " ", $db->query("SELECT COUNT(*) FROM support_unverified WHERE address_hash LIKE \"%127.0.0.1%\" OR length(address_hash) <> 64")->fetchColumn();' "$work/checkin/data/checkins.sqlite")" == "3 0" ]] \
   && { pass=$((pass+1)); echo "ok   the address is kept only as a keyed hash"; } || { fail=$((fail+1)); echo "FAIL address stored"; }
+
+# BlackArk's replies for the app (Gap 3): the same proof as a request, then the board's answer, trimmed.
+replies_url="http://127.0.0.1:$port/checkin/support/replies/"
+replied=1b2c3d4e-0000-4000-8000-0000000000c1
+ask_replies() { curl -s -o "$work/replies.out" -w '%{http_code}' -X POST -H 'content-type: application/json' --data "$1" "$replies_url"; }
+expect "replies refuse GET" 405 "$replies_url"
+got="$(ask_replies "{\"customerId\":\"unverified\",\"installId\":\"$replied\",\"proof\":null}")"
+[[ "$got" == 200 && "$(cat "$work/replies.out")" == '{"cases":[{"case":9,"subject":"Δεν ανοίγει","status":"waiting","openedAt":"2026-11-24T10:00:00.000Z","replies":[{"at":"2026-11-24T11:00:00.000Z","language":"el","text":"Δοκιμάστε ξανά.","english":"Please try again."}]}]}' \
+  && "$(cat "$work/board/replies.json")" == "{\"customerId\":\"unverified\",\"installId\":\"$replied\"}" ]] \
+  && { pass=$((pass+1)); echo "ok   before activation: an install's replies come back from the board, without anything the app does not show"; } || { fail=$((fail+1)); echo "FAIL replies unverified: $got $(cat "$work/replies.out")"; }
+got="$(ask_replies "{\"customerId\":\"demo-shop\",\"installId\":\"$inst\",\"proof\":$(profile_proof "$good")}")"
+[[ "$got" == 200 && "$(cat "$work/replies.out")" == '{"cases":[]}' && "$(cat "$work/board/replies.json")" == "{\"customerId\":\"demo-shop\",\"installId\":\"$inst\"}" ]] \
+  && { pass=$((pass+1)); echo "ok   with the install's signed profile, the board is asked for that customer and install only"; } || { fail=$((fail+1)); echo "FAIL replies signed: $got $(cat "$work/replies.out")"; }
+expect "replies with a profile signed for another customer are refused" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$inst\",\"proof\":$(profile_proof "$other")}" "$replies_url"
+expect "replies for a customer with no proof are refused" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$inst\",\"proof\":null}" "$replies_url"
+expect "replies: unverified with a proof is refused" 400 -X POST --data "{\"customerId\":\"unverified\",\"installId\":\"$inst\",\"proof\":$(profile_proof "$good")}" "$replies_url"
+expect "replies: an install id that is not one is refused" 400 -X POST --data '{"customerId":"unverified","installId":"../x","proof":null}' "$replies_url"
+for _ in $(seq 1 59); do ask_replies "{\"customerId\":\"unverified\",\"installId\":\"$replied\",\"proof\":null}" >/dev/null; done
+expect "the 61st replies request from one install in an hour is refused" 429 -X POST --data "{\"customerId\":\"unverified\",\"installId\":\"$replied\",\"proof\":null}" "$replies_url"
 
 # The Control Board's off-site audit copy (#149): signed, append-only, only a batch that continues
 # the chain; driven by the board's own client (cron.ts) against a throwaway board store.
