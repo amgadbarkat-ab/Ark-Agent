@@ -2,6 +2,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   expect,
   setDefaultTimeout,
   test,
@@ -35,6 +36,13 @@ import { Route as ReviewRoute } from "@/routes/_authed/admin/marketplace";
 
 beforeAll(() => GlobalRegistrator.register());
 afterEach(cleanup);
+/*
+ * The app's own query client is one object for the whole `bun test` process, and Install's success
+ * waits for the refetches it asks of it. Whatever an earlier file left there was being refetched too:
+ * on CI, in the full suite only, the button still read "Installing…" after 10 seconds, three runs on
+ * 23 Nov, while this file alone answers in milliseconds. Each test starts from an empty client.
+ */
+beforeEach(() => appQueryClient.clear());
 afterAll(() => GlobalRegistrator.unregister());
 
 const originalFetch = global.fetch;
