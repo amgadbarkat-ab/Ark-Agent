@@ -9,6 +9,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 ## Unreleased
 
 - **Help & support before activation (Amgad, 23 Nov, #149).** The Activate screen now has "Need help? Write to BlackArk", so somebody stuck before entering a trial code or licence key can still ask. With nothing yet to prove whose computer it is, the request goes as customer "unverified" with the computer's random id, and the person may add an email address for the answer; they see exactly what will be sent first, as before. blackark.uk's `checkin/support/` takes these without proof but limits them to 3 a day per computer and 3 a day per internet address (kept only as a keyed hash, for 24 hours); activated computers keep their 10 a day. The Control Board opens the case with customer "unverified" and shows its plan as "none", with "UNVERIFIED" and the contact address at the top of its first note, and takes at most 50 such cases a day in all. Upload `checkin/support/index.php` with the app release; deploy the board before or with it. The privacy notice's Help & support row says so (wording for Amgad's yes).
+- **The app opens in blackark.uk's dark from the first screen (Amgad, 23 Nov).** The app was already dark unless the person chose light; the installed app's splash, title bar and the browser bar were still light (`#fafafa`, `#1a1918`). They are now blackark.uk's paper, `#070504`.
 
 ## 0.1.51
 
