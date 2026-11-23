@@ -18,7 +18,8 @@ import {
   refreshSources,
 } from "./cron";
 import { appIntake, pollMailbox, SUPPORT_ADDRESS } from "./intake";
-import { graphMailbox } from "./mail";
+import { graphMailbox, graphSender } from "./mail";
+import { appReplies, type ReplyMailer } from "./replies";
 import {
   checkinExport,
   githubIssues,
@@ -49,6 +50,11 @@ export type Env = {
   SUPPORT_ADDRESS?: string;
   /** The mailbox read through Microsoft Graph: General@blackark.uk. */
   MAIL_USER?: string;
+  /**
+   * "on" once the Graph app also has Mail.Send (README, "Replies to customers"): staff replies then
+   * go by email too. Anything else: replies reach only the app.
+   */
+  REPLY_EMAIL?: string;
   BOARD_HOLIDAYS?: string;
   AUDIT_COPY?: string;
   AUDIT_COPY_URL?: string;
@@ -125,17 +131,39 @@ function auditCopy(env: Env): AuditCopy | null {
   return null;
 }
 
+/** Replies by email: only with all four Graph settings AND REPLY_EMAIL "on" (Mail.Send granted). */
+export function replyMailer(env: Env): ReplyMailer | null {
+  if (
+    env.REPLY_EMAIL !== "on" ||
+    !env.MAIL_USER ||
+    !env.MS_TENANT_ID ||
+    !env.MS_CLIENT_ID ||
+    !env.MS_CLIENT_SECRET
+  )
+    return null;
+  return graphSender(
+    {
+      tenantId: env.MS_TENANT_ID,
+      clientId: env.MS_CLIENT_ID,
+      clientSecret: env.MS_CLIENT_SECRET,
+      mailbox: env.MAIL_USER,
+    },
+    { from: env.SUPPORT_ADDRESS || SUPPORT_ADDRESS },
+  );
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const sql = d1Sql(env.DB);
     const calendar = { holidays: holidaysFrom(env.BOARD_HOLIDAYS) };
     const githubRepo = env.GITHUB_REPO ?? "amgadbarkat-ab/Ark-Agent";
     const extensions: Extension[] = [
-      casesExtension(sql, { githubRepo, calendar }),
+      casesExtension(sql, { githubRepo, calendar, mailer: replyMailer(env) }),
     ];
     if ((env.INTAKE_SECRET ?? "").length >= 32) {
       extensions.push(
         appIntake(sql, { secret: env.INTAKE_SECRET as string, calendar }),
+        appReplies(sql, { secret: env.INTAKE_SECRET as string }),
       );
     }
     const board = createBoard({

@@ -21,6 +21,9 @@ SUPPORT_ADDRESS = "support@blackark.uk"
 # The mailbox the board reads through Microsoft Graph (support@ is an alias of it). The app's
 # MS_TENANT_ID, MS_CLIENT_ID and MS_CLIENT_SECRET are secrets: `wrangler secret put`, never here.
 MAIL_USER = "General@blackark.uk"
+# "on" only once the same Graph app also has Mail.Send, limited to General@ (README, "Replies to
+# customers"). Until then staff replies reach the customer's app only.
+REPLY_EMAIL = "off"
 BOARD_HOLIDAYS = ""
 # "blackark" (blackark.uk's checkin/audit-copy/), "r2" (the bucket below) or "none".
 AUDIT_COPY = "blackark"

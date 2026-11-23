@@ -30,6 +30,14 @@ import {
 import { type Html, html } from "./html";
 import { type Lang, t, when } from "./i18n";
 import * as pages from "./pages";
+import {
+  MAX_REPLY,
+  type Reply,
+  type ReplyMailer,
+  repliesOf,
+  replyRoute,
+  replyToCase,
+} from "./replies";
 import { can } from "./roles";
 import type { CheckinExport } from "./sources";
 import type { Sql } from "./sql";
@@ -194,6 +202,29 @@ export async function addNote(
     ],
     ["UPDATE cases SET updated_at = ? WHERE number = ?", at, number],
   ]);
+}
+
+/** How a case's customer can be answered: the install it came from (the app) and an email address. */
+export type Reach = { install_id: string | null; email: string | null };
+
+export async function setReach(
+  sql: Sql,
+  number: number,
+  reach: { installId?: string | null; email?: string | null },
+): Promise<void> {
+  await sql.run(
+    "INSERT OR REPLACE INTO case_reach (case_number, install_id, email) VALUES (?, ?, ?)",
+    number,
+    reach.installId ?? null,
+    reach.email ?? null,
+  );
+}
+
+export function reachOf(sql: Sql, number: number): Promise<Reach | null> {
+  return sql.first<Reach>(
+    "SELECT install_id, email FROM case_reach WHERE case_number = ?",
+    number,
+  );
 }
 
 export type CaseChange = {
@@ -371,6 +402,7 @@ function casePage(
   now: number,
   repo: string,
   canWrite: boolean,
+  answers: { replies: Reply[]; route: Route },
   error?: string,
 ) {
   const l = frame.lang;
@@ -405,6 +437,7 @@ ${
 </form>`
     : html`<p class="muted">${t(l, "Your role can read cases but not change them.")}</p>`
 }
+${repliesSection(l, csrf, row, answers, canWrite)}
 <h2>${t(l, "Internal notes")}</h2>
 <ol class="timeline">${
       caseNotes.length === 0
@@ -428,6 +461,66 @@ ${
   );
 }
 
+type Route = { email: string | null; app: boolean; mailReady: boolean };
+
+const DELIVERY: Record<Reply["email"], string> = {
+  sent: "Emailed",
+  failed: "Email failed",
+  none: "In the app only",
+};
+
+/** BlackArk's replies to the customer, and the form for one more (Gap 3). */
+function repliesSection(
+  l: Lang,
+  csrf: string,
+  row: Case,
+  answers: { replies: Reply[]; route: Route },
+  canWrite: boolean,
+): Html {
+  const { replies, route } = answers;
+  const emailWay = route.email && route.mailReady;
+  const ways = [
+    emailWay
+      ? html`${t(l, "by email to")} <strong>${route.email}</strong>`
+      : "",
+    route.app ? html`${t(l, "in the customer's app (Help & support)")}` : "",
+  ].filter((way) => way !== "");
+  const greek = row.language === "el";
+  return html`<h2>${t(l, "Replies to the customer")}</h2>
+<ol class="timeline">${
+    replies.length === 0
+      ? html`<li>${t(l, "No replies yet.")}</li>`
+      : replies.map(
+          (reply) =>
+            html`<li><time datetime="${reply.at}">${when(l, reply.at)}</time> <strong>${reply.author}</strong> · ${t(l, DELIVERY[reply.email])}${reply.emailed_to ? html` (${reply.emailed_to})` : ""}${reply.email === "none" || !route.app ? "" : html` · ${t(l, "and in the app")}`}<br>${reply.body.split("\n").map((line, index) => html`${index ? html`<br>` : ""}${line}`)}${reply.english ? html`<br><span class="muted">${t(l, "English copy")}:</span><br>${reply.english.split("\n").map((line, index) => html`${index ? html`<br>` : ""}${line}`)}` : ""}</li>`,
+        )
+  }</ol>
+${
+  !canWrite
+    ? ""
+    : ways.length === 0
+      ? html`<p class="muted">${
+          route.email && !route.mailReady
+            ? t(
+                l,
+                "Replies by email are not switched on for this board yet, and this case did not come from the app. Answer the customer another way and add a note.",
+              )
+            : t(
+                l,
+                "This case has no email address and did not come from the app, so the board cannot reply. Answer the customer another way and add a note.",
+              )
+        }</p>`
+      : html`<form method="post" action="/cases/${row.number}" class="stack">
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="action" value="reply">
+  <label>${t(l, greek ? "Reply in Greek" : "Reply in English")}<textarea name="body" rows="6" maxlength="${MAX_REPLY}" required></textarea></label>
+  ${greek ? html`<label>${t(l, "English copy (shown below the Greek)")}<textarea name="english" rows="6" maxlength="${MAX_REPLY}" required></textarea></label>` : ""}
+  <p class="muted">${t(l, "The customer sees this reply")} ${ways.map((way, index) => html`${index ? html` ${t(l, "and")} ` : ""}${way}`)}. ${t(l, "Write in plain words, in GCC English for the English. Never paste passwords, keys or another customer's data.")}</p>
+  <button type="submit">${t(l, "Send the reply")}</button>
+</form>`
+}`;
+}
+
 // ---- Reading a form ----------------------------------------------------------------------------
 
 function pick<T extends string>(
@@ -447,9 +540,19 @@ function issueNumber(value: string | null): number | null | "bad" {
 
 export function casesExtension(
   sql: Sql,
-  options: { githubRepo?: string; calendar?: Calendar } = {},
+  options: {
+    githubRepo?: string;
+    calendar?: Calendar;
+    /** Sends replies by email (Graph, mail.ts); without it replies reach only the app. */
+    mailer?: ReplyMailer | null;
+  } = {},
 ): Extension {
   const repo = options.githubRepo ?? "amgadbarkat-ab/Ark-Agent";
+  const mailer = options.mailer ?? null;
+  const answersFor = async (row: Case) => ({
+    replies: await repliesOf(sql, row.number),
+    route: await replyRoute(sql, row, mailer),
+  });
   const calendar = options.calendar ?? {};
   return {
     async timeline(customerId): Promise<TimelineEvent[]> {
@@ -593,12 +696,82 @@ export function casesExtension(
             context.now,
             repo,
             canWrite,
+            await answersFor(row),
           ),
         );
       }
 
       if (!canWrite) return context.refuse();
       const action = form.get("action");
+      if (action === "reply") {
+        const body = (form.get("body") ?? "").trim();
+        const english = (form.get("english") ?? "").trim();
+        const again = async (message: string, status: number) =>
+          respond(
+            casePage(
+              frame,
+              row,
+              await notes(sql, row.number),
+              await assignable(sql),
+              context.now,
+              repo,
+              canWrite,
+              await answersFor(row),
+              message,
+            ),
+            status,
+          );
+        if (
+          !body ||
+          body.length > MAX_REPLY ||
+          english.length > MAX_REPLY ||
+          (row.language === "el" && !english)
+        )
+          return again(
+            t(
+              lang,
+              row.language === "el"
+                ? "Write the reply in Greek and its English copy."
+                : "Write the reply.",
+            ),
+            400,
+          );
+        const outcome = await replyToCase(
+          sql,
+          mailer,
+          row,
+          session.account.username,
+          { body, english: english || null },
+          context.now,
+        );
+        if (!outcome) {
+          await context.audit(
+            "case.reply",
+            `case:${row.number}`,
+            "refused",
+            "no way to reach the customer",
+          );
+          return again(
+            t(lang, "The board has no way to reach this customer."),
+            409,
+          );
+        }
+        await context.audit(
+          "case.reply",
+          `case:${row.number}`,
+          "ok",
+          outcome.detail,
+        );
+        if (outcome.reply.email === "failed")
+          return again(
+            t(
+              lang,
+              "The email could not be sent. The reply is kept and shown in the app if the case came from there; check the board's mail settings, then answer the customer another way if needed.",
+            ),
+            502,
+          );
+        return redirect(`/cases/${row.number}`);
+      }
       if (action === "note") {
         const body = (form.get("body") ?? "").trim();
         if (!body) return respond("", 400);
