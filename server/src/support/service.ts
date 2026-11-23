@@ -18,6 +18,11 @@
  * WHERE. blackark.uk/checkin/support/ checks the proof and forwards the request to BlackArk's
  * support board, which answers a case number. If it cannot be reached, the request waits here and
  * is sent again every hour with the same id, so it becomes one case, never two.
+ *
+ * REPLIES (Gap 3, Amgad 23 Nov 2026). BlackArk's answers come back the same way:
+ * blackark.uk/checkin/support/replies/ takes this install's id and the same proof (none before
+ * activation) and gives the replies to this install's cases. Nothing else is sent to ask, and the
+ * replies are not kept here: each person sees only those to their own requests.
  */
 import { randomUUID } from "node:crypto";
 import { arch, release, type } from "node:os";
@@ -75,6 +80,20 @@ export type SupportRequestView = {
   payload: SupportPayload;
 };
 
+/** One case of this install, as BlackArk's board gives it, with its replies. */
+export type SupportReplyCase = {
+  case: number;
+  status: "new" | "open" | "waiting" | "solved" | "closed";
+  replies: Array<{
+    at: string;
+    language: "el" | "en";
+    text: string;
+    english: string | null;
+  }>;
+};
+
+const REPLIES_FRESH_MS = 2 * 60 * 1000;
+
 export class SupportUnavailableError extends Error {
   constructor() {
     super(
@@ -117,6 +136,8 @@ export function createSupportService(
     version: string;
     logs?: RecentLogs;
     url?: string;
+    /** Where the replies are asked for; by default `url` with "replies/" after it. */
+    repliesUrl?: string;
     /**
      * A desktop install, where activation is required: with no trial or licence yet, a request
      * still goes, unverified. Elsewhere Help & support needs BlackArk's proof, as before.
@@ -130,6 +151,10 @@ export function createSupportService(
   const send = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
   const url = options.url ?? DEFAULT_SUPPORT_URL;
+  const repliesUrl =
+    options.repliesUrl ?? `${url.replace(/\/+$/, "")}/replies/`;
+  /** The last answer, for two minutes: blackark.uk allows each install 60 asks an hour. */
+  let replyCache: { at: number; cases: SupportReplyCase[] } | null = null;
   const system = options.system ?? systemDescription;
   /** What each person was shown, kept 30 minutes, so what they send is exactly what they read. */
   const previews = new Map<
@@ -305,6 +330,44 @@ export function createSupportService(
       return rows.map(view);
     },
 
+    /**
+     * BlackArk's replies to this person's own requests, by case number; null when they cannot be
+     * fetched now (not activated where that is needed, or blackark.uk not reachable).
+     */
+    async replies(userId: string): Promise<SupportReplyCase[] | null> {
+      const mine = new Set(
+        (await this.list(userId))
+          .map((one) => one.caseNumber)
+          .filter((number): number is number => number !== null),
+      );
+      if (mine.size === 0) return [];
+      const at = now().getTime();
+      if (!replyCache || at - replyCache.at > REPLIES_FRESH_MS) {
+        const who = await installIdentity(database);
+        if (!who && !options.beforeActivation) return null;
+        try {
+          const response = await send(repliesUrl, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              customerId: who?.customerId ?? UNVERIFIED_CUSTOMER,
+              installId: who?.installId ?? (await unverifiedInstallId()),
+              proof: who?.proof ?? null,
+            }),
+            signal: AbortSignal.timeout(20_000),
+          });
+          const answer = (await response.json().catch(() => null)) as {
+            cases?: unknown;
+          } | null;
+          if (!response.ok || !Array.isArray(answer?.cases)) return null;
+          replyCache = { at, cases: readReplyCases(answer.cases) };
+        } catch {
+          return null;
+        }
+      }
+      return replyCache.cases.filter((one) => mine.has(one.case));
+    },
+
     /** Sends every waiting request again. Returns how many were sent. */
     async retry(): Promise<number> {
       const waiting = await database
@@ -345,4 +408,39 @@ export function createSupportService(
       };
     },
   };
+}
+
+const STATUSES = new Set(["new", "open", "waiting", "solved", "closed"]);
+
+/** Only well-formed cases and replies, whatever blackark.uk answered. */
+function readReplyCases(raw: unknown[]): SupportReplyCase[] {
+  const text = (value: unknown, max: number) =>
+    typeof value === "string" && value.length <= max ? value : null;
+  const out: SupportReplyCase[] = [];
+  for (const one of raw.slice(0, 20)) {
+    if (!one || typeof one !== "object") continue;
+    const row = one as Record<string, unknown>;
+    if (typeof row.case !== "number" || !Array.isArray(row.replies)) continue;
+    out.push({
+      case: row.case,
+      status: (STATUSES.has(String(row.status))
+        ? row.status
+        : "open") as SupportReplyCase["status"],
+      replies: row.replies.slice(0, 50).flatMap((reply) => {
+        const r = (reply ?? {}) as Record<string, unknown>;
+        const body = text(r.text, 40_000);
+        const at = text(r.at, 40);
+        if (body === null || at === null) return [];
+        return [
+          {
+            at,
+            language: r.language === "el" ? ("el" as const) : ("en" as const),
+            text: body,
+            english: text(r.english, 40_000),
+          },
+        ];
+      }),
+    });
+  }
+  return out;
 }

@@ -290,4 +290,85 @@ describe("Help & support (#149)", () => {
     });
     expect(notAnAddress.status).toBe(400);
   });
+  test("replies: asked with this install's id and proof, and only those to the person's own requests come back", async () => {
+    const trial = await importTrial();
+    const board = {
+      cases: [
+        {
+          case: 1,
+          subject: "x",
+          status: "waiting",
+          openedAt: "2026-11-18T09:00:00.000Z",
+          replies: [
+            {
+              at: "2026-11-18T09:30:00.000Z",
+              language: "el",
+              text: "Δοκιμάστε ξανά.",
+              english: "Please try again.",
+              author: "maria",
+            },
+          ],
+        },
+        { case: 2, status: "open", replies: [] },
+        { case: "bad", replies: [] },
+      ],
+    };
+    const { service, sent } = harness([
+      { status: 200, body: { case: 1 } },
+      { status: 200, body: { case: 2 } },
+      { status: 200, body: board },
+    ]);
+    await service.submit("user-1", input);
+    await service.submit("user-2", input);
+    expect(await service.replies("user-1")).toEqual([
+      {
+        case: 1,
+        status: "waiting",
+        replies: [
+          {
+            at: "2026-11-18T09:30:00.000Z",
+            language: "el",
+            text: "Δοκιμάστε ξανά.",
+            english: "Please try again.",
+          },
+        ],
+      },
+    ]);
+    expect(sent[2]?.url).toBe(
+      "https://blackark.example/checkin/support/replies/",
+    );
+    expect(sent[2]?.body).toEqual({
+      customerId: "demo-shop",
+      installId: trial.installId,
+      proof: {
+        kind: "profile",
+        profile: trial.profile,
+        signature: trial.signature,
+      },
+    });
+    // Kept two minutes: the second person's view asks blackark.uk nothing more.
+    expect((await service.replies("user-2"))?.map((one) => one.case)).toEqual([
+      2,
+    ]);
+    expect(sent).toHaveLength(3);
+  });
+
+  test("replies before activation: the unverified install id and no proof; null when blackark.uk is down", async () => {
+    const { service, sent } = harness(
+      [
+        { status: 200, body: { case: 4 } },
+        { status: 502, body: {} },
+      ],
+      { beforeActivation: true },
+    );
+    expect(await service.replies("user-1")).toEqual([]);
+    expect(sent).toHaveLength(0);
+    await service.submit("user-1", { ...input, contactEmail: "" });
+    expect(await service.replies("user-1")).toBeNull();
+    expect(sent[1]?.body).toMatchObject({
+      customerId: "unverified",
+      proof: null,
+    });
+    expect(sent[1]?.body.installId).toBe(sent[0]?.body.installId);
+  });
 });

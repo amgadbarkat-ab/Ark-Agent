@@ -506,6 +506,8 @@ expect "replies: unverified with a proof is refused" 400 -X POST --data "{\"cust
 expect "replies: an install id that is not one is refused" 400 -X POST --data '{"customerId":"unverified","installId":"../x","proof":null}' "$replies_url"
 for _ in $(seq 1 59); do ask_replies "{\"customerId\":\"unverified\",\"installId\":\"$replied\",\"proof\":null}" >/dev/null; done
 expect "the 61st replies request from one install in an hour is refused" 429 -X POST --data "{\"customerId\":\"unverified\",\"installId\":\"$replied\",\"proof\":null}" "$replies_url"
+[[ "$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo implode(",", array_column($db->query("PRAGMA table_info(support_reply_reads)")->fetchAll(), "name"));' "$work/checkin/data/checkins.sqlite")" == "install_id,at" ]] \
+  && { pass=$((pass+1)); echo "ok   replies keep only the install id and the time, never the address"; } || { fail=$((fail+1)); echo "FAIL replies store more than install id and time"; }
 
 # The Control Board's off-site audit copy (#149): signed, append-only, only a batch that continues
 # the chain; driven by the board's own client (cron.ts) against a throwaway board store.

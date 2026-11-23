@@ -49,9 +49,23 @@ export type SupportState = {
   requests: SupportRequest[];
 };
 
+/** One of the person's cases, as BlackArk's board gives it back, with BlackArk's replies (Gap 3). */
+export type SupportReplyCase = {
+  case: number;
+  status: "new" | "open" | "waiting" | "solved" | "closed";
+  replies: Array<{
+    at: string;
+    /** The customer's language, which the reply is written in; `english` is the copy below it. */
+    language: "el" | "en";
+    text: string;
+    english: string | null;
+  }>;
+};
+
 export const supportKeys = {
   all: ["support"] as const,
   state: ["support", "state"] as const,
+  replies: ["support", "replies"] as const,
 };
 
 /** The requests, or null when this server does not offer Help & support. */
@@ -63,5 +77,28 @@ export function supportStateQueryOptions() {
       if (response?.status !== 200) return null;
       return (await response.json()) as SupportState;
     },
+  });
+}
+
+/**
+ * BlackArk's replies to the person's own requests, by case; null when they cannot be fetched now
+ * (an older server, not activated, or blackark.uk not reachable). Asked again every five minutes
+ * while the screen is open.
+ */
+export function supportRepliesQueryOptions() {
+  return queryOptions({
+    queryKey: supportKeys.replies,
+    queryFn: async (): Promise<SupportReplyCase[] | null> => {
+      const response = await tryClient("/api/support/replies").catch(
+        () => null,
+      );
+      if (response?.status !== 200) return null;
+      const body = (await response.json()) as {
+        available: boolean;
+        cases: SupportReplyCase[];
+      };
+      return body.available ? body.cases : null;
+    },
+    refetchInterval: 5 * 60 * 1000,
   });
 }

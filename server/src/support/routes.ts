@@ -4,6 +4,8 @@
  *                    so BlackArk knows whose it is), and the person's requests
  * - POST /preview    exactly what would be sent, for the person to read first
  * - POST /requests   send it (kept and sent again later if BlackArk cannot be reached)
+ * - GET  /replies    BlackArk's replies to the person's own requests (Gap 3); `available` false
+ *                    when they cannot be fetched now
  */
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
@@ -39,6 +41,11 @@ export function supportRoutes(
       requests: await service.list(context.var.actor.id),
     }),
   );
+
+  app.get("/replies", async (context) => {
+    const cases = await service.replies(context.var.actor.id);
+    return context.json({ available: cases !== null, cases: cases ?? [] });
+  });
 
   const read = async (raw: unknown) => body.safeParse(raw);
 

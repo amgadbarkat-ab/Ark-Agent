@@ -10,9 +10,9 @@
  * /intake/replies), signed with `intake_secret` (X-Ark-Time, X-Ark-Nonce, X-Ark-Signature), for that
  * install's own cases and the replies to them, and passes back only those.
  *
- * Each install may ask 60 times an hour (and, before activation, each address 120 times an hour).
- * Nothing is stored here but the install id, the time and, before activation, a keyed hash of the
- * address, for those limits. The replies pass through; they are never kept.
+ * Each install may ask 60 times an hour. Nothing is stored here but the install id and the time, for
+ * that limit, for an hour; never the internet address. The replies pass through; they are never
+ * kept.
  */
 
 declare(strict_types=1);
@@ -25,7 +25,6 @@ header('X-Robots-Tag: noindex, nofollow');
 
 const REPLIES_MAX_BODY = 1048576; // the signed profile can be large
 const REPLIES_PER_INSTALL_PER_HOUR = 60;
-const REPLIES_PER_ADDRESS_PER_HOUR = 120;
 
 function replies_answer(int $status, array $body): void
 {
@@ -72,16 +71,14 @@ if (!$unverified) {
 }
 
 $db = ark_db();
-$db->exec('CREATE TABLE IF NOT EXISTS support_reply_reads (install_id TEXT NOT NULL, address_hash TEXT, at INTEGER NOT NULL)');
+$db->exec('CREATE TABLE IF NOT EXISTS support_reply_reads (install_id TEXT NOT NULL, at INTEGER NOT NULL)');
 $db->prepare('DELETE FROM support_reply_reads WHERE at < ?')->execute([time() - 3600]);
-$from = $unverified ? hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), $secret) : null;
-$seen = $db->prepare('SELECT (SELECT COUNT(*) FROM support_reply_reads WHERE install_id = ?), (SELECT COUNT(*) FROM support_reply_reads WHERE address_hash = ?)');
-$seen->execute([$install, $from ?? '-']);
-[$byInstall, $byAddress] = $seen->fetch(PDO::FETCH_NUM);
-if ((int) $byInstall >= REPLIES_PER_INSTALL_PER_HOUR || ($from !== null && (int) $byAddress >= REPLIES_PER_ADDRESS_PER_HOUR)) {
+$seen = $db->prepare('SELECT COUNT(*) FROM support_reply_reads WHERE install_id = ?');
+$seen->execute([$install]);
+if ((int) $seen->fetchColumn() >= REPLIES_PER_INSTALL_PER_HOUR) {
     replies_answer(429, ['error' => 'Asked too often. Try again later.']);
 }
-$db->prepare('INSERT INTO support_reply_reads (install_id, address_hash, at) VALUES (?, ?, ?)')->execute([$install, $from, time()]);
+$db->prepare('INSERT INTO support_reply_reads (install_id, at) VALUES (?, ?)')->execute([$install, time()]);
 
 $forward = json_encode(['customerId' => $customer, 'installId' => $install], JSON_UNESCAPED_SLASHES);
 $time = (string) time();

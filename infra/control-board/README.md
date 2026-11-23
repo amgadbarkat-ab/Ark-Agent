@@ -231,8 +231,9 @@ Unread mail to support@ older than 14 days is left for a person.
    tenant, no redirect URI. Note the *Application (client) ID* (`MS_CLIENT_ID`) and the *Directory
    (tenant) ID* (`MS_TENANT_ID`).
 2. **API permissions → Add → Microsoft Graph → Application permissions → `Mail.ReadWrite`**, then
-   **Grant admin consent**. Only that one: `Mail.ReadWrite` because marking a message read is a
-   write. Not `Mail.Send`: the board sends nothing yet.
+   **Grant admin consent**. `Mail.ReadWrite` because marking a message read is a write. For
+   replies by email (below), **also `Mail.Send` (application), only after Amgad's yes**, with admin
+   consent. The policy in step 3 limits both to General@.
 3. **Limit the app to General@ before the secret goes on the board.** Without this, an application
    `Mail.ReadWrite` reaches every mailbox in the tenant. In Exchange Online PowerShell:
 
@@ -255,6 +256,36 @@ Unread mail to support@ older than 14 days is left for a person.
    before it expires: when it does, the board's support mail stops (cases from the app keep working).
 5. `MAIL_USER` in `wrangler.toml` stays `General@blackark.uk`. With all three secrets set, the next
    5-minute run reads the mail. With any of them unset, the board simply does not read mail.
+
+### Replies to customers (Gap 3)
+
+On a case page, owner, admin and support write **Reply to the customer**:
+- **Language.** A Greek case takes the Greek text and its English copy (GCC English). An English
+  case takes only English. Staff write both; nothing is sent to a model to translate.
+- **In the app.** A case from the app reaches the person there. Help & support asks blackark.uk's
+  `checkin/support/replies/` with the same proof as a request. blackark.uk checks it and asks
+  `POST /intake/replies` here, signed with `INTAKE_SECRET`. Only that install's own cases for that
+  customer come back, with their replies, never a note.
+- **By email,** when the case has an address: the sender of an email case, or the address given
+  before activation.
+  - It goes from General@ through Graph `sendMail` as a MIME message, with From and Reply-To
+    `support@blackark.uk` and the name "BlackArk Support".
+  - It is in BlackArk's HTML look (the same as the low-balance email), with a plain-text part.
+  - The subject is `[Case #N] <subject>`, so the customer's answer comes back to the case.
+  - If Exchange shows `general@` as the sender (COO's tests, 23 Nov), the answer still goes to
+    support@ and threads by the tag.
+  - **Off until `REPLY_EMAIL = "on"`** in `wrangler.toml`. Turn it on only after `Mail.Send` is
+    granted and `Test-ApplicationAccessPolicy` still gives Granted for General@ and Denied for
+    any other mailbox.
+- **What is kept.**
+  - Each reply is kept as sent (`case_replies`; never changed or removed), with how it went: emailed,
+    email failed, or app only.
+  - It is a case note with its text, and an audit row (`case.reply`) without it.
+  - A new or open case moves to "waiting".
+- **A failed email** is said on the page and kept as "failed". The reply still shows in the app if
+  the case came from there.
+- **A case with no address that did not come from the app** has no reply form. The page says so:
+  answer the customer another way and add a note.
 
 ### Billing (Stripe, read-only)
 
@@ -364,6 +395,7 @@ $W d1 execute blackark-board --remote --file /tmp/board-schema.sql
 - `FIRST_FACTOR`: `passkey` (default). For `access`, also `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
 - `RELAY_HEALTH_URL`, `BOARD_HOLIDAYS` (e.g. `2026-12-25,2027-01-01,2027-01-06`).
 - `AUDIT_COPY` and `AUDIT_COPY_URL`.
+- `REPLY_EMAIL`: `off` until the Graph app also has `Mail.Send` (Amgad's yes, "Replies to customers"); then `on`.
 
 ### 4. The secrets (Worker secrets, at wrangler's hidden prompt)
 
@@ -380,7 +412,7 @@ in `wrangler.toml`, in a commit or in a chat. They live only in the Worker's enc
 | `GITHUB_TOKEN` | fine-grained, this repository only: Issues and Pull requests, **read** only | GitHub |
 | `MS_TENANT_ID` | the Entra *Directory (tenant) ID* | Entra ("Setting up the Graph app") |
 | `MS_CLIENT_ID` | the board app's *Application (client) ID* | Entra |
-| `MS_CLIENT_SECRET` | the board app's client secret *value* (`Mail.ReadWrite`, limited to General@) | Entra |
+| `MS_CLIENT_SECRET` | the board app's client secret *value* (`Mail.ReadWrite`, and `Mail.Send` once Amgad says yes; both limited to General@) | Entra |
 
 A secret left unset turns its part off (the page says "not connected"); nothing breaks.
 
@@ -393,7 +425,7 @@ $W deploy
 ### 6. blackark.uk (upload only with Amgad's yes on that exact build)
 
 - Put the three shared secrets in `checkin/config.php`, and set `intake_url` to `<BOARD_PUBLIC_ORIGIN>/intake/app`.
-- Upload `checkin/export/`, `checkin/support/` and `checkin/audit-copy/`.
+- Upload `checkin/export/`, `checkin/support/` (with `checkin/support/replies/`) and `checkin/audit-copy/`.
 
 ### 7. The first owner, Amgad himself
 

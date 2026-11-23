@@ -44,7 +44,9 @@ import {
 } from "@/lib/support/mutations";
 import {
   type SupportPayload,
+  type SupportReplyCase,
   type SupportRequest,
+  supportRepliesQueryOptions,
   supportStateQueryOptions,
 } from "@/lib/support/queries";
 import { queryClient } from "@/query-client";
@@ -159,9 +161,20 @@ export function RequestRow({
 }) {
   const t = useT();
   const sentence = useSentence();
+  const replies = useQuery({
+    ...supportRepliesQueryOptions(),
+    enabled: request.caseNumber !== null,
+  });
+  const answered = replies.data?.find((one) => one.case === request.caseNumber);
+  const caseLabel = tNow("Case #{number}", { number: request.caseNumber ?? 0 });
   const status =
     request.status === "sent"
-      ? tNow("Case #{number}", { number: request.caseNumber ?? 0 })
+      ? answered &&
+        (answered.status === "solved" || answered.status === "closed")
+        ? `${caseLabel} · ${t("Solved")}`
+        : answered && answered.replies.length > 0
+          ? `${caseLabel} · ${t("BlackArk answered")}`
+          : caseLabel
       : request.status === "queued"
         ? t("Waiting to be sent")
         : t("Not accepted");
@@ -184,7 +197,43 @@ export function RequestRow({
           <span className="text-muted-foreground text-sm">{status}</span>
         </ItemActions>
       </Item>
+      {answered && answered.replies.length > 0 ? (
+        <RepliesView replies={answered.replies} />
+      ) : null}
     </>
+  );
+}
+
+/** BlackArk's replies to one request: the customer's language, then the English copy below it. */
+function RepliesView({ replies }: { replies: SupportReplyCase["replies"] }) {
+  const t = useT();
+  return (
+    <ol aria-label={t("BlackArk's replies")} className="space-y-3 px-3 pb-3">
+      {replies.map((reply) => (
+        <li
+          className="rounded-md border-l-2 border-primary bg-muted/40 px-3 py-2 text-sm"
+          key={reply.at}
+        >
+          <p className="text-muted-foreground text-xs">
+            {t("BlackArk replied")} · {when(reply.at)}
+          </p>
+          <p
+            className="mt-1 whitespace-pre-wrap break-words"
+            lang={reply.language}
+          >
+            {reply.text}
+          </p>
+          {reply.english ? (
+            <p
+              className="mt-2 whitespace-pre-wrap break-words text-muted-foreground"
+              lang="en"
+            >
+              {reply.english}
+            </p>
+          ) : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 

@@ -397,6 +397,16 @@ Amgad decided on 18 Nov: in-app Help & support is BlackArk's only support channe
 2. Put it in `'intake_secret'`, and the board's address in `'intake_url'` (`https://<board>/intake/app`).
 3. Give the same secret to the board: `npx wrangler secret put INTAKE_SECRET`.
 
+**BlackArk's replies (Gap 3):** `…/checkin/support/replies/`, POST only.
+- The app sends its install id and the same proof as a request (none before activation: customer
+  `unverified`).
+- This server checks the proof the same way, then asks the board's `/intake/replies` (`intake_url`
+  with `/intake/app` replaced, or `intake_replies_url`), signed with `intake_secret`.
+- It passes back only the case number, subject, status, opening time and the replies' time,
+  language, text and English copy.
+- Limit: 60 asks an hour per install. Only the install id and the time are kept, for an hour; never
+  the internet address. The replies are never kept here.
+
 ## The Control Board's audit copy (#149, not deployed)
 
 The board copies its audit log here once a night (`AUDIT_COPY=blackark` on the board), so a copy is
