@@ -42,6 +42,15 @@ async function remaining(): Promise<number> {
   return rows.length;
 }
 
+/** This test's own rows that are still there, by target, in order. */
+async function remainingTargets(): Promise<string[]> {
+  const rows = await database
+    .select({ targetId: auditEvents.targetId })
+    .from(auditEvents)
+    .where(eq(auditEvents.targetType, MARKER));
+  return rows.map((row) => row.targetId ?? "").sort();
+}
+
 /*
  * Cleaning up has to obey the same rule as everything else.
  *
@@ -95,8 +104,12 @@ describe("keeping the audit trail to a retention policy", () => {
 
     const { deleted } = await sweepAuditTrail(databaseUrl, 90);
 
-    expect(deleted).toBe(2);
+    // At least this test's two old rows. The sweep is over the whole table, and other files in the
+    // suite leave rows of their own (the trail is append-only, so they cannot clean up), so the total
+    // can be more: on 23 Nov the release run counted 13. What this test owns is checked row by row.
+    expect(deleted).toBeGreaterThanOrEqual(2);
     expect(await remaining()).toBe(2);
+    expect(await remainingTargets()).toEqual([`${MARKER}-3`, `${MARKER}-4`]);
   });
 
   test("keeps everything when no policy is set", async () => {
