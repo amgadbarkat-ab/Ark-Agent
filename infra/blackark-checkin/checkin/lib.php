@@ -754,6 +754,59 @@ function ark_private_servers_table(PDO $db): void
     $db->exec('CREATE INDEX IF NOT EXISTS private_servers_customer ON private_servers (customer_id, ordered_at)');
 }
 
+/**
+ * An approved plain-text email in BlackArk's look (Amgad, 23 Nov 2026: one BlackArk look everywhere a
+ * customer looks, the low-balance email included). The words are exactly the text's: paragraphs stay
+ * paragraphs, a line of "---" divides the country language from the English copy below it, and a line
+ * that is only a web address becomes that address as a link. Nothing is added but the company's tile
+ * and name at the top.
+ *
+ * Mail apps take only inline styles, block web fonts and most images, and some drop SVG: so the
+ * colours are blackark.uk's, the font is Geist where the reader has it and the system's otherwise, and
+ * the tile is the PNG blackark.uk itself serves (checkin/brand/favicon-192.png).
+ */
+function ark_email_html(string $text, string $language, string $title): string
+{
+    $h = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checkin'), '/');
+    $font = "Geist,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+    $sections = preg_split("/\n-{3,}\n/", str_replace("\r\n", "\n", $text));
+    $parts = [];
+    foreach ($sections as $index => $section) {
+        // Only a two-language email has a second section, and it is the English copy.
+        $lang = $index === 0 ? $language : 'en';
+        $paragraphs = [];
+        foreach (preg_split("/\n{2,}/", trim($section)) as $paragraph) {
+            $lines = [];
+            foreach (explode("\n", $paragraph) as $line) {
+                $line = trim($line);
+                if (preg_match('#^https://[^\s<>"]+$#', $line) === 1) {
+                    $lines[] = '<a href="' . $h($line) . '" style="color:#ff9a3c;text-decoration:underline;word-break:break-all;">' . $h($line) . '</a>';
+                } else {
+                    $lines[] = $h($line);
+                }
+            }
+            $paragraphs[] = '<p style="margin:0 0 16px;">' . implode('<br>', $lines) . '</p>';
+        }
+        $parts[] = '<div lang="' . $h($lang) . '">' . implode('', $paragraphs) . '</div>';
+    }
+    $rule = '<hr style="border:0;border-top:1px solid #2a211b;margin:24px 0;">';
+    return '<!doctype html><html lang="' . $h($language) . '"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark">'
+        . '<title>' . $h($title) . '</title></head>'
+        . '<body style="margin:0;padding:0;background:#070504;">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#070504;"><tr><td align="center" style="padding:24px 12px;">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">'
+        . '<tr><td style="padding:0 4px 20px;font-family:' . $font . ';font-size:16px;font-weight:600;color:#f3f2ef;">'
+        . '<img src="' . $h($base . '/brand/favicon-192.png') . '" width="28" height="28" alt="" style="vertical-align:middle;border:0;border-radius:6px;margin-right:10px;">BlackArk</td></tr>'
+        . '<tr><td style="background:#110b07;border:1px solid #2a211b;border-radius:12px;padding:28px 24px;font-family:' . $font . ';font-size:15px;line-height:1.6;color:#f3f2ef;">'
+        . '<div style="height:3px;width:56px;border-radius:2px;background:#ff7a1a;background-image:linear-gradient(105deg,#ffb067,#ff7a1a 38%,#f2551b 78%,#e5481a);margin:0 0 20px;"></div>'
+        . implode($rule, $parts)
+        . '</td></tr>'
+        . '<tr><td style="padding:16px 4px 0;font-family:' . $font . ';font-size:12px;color:#9b9893;">BlackArk · <a href="https://blackark.uk/" style="color:#9b9893;">blackark.uk</a></td></tr>'
+        . '</table></td></tr></table></body></html>';
+}
+
 /** Which approved text a customer's country gets (phone-emails.php), and whether it has its own. */
 function ark_phone_email_text(?string $country): array
 {
@@ -795,11 +848,19 @@ function ark_phone_low_email(PDO $db, string $customerId, array $view): void
     ]);
     $from = (string) ark_config('phone_low_email_from', 'no-reply@blackark.uk');
     $replyTo = (string) ark_config('phone_low_email_reply_to', '');
+    // Amgad, 23 Nov: the BlackArk look in the email too. The approved text as it is (text/plain), and
+    // the same words in BlackArk's HTML for mail apps that show it (multipart/alternative).
+    $boundary = 'ark-' . bin2hex(random_bytes(12));
     $headers = "From: $from\r\n"
         . ($replyTo !== '' ? "Reply-To: $replyTo\r\n" : '')
-        . "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n";
+        . "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
     $subject = '=?UTF-8?B?' . base64_encode($text['subject']) . '?=';
-    $encoded = chunk_split(base64_encode($body), 76, "\r\n");
+    $html = ark_email_html($body, $text['language'], $text['subject']);
+    $encoded = "--$boundary\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        . chunk_split(base64_encode($body), 76, "\r\n")
+        . "--$boundary\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+        . chunk_split(base64_encode($html), 76, "\r\n")
+        . "--$boundary--\r\n";
     $outbox = (string) ark_config('mail_outbox_dir', '');
     if ($outbox !== '') {
         // Tests only: the message is written to a folder instead of being sent.
