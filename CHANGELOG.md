@@ -8,6 +8,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **blackark.uk: the low-balance phone email in BlackArk's look (Amgad, 23 Nov).** The same approved words, now also as HTML: the company's tile and name, blackark.uk's dark colours, the country language first and the English copy below it, the top-up address as a link. The plain-text version is still in the email for mail apps that prefer it. The email stays off until Amgad switches it on.
 ## 0.1.51
 
 - **Ark Private Server (#149).** Settings → Models has a new card for administrators: BlackArk's five private server tiers (Small €9.50, Medium €23.50, Large €42.00 a month; GPU Entry €357.00 and GPU High €1,665.00 a month plus a one-time activation), each with its storage, the model it suits and its price, excluding VAT. "Choose" opens BlackArk's buy page, a Stripe Checkout in the BlackArk look, with prices found by their Stripe lookup keys and checked against what was shown. After payment the order shows as being set up by BlackArk; once BlackArk attaches the server, "Use this server" makes it the person's default model, its key kept encrypted with their other model keys and never sent to the browser.
