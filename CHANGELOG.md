@@ -9,6 +9,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 ## Unreleased
 
 - **blackark.uk: the low-balance phone email in BlackArk's look (Amgad, 23 Nov).** The same approved words, now also as HTML: the company's tile and name, blackark.uk's dark colours, the country language first and the English copy below it, the top-up address as a link. The plain-text version is still in the email for mail apps that prefer it. The email stays off until Amgad switches it on.
+- **The app opens in blackark.uk's dark from the first screen (Amgad, 23 Nov).** The app was already dark unless the person chose light; the installed app's splash, title bar and the browser bar were still light (`#fafafa`, `#1a1918`). They are now blackark.uk's paper, `#070504`.
 
 ## 0.1.51
 

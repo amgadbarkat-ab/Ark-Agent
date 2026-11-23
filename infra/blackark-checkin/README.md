@@ -166,8 +166,8 @@ itself.
    - Paste the two lines from that file into `checkin/config.php`, inside the array.
    - Post only the public key on #109, so it is built into the app.
 2. **In Stripe** → Developers → Webhooks:
-   - Add the endpoint `https://blackark.uk/checkin/stripe/` with these events (all seven, from
-     v0.1.49):
+   - Add the endpoint `https://blackark.uk/checkin/stripe/` with these events (all six, from
+     v0.1.49; Ark Private Server uses the same six):
      - `checkout.session.completed`
      - `checkout.session.async_payment_succeeded`
      - `invoice.paid`

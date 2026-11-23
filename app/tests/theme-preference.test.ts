@@ -66,3 +66,28 @@ describe("color scheme", () => {
     expect(styles).toMatch(/\.dark\s*\{[\s\S]*?color-scheme:\s*dark/);
   });
 });
+
+/**
+ * Amgad, 23 Nov 2026: the app opens in dark, like blackark.uk. The app already did (the boot script
+ * above); what the person saw first, the installed app's splash and title bar, was still light.
+ */
+describe("the first screen is blackark.uk's dark", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const manifest = JSON.parse(
+    readFileSync(
+      new URL("../public/manifest.webmanifest", import.meta.url),
+      "utf8",
+    ),
+  ) as { background_color: string; theme_color: string };
+
+  test("someone who never chose a theme gets dark", () => {
+    expect(parseStoredDarkTheme(null)).toBe(true);
+    expect(html).toContain("let dark = true;");
+  });
+
+  test("the browser bar, the splash and the installed app's title bar are blackark.uk's paper", () => {
+    expect(html).toContain('<meta name="theme-color" content="#070504" />');
+    expect(manifest.background_color).toBe("#070504");
+    expect(manifest.theme_color).toBe("#070504");
+  });
+});
