@@ -2508,7 +2508,7 @@ dependencies = [
 
 [[package]]
 name = "openbot-desktop"
-version = "0.1.50"
+version = "0.1.51"
 dependencies = [
  "base64 0.22.1",
  "flate2",
