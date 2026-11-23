@@ -100,6 +100,7 @@ export const EL: Record<string, string> = {
   "several installs": "πολλές εγκαταστάσεις",
   "{n} silent": "{n} σιωπηλές",
   trial: "δοκιμή",
+  none: "κανένα",
   paid: "πληρωμένο",
   ended: "έληξε",
   "First check-in from install {id}": "Πρώτο check-in από την εγκατάσταση {id}",

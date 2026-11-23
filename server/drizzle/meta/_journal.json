@@ -540,6 +540,13 @@
       "when": 1794991755857,
       "tag": "0076_support_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1795448618882,
+      "tag": "0077_support_install",
+      "breakpoints": true
     }
   ]
 }

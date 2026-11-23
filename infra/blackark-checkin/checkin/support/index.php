@@ -8,14 +8,20 @@
  *     against the trial or licence public key in config.php);
  *  2. limits each install to 10 requests a day;
  *  3. looks up the customer's plan: paid while an active licence is on file, otherwise trial;
+ *  BEFORE ACTIVATION (Amgad, 23 Nov 2026): an install with no trial file, code or licence yet can
+ *  still ask for help. It sends `customerId` "unverified" and no proof. Nothing says whose install
+ *  it is, so it is limited to 3 a day per install and 3 a day per address, forwarded as customer
+ *  "unverified" with plan "none", and may carry an email address the person chose to give;
  *  4. forwards the request to the Control Board (`intake_url`), signed with `intake_secret`
  *     (X-Ark-Time, X-Ark-Nonce, X-Ark-Signature = HMAC-SHA256 of "<time>.<nonce>.<body>"), and
  *     answers the board's case number.
  * If the board cannot be reached it answers 502, and the app keeps the request and sends it again
  * later; the app's request id makes the board give back the same case, never a second one.
  *
- * Nothing is stored here but the install id and the time, for the daily limit. The request itself
- * (the customer's words and, if they chose, diagnostics) passes through to the board only.
+ * Nothing is stored here but the install id and the time, for the daily limit, and for a request
+ * before activation a keyed hash of the sender's address (never the address). The request itself
+ * (the customer's words, the contact address and, if they chose, diagnostics) passes through to the
+ * board only.
  */
 
 declare(strict_types=1);
@@ -28,6 +34,8 @@ header('X-Robots-Tag: noindex, nofollow');
 
 const SUPPORT_MAX_BODY = 1048576; // the signed profile can be large; the request itself is capped below
 const SUPPORT_PER_INSTALL_PER_DAY = 10;
+const SUPPORT_UNVERIFIED_PER_DAY = 3; // per install, and separately per address
+const SUPPORT_UNVERIFIED = 'unverified';
 
 /** The first `$chars` characters of UTF-8 text (no mbstring needed). */
 function support_cut(string $text, int $chars): string
@@ -65,8 +73,14 @@ $text = function (string $key, int $max) use ($in): ?string {
 $customer = (string) ($in['customerId'] ?? '');
 $install = (string) ($in['installId'] ?? '');
 $requestId = (string) ($in['requestId'] ?? '');
+$unverified = $customer === SUPPORT_UNVERIFIED && ($in['proof'] ?? null) === null;
+$contact = $in['contactEmail'] ?? null;
 if (
     preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1 ||
+    // Only a request with no proof is unverified, and only it may carry a contact address.
+    ($customer === SUPPORT_UNVERIFIED && !$unverified) ||
+    ($contact !== null && (!$unverified || !is_string($contact) || strlen($contact) > 254
+        || filter_var($contact, FILTER_VALIDATE_EMAIL) === false)) ||
     preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $install) !== 1 ||
     preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $requestId) !== 1 ||
     $text('appVersion', 32) === null || $text('subject', 600) === null || $text('message', 24000) === null ||
@@ -75,27 +89,42 @@ if (
     support_answer(400, ['error' => 'Not a support request.']);
 }
 
-$ok = ark_install_proof_ok($in['proof'] ?? null, $customer);
-if ($ok === null) {
-    support_answer(503, ['error' => 'This server cannot check signatures.']);
-}
-if ($ok !== true) {
-    support_answer(403, ['error' => 'Not signed for this customer.']);
-}
-
 $db = ark_db();
-$db->exec('CREATE TABLE IF NOT EXISTS support_requests (install_id TEXT NOT NULL, request_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (install_id, request_id))');
-$db->prepare('DELETE FROM support_requests WHERE at < ?')->execute([time() - 86400]);
-$count = $db->prepare('SELECT COUNT(*) FROM support_requests WHERE install_id = ? AND request_id <> ?');
-$count->execute([$install, $requestId]);
-if ((int) $count->fetchColumn() >= SUPPORT_PER_INSTALL_PER_DAY) {
-    support_answer(429, ['error' => 'Too many requests today.']);
-}
-$db->prepare('INSERT OR IGNORE INTO support_requests (install_id, request_id, at) VALUES (?, ?, ?)')->execute([$install, $requestId, time()]);
+if ($unverified) {
+    // Keyed, so the table never holds an address that could be read back.
+    $from = hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), $secret);
+    $db->exec('CREATE TABLE IF NOT EXISTS support_unverified (install_id TEXT NOT NULL, request_id TEXT NOT NULL, address_hash TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (install_id, request_id))');
+    $db->prepare('DELETE FROM support_unverified WHERE at < ?')->execute([time() - 86400]);
+    $seen = $db->prepare('SELECT (SELECT COUNT(*) FROM support_unverified WHERE install_id = ? AND request_id <> ?), (SELECT COUNT(*) FROM support_unverified WHERE address_hash = ? AND request_id <> ?)');
+    $seen->execute([$install, $requestId, $from, $requestId]);
+    [$byInstall, $byAddress] = $seen->fetch(PDO::FETCH_NUM);
+    if ((int) $byInstall >= SUPPORT_UNVERIFIED_PER_DAY || (int) $byAddress >= SUPPORT_UNVERIFIED_PER_DAY) {
+        support_answer(429, ['error' => 'Too many requests today.']);
+    }
+    $db->prepare('INSERT OR IGNORE INTO support_unverified (install_id, request_id, address_hash, at) VALUES (?, ?, ?, ?)')->execute([$install, $requestId, $from, time()]);
+    $plan = 'none';
+} else {
+    $ok = ark_install_proof_ok($in['proof'] ?? null, $customer);
+    if ($ok === null) {
+        support_answer(503, ['error' => 'This server cannot check signatures.']);
+    }
+    if ($ok !== true) {
+        support_answer(403, ['error' => 'Not signed for this customer.']);
+    }
 
-$licence = $db->prepare("SELECT 1 FROM licenses WHERE customer_id = ? AND status = 'active' AND (valid_until IS NULL OR valid_until > ?) LIMIT 1");
-$licence->execute([$customer, ark_now()]);
-$plan = $licence->fetchColumn() ? 'paid' : 'trial';
+    $db->exec('CREATE TABLE IF NOT EXISTS support_requests (install_id TEXT NOT NULL, request_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (install_id, request_id))');
+    $db->prepare('DELETE FROM support_requests WHERE at < ?')->execute([time() - 86400]);
+    $count = $db->prepare('SELECT COUNT(*) FROM support_requests WHERE install_id = ? AND request_id <> ?');
+    $count->execute([$install, $requestId]);
+    if ((int) $count->fetchColumn() >= SUPPORT_PER_INSTALL_PER_DAY) {
+        support_answer(429, ['error' => 'Too many requests today.']);
+    }
+    $db->prepare('INSERT OR IGNORE INTO support_requests (install_id, request_id, at) VALUES (?, ?, ?)')->execute([$install, $requestId, time()]);
+
+    $licence = $db->prepare("SELECT 1 FROM licenses WHERE customer_id = ? AND status = 'active' AND (valid_until IS NULL OR valid_until > ?) LIMIT 1");
+    $licence->execute([$customer, ark_now()]);
+    $plan = $licence->fetchColumn() ? 'paid' : 'trial';
+}
 
 $diagnostics = $in['diagnostics'] ?? null;
 $forward = json_encode([
@@ -109,7 +138,7 @@ $forward = json_encode([
     'urgent' => $in['urgent'],
     'plan' => $plan,
     'diagnostics' => is_array($diagnostics) ? $diagnostics : null,
-], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+] + ($unverified ? ['contactEmail' => is_string($contact) ? $contact : null] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
 $time = (string) time();
 $nonce = ark_base64url(random_bytes(18));

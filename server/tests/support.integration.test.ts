@@ -10,6 +10,7 @@ import { signText } from "../../shared/trial-sign";
 import { createDatabase } from "../src/db/client";
 import {
   activationState,
+  supportInstall,
   supportRequests,
   trialRoster,
   trialState,
@@ -29,6 +30,7 @@ async function clear() {
   await database.delete(trialState);
   await database.delete(trialRoster);
   await database.delete(activationState);
+  await database.delete(supportInstall);
 }
 beforeEach(clear);
 afterAll(async () => {
@@ -73,7 +75,10 @@ async function importTrial() {
 
 type Reply = { status: number; body?: unknown } | "unreachable";
 
-function harness(replies: Reply[]) {
+function harness(
+  replies: Reply[],
+  options: { beforeActivation?: boolean } = {},
+) {
   const sent: { url: string; body: Record<string, unknown> }[] = [];
   const logs = recentLogs();
   logs.record(
@@ -87,6 +92,7 @@ function harness(replies: Reply[]) {
     url: "https://blackark.example/checkin/support/",
     now: () => NOW,
     system: () => "Windows 10.0.22631 (x64)",
+    ...options,
     fetch: (async (url: string, init: RequestInit) => {
       sent.push({ url, body: JSON.parse(String(init.body)) });
       const reply = replies.shift() ?? { status: 200, body: { case: 1 } };
@@ -110,6 +116,53 @@ describe("Help & support (#149)", () => {
     const { service } = harness([]);
     expect(await service.available()).toBe(false);
     await expect(service.preview("user-1", input)).rejects.toThrow("activated");
+  });
+
+  test("before activation, on a desktop install: sent unverified, with no proof, and an address only if given", async () => {
+    const { service, sent } = harness([{ status: 200, body: { case: 12 } }], {
+      beforeActivation: true,
+    });
+    expect(await service.available()).toBe(true);
+    expect(await service.verified()).toBe(false);
+    const preview = await service.preview("user-1", {
+      ...input,
+      contactEmail: " maria@shop.example ",
+    });
+    expect(preview).toMatchObject({
+      customerId: "unverified",
+      proof: null,
+      contactEmail: "maria@shop.example",
+      diagnostics: null,
+    });
+    expect(preview.installId).toMatch(/^[0-9a-f-]{36}$/);
+    const made = await service.submit(
+      "user-1",
+      { ...input, contactEmail: "maria@shop.example" },
+      preview.requestId,
+    );
+    expect(made).toMatchObject({ status: "sent", caseNumber: 12 });
+    expect(sent[0]?.body).toEqual(preview);
+    // The same random id every time, and no address when none is given.
+    const again = await service.preview("user-1", {
+      ...input,
+      contactEmail: "",
+    });
+    expect(again.installId).toBe(preview.installId);
+    expect(again.contactEmail).toBeNull();
+  });
+
+  test("once activated, the request names the customer with BlackArk's proof and carries no address", async () => {
+    const trial = await importTrial();
+    const { service } = harness([], { beforeActivation: true });
+    expect(await service.verified()).toBe(true);
+    const preview = await service.preview("user-1", {
+      ...input,
+      contactEmail: "maria@shop.example",
+    });
+    expect(preview.customerId).toBe("demo-shop");
+    expect(preview.installId).toBe(trial.installId);
+    expect(preview.proof).not.toBeNull();
+    expect("contactEmail" in preview).toBe(false);
   });
 
   test("the preview is exactly what is sent: the words, the install, and BlackArk's own proof", async () => {
@@ -216,7 +269,7 @@ describe("Help & support (#149)", () => {
       }, service),
     );
     const state = await (await app.request("/api/support")).json();
-    expect(state).toMatchObject({ available: true });
+    expect(state).toMatchObject({ available: true, verified: true });
     expect(state.requests).toHaveLength(1);
     const bad = await app.request("/api/support/requests", {
       method: "POST",
@@ -230,5 +283,11 @@ describe("Help & support (#149)", () => {
       body: JSON.stringify({ ...input, conversation: "everything" }),
     });
     expect(extra.status).toBe(400);
+    const notAnAddress = await app.request("/api/support/preview", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...input, contactEmail: "maria at shop" }),
+    });
+    expect(notAnAddress.status).toBe(400);
   });
 });
