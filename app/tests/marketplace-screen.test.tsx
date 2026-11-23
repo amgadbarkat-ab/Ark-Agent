@@ -175,8 +175,15 @@ test("an official digital employee shows what it starts with and can be installe
   await userEvent
     .setup({ document })
     .click(screen.getByRole("button", { name: "Install" }));
+  // Up to 10 seconds for the install's answer. Locally it comes about 3 ms after the click (one POST,
+  // then /api/activation refetched for the agent limit), but on CI the runner was still showing
+  // "Installing…" after 5 seconds three times running on 23 Nov.
   expect(
-    await screen.findByText(/is now one of your digital employees/, {}, SLOW),
+    await screen.findByText(
+      /is now one of your digital employees/,
+      {},
+      { timeout: 10_000 },
+    ),
   ).toBeTruthy();
   // The trial is asked about as well (#109); the only write is the install.
   expect(
