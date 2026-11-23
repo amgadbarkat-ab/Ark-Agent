@@ -2,7 +2,7 @@
  * What the Worker's Cron Triggers do (wrangler.toml):
  * - every 10 minutes, `refreshSources`: the check-in export, the relay, GitHub and Stripe, each
  *   parsed here and stored as one snapshot row (snapshots.ts), so pages never fetch;
- * - every 5 minutes, the support mailbox (intake.ts `pollMailbox`, over imap.ts);
+ * - every 5 minutes, the support mailbox (intake.ts `pollMailbox`, through Microsoft Graph in mail.ts);
  * - every night, `nightly`: the audit chain is checked, the new audit entries are copied off-site
  *   (R2, or blackark.uk's `checkin/audit-copy/`), and expired sessions and challenges are pruned.
  * Each run is one Worker invocation: at most 50 subrequests and 50 D1 queries on the free plan,

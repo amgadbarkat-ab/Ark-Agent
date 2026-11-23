@@ -27,7 +27,7 @@ staff browser ── https ──▶ blackark-board.<account>.workers.dev   (a W
      blackark.uk/checkin/export/       ◀── signed POST, signed answer
      blackark.uk/checkin/support/      ──▶ signed POST /intake/app   (Help & support from the app)
      blackark.uk/checkin/audit-copy/   ◀── nightly signed POST of new audit entries (AUDIT_COPY=blackark)
-     imap.one.com:993 (General@)       ◀── TCP socket + TLS; unread mail to support@ only
+     graph.microsoft.com (General@)    ◀── app-only token; unread mail to support@ only
      api.stripe.com                    ◀── restricted read-only key
      phone relay /health               ◀── GET
      api.github.com                    ◀── read-only token
@@ -203,17 +203,53 @@ audit log records that a note was added, and its length, never its text.
 
 ### Support mail
 
-support@blackark.uk is only an alias that delivers to General@blackark.uk. Every 5 minutes a Cron Trigger:
-1. opens a TCP socket to `imap.one.com:993` with TLS (`connect()` from `cloudflare:sockets`), and
-   signs in to General@ with our own small IMAP client (`imap.ts`, no package);
-2. asks for **unread** messages To or Cc support@ only (`UID SEARCH UNSEEN OR TO … CC …`);
-3. reads at most 5 of them, each with `BODY.PEEK[]`, so nothing is marked read by reading it;
-4. reads the message (`parseMail`: headers, RFC 2047 subjects, quoted-printable and base64,
-   multipart; HTML reduced to its text) and checks the To and Cc again, exactly;
-5. opens a case, or adds a reply to its case: by In-Reply-To, or `[Case #N]` in the subject;
-6. marks **only that message** as read (`UID STORE … +FLAGS.SILENT (\Seen)`).
+support@blackark.uk is only an alias that delivers to General@blackark.uk. The board reads General@
+through **Microsoft Graph** as an Entra app (client credentials: `MS_TENANT_ID`, `MS_CLIENT_ID`,
+`MS_CLIENT_SECRET`), never as a person and never with General@'s password (Amgad, 23 Nov 2026).
+Every 5 minutes a Cron Trigger (`mail.ts`, `graphMailbox`):
+1. gets an app-only token from `login.microsoftonline.com` (one per run, kept nowhere);
+2. lists General@'s **unread** Inbox mail from the last 14 days, newest first, asking only for each
+   message's id, To and Cc (at most 4 pages of 50);
+3. picks the ones whose To or Cc holds support@ exactly, at most 5 a run, and reads only those in full,
+   with the body as plain text. A read never marks a message read;
+4. checks the To and Cc again on the full message;
+5. opens a case, or adds a reply to its case: by In-Reply-To, or `[Case #N]` in the subject. A run
+   handles its messages oldest first, so a reply comes after its original;
+6. marks **only that message** as read (`PATCH … {"isRead": true}`).
 
-Nothing else in General@ is fetched, flagged, moved or deleted. Attachments are counted, not kept.
+Nothing else in General@ is read in full, flagged, moved, deleted or sent. Attachments are not fetched.
+Unread mail to support@ older than 14 days is left for a person.
+
+#### Setting up the Graph app (COO, on Amgad's order)
+
+1. **Entra admin centre → App registrations → New registration:** "BlackArk Control Board", single
+   tenant, no redirect URI. Note the *Application (client) ID* (`MS_CLIENT_ID`) and the *Directory
+   (tenant) ID* (`MS_TENANT_ID`).
+2. **API permissions → Add → Microsoft Graph → Application permissions → `Mail.ReadWrite`**, then
+   **Grant admin consent**. Only that one: `Mail.ReadWrite` because marking a message read is a
+   write. Not `Mail.Send`: the board sends nothing yet.
+3. **Limit the app to General@ before the secret goes on the board.** Without this, an application
+   `Mail.ReadWrite` reaches every mailbox in the tenant. In Exchange Online PowerShell:
+
+   ```powershell
+   Connect-ExchangeOnline
+   # A mail-enabled security group that holds General@ and nothing else.
+   New-DistributionGroup -Name "Board mailbox scope" -Alias board-mailbox-scope -Type Security -Members General@blackark.uk
+   Set-DistributionGroup -Identity board-mailbox-scope -HiddenFromAddressListsEnabled $true
+   New-ApplicationAccessPolicy -AppId <MS_CLIENT_ID> -PolicyScopeGroupId board-mailbox-scope@blackark.uk `
+     -AccessRight RestrictAccess -Description "BlackArk Control Board: General@ only"
+   # Check both ways. It can take an hour or more to apply.
+   Test-ApplicationAccessPolicy -AppId <MS_CLIENT_ID> -Identity General@blackark.uk     # AccessCheckResult: Granted
+   Test-ApplicationAccessPolicy -AppId <MS_CLIENT_ID> -Identity <any other mailbox>     # AccessCheckResult: Denied
+   ```
+
+   Microsoft now also offers *RBAC for Applications* in Exchange Online for the same limit. The
+   policy above is what Amgad asked for; either one is enough, but not neither.
+4. **Certificates & secrets → New client secret**, 12 months. Put its *value* straight into
+   `$W secret put MS_CLIENT_SECRET` (step 4 of the deploy). Put a reminder in the calendar 2 weeks
+   before it expires: when it does, the board's support mail stops (cases from the app keep working).
+5. `MAIL_USER` in `wrangler.toml` stays `General@blackark.uk`. With all three secrets set, the next
+   5-minute run reads the mail. With any of them unset, the board simply does not read mail.
 
 ### Billing (Stripe, read-only)
 
@@ -263,14 +299,14 @@ bun infra/control-board/dev.ts
 ```bash
 cd infra/control-board && bun test         # TOTP, passkeys (a virtual authenticator), sign-in, sessions,
                                            # CSRF, roles, audit, chain check and copy, pages, sources,
-                                           # CLI, cases, SLA hours, intake, IMAP and MIME, Stripe, Access
+                                           # CLI, cases, SLA hours, intake, Graph mail, Stripe, Access
 bash infra/blackark-checkin/test.sh        # the PHP side: export, Help & support, counts, audit copy
 node_modules/.bin/tsc --noEmit -p infra/control-board
 ```
 
 Run `bun test` from inside the folder: the repository root's `bunfig.toml` preloads the app's test
 setup, which the board does not use. The tests use `bun:sqlite` in place of D1 (`sql-sqlite.ts`)
-and in-memory stand-ins for the IMAP server, Stripe, blackark.uk and the authenticator.
+and in-memory stand-ins for Microsoft Graph, Stripe, blackark.uk and the authenticator.
 
 ## Deploy (for COO, after Amgad's yes)
 
@@ -337,7 +373,9 @@ in `wrangler.toml`, in a commit or in a chat. They live only in the Worker's enc
 | `AUDIT_COPY_SECRET` | 32+ random characters, a different one | `audit_copy_secret` in `config.php` |
 | `STRIPE_READ_KEY` | a restricted key (`rk_live_…`): Subscriptions, Checkout Sessions, Invoices, **read** only | Stripe |
 | `GITHUB_TOKEN` | fine-grained, this repository only: Issues and Pull requests, **read** only | GitHub |
-| `MAIL_PASSWORD` | General@blackark.uk's mailbox password (IMAP) | one.com |
+| `MS_TENANT_ID` | the Entra *Directory (tenant) ID* | Entra ("Setting up the Graph app") |
+| `MS_CLIENT_ID` | the board app's *Application (client) ID* | Entra |
+| `MS_CLIENT_SECRET` | the board app's client secret *value* (`Mail.ReadWrite`, limited to General@) | Entra |
 
 A secret left unset turns its part off (the page says "not connected"); nothing breaks.
 
@@ -398,8 +436,8 @@ $W d1 execute blackark-board --remote --command "$(bun cli.ts owner <his-user-na
 - **The first owner account:** his own, with his phone's authenticator app and a passkey.
 - **The Greek public holidays** to list, or a yes to keep only weekends.
 
-COO makes the shared secrets, the Stripe and GitHub read-only keys, and the General@ password entry,
-all at hidden prompts.
+COO makes the shared secrets, the Stripe and GitHub read-only keys, and the Graph app's three
+entries (after the ApplicationAccessPolicy), all at hidden prompts.
 
 ## Limits and the free plan
 
@@ -415,7 +453,8 @@ The Workers Free plan gives 100,000 requests a day, **10 ms of CPU** per request
   - the nightly chain check and copy, bounded to 1,000 new entries a night. Every page of customer
     data opened is an entry, so more than about 1,000 entries a day would make the copy fall behind;
     the fix is to run the copy more often, from the 10-minute cron;
-  - a large mail message, parsed in the 5-minute cron (at most 5 per run).
+  - the support mail, in the 5-minute cron: Graph does the parsing, and the board reads at most 5
+    messages a run, as plain text.
 - **Cloudflare may stop a run that goes over** the CPU limit; the next run tries again, and a source
   keeps its last good data.
 - **Paid or card-on-file:** Cloudflare Access (Zero Trust) and R2 ask for payment details. Neither is

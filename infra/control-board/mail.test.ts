@@ -1,13 +1,7 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { getCase, notes } from "./cases";
-import {
-  type ImapConnection,
-  openImap,
-  parseMail,
-  type Transport,
-} from "./imap";
 import { pollMailbox } from "./intake";
-import { imapMailbox } from "./mail";
+import { graphMailbox, graphToken } from "./mail";
 import { type TestBoard, testBoard } from "./test-helpers";
 
 let current: TestBoard | null = null;
@@ -17,278 +11,314 @@ afterEach(() => {
 });
 
 type Stored = {
-  uid: number;
-  seen: boolean;
-  raw: string;
-  to: string;
-  cc: string;
+  id: string;
+  internetMessageId: string;
+  to: string[];
+  cc: string[];
+  subject: string;
+  text: string;
+  inReplyTo?: string;
+  isRead: boolean;
+  receivedDateTime: string;
 };
 
-/**
- * A stand-in for General@ on an IMAP server, over in-memory streams: it answers the commands the
- * client sends, matches SEARCH TO/CC as a substring (as IMAP does, so the board's exact check after
- * parsing is tested too), and records every command.
- */
-function generalMailbox(
-  messages: Array<{ to?: string; cc?: string; raw: string }>,
-  password = "box-password",
-) {
-  const stored: Stored[] = messages.map((m, i) => ({
-    uid: 100 + i,
-    seen: false,
-    raw: m.raw,
-    to: m.to ?? "",
-    cc: m.cc ?? "",
-  }));
-  const commands: string[] = [];
-  const toServer = new TransformStream<Uint8Array, Uint8Array>();
-  const toClient = new TransformStream<Uint8Array, Uint8Array>();
-  const writer = toClient.writable.getWriter();
-  const send = (text: string) => writer.write(new TextEncoder().encode(text));
-  (async () => {
-    await send("* OK IMAP4rev1 stand-in ready\r\n");
-    const reader = toServer.readable.getReader();
-    let buffer = "";
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) return;
-      buffer += new TextDecoder().decode(value);
-      let end = buffer.indexOf("\r\n");
-      while (end >= 0) {
-        const line = buffer.slice(0, end);
-        buffer = buffer.slice(end + 2);
-        end = buffer.indexOf("\r\n");
-        const [tag, verb, ...rest] = line.split(" ");
-        const args = rest.join(" ");
-        commands.push(
-          verb === "LOGIN" ? "LOGIN ***" : `${verb} ${args}`.trim(),
-        );
-        if (verb === "LOGIN") {
-          await send(
-            args.includes(`"${password}"`)
-              ? `${tag} OK signed in\r\n`
-              : `${tag} NO wrong password\r\n`,
-          );
-        } else if (verb === "SELECT") {
-          await send(
-            `* ${stored.length} EXISTS\r\n${tag} OK [READ-WRITE] selected\r\n`,
-          );
-        } else if (verb === "UID" && rest[0] === "SEARCH") {
-          const address = (args.match(/TO "([^"]+)"/)?.[1] ?? "").toLowerCase();
-          const found = stored
-            .filter(
-              (m) =>
-                !m.seen &&
-                (m.to.toLowerCase().includes(address) ||
-                  m.cc.toLowerCase().includes(address)),
-            )
-            .map((m) => m.uid);
-          await send(
-            `* SEARCH ${found.join(" ")}\r\n${tag} OK search done\r\n`,
-          );
-        } else if (verb === "UID" && rest[0] === "FETCH") {
-          const one = stored.find((m) => m.uid === Number(rest[1]));
-          if (one) {
-            const bytes = new TextEncoder().encode(one.raw);
-            await send(
-              `* 1 FETCH (UID ${one.uid} BODY[] {${bytes.length}}\r\n`,
-            );
-            await writer.write(bytes);
-            await send(")\r\n");
-          }
-          await send(`${tag} OK fetch done\r\n`);
-        } else if (verb === "UID" && rest[0] === "STORE") {
-          const one = stored.find((m) => m.uid === Number(rest[1]));
-          if (one && args.includes("\\Seen")) one.seen = true;
-          await send(`${tag} OK stored\r\n`);
-        } else if (verb === "LOGOUT") {
-          await send(`* BYE\r\n${tag} OK bye\r\n`);
-        } else {
-          await send(`${tag} BAD unknown\r\n`);
-        }
-      }
-    }
-  })();
-  const transport: Transport = {
-    readable: toClient.readable,
-    writable: toServer.writable,
-    close: async () => {},
-  };
-  return { transport, stored, commands };
-}
-
-const mail = (over: {
-  id: string;
-  to?: string;
-  cc?: string;
+const SETTINGS = {
+  tenantId: "contoso-tenant-id",
+  clientId: "board-app-id",
+  clientSecret: "app-secret",
+  mailbox: "General@blackark.uk",
+};
+let made = 0;
+beforeEach(() => {
+  made = 0;
+});
+function mail(fields: {
+  to?: string[];
+  cc?: string[];
   subject?: string;
   text?: string;
   inReplyTo?: string;
-}) => ({
-  to: over.to ?? "General <general@blackark.uk>",
-  cc: over.cc ?? "",
-  raw: [
-    "From: Someone <someone@shop.example>",
-    `To: ${over.to ?? "General <general@blackark.uk>"}`,
-    ...(over.cc ? [`Cc: ${over.cc}`] : []),
-    `Subject: ${over.subject ?? "Hello"}`,
-    `Message-ID: <${over.id}>`,
-    ...(over.inReplyTo ? [`In-Reply-To: <${over.inReplyTo}>`] : []),
-    "Content-Type: text/plain; charset=utf-8",
-    "",
-    over.text ?? "Text",
-    "",
-  ].join("\r\n"),
-});
+  isRead?: boolean;
+  received?: string;
+}): Stored {
+  made += 1;
+  return {
+    id: `g${made}`,
+    internetMessageId: `<m${made}@x>`,
+    to: fields.to ?? ["general@blackark.uk"],
+    cc: fields.cc ?? [],
+    subject: fields.subject ?? `Message ${made}`,
+    text: fields.text ?? "Hello",
+    ...(fields.inReplyTo ? { inReplyTo: fields.inReplyTo } : {}),
+    isRead: fields.isRead ?? false,
+    // Each one a minute after the last, so "newest first" has an order to keep.
+    receivedDateTime:
+      fields.received ??
+      new Date(Date.UTC(2026, 10, 23, 9, made)).toISOString(),
+  };
+}
 
-describe("General@ over IMAP (our client over a socket), filtered on support@", () => {
-  test("takes only messages sent to support@ (To or Cc); everything else is never fetched or flagged", async () => {
+/**
+ * A stand-in for Microsoft Graph and its sign-in, holding General@'s Inbox. It answers only the
+ * requests the board should make, records every one, and refuses anything without the token.
+ */
+function graph(messages: Stored[], options: { nextLink?: string } = {}) {
+  const requests: string[] = [];
+  const recipients = (list: string[]) =>
+    list.map((address) => ({ emailAddress: { address, name: address } }));
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const method = init?.method ?? "GET";
+    const headers = new Headers(init?.headers);
+    if (url.hostname === "login.microsoftonline.com") {
+      const form = new URLSearchParams(String(init?.body));
+      requests.push(`${method} ${url.pathname} ${form.get("grant_type")}`);
+      const ok =
+        url.pathname === `/${SETTINGS.tenantId}/oauth2/v2.0/token` &&
+        form.get("client_id") === SETTINGS.clientId &&
+        form.get("client_secret") === SETTINGS.clientSecret &&
+        form.get("scope") === "https://graph.microsoft.com/.default";
+      return ok
+        ? Response.json({ access_token: "token-1", token_type: "Bearer" })
+        : Response.json(
+            {
+              error: "invalid_client",
+              error_description: `AADSTS7000215 for app ${form.get("client_id")}`,
+            },
+            { status: 401 },
+          );
+    }
+    requests.push(`${method} ${url.pathname}${url.search ? "?…" : ""}`);
+    if (headers.get("authorization") !== "Bearer token-1")
+      return new Response("", { status: 401 });
+    const base = "/v1.0/users/General%40blackark.uk";
+    if (
+      method === "GET" &&
+      url.pathname === `${base}/mailFolders/inbox/messages`
+    ) {
+      const filter = url.searchParams.get("$filter") ?? "";
+      const since = filter.match(
+        /^receivedDateTime ge (\S+) and isRead eq false$/,
+      )?.[1];
+      if (
+        !since ||
+        url.searchParams.get("$orderby") !== "receivedDateTime desc"
+      )
+        return new Response("InefficientFilter", { status: 400 });
+      const top = Number(url.searchParams.get("$top"));
+      const skip = Number(url.searchParams.get("$skip") ?? 0);
+      const unread = messages
+        .filter((m) => !m.isRead && m.receivedDateTime >= since)
+        .sort((a, b) => b.receivedDateTime.localeCompare(a.receivedDateTime));
+      const page = unread.slice(skip, skip + top);
+      const next = new URL(url);
+      next.searchParams.set("$skip", String(skip + top));
+      return Response.json({
+        value: page.map((m) => ({
+          id: m.id,
+          toRecipients: recipients(m.to),
+          ccRecipients: recipients(m.cc),
+        })),
+        ...(skip + top < unread.length
+          ? { "@odata.nextLink": options.nextLink ?? next.toString() }
+          : {}),
+      });
+    }
+    const one = url.pathname.match(new RegExp(`^${base}/messages/([^/]+)$`));
+    const stored =
+      one &&
+      messages.find((m) => m.id === decodeURIComponent(one[1] as string));
+    if (stored && method === "GET") {
+      const text = headers.get("prefer") === 'outlook.body-content-type="text"';
+      return Response.json({
+        id: stored.id,
+        internetMessageId: stored.internetMessageId,
+        subject: stored.subject,
+        from: {
+          emailAddress: { address: "customer@example.com", name: "A Customer" },
+        },
+        toRecipients: recipients(stored.to),
+        ccRecipients: recipients(stored.cc),
+        body: text
+          ? { contentType: "text", content: stored.text }
+          : { contentType: "html", content: `<p>${stored.text}</p>` },
+        internetMessageHeaders: stored.inReplyTo
+          ? [{ name: "In-Reply-To", value: stored.inReplyTo }]
+          : [],
+      });
+    }
+    if (stored && method === "PATCH") {
+      const body = JSON.parse(String(init?.body));
+      if (JSON.stringify(body) !== '{"isRead":true}')
+        return new Response("", { status: 400 });
+      stored.isRead = true;
+      return Response.json({ id: stored.id, isRead: true });
+    }
+    return new Response("", { status: 404 });
+  }) as typeof fetch;
+  return { requests, fetch: fetcher };
+}
+
+const NOW = () => Date.UTC(2026, 10, 23, 12, 0);
+
+describe("General@ through Microsoft Graph, filtered on support@", () => {
+  test("takes only messages sent to support@ (To or Cc); everything else is never fetched in full or marked read", async () => {
     const t = await testBoard();
     current = t;
-    const box = generalMailbox([
+    const inbox = [
       mail({
-        id: "a@x",
-        to: "support@blackark.uk",
+        to: ["support@blackark.uk"],
         subject: "Gmail stopped [customer:demo-shop]",
       }),
-      mail({ id: "b@x", subject: "An invoice from a supplier" }),
-      mail({ id: "c@x", cc: "Support@BlackArk.uk", subject: "Cc to support" }),
+      mail({ subject: "An invoice from a supplier" }),
+      mail({ cc: ["Support@BlackArk.uk"], subject: "Cc to support" }),
       mail({
-        id: "d@x",
-        to: "nosupport@blackark.uk",
+        to: ["nosupport@blackark.uk"],
         subject: "Looks like support, is not",
       }),
-    ]);
-    const mailbox = imapMailbox(() =>
-      openImap(box.transport, "general@blackark.uk", "box-password"),
-    );
+      mail({
+        to: ["support@blackark.uk"],
+        subject: "Already read",
+        isRead: true,
+      }),
+    ];
+    const g = graph(inbox);
+    const mailbox = graphMailbox(SETTINGS, { fetch: g.fetch, now: NOW });
+
     expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([1, 2]);
     expect(await getCase(t.sql, 1)).toMatchObject({
       customer_id: "demo-shop",
       channel: "email",
+      subject: "Gmail stopped [customer:demo-shop]",
     });
     expect((await getCase(t.sql, 2))?.subject).toBe("Cc to support");
-    expect(box.stored.map((m) => [m.uid, m.seen])).toEqual([
-      [100, true],
-      [101, false],
-      [102, true],
-      [103, false],
+    expect((await notes(t.sql, 1))[0]?.body).toStartWith(
+      "From: A Customer <customer@example.com>\nMessage-ID: m1@x\n",
+    );
+    expect(inbox.map((m) => [m.subject.slice(0, 12), m.isRead])).toEqual([
+      ["Gmail stoppe", true],
+      ["An invoice f", false],
+      ["Cc to suppor", true],
+      ["Looks like s", false],
+      ["Already read", true],
     ]);
-    // Only PEEK fetches, only of what the search found; only the taken ones flagged; nothing else.
-    expect(box.commands).toEqual([
-      "LOGIN ***",
-      "SELECT INBOX",
-      'UID SEARCH UNSEEN OR TO "support@blackark.uk" CC "support@blackark.uk"',
-      "UID FETCH 100 (BODY.PEEK[])",
-      "UID FETCH 102 (BODY.PEEK[])",
-      "UID FETCH 103 (BODY.PEEK[])",
-      "UID STORE 100 +FLAGS.SILENT (\\Seen)",
-      "UID STORE 102 +FLAGS.SILENT (\\Seen)",
+    // One sign-in, one list of ids and recipients, then only the two support@ messages, read in
+    // full, then each marked read once its case is saved. Nothing else is asked for, changed,
+    // moved, deleted or sent.
+    expect(g.requests).toEqual([
+      "POST /contoso-tenant-id/oauth2/v2.0/token client_credentials",
+      "GET /v1.0/users/General%40blackark.uk/mailFolders/inbox/messages?…",
+      "GET /v1.0/users/General%40blackark.uk/messages/g1?…",
+      "GET /v1.0/users/General%40blackark.uk/messages/g3?…",
+      "PATCH /v1.0/users/General%40blackark.uk/messages/g1",
+      "PATCH /v1.0/users/General%40blackark.uk/messages/g3",
     ]);
     expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([]);
-    await mailbox.close();
-    expect(box.commands.at(-1)).toBe("LOGOUT");
   });
 
-  test("a reply to a case's message becomes a note on it", async () => {
+  test("a reply to a case's message becomes a note on it, even when both arrive in one run", async () => {
     const t = await testBoard();
     current = t;
-    const box = generalMailbox([
-      mail({ id: "first@x", to: "support@blackark.uk", subject: "Problem" }),
+    const first = mail({ to: ["support@blackark.uk"], subject: "Problem" });
+    const g = graph([
+      first,
       mail({
-        id: "second@x",
-        to: "support@blackark.uk",
+        to: ["support@blackark.uk"],
         subject: "Re: Problem",
         text: "More detail",
-        inReplyTo: "first@x",
+        inReplyTo: first.internetMessageId,
       }),
     ]);
-    const mailbox = imapMailbox(() =>
-      openImap(box.transport, "general@blackark.uk", "box-password"),
-    );
+    const mailbox = graphMailbox(SETTINGS, { fetch: g.fetch, now: NOW });
     expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([1, 1]);
     expect((await notes(t.sql, 1)).at(-1)?.body.endsWith("More detail")).toBe(
       true,
     );
   });
 
-  test("a wrong password is refused, and nothing is read", async () => {
-    const box = generalMailbox([
-      mail({ id: "a@x", to: "support@blackark.uk" }),
+  test("a refused sign-in reads nothing, and the error names neither the app nor the secret", async () => {
+    const g = graph([mail({ to: ["support@blackark.uk"] })]);
+    const mailbox = graphMailbox(
+      { ...SETTINGS, clientSecret: "wrong-secret" },
+      { fetch: g.fetch, now: NOW },
+    );
+    const error = await mailbox.unseen().catch((e: Error) => e);
+    expect(String(error)).toBe("GraphError: sign-in refused (HTTP 401)");
+    expect(String(error)).not.toContain("board-app-id");
+    expect(g.requests).toEqual([
+      "POST /contoso-tenant-id/oauth2/v2.0/token client_credentials",
     ]);
+  });
+
+  test("a tenant id that is not one is refused before any request", async () => {
+    const g = graph([]);
     await expect(
-      openImap(box.transport, "general@blackark.uk", "wrong"),
-    ).rejects.toThrow("LOGIN refused");
-    expect(box.commands).toEqual(["LOGIN ***"]);
+      graphToken({ ...SETTINGS, tenantId: "evil.example/../x" }, g.fetch),
+    ).rejects.toThrow("MS_TENANT_ID is not a tenant id");
+    expect(g.requests).toEqual([]);
   });
 
-  test("a run takes at most 5 messages", async () => {
-    const box = generalMailbox(
-      Array.from({ length: 8 }, (_, i) =>
-        mail({ id: `m${i}@x`, to: "support@blackark.uk" }),
+  test("a run takes at most 5 messages, across pages; unread mail older than 14 days is left alone", async () => {
+    const inbox = [
+      mail({
+        to: ["support@blackark.uk"],
+        received: "2026-11-01T09:00:00.000Z",
+      }),
+      ...Array.from({ length: 120 }, (_, i) =>
+        mail({
+          to: [i % 30 === 29 ? "support@blackark.uk" : "general@blackark.uk"],
+        }),
       ),
+    ];
+    const g = graph(inbox);
+    const mailbox = graphMailbox(SETTINGS, { fetch: g.fetch, now: NOW });
+    const taken = await mailbox.unseen();
+    // Four support@ messages among 120 newer ones (three pages of 50), none of them 22 days old.
+    expect(taken.map((m) => m.id)).toEqual([
+      "m31@x",
+      "m61@x",
+      "m91@x",
+      "m121@x",
+    ]);
+    expect(g.requests.filter((r) => r.includes("/mailFolders/")).length).toBe(
+      3,
     );
-    const connection: ImapConnection = await openImap(
-      box.transport,
-      "u",
-      "box-password",
-    );
-    const mailbox = imapMailbox(async () => connection);
-    expect((await mailbox.unseen()).length).toBe(5);
-  });
-});
 
-describe("reading a message (MIME)", () => {
-  test("To, Cc, Message-ID, In-Reply-To, an encoded subject, quoted-printable Greek; attachments dropped", () => {
-    const raw = [
-      "From: Someone <someone@shop.example>",
-      "To: General <general@blackark.uk>",
-      "Cc: support@blackark.uk",
-      "Subject: =?UTF-8?B?zpTOtc69IM6xzr3Ov86vzrPOtc65?=",
-      "Message-ID: <abc@shop.example>",
-      "In-Reply-To: <case-1@blackark.uk>",
-      "MIME-Version: 1.0",
-      'Content-Type: multipart/mixed; boundary="b1"',
-      "",
-      "--b1",
-      "Content-Type: text/plain; charset=utf-8",
-      "Content-Transfer-Encoding: quoted-printable",
-      "",
-      "=CE=A4=CE=BF Gmail =CE=B4=CE=B5=CE=BD =CE=B1=CE=BD=CE=BF=CE=AF=CE=B3=CE=B5=CE=B9.",
-      "--b1",
-      'Content-Type: application/octet-stream; name="x.bin"',
-      'Content-Disposition: attachment; filename="x.bin"',
-      "Content-Transfer-Encoding: base64",
-      "",
-      "AAEC",
-      "--b1--",
-      "",
-    ].join("\r\n");
-    expect(parseMail(new TextEncoder().encode(raw))).toEqual({
-      messageId: "<abc@shop.example>",
-      inReplyTo: "<case-1@blackark.uk>",
-      from: "Someone <someone@shop.example>",
-      to: ["general@blackark.uk"],
-      cc: ["support@blackark.uk"],
-      subject: "Δεν ανοίγει",
-      text: "Το Gmail δεν ανοίγει.\n\n(1 attachment(s) not kept)",
+    const many = graph(
+      Array.from({ length: 8 }, () => mail({ to: ["support@blackark.uk"] })),
+    );
+    expect(
+      (await graphMailbox(SETTINGS, { fetch: many.fetch, now: NOW }).unseen())
+        .length,
+    ).toBe(5);
+  });
+
+  test("a next page that points anywhere but Graph is not followed", async () => {
+    const inbox = Array.from({ length: 60 }, () =>
+      mail({ to: ["general@blackark.uk"] }),
+    );
+    const g = graph(inbox, {
+      nextLink: "https://attacker.example/v1.0/users/x/messages",
     });
+    const seen: string[] = [];
+    const watched = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push(new URL(String(input)).hostname);
+      return g.fetch(input, init);
+    }) as typeof fetch;
+    expect(
+      await graphMailbox(SETTINGS, { fetch: watched, now: NOW }).unseen(),
+    ).toEqual([]);
+    expect(seen).not.toContain("attacker.example");
   });
 
-  test("an HTML-only message keeps its words without the tags; a base64 body is decoded", () => {
-    const html = parseMail(
-      new TextEncoder().encode(
-        "To: support@blackark.uk\r\nContent-Type: text/html\r\n\r\n<p>Hello <b>there</b></p>\r\n",
-      ),
-    );
-    expect(html.text).toBe("Hello there");
-    const b64 = parseMail(
-      new TextEncoder().encode(
-        `To: support@blackark.uk\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${btoa(
-          String.fromCharCode(...new TextEncoder().encode("Καλημέρα")),
-        )}\r\n`,
-      ),
-    );
-    expect(b64.text).toBe("Καλημέρα");
+  test("the body is asked for as text, so no HTML reaches a case", async () => {
+    const g = graph([
+      mail({ to: ["support@blackark.uk"], text: "Plain words" }),
+    ]);
+    const [one] = await graphMailbox(SETTINGS, {
+      fetch: g.fetch,
+      now: NOW,
+    }).unseen();
+    expect(one?.text).toBe("Plain words");
   });
 });
