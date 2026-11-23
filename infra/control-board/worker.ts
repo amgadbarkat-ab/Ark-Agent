@@ -6,7 +6,6 @@
  * Settings are plain vars in wrangler.toml; secrets are Worker secrets, set by COO with
  * `wrangler secret put NAME` (a hidden prompt), never in the repository or a chat.
  */
-import { connect } from "cloudflare:sockets";
 import { cloudflareAccess } from "./access";
 import { createBoard, type Extension, type FirstFactor } from "./board";
 import { holidaysFrom } from "./business-hours";
@@ -19,7 +18,7 @@ import {
   refreshSources,
 } from "./cron";
 import { appIntake, pollMailbox, SUPPORT_ADDRESS } from "./intake";
-import { imapMailbox, socketImap } from "./mail";
+import { graphMailbox } from "./mail";
 import {
   checkinExport,
   githubIssues,
@@ -48,8 +47,7 @@ export type Env = {
   RELAY_HEALTH_URL?: string;
   GITHUB_REPO?: string;
   SUPPORT_ADDRESS?: string;
-  MAIL_IMAP_HOST?: string;
-  MAIL_IMAP_PORT?: string;
+  /** The mailbox read through Microsoft Graph: General@blackark.uk. */
   MAIL_USER?: string;
   BOARD_HOLIDAYS?: string;
   AUDIT_COPY?: string;
@@ -59,7 +57,10 @@ export type Env = {
   INTAKE_SECRET?: string;
   STRIPE_READ_KEY?: string;
   GITHUB_TOKEN?: string;
-  MAIL_PASSWORD?: string;
+  /** The Entra app that reads General@ (client credentials; README, "Support mailbox"). */
+  MS_TENANT_ID?: string;
+  MS_CLIENT_ID?: string;
+  MS_CLIENT_SECRET?: string;
   AUDIT_COPY_SECRET?: string;
 };
 
@@ -161,15 +162,21 @@ export default {
     if (controller.cron === "*/10 * * * *") {
       context.waitUntil(refreshSources(sql, sourcesFrom(env), now));
     } else if (controller.cron === "*/5 * * * *") {
-      if (!env.MAIL_IMAP_HOST || !env.MAIL_USER || !env.MAIL_PASSWORD) return;
+      if (
+        !env.MAIL_USER ||
+        !env.MS_TENANT_ID ||
+        !env.MS_CLIENT_ID ||
+        !env.MS_CLIENT_SECRET
+      )
+        return;
       const supportAddress = env.SUPPORT_ADDRESS ?? SUPPORT_ADDRESS;
-      const mailbox = imapMailbox(
-        socketImap(connect, {
-          host: env.MAIL_IMAP_HOST,
-          port: Number(env.MAIL_IMAP_PORT ?? 993),
-          user: env.MAIL_USER,
-          password: env.MAIL_PASSWORD,
-        }),
+      const mailbox = graphMailbox(
+        {
+          tenantId: env.MS_TENANT_ID,
+          clientId: env.MS_CLIENT_ID,
+          clientSecret: env.MS_CLIENT_SECRET,
+          mailbox: env.MAIL_USER,
+        },
         { supportAddress },
       );
       context.waitUntil(

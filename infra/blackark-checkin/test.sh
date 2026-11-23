@@ -325,7 +325,9 @@ got="$(relay_call "$(call 3 '[{"kind":"incoming","seconds":11400}]')")"
   && grep '^/fakestripe/v1/invoiceitems ' "$work/fake/sent.log" | grep -q 'customer=cus_2&subscription=sub_2&price=price_block5h' \
   && { pass=$((pass+1)); echo "ok   automatic top-up (chosen at checkout): one invoice for one block on the saved card"; } || { fail=$((fail+1)); echo "FAIL auto top-up: $(cat "$work/fake/sent.log")"; }
 eml="$work/outbox/demo-phone.eml"
-decoded() { php -r '$m = file_get_contents($argv[1]); [$h, $b] = explode("\r\n\r\n", $m, 2); echo base64_decode($b);' "$1"; }
+# One part of the multipart email (text/plain or text/html), decoded.
+part() { php -r '$m = file_get_contents($argv[1]); foreach (preg_split("/\r\n--ark-[0-9a-f]+(--)?\r\n/", $m) as $p) { if (str_contains($p, "Content-Type: " . $argv[2] . ";")) { echo base64_decode(explode("\r\n\r\n", $p, 2)[1]); } }' "$1" "$2"; }
+decoded() { part "$1" text/plain; }
 subject() { php -r '$m = file_get_contents($argv[1]); preg_match("/^Subject: =\\?UTF-8\\?B\\?([^?]+)\\?=/m", $m, $x); echo base64_decode($x[1] ?? "");' "$1"; }
 [[ -f "$eml" ]] && grep -q '^To: owner@shop.example' "$eml" && grep -q '^Reply-To: general@blackark.example' "$eml" \
   && [[ "$(subject "$eml")" == "ArkAgent: απομένει λιγότερο από μία ώρα τηλεφωνίας / less than one hour of phone time left" ]] \
@@ -333,6 +335,16 @@ subject() { php -r '$m = file_get_contents($argv[1]); preg_match("/^Subject: =\\
   && decoded "$eml" | grep -q 'περίπου 58 λεπτά' && decoded "$eml" | grep -q 'about 58 minutes' \
   && decoded "$eml" | grep -q '^https://blackark.example/checkin/buy/?topup=1&customer=demo-phone$' \
   && { pass=$((pass+1)); echo "ok   the last hour: one email, Greek first then English (GR), with Reply-To and the top-up link"; } || { fail=$((fail+1)); echo "FAIL low email: $(cat "$eml" 2>/dev/null | head -12)"; }
+# The same words in BlackArk's look (Amgad, 23 Nov): HTML beside the plain text, nothing added but the
+# company's tile and name, the Greek marked Greek and the English below it marked English.
+html="$(part "$eml" text/html)"
+grep -q '^Content-Type: multipart/alternative; boundary="ark-[0-9a-f]*"' "$eml" \
+  && grep -q 'background:#070504' <<<"$html" && grep -q 'favicon-192.png' <<<"$html" && grep -q '>BlackArk</td>' <<<"$html" \
+  && grep -q '<div lang="el"><p style="margin:0 0 16px;">Αγαπητέ πελάτη,</p>' <<<"$html" && grep -q '<div lang="en"><p style="margin:0 0 16px;">Dear customer,</p>' <<<"$html" \
+  && grep -q 'περίπου 58 λεπτά' <<<"$html" && grep -q 'about 58 minutes' <<<"$html" \
+  && grep -q '<a href="https://blackark.example/checkin/buy/?topup=1&amp;customer=demo-phone"' <<<"$html" \
+  && ! grep -qiE '<script|<svg|https?://(fonts\.|cdn)' <<<"$html" \
+  && { pass=$((pass+1)); echo "ok   the email also comes in BlackArk's look: the same words, Greek then English, the top-up as a link"; } || { fail=$((fail+1)); echo "FAIL html email: $(head -c 600 <<<"$html")"; }
 rm -f "$eml"
 relay_call "$(call 4 '[{"kind":"incoming","seconds":60}]')" >/dev/null
 [[ ! -f "$eml" ]] && { pass=$((pass+1)); echo "ok   and only once until the next top-up"; } || { fail=$((fail+1)); echo "FAIL second low email"; }
