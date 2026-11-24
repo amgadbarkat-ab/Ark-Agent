@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Weekly summary, then chat cleanup (Amgad, 24 Nov, #149).**
+  - On by default for every new digital employee. Employees made before this version keep their full chat until the person switches it on.
+  - **The weekly run:** once a week, Sunday 02:00 to 05:59 in the person's own time zone, the employee's model writes a summary file of its one-to-one conversations that week, merged with last week's.
+  - **Nothing is lost on failure:** the summary is saved first, and only then are those conversations deleted. If the summary fails, nothing is deleted.
+  - **What is never touched:** group conversations, and conversations active in the last hour.
+  - **Every request starts from the summary.** It works the same with a model on this computer and one with an API key.
+  - **The switch:** the employee's Memories page has it, and shows the summary. Switching it off first shows "deactivating this function will affect the usage of your LLM model."
+  - **What it saves:** `docs/reports/weekly-summary-llm-usage.md`.
 - **Control Board: reply emails say From General@ (Amgad, 24 Nov).** support@ is not a sending address; the email now names General@, the mailbox that sends it (Exchange already delivered it so), and Reply-To stays support@, so the customer's answer still comes back to the case. Board only: takes effect at the next board deploy.
 - **Control Board: a reply sent twice goes once.** The live test on 24 Nov kept and emailed one reply twice, 3 seconds apart (a double click or a slow page). The same words from the same person on the same case within 2 minutes are now one reply. A new table, `case_reply_claims`: run the schema again before the deploy.
 - **Control Board: answers to support@ reach their case (live test, 24 Nov).** For mail to the support@ alias, Exchange lists General@ in Graph's recipients and keeps support@ only in the raw `To:` header, so the board dropped the customer's answer. It now reads the raw To and Cc headers too. It also no longer skips mail already opened in Outlook: it reads the last 14 days, read or not, and takes each Message-ID once.

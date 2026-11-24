@@ -53,6 +53,8 @@ import { type ChannelStore, createChannelRoutes } from "./channels/routes";
 import type { ThreadIdentity } from "./channels/thread-identity";
 import { createThreadRoutes } from "./channels/thread-routes";
 import { createThreadReader } from "./channels/thread-status";
+import { chatSummaryRoutes } from "./chat-summary/routes";
+import type { ChatSummaryService } from "./chat-summary/service";
 import type { CloudGate } from "./cloud/gate";
 import { adminCloudRoutes, type CloudAudit, cloudRoutes } from "./cloud/routes";
 import { createComponentRoutes } from "./components/routes";
@@ -508,6 +510,11 @@ export function createApp(
    * hides the card.
    */
   privateServer?: PrivateServerService,
+  /**
+   * The weekly summary and chat cleanup (Amgad, 24 Nov 2026): each employee's setting and summary.
+   * Appended last, for the positional reason above. Absent leaves `/api/chat-summary` unmounted.
+   */
+  chatSummary?: ChatSummaryService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1811,6 +1818,10 @@ export function createApp(
       "/api/private-server",
       privateServerRoutes(requireUser, privateServer),
     );
+  }
+
+  if (chatSummary) {
+    app.route("/api/chat-summary", chatSummaryRoutes(requireUser, chatSummary));
   }
 
   if (trial) {

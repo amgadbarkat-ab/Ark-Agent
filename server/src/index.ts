@@ -96,6 +96,8 @@ import {
 } from "./channels/summary";
 import { createThreadIdentity } from "./channels/thread-identity";
 import { createChannelTitler, withPersonalModel } from "./channels/titler";
+import { summaryModel } from "./chat-summary/model";
+import { createChatSummaryService } from "./chat-summary/service";
 import { createCloudGate } from "./cloud/gate";
 import { createCloudMeter } from "./cloud/meter";
 import { meteredComputerProvider, tenantOfBot } from "./cloud/provider";
@@ -457,6 +459,25 @@ const modelConnectionStore = createModelConnectionStore(
 const starterModel = config.starterModel
   ? createStarterModel(config.starterModel)
   : undefined;
+/*
+ * The weekly summary, then chat cleanup (Amgad, 24 Nov 2026): the summary file each employee starts
+ * every request from, and the Sunday-night run that writes it and only then deletes the chats. The
+ * model is the person's own, then the deployment's (both resolved when a run happens).
+ */
+const chatSummary = createChatSummaryService({
+  database,
+  conversations: hubConversations({
+    apiUrl: config.runtime.intelligence.apiUrl,
+    apiKey: config.runtime.intelligence.apiKey,
+  }),
+  model: (userId, instruction, text) =>
+    summaryModel({
+      personal: async (id) => (await modelForActor(id))?.connection,
+      model: runtimeModel.defaultModel,
+      resolveApiKey: resolveRuntimeModelApiKey,
+    })(userId, instruction, text),
+  log: (line) => console.info(JSON.stringify(line)),
+});
 const loadAgentsForActor = createRuntimeAgentLoader(
   database,
   agentVault,
@@ -470,6 +491,8 @@ const loadAgentsForActor = createRuntimeAgentLoader(
   createMemoryStore(database),
   // The desktop app's relay for the containers (#109): closed app, "open ArkAgent".
   containerRelayCheck(process.env.ARK_CONTAINER_RELAY),
+  // Reads only: each employee's weekly summary, which it starts every request from.
+  chatSummary,
 );
 await synchronizeTenantPackage(database, tenantPackage);
 /*
@@ -2027,7 +2050,24 @@ const app = createApp(
       ? { url: process.env.ARK_SERVERS_URL.trim() }
       : {}),
   }),
+  // The weekly summary and chat cleanup: each employee's setting and summary file.
+  chatSummary,
 );
+// The Sunday-night summary and cleanup, checked every 15 minutes; each person's own window.
+repeatAfterEach(async () => {
+  try {
+    const report = await chatSummary.runDue();
+    if ((report.done ?? 0) + (report.failed ?? 0) > 0)
+      console.info(JSON.stringify({ type: "chat-summary-run", ...report }));
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        type: "chat-summary-run-failed",
+        errorName: (error as Error)?.name,
+      }),
+    );
+  }
+}, 15 * 60_000);
 // Once a day, status and days left to the address the profile names; nothing when it names none.
 trial.startCheckIns();
 // Help & support requests that could not be sent yet, every hour.
