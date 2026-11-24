@@ -19,6 +19,7 @@ import {
 } from "./cron";
 import { appIntake, pollMailbox, SUPPORT_ADDRESS } from "./intake";
 import { graphMailbox, graphSender } from "./mail";
+import { appOrders } from "./orders";
 import { appReplies, type ReplyMailer } from "./replies";
 import {
   checkinExport,
@@ -164,6 +165,7 @@ export default {
       extensions.push(
         appIntake(sql, { secret: env.INTAKE_SECRET as string, calendar }),
         appReplies(sql, { secret: env.INTAKE_SECRET as string }),
+        appOrders(sql, { secret: env.INTAKE_SECRET as string }),
       );
     }
     const board = createBoard({
