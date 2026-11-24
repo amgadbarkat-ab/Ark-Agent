@@ -29,6 +29,7 @@ import {
 } from "./business-hours";
 import { type Html, html } from "./html";
 import { type Lang, t, when } from "./i18n";
+import { hasActive247, latest247, type SupportOrder } from "./orders";
 import * as pages from "./pages";
 import {
   MAX_REPLY,
@@ -56,6 +57,9 @@ export const STATUSES = ["new", "open", "waiting", "solved", "closed"] as const;
  * running board's table is not rebuilt for this), which also gives it the normal answer time.
  */
 export const UNVERIFIED_CUSTOMER = "unverified";
+
+/** How soon a 24/7 Priority Support customer's case is due: 1 hour, any day, any time. */
+const HOUR_247 = 60 * 60 * 1000;
 
 /** The plan a person sees: "none" for an unverified case still on its first plan. */
 export function shownPlan(row: Pick<Case, "customer_id" | "plan">): string {
@@ -129,18 +133,27 @@ export async function openCase(
   calendar: Calendar = {},
 ): Promise<Case> {
   const at = new Date(now).toISOString();
+  // 24/7 Priority Support (orders.ts): a response within 1 hour, around the clock. The order's own
+  // case is not a support request, so it keeps its normal urgency.
+  const priority247 =
+    !input.sourceRef?.startsWith("order:") &&
+    (await hasActive247(sql, input.customerId));
+  const priority = priority247 ? "urgent" : input.priority;
+  const due = priority247
+    ? new Date(now + HOUR_247).toISOString()
+    : slaDue(at, input.plan, input.priority, calendar);
   const result = await sql.run(
     `INSERT INTO cases (customer_id, channel, language, priority, plan, status, subject, owner, github_issue, sla_due_at, created_at, created_by, updated_at, source_ref)
      VALUES (?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.customerId,
     input.channel,
     input.language,
-    input.priority,
+    priority,
     input.plan,
     input.subject,
     input.owner ?? null,
     input.githubIssue ?? null,
-    slaDue(at, input.plan, input.priority, calendar),
+    due,
     at,
     by,
     at,
@@ -344,6 +357,7 @@ function listPage(
   now: number,
   repo: string,
   canWrite: boolean,
+  priority247: Set<string> = new Set(),
 ) {
   const l = frame.lang;
   return pages.layout(
@@ -361,7 +375,7 @@ function listPage(
         ? html`<tr><td colspan="10">${t(l, "No cases.")}</td></tr>`
         : rows.map(
             (row) =>
-              html`<tr><td><a href="/cases/${row.number}">#${row.number}</a></td><td><a href="/customers/${encodeURIComponent(row.customer_id)}">${row.customer_id}</a></td><td>${row.subject}</td><td>${t(l, CHANNEL_NAMES[row.channel])}</td><td>${row.language}</td><td>${t(l, row.priority)}</td><td>${t(l, row.status)}</td><td>${row.owner ?? "–"}</td><td>${dueCell(l, row, now)}</td><td>${githubLink(repo, row.github_issue)}</td></tr>`,
+              html`<tr><td><a href="/cases/${row.number}">#${row.number}</a></td><td><a href="/customers/${encodeURIComponent(row.customer_id)}">${row.customer_id}</a>${priority247.has(row.customer_id) ? html` <span class="tag bad">24/7</span>` : ""}</td><td>${row.subject}</td><td>${t(l, CHANNEL_NAMES[row.channel])}</td><td>${row.language}</td><td>${t(l, row.priority)}</td><td>${t(l, row.status)}</td><td>${row.owner ?? "–"}</td><td>${dueCell(l, row, now)}</td><td>${githubLink(repo, row.github_issue)}</td></tr>`,
           )
     }</tbody></table></div>`,
   );
@@ -402,7 +416,7 @@ function casePage(
   now: number,
   repo: string,
   canWrite: boolean,
-  answers: { replies: Reply[]; route: Route },
+  answers: { replies: Reply[]; route: Route; support247?: SupportOrder | null },
   error?: string,
 ) {
   const l = frame.lang;
@@ -416,6 +430,7 @@ function casePage(
 <dt>${t(l, "Channel")}</dt><dd>${t(l, CHANNEL_NAMES[row.channel])}</dd>
 <dt>${t(l, "Language")}</dt><dd>${t(l, LANGUAGE_NAMES[row.language] ?? row.language)}</dd>
 <dt>${t(l, "Plan")}</dt><dd>${t(l, shownPlan(row))}</dd>
+${support247Fact(l, answers.support247 ?? null)}
 <dt>${t(l, "Priority")}</dt><dd>${t(l, row.priority)}</dd>
 <dt>${t(l, "Status")}</dt><dd>${t(l, row.status)}</dd>
 <dt>${t(l, "Assigned to")}</dt><dd>${row.owner ?? t(l, "Nobody yet")}</dd>
@@ -474,7 +489,7 @@ function repliesSection(
   l: Lang,
   csrf: string,
   row: Case,
-  answers: { replies: Reply[]; route: Route },
+  answers: { replies: Reply[]; route: Route; support247?: SupportOrder | null },
   canWrite: boolean,
 ): Html {
   const { replies, route } = answers;
@@ -521,6 +536,18 @@ ${
 }`;
 }
 
+/** The customer's 24/7 Priority Support, on each of their cases: active means priority. */
+function support247Fact(l: Lang, order: SupportOrder | null): Html | string {
+  if (!order) return "";
+  const state =
+    order.status === "active"
+      ? html`<span class="tag bad">24/7</span> ${t(l, "Active: answer within 1 hour, any day, any time")}`
+      : order.status === "past_due"
+        ? html`${t(l, "Renewal payment failed: not active")}`
+        : html`${t(l, "Cancelled: not active")}`;
+  return html`<dt>${t(l, "24/7 Priority Support")}</dt><dd>${state} · ${t(l, "since")} ${when(l, order.started_at)}${order.case_number ? html` · <a href="/cases/${order.case_number}">${t(l, "order")} #${order.case_number}</a>` : ""}</dd>`;
+}
+
 // ---- Reading a form ----------------------------------------------------------------------------
 
 function pick<T extends string>(
@@ -552,6 +579,7 @@ export function casesExtension(
   const answersFor = async (row: Case) => ({
     replies: await repliesOf(sql, row.number),
     route: await replyRoute(sql, row, mailer),
+    support247: await latest247(sql, row.customer_id),
   });
   const calendar = options.calendar ?? {};
   return {
@@ -591,6 +619,13 @@ export function casesExtension(
             context.now,
             repo,
             canWrite,
+            new Set(
+              (
+                await sql.all<{ customer_id: string }>(
+                  "SELECT DISTINCT customer_id FROM support_orders WHERE status = 'active'",
+                )
+              ).map((one) => one.customer_id),
+            ),
           ),
         );
       }

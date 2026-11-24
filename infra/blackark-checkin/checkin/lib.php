@@ -869,3 +869,139 @@ function ark_phone_low_email(PDO $db, string $customerId, array $view): void
     }
     @mail((string) $row['email'], $subject, $encoded, $headers);
 }
+
+/**
+ * 24/7 Priority Support (Amgad, 24 Nov 2026, #149): one monthly price, found by its lookup key, never
+ * hard-coded. The offer as the app shows it, word for word from the Eurodiagnosi offer v6.
+ */
+const ARK_SUPPORT_247_LOOKUP = 'arkagent_support_247_monthly_eur';
+const ARK_SUPPORT_247_CENTS = 10000;
+
+function ark_support_247_offer(): array
+{
+    return [
+        'monthlyCents' => ARK_SUPPORT_247_CENTS,
+        'currency' => 'eur',
+        'vat' => 'excluded',
+        'scope' => [
+            'el' => 'Υποστήριξη 24/7: απάντηση μέσα σε 1 ώρα, όλο το 24ωρο, 7 ημέρες την εβδομάδα, και επίλυση μέσα σε 1 εργάσιμη ημέρα, για το Ark Team, τους ψηφιακούς υπαλλήλους και το γλωσσικό μοντέλο. €100,00 / μήνα, σταθερή τιμή, χωρίς έκπτωση. Πληρωμή μηνιαία, προκαταβολικά. Προστίθεται ΦΠΑ 24%.',
+            'en' => '24/7 support: response within 1 hour, around the clock, 7 days a week, and resolution within 1 business day, for Ark Team, the digital employees and the language model. €100.00 / month, flat price, no discount. Payment monthly, in advance. VAT at 24% is added.',
+        ],
+    ];
+}
+
+/**
+ * The live Stripe price for 24/7 support, or null when Stripe cannot be asked, or the price found by the
+ * lookup key is inactive or differs from what the app shows (EUR 100.00 a month, VAT on top): a price
+ * the customer was not shown is never charged.
+ */
+function ark_support_247_price(): ?string
+{
+    $answer = ark_stripe_get('/v1/prices', ['lookup_keys' => [ARK_SUPPORT_247_LOOKUP], 'active' => 'true', 'limit' => 1]);
+    $price = $answer['data'][0] ?? null;
+    if (
+        !is_array($price) || ($price['lookup_key'] ?? '') !== ARK_SUPPORT_247_LOOKUP || ($price['active'] ?? false) !== true
+        || (int) ($price['unit_amount'] ?? -1) !== ARK_SUPPORT_247_CENTS || strtolower((string) ($price['currency'] ?? '')) !== 'eur'
+        || ($price['type'] ?? '') !== 'recurring' || ($price['recurring']['interval'] ?? '') !== 'month'
+        || ($price['tax_behavior'] ?? '') !== 'exclusive'
+        || preg_match('/^price_[A-Za-z0-9]{1,80}$/', (string) ($price['id'] ?? '')) !== 1
+    ) {
+        error_log('ark-support-247: the Stripe price is missing or differs from the offer.');
+        return null;
+    }
+    return (string) $price['id'];
+}
+
+/**
+ * 24/7 support subscriptions: one row per Stripe subscription, `status` active, past_due (a renewal
+ * failed) or cancelled. No name, email or company here: those go to the Control Board only.
+ */
+function ark_support_plans_table(PDO $db): void
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS support_plans (
+        subscription_id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        session_id TEXT,
+        started_at INTEGER NOT NULL,
+        paid_until INTEGER,
+        updated_at INTEGER NOT NULL
+    )');
+    $db->exec('CREATE INDEX IF NOT EXISTS support_plans_customer ON support_plans (customer_id, started_at)');
+}
+
+/** This customer's latest 24/7 support plan, as the app may show it, or null. */
+function ark_support_plan_view(PDO $db, string $customerId): ?array
+{
+    ark_support_plans_table($db);
+    $read = $db->prepare('SELECT * FROM support_plans WHERE customer_id = ? ORDER BY started_at DESC LIMIT 1');
+    $read->execute([$customerId]);
+    $row = $read->fetch();
+    if (!$row) {
+        return null;
+    }
+    return [
+        'status' => (string) $row['status'],
+        'startedAt' => gmdate('Y-m-d\TH:i:s\Z', (int) $row['started_at']),
+        'paidUntil' => $row['paid_until'] ? gmdate('Y-m-d\TH:i:s\Z', (int) $row['paid_until']) : null,
+    ];
+}
+
+/**
+ * Sends one signed message to the Control Board (`intake_url` with /intake/app replaced by `$path`),
+ * as the support forward is signed. When the board cannot take it now, it waits in `board_outbox` and
+ * goes on the next call (the webhook, Help & support, the support plan): nothing is lost, and nothing
+ * is kept once the board has it.
+ */
+function ark_board_send(PDO $db, string $path, array $payload): bool
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS board_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, body TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL)');
+    $db->prepare('INSERT INTO board_outbox (path, body, at) VALUES (?, ?, ?)')
+        ->execute([$path, json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), time()]);
+    return ark_board_flush($db) === 0;
+}
+
+/** Delivers what waits for the board, oldest first. Returns how many still wait. */
+function ark_board_flush(PDO $db, int $limit = 10): int
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS board_outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, body TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL)');
+    $intake = (string) ark_config('intake_url', '');
+    $secret = (string) ark_config('intake_secret', '');
+    if ($intake === '' || strlen($secret) < 32) {
+        return (int) $db->query('SELECT COUNT(*) FROM board_outbox')->fetchColumn();
+    }
+    $rows = $db->query('SELECT id, path, body FROM board_outbox ORDER BY id LIMIT ' . $limit)->fetchAll();
+    foreach ($rows as $row) {
+        $url = preg_replace('#/intake/app$#', (string) $row['path'], $intake);
+        $time = (string) time();
+        $nonce = ark_base64url(random_bytes(18));
+        $context = stream_context_create(['http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\nX-Ark-Time: $time\r\nX-Ark-Nonce: $nonce\r\nX-Ark-Signature: "
+                . hash_hmac('sha256', $time . '.' . $nonce . '.' . $row['body'], $secret) . "\r\n",
+            'content' => $row['body'],
+            'timeout' => 10,
+            'ignore_errors' => true,
+        ]]);
+        @file_get_contents($url, false, $context);
+        $headers = function_exists('http_get_last_response_headers') ? (http_get_last_response_headers() ?? []) : ($http_response_header ?? []);
+        $status = 0;
+        foreach ($headers as $line) {
+            if (preg_match('#^HTTP/\S+ (\d{3})#', $line, $match) === 1) {
+                $status = (int) $match[1];
+            }
+        }
+        if ($status >= 200 && $status < 300 || $status === 400) {
+            // Taken, or refused as malformed (sending it again would not help): either way, gone.
+            $db->prepare('DELETE FROM board_outbox WHERE id = ?')->execute([(int) $row['id']]);
+            if ($status === 400) {
+                error_log('ark-board: the board refused a ' . $row['path'] . ' message as malformed.');
+            }
+        } else {
+            $db->prepare('UPDATE board_outbox SET attempts = attempts + 1 WHERE id = ?')->execute([(int) $row['id']]);
+            error_log('ark-board: the board did not take a ' . $row['path'] . ' message (HTTP ' . $status . '); it will be sent again.');
+            break;
+        }
+    }
+    return (int) $db->query('SELECT COUNT(*) FROM board_outbox')->fetchColumn();
+}

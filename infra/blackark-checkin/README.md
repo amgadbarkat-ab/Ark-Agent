@@ -407,6 +407,19 @@ Amgad decided on 18 Nov: in-app Help & support is BlackArk's only support channe
 - Limit: 60 asks an hour per install. Only the install id and the time are kept, for an hour; never
   the internet address. The replies are never kept here.
 
+## 24/7 Priority Support (Amgad, 24 Nov 2026)
+
+- **`…/checkin/support/priority/`** (POST, with the install's own proof, as `servers/`) gives the app three things:
+  - the offer (`ark_support_247_offer` in `lib.php`: EUR 100 a month, VAT excluded, the scope in Greek and English);
+  - the customer's plan (active, past_due or cancelled);
+  - the buy link.
+- **`…/checkin/buy/?customer=<id>&support=247`** opens one subscription checkout.
+  - The price is found by lookup key `arkagent_support_247_monthly_eur`, and must be EUR 100.00, monthly, `tax_behavior` exclusive. Otherwise it is not sold.
+  - Stripe asks the name (billing address), the email and an optional company.
+- **The webhook** keeps the plan in `support_plans`: subscription, customer id, status, dates. It never keeps the name, email or company.
+  - Each change (`started`, `renewed`, `payment_failed`, `cancelled`) goes to the Control Board's `/intake/order`, signed with `intake_secret`, with the name, company and email on `started`.
+  - When the board cannot take it, the message waits in `board_outbox` and goes on the next webhook, Help & support request or plan request. It is deleted once the board has it.
+
 ## The Control Board's audit copy (#149, not deployed)
 
 The board copies its audit log here once a night (`AUDIT_COPY=blackark` on the board), so a copy is

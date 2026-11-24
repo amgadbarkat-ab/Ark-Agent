@@ -14,8 +14,13 @@
  *                            for a GPU tier its one-time activation, in one subscription checkout;
  *                            the prices found by their lookup keys and checked against
  *                            servers-catalogue.php, so nothing is charged that the app did not show
+ *   ?customer=<id>&support=247  24/7 Priority Support (Amgad, 24 Nov): EUR 100 a month plus VAT, the
+ *                            price found by its lookup key and checked against the offer the app
+ *                            shows; the name, email and an optional company are asked on Stripe's
+ *                            page, for the Control Board's order
  *   ?done=1                  where a top-up returns after paying
  *   ?done=server             where a private server order returns after paying
+ *   ?done=support            where a 24/7 support order returns after paying
  *
  * The customer id is the ArkAgent one (lower-case letters, digits, hyphens), carried to Stripe as
  * client_reference_id so the webhook knows whose key and balance it is. Stripe's restricted key and
@@ -52,6 +57,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
 if (($_GET['done'] ?? '') === 'server') {
     page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Ο ιδιωτικός σας διακομιστής θα είναι έτοιμος μέσα σε 1 εργάσιμη ημέρα. Το ArkAgent δείχνει πότε είναι έτοιμος, στις Ρυθμίσεις, Μοντέλα.', 'Thank you. Your private server will be ready within 1 working day. ArkAgent shows when it is ready, in Settings, Models.');
 }
+if (($_GET['done'] ?? '') === 'support') {
+    page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Η υποστήριξη 24/7 είναι ενεργή μόλις το επιβεβαιώσει η Stripe, σε λίγα λεπτά. Το ArkAgent το δείχνει στις Ρυθμίσεις, Βοήθεια και υποστήριξη.', 'Thank you. 24/7 support is active as soon as Stripe confirms the payment, within a few minutes. ArkAgent shows it in Settings, Help & support.');
+}
 if (isset($_GET['done'])) {
     page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Οι 5 ώρες προστίθενται στο υπόλοιπο τηλεφωνίας σε λίγα λεπτά και εμφανίζονται στο ArkAgent.', 'Thank you. The 5 hours are added to the phone balance within a few minutes and show in ArkAgent.');
 }
@@ -61,6 +69,43 @@ if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1) {
     page(400, 'ArkAgent', 'Λείπει ο κωδικός πελάτη από τον σύνδεσμο. Επικοινωνήστε με την BlackArk.', 'The link is missing the customer id. Contact BlackArk.');
 }
 $base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checkin'), '/');
+
+if (($_GET['support'] ?? '') === '247') {
+    $price = ark_support_247_price();
+    if ($price === null) {
+        page(503, 'ArkAgent', 'Οι αγορές δεν είναι ακόμη διαθέσιμες.', 'Buying is not available yet.');
+    }
+    $meta = ['kind' => 'support_247', 'customer_id' => $customer];
+    $form = [
+        'mode' => 'subscription',
+        'client_reference_id' => $customer,
+        'success_url' => $base . '/buy/?done=support',
+        'cancel_url' => (string) ark_config('buy_cancel_url', 'https://blackark.uk/'),
+        'locale' => 'el',
+        'metadata' => $meta,
+        'subscription_data' => ['metadata' => $meta],
+        'line_items' => [['price' => $price, 'quantity' => 1]],
+        // The name (with the billing address) and the email, for the board's order and the invoice.
+        'billing_address_collection' => 'required',
+        'custom_fields' => [[
+            'key' => 'company',
+            'label' => ['type' => 'custom', 'custom' => 'Εταιρεία / Company'],
+            'type' => 'text',
+            'optional' => 'true',
+        ]],
+    ];
+    if (ark_config('stripe_automatic_tax', false)) {
+        $form['automatic_tax'] = ['enabled' => 'true'];
+    }
+    $session = ark_stripe_api('/v1/checkout/sessions', $form);
+    $url = is_array($session) ? (string) ($session['url'] ?? '') : '';
+    if (strpos($url, 'https://checkout.stripe.com/') !== 0) {
+        error_log('ark-buy: Stripe did not open a 24/7 support checkout: ' . json_encode($session['error']['message'] ?? 'no answer'));
+        page(502, 'ArkAgent', 'Η σελίδα πληρωμής δεν άνοιξε. Δοκιμάστε ξανά σε λίγο.', 'The payment page did not open. Try again shortly.');
+    }
+    header('Location: ' . $url, true, 303);
+    exit;
+}
 
 if (isset($_GET['server'])) {
     $serverTier = (string) $_GET['server'];

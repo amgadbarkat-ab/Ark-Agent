@@ -76,4 +76,15 @@ export const EL_SUPPORT: Record<string, string> = {
   Solved: "Λύθηκε",
   "BlackArk's replies": "Απαντήσεις της BlackArk",
   "BlackArk replied": "Απάντηση της BlackArk",
+  // 24/7 Priority Support (Amgad, 24 Nov 2026).
+  "24/7 Priority Support": "Υποστήριξη προτεραιότητας 24/7",
+  "{price} / month, excl. VAT": "{price} / μήνα, χωρίς ΦΠΑ",
+  "Active since {date}": "Ενεργή από {date}",
+  "Paid until {date}": "Πληρωμένη έως {date}",
+  "Not active": "Μη ενεργή",
+  "Not active: the last payment did not go through.":
+    "Μη ενεργή: η τελευταία πληρωμή δεν ολοκληρώθηκε.",
+  "Order 24/7 support": "Παραγγελία υποστήριξης 24/7",
+  "Activate ArkAgent first to order 24/7 Priority Support.":
+    "Ενεργοποιήστε πρώτα το ArkAgent για να παραγγείλετε υποστήριξη προτεραιότητας 24/7.",
 };

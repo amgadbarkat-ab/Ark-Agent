@@ -90,6 +90,8 @@ if (
 }
 
 $db = ark_db();
+// Anything waiting for the Control Board (a 24/7 support order it could not take) goes first.
+ark_board_flush($db, 5);
 if ($unverified) {
     // Keyed, so the table never holds an address that could be read back.
     $from = hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), $secret);

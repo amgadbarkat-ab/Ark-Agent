@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { MODEL_HEADER } from "../../../shared/model-header";
 import { visibleAgentProfiles } from "../accounts/visibility";
+import { summaryGuidance } from "../chat-summary/service";
 import type { ManagedAgentConfig } from "../config";
 import { type RegisteredAgent, registeredAgentFromRow } from "../copilot";
 import type { CredentialSecretReader } from "../credentials";
@@ -51,6 +52,13 @@ export function createRuntimeAgentLoader(
    * ArkAgent instead of failing with "Connection error". Absent: always reachable.
    */
   containersReachServer?: () => Promise<boolean>,
+  /**
+   * Each employee's weekly summary of its conversations with this person (chat-summary/service.ts),
+   * read once per load for all of them: the employee starts every request from it. Absent: none.
+   */
+  summaries?: {
+    forRun(userId: string, agentIds: string[]): Promise<Map<string, string>>;
+  },
 ) {
   return async (actor: AgentActor): Promise<RegisteredAgent[]> => {
     const [active, tombstones] = await Promise.all([
@@ -76,13 +84,26 @@ export function createRuntimeAgentLoader(
       actor.id,
       team.map((member) => member.id),
     );
+    const summarised = await summaries
+      ?.forRun(
+        actor.id,
+        team.map((member) => member.id),
+      )
+      .catch(() => new Map<string, string>());
     for (const row of active) {
       const agent = registeredAgentFromRow({
         ...row,
         team: row.ownerUserId === actor.id ? teamGuidance(row, team) : null,
         memory:
-          held && row.ownerUserId === actor.id
-            ? memoryGuidance(held.get(row.id) ?? [])
+          row.ownerUserId === actor.id && (held || summarised?.has(row.id))
+            ? [
+                held ? memoryGuidance(held.get(row.id) ?? []) : null,
+                summarised?.has(row.id)
+                  ? summaryGuidance(summarised.get(row.id) as string)
+                  : null,
+              ]
+                .filter((part): part is string => part !== null)
+                .join("\n\n")
             : null,
       });
       if (!agent) continue;

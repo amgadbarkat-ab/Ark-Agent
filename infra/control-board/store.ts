@@ -158,6 +158,21 @@ export const SCHEMA: string[] = [
     at INTEGER NOT NULL,
     PRIMARY KEY (case_number, digest)
   )`,
+  // 24/7 Priority Support orders (orders.ts), one per Stripe subscription, each with its board case.
+  `CREATE TABLE IF NOT EXISTS support_orders (
+    subscription_id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    name TEXT,
+    company TEXT,
+    email TEXT,
+    licence TEXT,
+    started_at TEXT NOT NULL,
+    paid_until TEXT,
+    status TEXT NOT NULL CHECK (status IN ('active', 'past_due', 'cancelled')),
+    case_number INTEGER REFERENCES cases (number),
+    updated_at TEXT NOT NULL
+  )`,
+  "CREATE INDEX IF NOT EXISTS support_orders_customer ON support_orders (customer_id, status)",
   `CREATE TRIGGER IF NOT EXISTS case_replies_no_update BEFORE UPDATE ON case_replies
     BEGIN SELECT RAISE(ABORT, 'Replies are kept as sent.'); END`,
   `CREATE TRIGGER IF NOT EXISTS case_replies_no_delete BEFORE DELETE ON case_replies

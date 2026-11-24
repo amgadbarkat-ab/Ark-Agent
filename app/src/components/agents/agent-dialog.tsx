@@ -15,6 +15,7 @@ import type { ZodType } from "zod";
 import { AbstractAvatar } from "@/components/agents/abstract-avatar";
 import { AgentIconItem } from "@/components/agents/agent-icon-item";
 import { CallbackTokenPanel } from "@/components/agents/callback-token-panel";
+import { ChatSummarySection } from "@/components/agents/chat-summary-section";
 import { HandoffPanel } from "@/components/agents/handoff-panel";
 import { LockedInstructionsItem } from "@/components/agents/locked-instructions";
 import { MemoriesSection } from "@/components/agents/memories-section";
@@ -242,10 +243,13 @@ function AgentDialogBody({ agentId }: { agentId: string }) {
             ) : section === "handoff" ? (
               <HandoffPanel agentId={agentId} />
             ) : section === "memories" ? (
-              <MemoriesSection
-                agentId={agentId}
-                canManage={profile.canManage}
-              />
+              <>
+                <ChatSummarySection agentId={agentId} />
+                <MemoriesSection
+                  agentId={agentId}
+                  canManage={profile.canManage}
+                />
+              </>
             ) : section === "routines" ? (
               <RoutinesList agentId={agentId} embedded />
             ) : (
