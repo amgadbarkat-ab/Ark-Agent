@@ -16,6 +16,15 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   - **Every request starts from the summary.** It works the same with a model on this computer and one with an API key.
   - **The switch:** the employee's Memories page has it, and shows the summary. Switching it off first shows "deactivating this function will affect the usage of your LLM model."
   - **What it saves:** `docs/reports/weekly-summary-llm-usage.md`.
+- **24/7 Priority Support, ordered in the app (Amgad, 24 Nov, #149).**
+  - Settings → Help & support has "24/7 Priority Support", for any activated customer:
+    - BlackArk's scope in its own words (Greek first, English below);
+    - "€100 / month, excl. VAT";
+    - an Order button that opens BlackArk's checkout (Stripe, the price found by lookup key `arkagent_support_247_monthly_eur`).
+  - It shows as active once Stripe confirms the payment, and as not active after a failed renewal or a cancellation.
+  - **On the Control Board,** each purchase is a case with the customer, name, company, email, licence, Stripe subscription, start date and status. Renewals, failed renewals and cancellation update the same case.
+  - While the customer's 24/7 support is active, their cases carry a 24/7 tag, and a new one opens urgent, due within 1 hour around the clock.
+  - blackark.uk keeps only the plan (no name or email); those go to the board.
 - **Control Board: reply emails say From General@ (Amgad, 24 Nov).** support@ is not a sending address; the email now names General@, the mailbox that sends it (Exchange already delivered it so), and Reply-To stays support@, so the customer's answer still comes back to the case. Board only: takes effect at the next board deploy.
 - **Control Board: a reply sent twice goes once.** The live test on 24 Nov kept and emailed one reply twice, 3 seconds apart (a double click or a slow page). The same words from the same person on the same case within 2 minutes are now one reply. A new table, `case_reply_claims`: run the schema again before the deploy.
 - **Control Board: answers to support@ reach their case (live test, 24 Nov).** For mail to the support@ alias, Exchange lists General@ in Graph's recipients and keeps support@ only in the raw `To:` header, so the board dropped the customer's answer. It now reads the raw To and Cc headers too. It also no longer skips mail already opened in Outlook: it reads the last 14 days, read or not, and takes each Message-ID once.

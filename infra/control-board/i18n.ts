@@ -253,6 +253,14 @@ export const EL: Record<string, string> = {
   "Give the case a subject.": "Δώστε θέμα στην υπόθεση.",
   "No notes yet.": "Καμία σημείωση ακόμη.",
   "Replies to the customer": "Απαντήσεις στον πελάτη",
+  "24/7 Priority Support": "Υποστήριξη προτεραιότητας 24/7",
+  "Active: answer within 1 hour, any day, any time":
+    "Ενεργή: απάντηση μέσα σε 1 ώρα, κάθε μέρα, οποιαδήποτε ώρα",
+  "Renewal payment failed: not active":
+    "Η πληρωμή ανανέωσης απέτυχε: μη ενεργή",
+  "Cancelled: not active": "Ακυρώθηκε: μη ενεργή",
+  since: "από",
+  order: "παραγγελία",
   "No replies yet.": "Καμία απάντηση ακόμη.",
   Emailed: "Στάλθηκε με email",
   "Email failed": "Το email δεν στάλθηκε",

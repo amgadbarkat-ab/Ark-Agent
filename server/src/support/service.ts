@@ -93,6 +93,87 @@ export type SupportReplyCase = {
 };
 
 const REPLIES_FRESH_MS = 2 * 60 * 1000;
+const PRIORITY_FRESH_MS = 60 * 1000;
+
+/**
+ * 24/7 Priority Support (Amgad, 24 Nov 2026): the offer exactly as BlackArk sells it, this customer's
+ * plan, and BlackArk's buy page. Bought in the person's browser through Stripe Checkout; this file
+ * never sees a card or an amount being charged.
+ */
+export type PriorityOffer = {
+  monthlyCents: number;
+  vat: "excluded";
+  scope: { el: string; en: string };
+};
+export type PriorityPlan = {
+  /** active: 24/7 support is on. past_due: a renewal failed (not active). cancelled: ended. */
+  status: "active" | "past_due" | "cancelled";
+  startedAt: string;
+  paidUntil: string | null;
+};
+export type PriorityView = {
+  /** False before activation: BlackArk cannot tell whose install it is, so nothing can be ordered. */
+  available: boolean;
+  offer: PriorityOffer | null;
+  plan: PriorityPlan | null;
+  buyUrl: string | null;
+  /** A sentence for the app when BlackArk could not be asked. */
+  error: string | null;
+};
+
+/** BlackArk's answer, checked field by field; null when it is not one. */
+export function readPriorityAnswer(
+  raw: unknown,
+): Omit<PriorityView, "available" | "error"> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const body = raw as Record<string, unknown>;
+  const offer = (body.offer ?? {}) as Record<string, unknown>;
+  const scope = (offer.scope ?? {}) as Record<string, unknown>;
+  const buyUrl = body.buyUrl;
+  if (
+    typeof offer.monthlyCents !== "number" ||
+    !Number.isInteger(offer.monthlyCents) ||
+    offer.monthlyCents <= 0 ||
+    offer.vat !== "excluded" ||
+    typeof scope.el !== "string" ||
+    typeof scope.en !== "string" ||
+    scope.el.length > 2000 ||
+    scope.en.length > 2000 ||
+    typeof buyUrl !== "string" ||
+    buyUrl.length > 400 ||
+    !buyUrl.startsWith("https://")
+  )
+    return null;
+  let plan: PriorityPlan | null = null;
+  if (body.plan !== null && body.plan !== undefined) {
+    const p = body.plan as Record<string, unknown>;
+    if (
+      (p.status !== "active" &&
+        p.status !== "past_due" &&
+        p.status !== "cancelled") ||
+      typeof p.startedAt !== "string" ||
+      p.startedAt.length > 40
+    )
+      return null;
+    plan = {
+      status: p.status,
+      startedAt: p.startedAt,
+      paidUntil:
+        typeof p.paidUntil === "string" && p.paidUntil.length <= 40
+          ? p.paidUntil
+          : null,
+    };
+  }
+  return {
+    offer: {
+      monthlyCents: offer.monthlyCents,
+      vat: "excluded",
+      scope: { el: scope.el, en: scope.en },
+    },
+    plan,
+    buyUrl,
+  };
+}
 
 export class SupportUnavailableError extends Error {
   constructor() {
@@ -138,6 +219,8 @@ export function createSupportService(
     url?: string;
     /** Where the replies are asked for; by default `url` with "replies/" after it. */
     repliesUrl?: string;
+    /** Where 24/7 Priority Support is asked for; by default `url` with "priority/" after it. */
+    priorityUrl?: string;
     /**
      * A desktop install, where activation is required: with no trial or licence yet, a request
      * still goes, unverified. Elsewhere Help & support needs BlackArk's proof, as before.
@@ -153,6 +236,12 @@ export function createSupportService(
   const url = options.url ?? DEFAULT_SUPPORT_URL;
   const repliesUrl =
     options.repliesUrl ?? `${url.replace(/\/+$/, "")}/replies/`;
+  const priorityUrl =
+    options.priorityUrl ?? `${url.replace(/\/+$/, "")}/priority/`;
+  let priorityCache: {
+    at: number;
+    answer: Omit<PriorityView, "available" | "error">;
+  } | null = null;
   /** The last answer, for two minutes: blackark.uk allows each install 60 asks an hour. */
   let replyCache: { at: number; cases: SupportReplyCase[] } | null = null;
   const system = options.system ?? systemDescription;
@@ -366,6 +455,52 @@ export function createSupportService(
         }
       }
       return replyCache.cases.filter((one) => mine.has(one.case));
+    },
+
+    /**
+     * 24/7 Priority Support: the offer, this customer's plan and the buy page. Only an activated
+     * install can ask (BlackArk must know whose it is); `fresh` asks again even within the minute,
+     * after the person comes back from paying.
+     */
+    async priority(fresh = false): Promise<PriorityView> {
+      const who = await installIdentity(database);
+      if (!who)
+        return {
+          available: false,
+          offer: null,
+          plan: null,
+          buyUrl: null,
+          error: null,
+        };
+      const at = now().getTime();
+      if (!fresh && priorityCache && at - priorityCache.at < PRIORITY_FRESH_MS)
+        return { available: true, ...priorityCache.answer, error: null };
+      try {
+        const response = await send(priorityUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            customerId: who.customerId,
+            installId: who.installId,
+            proof: who.proof,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const answer = response.ok
+          ? readPriorityAnswer(await response.json().catch(() => null))
+          : null;
+        if (answer) {
+          priorityCache = { at, answer };
+          return { available: true, ...answer, error: null };
+        }
+      } catch {
+        // Not reachable: said below.
+      }
+      return {
+        available: true,
+        ...(priorityCache?.answer ?? { offer: null, plan: null, buyUrl: null }),
+        error: "BlackArk could not be reached. Try again in a few minutes.",
+      };
     },
 
     /** Sends every waiting request again. Returns how many were sent. */

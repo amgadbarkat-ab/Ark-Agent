@@ -204,6 +204,108 @@ function credit_phone(PDO $db, array $session): void
 }
 
 /*
+ * 24/7 Priority Support (Amgad, 24 Nov 2026): a subscription the buy page opened with metadata kind
+ * "support_247". Kept in support_plans, never in licenses. Each change goes to the Control Board as an
+ * order (`/intake/order`, signed): the paid checkout opens the board's case with the name, company and
+ * email Stripe collected (passed through, never kept here); each paid invoice, failed renewal and the
+ * end update the same case. Handled here, before everything else, and answered.
+ */
+ark_support_plans_table($db);
+$supportRow = null;
+if ($subscription !== '') {
+    $read = $db->prepare('SELECT * FROM support_plans WHERE subscription_id = ?');
+    $read->execute([$subscription]);
+    $supportRow = $read->fetch() ?: null;
+}
+$supportMeta = (array) ($object['metadata'] ?? []);
+if (($supportMeta['kind'] ?? '') !== 'support_247') {
+    $supportMeta = (array) ($object['subscription_details']['metadata'] ?? ($object['parent']['subscription_details']['metadata'] ?? []));
+}
+if ($supportRow !== null || ($supportMeta['kind'] ?? '') === 'support_247') {
+    $licence = function (string $customer) use ($db): string {
+        $find = $db->prepare("SELECT plan, status FROM licenses WHERE customer_id = ? ORDER BY updated_at DESC LIMIT 1");
+        $find->execute([$customer]);
+        $row = $find->fetch();
+        return $row ? ((string) $row['plan'] . ' (' . (string) $row['status'] . ')') : 'no paid licence on file (trial or not activated)';
+    };
+    $order = function (string $event, array $row, array $who = []) use ($db, $licence): void {
+        ark_board_send($db, '/intake/order', [
+            'kind' => 'support_247',
+            'event' => $event,
+            'customerId' => (string) $row['customer_id'],
+            'subscriptionId' => (string) $row['subscription_id'],
+            'status' => (string) $row['status'],
+            'startedAt' => gmdate('Y-m-d\TH:i:s\Z', (int) $row['started_at']),
+            'paidUntil' => !empty($row['paid_until']) ? gmdate('Y-m-d\TH:i:s\Z', (int) $row['paid_until']) : null,
+            'licence' => $licence((string) $row['customer_id']),
+        ] + $who);
+    };
+    switch ($event['type']) {
+        case 'checkout.session.completed':
+        case 'checkout.session.async_payment_succeeded':
+            $customer = strtolower(trim((string) ($object['client_reference_id'] ?? '')));
+            $paid = in_array($object['payment_status'] ?? '', ['paid', 'no_payment_required'], true);
+            if (!$paid || preg_match('/^sub_[A-Za-z0-9_]+$/', $subscription) !== 1
+                || preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1) {
+                reply(200, 'Support order not paid yet, or not complete.');
+            }
+            $db->prepare('INSERT OR IGNORE INTO support_plans (subscription_id, customer_id, status, session_id, started_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([$subscription, $customer, 'active', (string) ($object['id'] ?? ''), $now, $now]);
+            $read = $db->prepare('SELECT * FROM support_plans WHERE subscription_id = ?');
+            $read->execute([$subscription]);
+            $company = '';
+            foreach ((array) ($object['custom_fields'] ?? []) as $field) {
+                if (($field['key'] ?? '') === 'company') {
+                    $company = (string) ($field['text']['value'] ?? '');
+                }
+            }
+            $details = (array) ($object['customer_details'] ?? []);
+            // The first 200 characters of UTF-8 text (no mbstring needed on the host).
+            $cut = static fn (string $text): string => preg_match('/^.{0,200}/su', trim($text), $m) === 1 ? $m[0] : '';
+            $order('started', $read->fetch(), [
+                'name' => $cut((string) ($details['name'] ?? '')),
+                'company' => $cut($company),
+                'email' => filter_var((string) ($details['email'] ?? ''), FILTER_VALIDATE_EMAIL) ? (string) $details['email'] : '',
+            ]);
+            reply(200, 'Support ordered.');
+        case 'invoice.paid':
+            if ($supportRow !== null) {
+                $periodEnd = 0;
+                foreach ((array) ($object['lines']['data'] ?? []) as $line) {
+                    $periodEnd = max($periodEnd, (int) ($line['period']['end'] ?? 0));
+                }
+                $db->prepare("UPDATE support_plans SET paid_until = MAX(COALESCE(paid_until, 0), ?), status = CASE status WHEN 'cancelled' THEN status ELSE 'active' END, updated_at = ? WHERE subscription_id = ?")
+                    ->execute([$periodEnd, $now, $subscription]);
+                $read = $db->prepare('SELECT * FROM support_plans WHERE subscription_id = ?');
+                $read->execute([$subscription]);
+                $order('renewed', $read->fetch());
+            }
+            reply(200, 'Support paid.');
+        case 'invoice.payment_failed':
+            if ($supportRow !== null) {
+                $db->prepare("UPDATE support_plans SET status = 'past_due', updated_at = ? WHERE subscription_id = ? AND status <> 'cancelled'")
+                    ->execute([$now, $subscription]);
+                $read = $db->prepare('SELECT * FROM support_plans WHERE subscription_id = ?');
+                $read->execute([$subscription]);
+                $order('payment_failed', $read->fetch());
+            }
+            reply(200, 'Support renewal failed.');
+        case 'customer.subscription.deleted':
+            if ($supportRow !== null) {
+                $db->prepare("UPDATE support_plans SET status = 'cancelled', updated_at = ? WHERE subscription_id = ?")
+                    ->execute([$now, $subscription]);
+                $read = $db->prepare('SELECT * FROM support_plans WHERE subscription_id = ?');
+                $read->execute([$subscription]);
+                $order('cancelled', $read->fetch());
+            }
+            reply(200, 'Support cancelled.');
+        default:
+            reply(200, 'Support event ignored.');
+    }
+}
+
+/*
  * Ark Private Server (#149, 19 Nov): a subscription the buy page opened with metadata kind
  * "private_server". Kept in private_servers, never in licenses, so it signs no licence key and a
  * licence's end never touches it. A paid checkout records the order as "setting_up" (BlackArk orders

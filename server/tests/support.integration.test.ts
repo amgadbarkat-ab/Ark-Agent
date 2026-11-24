@@ -371,4 +371,89 @@ describe("Help & support (#149)", () => {
     });
     expect(sent[1]?.body.installId).toBe(sent[0]?.body.installId);
   });
+  test("24/7 Priority Support: asked with the install's proof; the offer, the plan and the buy page come back", async () => {
+    const trial = await importTrial();
+    const offer = {
+      monthlyCents: 10000,
+      currency: "eur",
+      vat: "excluded",
+      scope: {
+        el: "Υποστήριξη 24/7: απάντηση μέσα σε 1 ώρα",
+        en: "24/7 support: response within 1 hour, around the clock",
+      },
+    };
+    const { service, sent } = harness([
+      {
+        status: 200,
+        body: {
+          offer,
+          plan: null,
+          buyUrl:
+            "https://blackark.example/checkin/buy/?customer=demo-shop&support=247",
+        },
+      },
+      {
+        status: 200,
+        body: {
+          offer,
+          plan: {
+            status: "active",
+            startedAt: "2026-11-24T10:00:00Z",
+            paidUntil: "2026-12-24T10:00:00Z",
+          },
+          buyUrl:
+            "https://blackark.example/checkin/buy/?customer=demo-shop&support=247",
+        },
+      },
+    ]);
+    const first = await service.priority();
+    expect(first).toEqual({
+      available: true,
+      offer: { monthlyCents: 10000, vat: "excluded", scope: offer.scope },
+      plan: null,
+      buyUrl:
+        "https://blackark.example/checkin/buy/?customer=demo-shop&support=247",
+      error: null,
+    });
+    expect(sent[0]?.url).toBe(
+      "https://blackark.example/checkin/support/priority/",
+    );
+    expect(sent[0]?.body).toEqual({
+      customerId: "demo-shop",
+      installId: trial.installId,
+      proof: {
+        kind: "profile",
+        profile: trial.profile,
+        signature: trial.signature,
+      },
+    });
+    // Within the minute, BlackArk is not asked again; after paying, `fresh` asks.
+    expect((await service.priority()).plan).toBeNull();
+    expect(sent).toHaveLength(1);
+    expect((await service.priority(true)).plan?.status).toBe("active");
+  });
+
+  test("24/7 Priority Support before activation: not available, nothing is asked", async () => {
+    const { service, sent } = harness([], { beforeActivation: true });
+    expect(await service.priority()).toEqual({
+      available: false,
+      offer: null,
+      plan: null,
+      buyUrl: null,
+      error: null,
+    });
+    expect(sent).toHaveLength(0);
+  });
+
+  test("24/7 Priority Support: an answer that is not one, or BlackArk down, says so", async () => {
+    await importTrial();
+    const { service } = harness([
+      { status: 200, body: { offer: { monthlyCents: "100" }, buyUrl: "x" } },
+      { status: 502, body: {} },
+    ]);
+    expect((await service.priority()).error).toContain("could not be reached");
+    const down = await service.priority(true);
+    expect(down.available).toBe(true);
+    expect(down.offer).toBeNull();
+  });
 });
