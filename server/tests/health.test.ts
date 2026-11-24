@@ -53,6 +53,8 @@ describe("runtime capabilities", () => {
       appUrlScheme: null,
       // Names only. The sign-in screen reads this to know which buttons to draw.
       authProviders: ["google"],
+      // Whether the sign-in screen asks for an email and password (the desktop, 24 Nov 2026).
+      passwordSignIn: false,
       // A boolean, not a list: naming the registered providers would tell anybody who loads the
       // sign-in page which companies use this deployment.
       ssoConfigured: false,
@@ -78,6 +80,7 @@ describe("runtime capabilities", () => {
       "androidPackage",
       "appUrlScheme",
       "authProviders",
+      "passwordSignIn",
       "ssoConfigured",
     ]);
     // The provider list is names, never the clients and secrets behind them.

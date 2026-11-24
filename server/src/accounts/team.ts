@@ -112,8 +112,22 @@ export function createTeamService(dependencies: {
    * computer for the administrator (the administrator's own browser) is let go.
    */
   onAssigned?: (agentIds: string[]) => Promise<void> | void;
+  /**
+   * The one person an install already has, kept as its administrator, or null when it has none or
+   * more than one. By default, read from the users table.
+   */
+  soleUser?: () => Promise<string | null>;
 }) {
   const { database } = dependencies;
+  const soleUser =
+    dependencies.soleUser ??
+    (async () => {
+      const found = await database
+        .select({ id: users.id })
+        .from(users)
+        .limit(2);
+      return found.length === 1 ? (found[0]?.id ?? null) : null;
+    });
   const now = () => new Date((dependencies.now ?? Date.now)());
 
   function checkPerson(input: {
@@ -387,13 +401,10 @@ export function createTeamService(dependencies: {
           409,
         );
       const auth = await dependencies.authContext();
-      const existing = await database
-        .select({ id: users.id })
-        .from(users)
-        .limit(2);
+      const kept = await soleUser();
       let userId: string;
-      if (existing.length === 1 && existing[0]) {
-        userId = existing[0].id;
+      if (kept) {
+        userId = kept;
         await auth.internalAdapter.updateUser(userId, {
           name: person.name,
           email: person.email,
@@ -410,12 +421,20 @@ export function createTeamService(dependencies: {
           })
         ).id;
       }
-      await auth.internalAdapter.linkAccount({
-        userId,
-        providerId: "credential",
-        accountId: userId,
-        password: await auth.password.hash(person.password),
-      });
+      const hashed = await auth.password.hash(person.password);
+      // The person kept may already have a password here (a set-up begun before, then retried):
+      // theirs is replaced, never added beside, which the sign-in tables refuse.
+      const credential = (await auth.internalAdapter.findAccounts(userId)).some(
+        (one) => one.providerId === "credential",
+      );
+      if (credential) await auth.internalAdapter.updatePassword(userId, hashed);
+      else
+        await auth.internalAdapter.linkAccount({
+          userId,
+          providerId: "credential",
+          accountId: userId,
+          password: hashed,
+        });
       await database
         .insert(teamMembers)
         .values({ userId, kind: "admin", status: "active", activatedAt: now() })

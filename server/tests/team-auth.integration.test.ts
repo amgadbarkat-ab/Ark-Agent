@@ -32,8 +32,10 @@ const config = loadConfig(
   }),
 );
 const auth = createAuth(config, database);
+let soleUser: string | null = null;
 const team = createTeamService({
   database,
+  soleUser: async () => soleUser,
   authContext: async () =>
     (await (auth as unknown as { $context: Promise<TeamAuthContext> })
       .$context) as TeamAuthContext,
@@ -154,4 +156,36 @@ test("a sub-profile's first password works with the real library, and the new on
     .from(teamMembers)
     .where(eq(teamMembers.userId, id));
   expect(row?.must).toBe(false);
+});
+
+test("an install's one person becomes the administrator, signing in with the new password only", async () => {
+  const context = await (
+    auth as unknown as { $context: Promise<TeamAuthContext> }
+  ).$context;
+  const before = email();
+  const { id } = await context.internalAdapter.createUser({
+    name: "dev",
+    email: before,
+    emailVerified: false,
+  });
+  await context.internalAdapter.linkAccount({
+    userId: id,
+    providerId: "credential",
+    accountId: id,
+    password: await context.password.hash("an-older-password"),
+  });
+  soleUser = id;
+  try {
+    const admin = email();
+    const { userId } = await team.setup({
+      name: "Maria",
+      email: admin,
+      password: "a-long-password",
+    });
+    expect(userId).toBe(id);
+    expect((await signIn(admin, "a-long-password")).status).toBe(200);
+    expect((await signIn(admin, "an-older-password")).status).toBe(401);
+  } finally {
+    soleUser = null;
+  }
 });

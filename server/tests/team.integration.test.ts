@@ -125,13 +125,15 @@ function billing(start = 0) {
   return bill;
 }
 
-async function service(bill = billing()) {
+async function service(bill = billing(), soleUser: string | null = null) {
   const assigned: string[][] = [];
   return {
     team: createTeamService({
       database,
       authContext,
       billing: () => bill,
+      // Not the shared test database's count of people, which other tests change.
+      soleUser: async () => soleUser,
       onAssigned: (agentIds) => {
         assigned.push(agentIds);
       },
@@ -214,6 +216,44 @@ describe("a customer's team", () => {
         password: "another-pass-1",
       }),
     ).rejects.toThrow("already has its administrator");
+  });
+
+  test("an install with its one person keeps that person, and their password is replaced, never doubled", async () => {
+    const id = `user-${randomUUID()}`;
+    await database
+      .insert(users)
+      .values({ id, email: `dev-${randomUUID()}@openbot.local`, name: "dev" });
+    made.users.push(id);
+    // A set-up begun before and retried: that person already has a password here.
+    await database.insert(accounts).values({
+      id: randomUUID(),
+      userId: id,
+      providerId: "credential",
+      accountId: id,
+      password: hash("the-old-password"),
+    });
+    const { team } = await service(billing(), id);
+    const email = `maria-${randomUUID()}@shop.example`;
+    const made_ = await team.setup({
+      name: "Maria",
+      email,
+      password: "the-new-password",
+    });
+    expect(made_.userId).toBe(id);
+    const [person] = await database
+      .select()
+      .from(users)
+      .where(eq(users.id, id));
+    expect(person?.email).toBe(email);
+    const credentials = await database
+      .select()
+      .from(accounts)
+      .where(
+        and(eq(accounts.userId, id), eq(accounts.providerId, "credential")),
+      );
+    expect(credentials.map((one) => one.password)).toEqual([
+      hash("the-new-password"),
+    ]);
   });
 
   test("a sub-profile is made with its employees, but cannot use ArkAgent until it is paid", async () => {
