@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.53
+
 - **Weekly summary, then chat cleanup (Amgad, 24 Nov, #149).**
   - On by default for every new digital employee. Employees made before this version keep their full chat until the person switches it on.
   - **The weekly run:** once a week, Sunday 02:00 to 05:59 in the person's own time zone, the employee's model writes a summary file of its one-to-one conversations that week, merged with last week's.
