@@ -27,7 +27,7 @@ staff browser ── https ──▶ blackark-board.<account>.workers.dev   (a W
      blackark.uk/checkin/export/       ◀── signed POST, signed answer
      blackark.uk/checkin/support/      ──▶ signed POST /intake/app   (Help & support from the app)
      blackark.uk/checkin/audit-copy/   ◀── nightly signed POST of new audit entries (AUDIT_COPY=blackark)
-     graph.microsoft.com (General@)    ◀── app-only token; unread mail to support@ only
+     graph.microsoft.com (General@)    ◀── app-only token; mail to support@ only
      api.stripe.com                    ◀── restricted read-only key
      phone relay /health               ◀── GET
      api.github.com                    ◀── read-only token
@@ -73,7 +73,7 @@ staff browser ── https ──▶ blackark-board.<account>.workers.dev   (a W
 | blackark.uk's export | HMAC-SHA256 with `export_secret`, both ways: the request with a time, a nonce taken once and the body; the answer over its time, **our** nonce and the body |
 | Help & support from the app | blackark.uk checks the install's BlackArk-signed trial file or licence key, then signs the forward with `intake_secret` (time, nonce taken once, body). The app's request id makes a retry give back the same case. |
 | The audit copy at blackark.uk | HMAC-SHA256 with `audit_copy_secret`, both ways, as the export; it keeps only a batch that continues its chain |
-| Support mail | only unread mail in General@ whose To or Cc is exactly support@blackark.uk; everything else is never fetched, flagged or moved |
+| Support mail | only mail in General@ whose To or Cc (as Graph lists it, or in the raw header) is exactly support@blackark.uk; everything else is never fetched, flagged or moved |
 | Stripe | a restricted key that can only read Subscriptions, Checkout Sessions and Invoices |
 | The relay | only its public `/health` answer (`ok`) |
 | GitHub | a fine-grained token that can only read this repository's issues and PRs |
@@ -213,17 +213,20 @@ through **Microsoft Graph** as an Entra app (client credentials: `MS_TENANT_ID`,
 `MS_CLIENT_SECRET`), never as a person and never with General@'s password (Amgad, 23 Nov 2026).
 Every 5 minutes a Cron Trigger (`mail.ts`, `graphMailbox`):
 1. gets an app-only token from `login.microsoftonline.com` (one per run, kept nowhere);
-2. lists General@'s **unread** Inbox mail from the last 14 days, newest first, asking only for each
-   message's id, To and Cc (at most 4 pages of 50);
-3. picks the ones whose To or Cc holds support@ exactly, at most 5 a run, and reads only those in full,
-   with the body as plain text. A read never marks a message read;
+2. lists General@'s Inbox mail from the last 14 days, **read or not** (staff may have opened it in
+   Outlook first), newest first, asking only for each message's id, Message-ID, To, Cc and headers
+   (at most 4 pages of 50);
+3. picks the ones whose To or Cc holds support@ exactly, from Graph's recipients **or the raw `To:` and
+   `Cc:` headers**. For mail to the alias, Exchange lists General@ in `toRecipients` and keeps support@
+   only in the header (live, 24 Nov). It skips any Message-ID the board already took, takes at most 5
+   a run, and reads only those in full, with the body as plain text. A read never marks a message read;
 4. checks the To and Cc again on the full message;
 5. opens a case, or adds a reply to its case: by In-Reply-To, or `[Case #N]` in the subject. A run
    handles its messages oldest first, so a reply comes after its original;
 6. marks **only that message** as read (`PATCH … {"isRead": true}`).
 
 Nothing else in General@ is read in full, flagged, moved, deleted or sent. Attachments are not fetched.
-Unread mail to support@ older than 14 days is left for a person.
+Mail to support@ older than 14 days is left for a person.
 
 #### Setting up the Graph app (COO, on Amgad's order)
 

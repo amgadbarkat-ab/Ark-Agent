@@ -15,6 +15,8 @@ type Stored = {
   internetMessageId: string;
   to: string[];
   cc: string[];
+  /** The raw To header, when Exchange lists something else in toRecipients (an alias). */
+  rawTo?: string;
   subject: string;
   text: string;
   inReplyTo?: string;
@@ -35,6 +37,7 @@ beforeEach(() => {
 function mail(fields: {
   to?: string[];
   cc?: string[];
+  rawTo?: string;
   subject?: string;
   text?: string;
   inReplyTo?: string;
@@ -47,6 +50,7 @@ function mail(fields: {
     internetMessageId: `<m${made}@x>`,
     to: fields.to ?? ["general@blackark.uk"],
     cc: fields.cc ?? [],
+    ...(fields.rawTo ? { rawTo: fields.rawTo } : {}),
     subject: fields.subject ?? `Message ${made}`,
     text: fields.text ?? "Hello",
     ...(fields.inReplyTo ? { inReplyTo: fields.inReplyTo } : {}),
@@ -66,6 +70,11 @@ function graph(messages: Stored[], options: { nextLink?: string } = {}) {
   const requests: string[] = [];
   const recipients = (list: string[]) =>
     list.map((address) => ({ emailAddress: { address, name: address } }));
+  const rawHeaders = (m: Stored) => [
+    { name: "To", value: m.rawTo ?? m.to.join(", ") },
+    ...(m.cc.length ? [{ name: "Cc", value: m.cc.join(", ") }] : []),
+    ...(m.inReplyTo ? [{ name: "In-Reply-To", value: m.inReplyTo }] : []),
+  ];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     const method = init?.method ?? "GET";
@@ -97,9 +106,7 @@ function graph(messages: Stored[], options: { nextLink?: string } = {}) {
       url.pathname === `${base}/mailFolders/inbox/messages`
     ) {
       const filter = url.searchParams.get("$filter") ?? "";
-      const since = filter.match(
-        /^receivedDateTime ge (\S+) and isRead eq false$/,
-      )?.[1];
+      const since = filter.match(/^receivedDateTime ge (\S+)$/)?.[1];
       if (
         !since ||
         url.searchParams.get("$orderby") !== "receivedDateTime desc"
@@ -107,19 +114,21 @@ function graph(messages: Stored[], options: { nextLink?: string } = {}) {
         return new Response("InefficientFilter", { status: 400 });
       const top = Number(url.searchParams.get("$top"));
       const skip = Number(url.searchParams.get("$skip") ?? 0);
-      const unread = messages
-        .filter((m) => !m.isRead && m.receivedDateTime >= since)
+      const recent = messages
+        .filter((m) => m.receivedDateTime >= since)
         .sort((a, b) => b.receivedDateTime.localeCompare(a.receivedDateTime));
-      const page = unread.slice(skip, skip + top);
+      const page = recent.slice(skip, skip + top);
       const next = new URL(url);
       next.searchParams.set("$skip", String(skip + top));
       return Response.json({
         value: page.map((m) => ({
           id: m.id,
+          internetMessageId: m.internetMessageId,
           toRecipients: recipients(m.to),
           ccRecipients: recipients(m.cc),
+          internetMessageHeaders: rawHeaders(m),
         })),
-        ...(skip + top < unread.length
+        ...(skip + top < recent.length
           ? { "@odata.nextLink": options.nextLink ?? next.toString() }
           : {}),
       });
@@ -142,9 +151,7 @@ function graph(messages: Stored[], options: { nextLink?: string } = {}) {
         body: text
           ? { contentType: "text", content: stored.text }
           : { contentType: "html", content: `<p>${stored.text}</p>` },
-        internetMessageHeaders: stored.inReplyTo
-          ? [{ name: "In-Reply-To", value: stored.inReplyTo }]
-          : [],
+        internetMessageHeaders: rawHeaders(stored),
       });
     }
     if (stored && method === "PATCH") {
@@ -162,7 +169,7 @@ function graph(messages: Stored[], options: { nextLink?: string } = {}) {
 const NOW = () => Date.UTC(2026, 10, 23, 12, 0);
 
 describe("General@ through Microsoft Graph, filtered on support@", () => {
-  test("takes only messages sent to support@ (To or Cc); everything else is never fetched in full or marked read", async () => {
+  test("takes only messages sent to support@ (To or Cc), read or not; everything else is never fetched in full or marked read", async () => {
     const t = await testBoard();
     current = t;
     const inbox = [
@@ -185,7 +192,7 @@ describe("General@ through Microsoft Graph, filtered on support@", () => {
     const g = graph(inbox);
     const mailbox = graphMailbox(SETTINGS, { fetch: g.fetch, now: NOW });
 
-    expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([1, 2]);
+    expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([1, 2, 3]);
     expect(await getCase(t.sql, 1)).toMatchObject({
       customer_id: "demo-shop",
       channel: "email",
@@ -202,6 +209,8 @@ describe("General@ through Microsoft Graph, filtered on support@", () => {
       ["Looks like s", false],
       ["Already read", true],
     ]);
+    // Opened in Outlook before the board saw it: still a case (live, 24 Nov).
+    expect((await getCase(t.sql, 3))?.subject).toBe("Already read");
     // One sign-in, one list of ids and recipients, then only the two support@ messages, read in
     // full, then each marked read once its case is saved. Nothing else is asked for, changed,
     // moved, deleted or sent.
@@ -210,10 +219,17 @@ describe("General@ through Microsoft Graph, filtered on support@", () => {
       "GET /v1.0/users/General%40blackark.uk/mailFolders/inbox/messages?…",
       "GET /v1.0/users/General%40blackark.uk/messages/g1?…",
       "GET /v1.0/users/General%40blackark.uk/messages/g3?…",
+      "GET /v1.0/users/General%40blackark.uk/messages/g5?…",
       "PATCH /v1.0/users/General%40blackark.uk/messages/g1",
       "PATCH /v1.0/users/General%40blackark.uk/messages/g3",
+      "PATCH /v1.0/users/General%40blackark.uk/messages/g5",
     ]);
+    // The next run lists the Inbox again, and fetches nothing it already took.
+    const before = g.requests.length;
     expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([]);
+    expect(
+      g.requests.slice(before).filter((r) => r.includes("/messages/g")),
+    ).toEqual([]);
   });
 
   test("a reply to a case's message becomes a note on it, even when both arrive in one run", async () => {
@@ -234,6 +250,56 @@ describe("General@ through Microsoft Graph, filtered on support@", () => {
     expect((await notes(t.sql, 1)).at(-1)?.body.endsWith("More detail")).toBe(
       true,
     );
+  });
+
+  test("an answer to support@ that Exchange lists as General@ (the alias resolved), already read in Outlook, becomes a note on its case (live, 24 Nov)", async () => {
+    const t = await testBoard();
+    current = t;
+    const first = mail({ to: ["support@blackark.uk"], subject: "STAFF TEST" });
+    const g = graph([first]);
+    const mailbox = graphMailbox(SETTINGS, { fetch: g.fetch, now: NOW });
+    expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([1]);
+    const answer = mail({
+      to: ["General@blackark.uk"],
+      rawTo: "BlackArk Support <support@blackark.uk>",
+      subject: "RE: [Case #1] STAFF TEST",
+      text: "Got it.",
+      isRead: true,
+    });
+    const g2 = graph([first, answer]);
+    expect(
+      await pollMailbox(
+        t.sql,
+        graphMailbox(SETTINGS, { fetch: g2.fetch, now: NOW }),
+        t.clock.now,
+      ),
+    ).toEqual([1]);
+    expect((await notes(t.sql, 1)).at(-1)?.body.endsWith("Got it.")).toBe(true);
+    // A message to General@ only, with no support@ in any header, is still left alone.
+    const plain = mail({ to: ["General@blackark.uk"], subject: "Supplier" });
+    const g3 = graph([plain]);
+    expect(
+      await pollMailbox(
+        t.sql,
+        graphMailbox(SETTINGS, { fetch: g3.fetch, now: NOW }),
+        t.clock.now,
+      ),
+    ).toEqual([]);
+    expect(g3.requests.some((r) => r.includes(`/messages/${plain.id}`))).toBe(
+      false,
+    );
+  });
+
+  test("messages already taken do not use up a run: 7 for support@ go 5, then 2", async () => {
+    const t = await testBoard();
+    current = t;
+    const g = graph(
+      Array.from({ length: 7 }, () => mail({ to: ["support@blackark.uk"] })),
+    );
+    const mailbox = graphMailbox(SETTINGS, { fetch: g.fetch, now: NOW });
+    expect((await pollMailbox(t.sql, mailbox, t.clock.now)).length).toBe(5);
+    expect((await pollMailbox(t.sql, mailbox, t.clock.now)).length).toBe(2);
+    expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([]);
   });
 
   test("a refused sign-in reads nothing, and the error names neither the app nor the secret", async () => {
