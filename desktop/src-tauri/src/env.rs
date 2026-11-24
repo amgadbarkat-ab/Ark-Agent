@@ -819,6 +819,14 @@ pub fn compose(
         format!("http://localhost:{}", ports.server),
     );
 
+    // The office network (Amgad, 24 Nov 2026, option A): the administrator can let staff computers on
+    // the same network sign in to this one, over HTTPS with this install's own certificate. Offered
+    // here and nowhere else; off until the administrator switches it on in Settings, then Team. The
+    // server serves the built app there itself, so a staff computer needs nothing but the address.
+    env.insert("ARK_OFFICE_NETWORK".into(), "available".into());
+    env.insert("ARK_OFFICE_PORT".into(), OFFICE_PORT.to_string());
+    env.insert("APP_DIST_DIR".into(), "../app/dist".into());
+
     // Activation (#109, v0.1.42): on a desktop install nothing runs without a trial activation
     // code, a paid licence key or the trial setup file. Only the desktop app sets this, so a hosted
     // deployment, a developer's machine and CI are unchanged. An older server ignores it.
@@ -946,6 +954,9 @@ pub enum ModelCredential {
         model: String,
     },
 }
+
+/// Where the company's ArkAgent answers staff computers on the office network, over HTTPS.
+pub const OFFICE_PORT: u16 = 52443;
 
 /// What is sent as the key when the endpoint named needs none.
 ///
@@ -1574,6 +1585,10 @@ HTTPS_PROXY=http://proxy:8080
             &BTreeMap::new(),
         );
         let get = |key: &str| env.get(key).map(String::as_str);
+        // The office network is offered; the server switches it on only when the administrator does.
+        assert_eq!(get("ARK_OFFICE_NETWORK"), Some("available"));
+        assert_eq!(get("ARK_OFFICE_PORT"), Some("52443"));
+        assert_eq!(get("APP_DIST_DIR"), Some("../app/dist"));
         assert_eq!(get("OPENBOT_SINGLE_USER"), Some("false"));
         assert_eq!(get("OPENBOT_PASSWORD_SIGNIN"), Some("true"));
         assert_eq!(get("INITIAL_ADMIN_EMAILS"), Some(""));

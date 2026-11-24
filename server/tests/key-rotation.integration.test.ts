@@ -169,6 +169,7 @@ describe("re-sealing under the current key", () => {
       "model_connections.encrypted_key",
       "sso_providers.oidc_config",
       "sso_providers.saml_config",
+      "office_network.sealed_key",
     ]);
   });
 

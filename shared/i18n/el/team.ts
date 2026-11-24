@@ -56,6 +56,22 @@ export const EL_TEAM: Record<string, string> = {
     "Χάνει αυτούς τους ψηφιακούς υπαλλήλους μόλις επιβεβαιώσετε.",
   "Move them and save": "Μεταφορά και αποθήκευση",
 
+  // The office network.
+  "Office network": "Δίκτυο γραφείου",
+  "Let my staff sign in from this office network":
+    "Οι υπάλληλοί μου να συνδέονται από αυτό το δίκτυο γραφείου",
+  'Your staff install ArkAgent on their own computers, choose "Join my company\'s ArkAgent", enter the join code below and sign in with their own sub-profile. Everything stays on this computer, so it must be on and connected while they work. Only over HTTPS, and nobody gets in without signing in.':
+    "Οι υπάλληλοί σας εγκαθιστούν το ArkAgent στους δικούς τους υπολογιστές, επιλέγουν «Σύνδεση στο ArkAgent της εταιρείας μου», εισάγουν τον κωδικό σύνδεσης παρακάτω και συνδέονται με το δικό τους υποπροφίλ. Όλα μένουν σε αυτόν τον υπολογιστή, οπότε πρέπει να είναι ανοιχτός και συνδεδεμένος όσο δουλεύουν. Μόνο μέσω HTTPS, και κανείς δεν μπαίνει χωρίς σύνδεση.",
+  "Join code": "Κωδικός σύνδεσης",
+  Copied: "Αντιγράφηκε",
+  "This computer: {addresses}, port {port}.":
+    "Αυτός ο υπολογιστής: {addresses}, θύρα {port}.",
+  "This computer is not connected to a network, so staff cannot reach it. Connect it, then come back here.":
+    "Αυτός ο υπολογιστής δεν είναι συνδεδεμένος σε δίκτυο, οπότε οι υπάλληλοι δεν μπορούν να τον βρουν. Συνδέστε τον και επιστρέψτε εδώ.",
+  "Say whether it is on or off.": "Πείτε αν είναι ενεργό ή ανενεργό.",
+  "Another program on this computer is using the office network port, so staff cannot reach it. Close that program, then switch this on again.":
+    "Ένα άλλο πρόγραμμα σε αυτόν τον υπολογιστή χρησιμοποιεί τη θύρα του δικτύου γραφείου, οπότε οι υπάλληλοι δεν μπορούν να τον βρουν. Κλείστε εκείνο το πρόγραμμα και ενεργοποιήστε ξανά.",
+
   // The server's answers.
   "Choose at least one digital employee for this person.":
     "Επιλέξτε τουλάχιστον έναν ψηφιακό υπάλληλο για αυτό το άτομο.",

@@ -10,7 +10,7 @@ import "./no-telemetry";
 // application's graph without it failed about three times in ten.
 import "eventsource";
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import {
   CopilotKitIntelligence,
@@ -163,6 +163,11 @@ import {
   serveMetrics,
   serverMetrics,
 } from "./observability";
+import {
+  asOwnOrigin,
+  createOfficeService,
+  DEFAULT_OFFICE_PORT,
+} from "./office/service";
 import { originAllowed, trustedOrigins } from "./origin-guard";
 import { deploymentFacts } from "./overview/facts";
 import { createOverviewStore } from "./overview/store";
@@ -569,6 +574,40 @@ const teamBilling: TeamBilling | null = team
         : {}),
     })
   : null;
+/*
+ * The office network (Amgad, 24 Nov 2026, option A): only where the desktop offers it and there is a
+ * team to sign in to. The listener is opened later, once `serverOptions` exists, and only if the
+ * administrator switched it on; it serves the same app and API, over HTTPS, on every interface.
+ */
+const officePort = Number(
+  process.env.ARK_OFFICE_PORT?.trim() || DEFAULT_OFFICE_PORT,
+);
+const office =
+  team && process.env.ARK_OFFICE_NETWORK?.trim() === "available"
+    ? createOfficeService({
+        database,
+        encryptionKey: config.keyEncryptionKey,
+        port: officePort,
+        hostname: () => hostname(),
+        listen: (tls) => {
+          const appOrigin =
+            config.appUrl ?? config.auth?.trustedOrigins[0] ?? "";
+          return serve<SocketData>({
+            ...serverOptions,
+            hostname: "0.0.0.0",
+            port: officePort,
+            tls,
+            fetch(request, server) {
+              return serverOptions.fetch.call(
+                server,
+                asOwnOrigin(request, appOrigin),
+                server,
+              );
+            },
+          });
+        },
+      })
+    : undefined;
 // Paid sub-profiles activate by themselves, and unpaid ones are suspended: BlackArk asked every 10 minutes.
 if (team)
   repeatAfterEach(async () => {
@@ -2089,6 +2128,8 @@ const app = createApp(
   chatSummary,
   // The customer's team: administrator and paid sub-profiles, with password sign-in.
   team,
+  // Staff computers on the office network sign in to this one (desktop only, off until switched on).
+  office,
 );
 // The Sunday-night summary and cleanup, checked every 15 minutes; each person's own window.
 repeatAfterEach(async () => {
@@ -2333,6 +2374,16 @@ for (const hostname of hosts) {
     );
   }
 }
+
+// The office network, if the administrator left it on. After the listeners above, which it copies.
+await office?.start().catch((error: unknown) => {
+  console.warn(
+    JSON.stringify({
+      type: "office-network-not-started",
+      reason: String(error),
+    }),
+  );
+});
 
 // Writes down every route this process registered, for the security tests (server/tests/security), which
 // need the real inventory: `createApp` registers a route only when the store behind it was given, so an

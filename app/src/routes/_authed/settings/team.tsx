@@ -8,6 +8,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { OfficeNetworkSection } from "@/components/settings/office-network-section";
 import { MemberForm } from "@/components/settings/team-member-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -141,6 +142,7 @@ function TeamPage() {
           ) : null}
         </div>
       </PageSection>
+      <OfficeNetworkSection />
 
       {adding ? (
         <MemberDialog

@@ -100,6 +100,8 @@ import { appleAppSiteAssociation, assetLinks } from "./mobile/links";
 import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
+import { officeCertificateRoutes, officeRoutes } from "./office/routes";
+import type { OfficeService } from "./office/service";
 import { originGuard } from "./origin-guard";
 import { adminOverviewRoutes } from "./overview/routes";
 import { parsePageLimit } from "./paging";
@@ -522,6 +524,11 @@ export function createApp(
    * them may use the deployment now. Appended last, for the positional reason above.
    */
   team?: TeamService,
+  /**
+   * The office network (Amgad, 24 Nov 2026, option A): staff computers on the same network sign in
+   * to this one, over HTTPS with its own certificate. Only with a team. Appended last, as above.
+   */
+  office?: OfficeService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -1840,6 +1847,10 @@ export function createApp(
   if (team) {
     // Set-up first: it is what a deployment with nobody on it yet can answer.
     app.route("/api/team", teamSetupRoutes(team));
+    if (office) {
+      app.route("/api/team/office", officeRoutes(requireUser, office));
+      app.route("/api/office/certificate", officeCertificateRoutes(office));
+    }
     app.route("/api/team", teamRoutes(requireUser, team));
   }
 

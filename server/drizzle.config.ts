@@ -37,6 +37,7 @@ export default defineConfig({
     "./src/db/schema/trial.ts",
     "./src/db/schema/phone-line.ts",
     "./src/db/schema/chat-summary.ts",
+    "./src/db/schema/office.ts",
     "./src/db/schema/team.ts",
   ],
   out: "./drizzle",
