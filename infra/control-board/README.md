@@ -27,7 +27,7 @@ staff browser ── https ──▶ blackark-board.<account>.workers.dev   (a W
      blackark.uk/checkin/export/       ◀── signed POST, signed answer
      blackark.uk/checkin/support/      ──▶ signed POST /intake/app   (Help & support from the app)
      blackark.uk/checkin/audit-copy/   ◀── nightly signed POST of new audit entries (AUDIT_COPY=blackark)
-     graph.microsoft.com (General@)    ◀── app-only token; unread mail to support@ only
+     graph.microsoft.com (General@)    ◀── app-only token; mail to support@ only
      api.stripe.com                    ◀── restricted read-only key
      phone relay /health               ◀── GET
      api.github.com                    ◀── read-only token
@@ -73,7 +73,7 @@ staff browser ── https ──▶ blackark-board.<account>.workers.dev   (a W
 | blackark.uk's export | HMAC-SHA256 with `export_secret`, both ways: the request with a time, a nonce taken once and the body; the answer over its time, **our** nonce and the body |
 | Help & support from the app | blackark.uk checks the install's BlackArk-signed trial file or licence key, then signs the forward with `intake_secret` (time, nonce taken once, body). The app's request id makes a retry give back the same case. |
 | The audit copy at blackark.uk | HMAC-SHA256 with `audit_copy_secret`, both ways, as the export; it keeps only a batch that continues its chain |
-| Support mail | only unread mail in General@ whose To or Cc is exactly support@blackark.uk; everything else is never fetched, flagged or moved |
+| Support mail | only mail in General@ whose To or Cc (as Graph lists it, or in the raw header) is exactly support@blackark.uk; everything else is never fetched, flagged or moved |
 | Stripe | a restricted key that can only read Subscriptions, Checkout Sessions and Invoices |
 | The relay | only its public `/health` answer (`ok`) |
 | GitHub | a fine-grained token that can only read this repository's issues and PRs |
@@ -213,17 +213,20 @@ through **Microsoft Graph** as an Entra app (client credentials: `MS_TENANT_ID`,
 `MS_CLIENT_SECRET`), never as a person and never with General@'s password (Amgad, 23 Nov 2026).
 Every 5 minutes a Cron Trigger (`mail.ts`, `graphMailbox`):
 1. gets an app-only token from `login.microsoftonline.com` (one per run, kept nowhere);
-2. lists General@'s **unread** Inbox mail from the last 14 days, newest first, asking only for each
-   message's id, To and Cc (at most 4 pages of 50);
-3. picks the ones whose To or Cc holds support@ exactly, at most 5 a run, and reads only those in full,
-   with the body as plain text. A read never marks a message read;
+2. lists General@'s Inbox mail from the last 14 days, **read or not** (staff may have opened it in
+   Outlook first), newest first, asking only for each message's id, Message-ID, To, Cc and headers
+   (at most 4 pages of 50);
+3. picks the ones whose To or Cc holds support@ exactly, from Graph's recipients **or the raw `To:` and
+   `Cc:` headers**. For mail to the alias, Exchange lists General@ in `toRecipients` and keeps support@
+   only in the header (live, 24 Nov). It skips any Message-ID the board already took, takes at most 5
+   a run, and reads only those in full, with the body as plain text. A read never marks a message read;
 4. checks the To and Cc again on the full message;
 5. opens a case, or adds a reply to its case: by In-Reply-To, or `[Case #N]` in the subject. A run
    handles its messages oldest first, so a reply comes after its original;
 6. marks **only that message** as read (`PATCH … {"isRead": true}`).
 
 Nothing else in General@ is read in full, flagged, moved, deleted or sent. Attachments are not fetched.
-Unread mail to support@ older than 14 days is left for a person.
+Mail to support@ older than 14 days is left for a person.
 
 #### Setting up the Graph app (COO, on Amgad's order)
 
@@ -268,12 +271,11 @@ On a case page, owner, admin and support write **Reply to the customer**:
   customer come back, with their replies, never a note.
 - **By email,** when the case has an address: the sender of an email case, or the address given
   before activation.
-  - It goes from General@ through Graph `sendMail` as a MIME message, with From and Reply-To
-    `support@blackark.uk` and the name "BlackArk Support".
+  - It goes from General@ through Graph `sendMail` as a MIME message: From General@, Reply-To
+    `support@blackark.uk`, the name "BlackArk Support" (Amgad, 24 Nov: support@ is not a sending
+    address).
   - It is in BlackArk's HTML look (the same as the low-balance email), with a plain-text part.
   - The subject is `[Case #N] <subject>`, so the customer's answer comes back to the case.
-  - If Exchange shows `general@` as the sender (COO's tests, 23 Nov), the answer still goes to
-    support@ and threads by the tag.
   - **Off until `REPLY_EMAIL = "on"`** in `wrangler.toml`. Turn it on only after `Mail.Send` is
     granted and `Test-ApplicationAccessPolicy` still gives Granted for General@ and Denied for
     any other mailbox.
@@ -282,6 +284,10 @@ On a case page, owner, admin and support write **Reply to the customer**:
     email failed, or app only.
   - It is a case note with its text, and an audit row (`case.reply`) without it.
   - A new or open case moves to "waiting".
+- **The same reply twice** (a double click, or the form sent again while the page was slow: case #2
+  on 24 Nov) is kept and emailed once. The same words from the same person on the same case within
+  2 minutes are a repeat; the audit log notes it, refused. After a failed email the same reply can be
+  sent again at once.
 - **A failed email** is said on the page and kept as "failed". The reply still shows in the app if
   the case came from there.
 - **A case with no address that did not come from the app** has no reply form. The page says so:

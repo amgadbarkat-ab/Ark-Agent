@@ -8,10 +8,12 @@ import { graphSender, replyMime } from "./mail";
 import {
   appReplies,
   type OutgoingMail,
+  REPEAT_MS,
   type ReplyMailer,
   replyHtml,
   replySubject,
   replyText,
+  replyToCase,
 } from "./replies";
 import { Browser, ORIGIN, type TestBoard, testBoard } from "./test-helpers";
 
@@ -356,6 +358,64 @@ describe("replies to the customer, from the board", () => {
     ).toEqual({ email: "none", emailed_to: null });
   });
 
+  test("the same reply sent twice (a double click, live on 24 Nov): kept and emailed once; again after 2 minutes it is a new reply", async () => {
+    const mailer = mailbox();
+    const { t, browser } = await setup({ mailer });
+    await fromApp(t);
+    const words = { body: "Δοκιμή απάντησης", english: "Test reply" };
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    // Both in flight at once, as two clicks before the page answers.
+    const row = (await getCase(t.sql, 1)) as NonNullable<
+      Awaited<ReturnType<typeof getCase>>
+    >;
+    const other = { body: "Δεύτερη", english: "Second" };
+    const both = await Promise.all([
+      replyToCase(t.sql, mailer, row, "maria", other, t.clock.now),
+      replyToCase(t.sql, mailer, row, "maria", other, t.clock.now),
+    ]);
+    expect(both.filter((one) => one?.reply).length).toBe(1);
+    expect(mailer.sent).toHaveLength(2);
+    expect(
+      await t.sql.first<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM case_replies",
+      ),
+    ).toEqual({ n: 2 });
+    expect(
+      (await readAudit(t.sql, 20, 0))
+        .filter((r) => r.action === "case.reply")
+        .map((r) => `${r.outcome} ${r.detail}`),
+    ).toContain(
+      "refused the same reply again within 2 minutes: not sent again",
+    );
+
+    t.clock.now += REPEAT_MS + 1000;
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    expect(mailer.sent).toHaveLength(3);
+  });
+
+  test("after a failed email, the same reply can be tried again at once", async () => {
+    let fail = true;
+    const sent: OutgoingMail[] = [];
+    const flaky: ReplyMailer = {
+      async send(mail) {
+        if (fail) {
+          const error = new Error("sendMail refused (HTTP 503)");
+          error.name = "GraphError";
+          throw error;
+        }
+        sent.push(mail);
+      },
+    };
+    const { t, browser } = await setup({ mailer: flaky });
+    await fromApp(t);
+    const words = { body: "Γεια", english: "Hello" };
+    expect((await reply(browser, 1, words)).status).toBe(502);
+    fail = false;
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    expect(sent).toHaveLength(1);
+  });
+
   test("read-only accounts see replies but cannot send one", async () => {
     const { t, browser } = await setup({
       mailer: mailbox(),
@@ -409,7 +469,7 @@ describe("the reply email itself", () => {
     expect(html).not.toContain("<b>x</b>");
   });
 
-  test("the MIME message: From and Reply-To support@, both parts, nothing typed can reach a header", () => {
+  test("the MIME message: From General@, Reply-To support@, both parts, nothing typed can reach a header", () => {
     const mail: OutgoingMail = {
       to: "maria@shop.example",
       subject: "[Case #3] Δεν ανοίγει\r\nBcc: evil@example.com",
@@ -419,13 +479,14 @@ describe("the reply email itself", () => {
       caseNumber: 3,
     };
     const mime = replyMime(mail, {
-      from: "support@blackark.uk",
+      from: "General@blackark.uk",
+      replyTo: "support@blackark.uk",
       now: Date.UTC(2026, 10, 24, 10, 0),
       random: "abc123",
     });
     const [head, ...rest] = mime.split("\r\n\r\n");
     expect(head?.split("\r\n").slice(0, 3)).toEqual([
-      "From: BlackArk Support <support@blackark.uk>",
+      "From: BlackArk Support <General@blackark.uk>",
       "Reply-To: BlackArk Support <support@blackark.uk>",
       "To: <maria@shop.example>",
     ]);
@@ -456,7 +517,12 @@ describe("the reply email itself", () => {
     expect(() =>
       replyMime(
         { ...mail, to: "x@y.example>\r\nBcc: evil@example.com" },
-        { from: "support@blackark.uk", now: 0, random: "r" },
+        {
+          from: "General@blackark.uk",
+          replyTo: "support@blackark.uk",
+          now: 0,
+          random: "r",
+        },
       ),
     ).toThrow("not an email address");
   });
@@ -500,7 +566,9 @@ describe("the reply email itself", () => {
     expect(send?.headers.get("content-type")).toBe("text/plain");
     expect(
       Buffer.from(send?.body ?? "", "base64").toString("utf8"),
-    ).toStartWith("From: BlackArk Support <support@blackark.uk>\r\n");
+    ).toStartWith(
+      "From: BlackArk Support <General@blackark.uk>\r\nReply-To: BlackArk Support <support@blackark.uk>\r\n",
+    );
 
     const refused = graphSender(
       {

@@ -5,16 +5,19 @@
  * support@blackark.uk is an alias of General@blackark.uk. The board signs in as an Entra app with
  * client credentials (MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET), never as a person, and takes
  * ONLY messages whose To or Cc holds support@blackark.uk:
- * - it lists the unread messages in General@'s Inbox, asking only for their ids and recipients;
- * - it fetches in full only the ones whose To or Cc holds support@ exactly. A GET never marks a
- *   message read;
+ * - it lists the messages in General@'s Inbox from the last 14 days, read or not (staff may open
+ *   one in Outlook first), asking only for their ids, Message-IDs, recipients and headers;
+ * - "sent to support@" is decided from Graph's recipients AND the raw To and Cc headers: for mail
+ *   to the alias, Exchange lists General@ in `toRecipients` and keeps support@ only in the header
+ *   (live, 24 Nov);
+ * - it skips any Message-ID the board already took, and fetches in full only the rest whose To or
+ *   Cc holds support@ exactly. A GET never marks a message read;
  * - only a message the board took is marked read (`isRead: true`). Nothing else is ever changed: no
- *   message is moved, deleted, flagged or sent, and everything else in General@ stays as it was,
- *   unread.
+ *   message is moved, deleted, flagged or sent, and everything else in General@ stays as it was.
  *
  * The app needs the application permission Mail.ReadWrite (to set isRead), with admin consent, and an
  * Exchange ApplicationAccessPolicy that limits it to General@ alone (README, "Support mailbox"). A run
- * looks at unread mail from the last 14 days, newest first, at most `pages` pages of 50, and takes at
+ * looks at mail from the last 14 days, newest first, at most `pages` pages of 50, and takes at
  * most `limit` messages (5 by default), so it stays well inside a Worker's 50 subrequests:
  * 1 token + 4 pages + 5 reads + 5 marks = 15.
  */
@@ -45,18 +48,50 @@ const GRAPH = "https://graph.microsoft.com/v1.0";
 const PAGE = 50;
 
 type Address = { emailAddress?: { address?: string; name?: string } };
+type Header = { name?: string; value?: string };
 type ListedMessage = {
   id: string;
+  internetMessageId?: string;
   toRecipients?: Address[];
   ccRecipients?: Address[];
+  internetMessageHeaders?: Header[];
 };
 type FullMessage = ListedMessage & {
-  internetMessageId?: string;
   subject?: string;
   from?: Address;
   body?: { contentType?: string; content?: string };
-  internetMessageHeaders?: Array<{ name?: string; value?: string }>;
 };
+
+/** The addresses in a raw header such as `To: Support <support@blackark.uk>, a@b.c`, lower-case. */
+function headerAddresses(
+  headers: Header[] | undefined,
+  name: string,
+): string[] {
+  return (headers ?? [])
+    .filter((header) => header.name?.toLowerCase() === name)
+    .flatMap(
+      (header) =>
+        (header.value ?? "")
+          .slice(0, 4000)
+          .match(/[^\s<>(),;:"']+@[^\s<>(),;:"']+/g) ?? [],
+    )
+    .map((address) => address.toLowerCase());
+}
+
+/** To and Cc as Graph lists them, together with the raw headers (where an alias survives). */
+function recipients(message: ListedMessage): { to: string[]; cc: string[] } {
+  const unique = (list: string[]) => [...new Set(list)];
+  return {
+    to: unique([
+      ...addresses(message.toRecipients),
+      ...headerAddresses(message.internetMessageHeaders, "to"),
+    ]),
+    cc: unique([
+      ...addresses(message.ccRecipients),
+      ...headerAddresses(message.internetMessageHeaders, "cc"),
+    ]),
+  };
+}
 
 function bare(id: string | undefined): string | undefined {
   const text = id?.trim().replace(/^<|>$/g, "");
@@ -152,7 +187,7 @@ export function graphMailbox(
   };
 
   return {
-    async unseen() {
+    async unseen(taken = async () => false) {
       const limit = options.limit ?? 5;
       const chosen: string[] = [];
       const since = new Date(
@@ -161,9 +196,11 @@ export function graphMailbox(
       // Graph sorts only on a property the filter names first, in the same order.
       let next: string | null =
         `${box}/mailFolders/inbox/messages?${new URLSearchParams({
-          $filter: `receivedDateTime ge ${since} and isRead eq false`,
+          // Read or not: whether a person opened it in Outlook says nothing about the board.
+          $filter: `receivedDateTime ge ${since}`,
           $orderby: "receivedDateTime desc",
-          $select: "id,toRecipients,ccRecipients",
+          $select:
+            "id,internetMessageId,toRecipients,ccRecipients,internetMessageHeaders",
           $top: String(PAGE),
         })}`;
       for (
@@ -177,10 +214,15 @@ export function graphMailbox(
         };
         for (const one of listed.value ?? []) {
           if (chosen.length >= limit) break;
-          const to = addresses(one.toRecipients);
-          const cc = addresses(one.ccRecipients);
-          if (typeof one.id === "string" && sentToSupport({ to, cc }, address))
-            chosen.push(one.id);
+          if (
+            typeof one.id !== "string" ||
+            !sentToSupport(recipients(one), address)
+          )
+            continue;
+          const messageId = bare(one.internetMessageId);
+          // Already a case or a note: not fetched again, and it does not use up the run.
+          if (messageId && (await taken(messageId))) continue;
+          chosen.push(one.id);
         }
         const link = listed["@odata.nextLink"];
         // Follow only Graph's own next page, never a link to anywhere else.
@@ -201,8 +243,7 @@ export function graphMailbox(
             { headers: { prefer: 'outlook.body-content-type="text"' } },
           )
         ).json()) as FullMessage;
-        const to = addresses(full.toRecipients);
-        const cc = addresses(full.ccRecipients);
+        const { to, cc } = recipients(full);
         // Checked again on the message itself, exactly, before anything is done with it.
         if (!sentToSupport({ to, cc }, address)) continue;
         const id = bare(full.internetMessageId) ?? `graph-${graphId}`;
@@ -270,22 +311,33 @@ function encodedWords(text: string): string {
 }
 
 /**
- * One reply as a MIME message: plain text and HTML, From and Reply-To the support address. Built
+ * One reply as a MIME message: plain text and HTML, From the mailbox that sends it (General@) and
+ * Reply-To the support address. Built
  * here rather than as Graph's JSON message so the email carries both parts, and so nothing a person
  * typed can reach a header (the address is checked, the subject encoded).
  */
 export function replyMime(
   mail: OutgoingMail,
-  options: { from: string; fromName?: string; now: number; random: string },
+  options: {
+    from: string;
+    replyTo: string;
+    fromName?: string;
+    now: number;
+    random: string;
+  },
 ): string {
-  if (!MIME_EMAIL.test(mail.to) || !MIME_EMAIL.test(options.from))
+  if (
+    !MIME_EMAIL.test(mail.to) ||
+    !MIME_EMAIL.test(options.from) ||
+    !MIME_EMAIL.test(options.replyTo)
+  )
     throw new GraphError("not an email address");
   const boundary = `ark-${options.random}`;
   const name = options.fromName ?? "BlackArk Support";
   const date = new Date(options.now).toUTCString().replace("GMT", "+0000");
   return [
     `From: ${name} <${options.from}>`,
-    `Reply-To: ${name} <${options.from}>`,
+    `Reply-To: ${name} <${options.replyTo}>`,
     `To: <${mail.to}>`,
     `Subject: ${encodedWords(mail.subject.replace(/[\r\n]+/g, " "))}`,
     `Date: ${date}`,
@@ -311,25 +363,28 @@ export function replyMime(
 
 /**
  * Sends replies from General@ through Graph `sendMail` (application permission Mail.Send, limited
- * to General@ by the same ApplicationAccessPolicy as the reader). From and Reply-To are support@:
- * if Exchange shows General@ as the sender instead, the customer's answer still goes to support@
- * and comes back to the case by its "[Case #N]" tag. A copy stays in General@'s Sent Items.
+ * to General@ by the same ApplicationAccessPolicy as the reader). From is General@ itself (Amgad,
+ * 24 Nov 2026: support@ is not a sending address; Exchange sent it as General@ anyway), Reply-To is
+ * support@, which lands in General@ too, so the customer's answer comes back to the case by its
+ * "[Case #N]" tag. A copy stays in General@'s Sent Items.
  */
 export function graphSender(
   settings: GraphSettings,
   options: {
-    from?: string;
+    /** Where answers go: support@ (an alias of General@). */
+    replyTo?: string;
     fetch?: typeof fetch;
     now?: () => number;
     random?: () => string;
   } = {},
 ): ReplyMailer {
   const fetcher = options.fetch ?? fetch;
-  const from = options.from ?? SUPPORT_ADDRESS;
+  const replyTo = options.replyTo ?? SUPPORT_ADDRESS;
   return {
     async send(mail) {
       const mime = replyMime(mail, {
-        from,
+        from: settings.mailbox,
+        replyTo,
         now: (options.now ?? Date.now)(),
         random:
           options.random?.() ??

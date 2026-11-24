@@ -8,6 +8,10 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Control Board: reply emails say From General@ (Amgad, 24 Nov).** support@ is not a sending address; the email now names General@, the mailbox that sends it (Exchange already delivered it so), and Reply-To stays support@, so the customer's answer still comes back to the case. Board only: takes effect at the next board deploy.
+- **Control Board: a reply sent twice goes once.** The live test on 24 Nov kept and emailed one reply twice, 3 seconds apart (a double click or a slow page). The same words from the same person on the same case within 2 minutes are now one reply. A new table, `case_reply_claims`: run the schema again before the deploy.
+- **Control Board: answers to support@ reach their case (live test, 24 Nov).** For mail to the support@ alias, Exchange lists General@ in Graph's recipients and keeps support@ only in the raw `To:` header, so the board dropped the customer's answer. It now reads the raw To and Cc headers too. It also no longer skips mail already opened in Outlook: it reads the last 14 days, read or not, and takes each Message-ID once.
+
 ## 0.1.52
 
 - **Replies to the customer from the Control Board (Gap 3, Amgad 23 Nov, #149).**

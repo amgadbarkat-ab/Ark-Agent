@@ -337,11 +337,24 @@ export type MailMessage = {
 
 /**
  * A mailbox: `graphMailbox` in mail.ts (General@ through Microsoft Graph, only what was sent to support@), or the
- * in-memory stand-in below. `unseen` must not mark anything read; `markSeen` marks one message.
+ * in-memory stand-in below. `unseen` gives the messages not taken yet, read or not (a person may have
+ * opened one in Outlook first: live, 24 Nov), asking `taken` by Message-ID so ones already taken do
+ * not fill the run; it must not mark anything read. `markSeen` marks one message read.
  */
 export interface MailSource {
-  unseen(): Promise<MailMessage[]>;
+  unseen(taken?: (id: string) => Promise<boolean>): Promise<MailMessage[]>;
   markSeen(id: string): Promise<void>;
+}
+
+/** Whether the board already took this Message-ID, as a case or as a note on one. */
+export async function alreadyTaken(db: Sql, id: string): Promise<boolean> {
+  return (
+    (await findBySource(db, `mail:${id}`)) !== null ||
+    (await db.first(
+      "SELECT 1 AS found FROM case_notes WHERE instr(body, ?) > 0",
+      `Message-ID: ${id}\n`,
+    )) !== null
+  );
 }
 
 export const SUPPORT_ADDRESS = "support@blackark.uk";
@@ -370,8 +383,8 @@ const CUSTOMER_TAG = /\[customer:([A-Za-z0-9][A-Za-z0-9_-]{1,79})\]/;
  * Reads the mailbox once: a reply (In-Reply-To a message we know, or "[Case #N]" in the subject)
  * becomes a note on that case; anything else opens a case, channel email. The customer id comes
  * from "[customer:<id>]" in the subject when present, otherwise "unmatched" for a person to set.
- * Each message is taken once (its Message-ID), then marked seen. A message not sent to the support
- * address is left alone, unread, even if the mailbox handed it over.
+ * Each message is taken once (its Message-ID), read or not, then marked read. A message not sent to
+ * the support address is left alone, as it was, even if the mailbox handed it over.
  */
 export async function pollMailbox(
   db: Sql,
@@ -380,16 +393,10 @@ export async function pollMailbox(
   options: { supportAddress?: string; calendar?: Calendar } = {},
 ): Promise<number[]> {
   const touched: number[] = [];
-  for (const message of await mailbox.unseen()) {
+  for (const message of await mailbox.unseen((id) => alreadyTaken(db, id))) {
     if (!sentToSupport(message, options.supportAddress)) continue;
     const ref = `mail:${message.id}`;
-    if (
-      (await findBySource(db, ref)) ||
-      (await db.first(
-        "SELECT 1 AS found FROM case_notes WHERE instr(body, ?) > 0",
-        `Message-ID: ${message.id}\n`,
-      ))
-    ) {
+    if (await alreadyTaken(db, message.id)) {
       await mailbox.markSeen(message.id);
       continue;
     }
