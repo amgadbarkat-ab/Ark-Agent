@@ -8,12 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Control Board: reply emails say From General@ (Amgad, 24 Nov).** support@ is not a sending address; the email now names General@, the mailbox that sends it (Exchange already delivered it so), and Reply-To stays support@, so the customer's answer still comes back to the case. Board only: takes effect at the next board deploy.
+
 ## 0.1.52
 
 - **Replies to the customer from the Control Board (Gap 3, Amgad 23 Nov, #149).**
   - On a case, staff write the reply: Greek and its English copy for a Greek case, English only otherwise.
   - **In the app,** Help & support shows BlackArk's replies under each request, fetched through blackark.uk's new `checkin/support/replies/` with the same proof as the request.
-  - **By email,** when the case has an address: from General@ through Microsoft Graph (From General@, Reply-To support@), in BlackArk's HTML look with a plain-text part, and `[Case #N]` in the subject so the answer threads back.
+  - **By email,** when the case has an address: from General@ through Microsoft Graph, From and Reply-To support@, in BlackArk's HTML look with a plain-text part, and `[Case #N]` in the subject so the answer threads back.
   - Email replies stay off until the Graph app has `Mail.Send` and `REPLY_EMAIL` is `on`.
   - Every reply is kept as sent, written into the case notes, and logged in the audit log without its text.
 - **Help & support before activation (Amgad, 23 Nov, #149).** The Activate screen now has "Need help? Write to BlackArk", so somebody stuck before entering a trial code or licence key can still ask. With nothing yet to prove whose computer it is, the request goes as customer "unverified" with the computer's random id, and the person may add an email address for the answer; they see exactly what will be sent first, as before. blackark.uk's `checkin/support/` takes these without proof but limits them to 3 a day per computer and 3 a day per internet address (kept only as a keyed hash, for 24 hours); activated computers keep their 10 a day. The Control Board opens the case with customer "unverified" and shows its plan as "none", with "UNVERIFIED" and the contact address at the top of its first note, and takes at most 50 such cases a day in all. Upload `checkin/support/index.php` with the app release; deploy the board before or with it. The privacy notice's Help & support row says so (wording for Amgad's yes).
