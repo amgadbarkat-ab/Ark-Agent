@@ -432,6 +432,7 @@ export function customerPage(
   events: TimelineEvent[],
   banner: Html,
   canOpenCase: boolean,
+  sections: Html[] = [],
 ): string {
   const l = frame.lang;
   const summary = row
@@ -453,6 +454,7 @@ export function customerPage(
     frame,
     customerId,
     html`${banner}${summary}
+${sections}
 ${canOpenCase ? html`<p><a class="button" href="/cases/new?customer=${encodeURIComponent(customerId)}">${t(l, "Open a case")}</a></p>` : ""}
 <h2>${t(l, "Timeline")}</h2>
 <ol class="timeline">${

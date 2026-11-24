@@ -173,6 +173,22 @@ export const SCHEMA: string[] = [
     updated_at TEXT NOT NULL
   )`,
   "CREATE INDEX IF NOT EXISTS support_orders_customer ON support_orders (customer_id, status)",
+  // Staff sub-profiles (orders.ts): the paid number per customer's Stripe subscription, and its case.
+  `CREATE TABLE IF NOT EXISTS subprofile_orders (
+    subscription_id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('active', 'past_due', 'cancelled')),
+    case_number INTEGER REFERENCES cases (number),
+    started_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  // Each customer's team as their app last sent it: administrator and sub-profiles.
+  `CREATE TABLE IF NOT EXISTS customer_teams (
+    customer_id TEXT PRIMARY KEY,
+    members TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   `CREATE TRIGGER IF NOT EXISTS case_replies_no_update BEFORE UPDATE ON case_replies
     BEGIN SELECT RAISE(ABORT, 'Replies are kept as sent.'); END`,
   `CREATE TRIGGER IF NOT EXISTS case_replies_no_delete BEFORE DELETE ON case_replies

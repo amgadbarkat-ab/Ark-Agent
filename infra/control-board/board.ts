@@ -53,6 +53,7 @@ import {
 import { appendAudit, countAudit, readAudit } from "./audit";
 import { CSS } from "./board-css";
 import { BRAND_ASSETS } from "./brand-assets";
+import type { Html } from "./html";
 import { type Lang, t } from "./i18n";
 import * as pages from "./pages";
 import { can, canManage, type Permission } from "./roles";
@@ -116,6 +117,8 @@ export type Extension = {
   handle(context: Context): Promise<Response | null>;
   /** Extra timeline events for a customer (cases). */
   timeline?(customerId: string): Promise<TimelineEvent[]>;
+  /** An extra section on a customer's page (their team and sub-profile orders), or null. */
+  customerSection?(customerId: string, lang: Lang): Promise<Html | null>;
   /** A route needing no session (a signed machine endpoint), tried before the session check. */
   handlePublic?(request: Request, url: URL): Promise<Response | null>;
 };
@@ -130,6 +133,7 @@ const ACCESS_EXEMPT = new Set([
   "/intake/app",
   "/intake/replies",
   "/intake/order",
+  "/intake/team",
 ]);
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -752,6 +756,13 @@ export function createBoard(options: BoardOptions) {
         )
       ).flat();
       const events = data.value ? timeline(data.value, id, extra) : extra;
+      const sections = (
+        await Promise.all(
+          extensions.map(
+            (one) => one.customerSection?.(id, lang) ?? Promise.resolve(null),
+          ),
+        )
+      ).filter((one): one is Html => one !== null);
       return respond(
         pages.customerPage(
           frame,
@@ -760,6 +771,7 @@ export function createBoard(options: BoardOptions) {
           events,
           banner(data),
           extensions.length > 0 && needs("cases.write"),
+          sections,
         ),
       );
     }

@@ -223,4 +223,69 @@ describe("24/7 Priority Support orders on the board", () => {
       ).status,
     ).toBe(409);
   });
+
+  test("staff sub-profiles: one case per subscription, a note per change, and the team on the customer's page", async () => {
+    const { t, browser } = await setup();
+    const sub = (quantity: number, status = "active") => ({
+      kind: "subprofiles",
+      event: "changed",
+      customerId: "demo-shop",
+      subscriptionId: "sub_team_1",
+      quantity,
+      status,
+      startedAt: "2026-11-24T10:00:00Z",
+    });
+    expect((await signed(t, "/intake/order", sub(2))).status).toBe(201);
+    expect((await signed(t, "/intake/order", sub(2))).status).toBe(200);
+    await signed(t, "/intake/order", sub(3));
+    await signed(t, "/intake/order", sub(0, "past_due"));
+    expect(await getCase(t.sql, 1)).toMatchObject({
+      subject: "Staff sub-profiles order: 2",
+      customer_id: "demo-shop",
+    });
+    expect((await notes(t.sql, 1)).map((n) => n.body.split("\n")[0])).toEqual([
+      "Staff sub-profiles paid: 2 × EUR 15 a month (excl. VAT), on top of Ark Team.",
+      "Changed: 2 → 3 paid.",
+      "Changed: 3 → 0 paid.",
+    ]);
+    expect(
+      (
+        await signed(t, "/intake/team", {
+          customerId: "demo-shop",
+          members: [
+            {
+              name: "Maria",
+              email: "maria@shop.example",
+              role: "admin",
+              status: "active",
+              createdAt: "2026-11-24T10:00:00Z",
+              agents: 5,
+            },
+            {
+              name: "Nikos",
+              email: "nikos@shop.example",
+              role: "subprofile",
+              status: "pending_payment",
+              createdAt: "2026-11-24T11:00:00Z",
+              agents: 2,
+            },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const page = (await browser.get("/customers/demo-shop")).text;
+    expect(page).toContain("<h2>Team</h2>");
+    expect(page).toContain("nikos@shop.example");
+    expect(page).toContain("waiting for payment");
+    expect(page).toContain("Sub-profile orders");
+    expect(page).toContain("sub_team_1");
+    // Signed like the intake, and checked.
+    expect(
+      (await signed(t, "/intake/team", { customerId: "Bad Id!", members: [] }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await signed(t, "/intake/order", { ...sub(2), quantity: 99 })).status,
+    ).toBe(400);
+  });
 });
