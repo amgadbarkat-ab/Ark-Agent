@@ -8,6 +8,18 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Sign in per person, and staff sub-profiles (Amgad, 24 Nov, #149).**
+  - **The desktop asks who you are:** email and password on every install. The first person on a fresh install makes the administrator's account. An install that had one person keeps that person's digital employees and chats.
+  - **Settings → Team (administrator only):** add a sub-profile with a name, an email and a first password, which the person replaces at first sign-in.
+  - **Billing:** €15 a month excl. VAT per sub-profile, on top of Ark Team (Stripe lookup key `arkagent_subprofile_monthly_eur`, quantity, prorated). Nothing is billed until the first sub-profile, a sub-profile works only once paid, a failed payment suspends it, and removing one lowers the quantity.
+  - **Digital employees:** the administrator ticks each one per sub-profile. One employee belongs to at most one sub-profile, enforced by the database; moving one asks first, naming who loses it. The administrator keeps every employee, and only the administrator adds employees, so the 5/10/20 limit counts the whole company.
+  - **Sub-profiles cannot** buy, change or cancel a plan, open billing, see the 24/7 support buy link, manage people, or use this computer's browser or folders.
+  - **The Control Board** shows each customer's people and sub-profile purchases.
+- **The office network (option A):** Settings → Team → "Let my staff sign in from this office network".
+  - Off until switched on. When on, the administrator's computer answers on the office network over HTTPS only, on port 52443, with a certificate it makes for itself.
+  - Staff computers choose "Join my company's ArkAgent" in setup and paste the join code. The code names that certificate's fingerprint, so a staff computer trusts no other. Nothing is installed or kept on a staff computer beyond the relay.
+  - Staff outside the office (BlackArk's relay) come in a later version.
+
 ## 0.1.53
 
 - **Weekly summary, then chat cleanup (Amgad, 24 Nov, #149).**
