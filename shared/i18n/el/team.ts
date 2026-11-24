@@ -73,6 +73,12 @@ export const EL_TEAM: Record<string, string> = {
     "Ένα άλλο πρόγραμμα σε αυτόν τον υπολογιστή χρησιμοποιεί τη θύρα του δικτύου γραφείου, οπότε οι υπάλληλοι δεν μπορούν να τον βρουν. Κλείστε εκείνο το πρόγραμμα και ενεργοποιήστε ξανά.",
 
   // The server's answers.
+  "Your browser here is your administrator's. Digital employees cannot use it from a sub-profile.":
+    "Ο φυλλομετρητής εδώ είναι του διαχειριστή σας. Οι ψηφιακοί υπάλληλοι δεν μπορούν να τον χρησιμοποιήσουν από υποπροφίλ.",
+  "This digital employee belongs to a sub-profile, who works from another computer, so it cannot use this computer's browser.":
+    "Αυτός ο ψηφιακός υπάλληλος ανήκει σε υποπροφίλ που δουλεύει από άλλον υπολογιστή, οπότε δεν μπορεί να χρησιμοποιήσει τον φυλλομετρητή αυτού του υπολογιστή.",
+  "The folders on this computer are your administrator's. A sub-profile cannot give them to a digital employee.":
+    "Οι φάκελοι σε αυτόν τον υπολογιστή είναι του διαχειριστή σας. Ένα υποπροφίλ δεν μπορεί να τους δώσει σε ψηφιακό υπάλληλο.",
   "Choose at least one digital employee for this person.":
     "Επιλέξτε τουλάχιστον έναν ψηφιακό υπάλληλο για αυτό το άτομο.",
   "No such sub-profile.": "Δεν υπάρχει τέτοιο υποπροφίλ.",

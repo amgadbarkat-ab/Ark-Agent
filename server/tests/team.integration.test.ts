@@ -126,9 +126,18 @@ function billing(start = 0) {
 }
 
 async function service(bill = billing()) {
+  const assigned: string[][] = [];
   return {
-    team: createTeamService({ database, authContext, billing: () => bill }),
+    team: createTeamService({
+      database,
+      authContext,
+      billing: () => bill,
+      onAssigned: (agentIds) => {
+        assigned.push(agentIds);
+      },
+    }),
     bill,
+    assigned,
   };
 }
 
@@ -307,6 +316,21 @@ describe("a customer's team", () => {
       (await team.list(adminId)).find((m) => m.userId === first.userId)
         ?.agentIds,
     ).toEqual([]);
+  });
+
+  test("an employee given to a sub-profile is said to be, and leaves the administrator's browser", async () => {
+    const { team, assigned } = await service(billing(5));
+    const { adminId, agentIds } = await company(team);
+    const [a, b] = agentIds as [string, string];
+    expect(await team.isAssigned(a)).toBe(false);
+    await team.addSubprofile(
+      adminId,
+      staff(`a-${randomUUID()}@shop.example`, [a]),
+    );
+    expect(await team.isAssigned(a)).toBe(true);
+    expect(await team.isAssigned(b)).toBe(false);
+    // Told once the assignment is kept, so the administrator's browser lets that employee go.
+    expect(assigned).toEqual([[a]]);
   });
 
   test("two administrators giving the same employee at once: the database keeps exactly one", async () => {

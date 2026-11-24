@@ -1717,6 +1717,16 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
+        ...(team
+          ? {
+              refuse: async (actor, botId) =>
+                (await team.isSubprofile(actor.id))
+                  ? "Your browser here is your administrator's. Digital employees cannot use it from a sub-profile."
+                  : (await team.isAssigned(botId))
+                    ? "This digital employee belongs to a sub-profile, who works from another computer, so it cannot use this computer's browser."
+                    : null,
+            }
+          : {}),
       }),
     );
   }
@@ -1730,6 +1740,14 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
+        ...(team
+          ? {
+              refuse: async (actor) =>
+                (await team.isSubprofile(actor.id))
+                  ? "The folders on this computer are your administrator's. A sub-profile cannot give them to a digital employee."
+                  : null,
+            }
+          : {}),
         botName: agentProfileStore
           ? async (botId, actor) =>
               (await agentProfileStore.get(actor, botId))?.name ?? null

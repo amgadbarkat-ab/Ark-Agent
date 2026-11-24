@@ -565,6 +565,10 @@ const team =
           (await (auth as unknown as { $context: Promise<TeamAuthContext> })
             .$context) as TeamAuthContext,
         billing: () => teamBilling,
+        // An employee given to a sub-profile leaves the administrator's browser (bound late: made below).
+        onAssigned: (agentIds) => {
+          for (const agentId of agentIds) ownBrowser?.release(agentId);
+        },
       })
     : undefined;
 const teamBilling: TeamBilling | null = team

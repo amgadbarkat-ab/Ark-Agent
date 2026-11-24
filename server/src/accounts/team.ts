@@ -107,6 +107,11 @@ export function createTeamService(dependencies: {
   authContext: () => Promise<TeamAuthContext>;
   billing?: () => TeamBilling | null;
   now?: () => number;
+  /**
+   * Told which employees were just given to a sub-profile, so anything they were doing on this
+   * computer for the administrator (the administrator's own browser) is let go.
+   */
+  onAssigned?: (agentIds: string[]) => Promise<void> | void;
 }) {
   const { database } = dependencies;
   const now = () => new Date((dependencies.now ?? Date.now)());
@@ -256,6 +261,9 @@ export function createTeamService(dependencies: {
           );
       }
     });
+    await Promise.resolve(dependencies.onAssigned?.(agentIds)).catch(
+      () => undefined,
+    );
   }
 
   async function subprofileCount(): Promise<number> {
@@ -598,6 +606,15 @@ export function createTeamService(dependencies: {
               ? "This sub-profile is suspended: the last payment for it did not go through. Ask your administrator."
               : "This sub-profile was removed by your administrator.",
       };
+    },
+
+    /** Whether this employee is given to a sub-profile, who works with it from another computer. */
+    async isAssigned(agentId: string) {
+      const [row] = await database
+        .select({ userId: subprofileAgents.userId })
+        .from(subprofileAgents)
+        .where(eq(subprofileAgents.agentId, agentId));
+      return row !== undefined;
     },
 
     /** A staff sub-profile (any status): never buys, never sees billing, never manages people. */
