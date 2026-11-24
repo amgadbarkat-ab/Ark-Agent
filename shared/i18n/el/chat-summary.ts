@@ -5,8 +5,8 @@
 export const EL_CHAT_SUMMARY: Record<string, string> = {
   "Weekly summary, then chat cleanup":
     "Εβδομαδιαία περίληψη και καθαρισμός συνομιλιών",
-  "Once a week, on Sunday night, this digital employee writes a summary of its conversations with you, keeps it, and then deletes those conversations. It starts every request from the summary, which uses far less of your language model than reading old conversations.":
-    "Μία φορά την εβδομάδα, την Κυριακή τη νύχτα, ο ψηφιακός υπάλληλος γράφει μια περίληψη των συνομιλιών του μαζί σας, την κρατά και μετά διαγράφει αυτές τις συνομιλίες. Ξεκινά κάθε αίτημα από την περίληψη, που χρησιμοποιεί πολύ λιγότερο το γλωσσικό σας μοντέλο από την ανάγνωση παλιών συνομιλιών.",
+  "Once a week, on Sunday night, this digital employee writes a summary of its conversations with you, keeps it, and then deletes those conversations. It starts every request from the summary, for lower usage and cost of your language model.":
+    "Μία φορά την εβδομάδα, την Κυριακή τη νύχτα, ο ψηφιακός υπάλληλος γράφει μια περίληψη των συνομιλιών του μαζί σας, την κρατά και μετά διαγράφει αυτές τις συνομιλίες. Ξεκινά κάθε αίτημα από την περίληψη, για χαμηλότερη χρήση και κόστος του γλωσσικού σας μοντέλου.",
   "The last summary could not be made, so nothing was deleted. It is tried again next time.":
     "Η τελευταία περίληψη δεν έγινε, οπότε δεν διαγράφηκε τίποτα. Θα δοκιμαστεί ξανά την επόμενη φορά.",
   "The summary it starts from (made {date})":

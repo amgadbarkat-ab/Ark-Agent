@@ -50,7 +50,7 @@ export function ChatSummarySection({ agentId }: { agentId: string }) {
           </ItemTitle>
           <ItemDescription className="line-clamp-none">
             {t(
-              "Once a week, on Sunday night, this digital employee writes a summary of its conversations with you, keeps it, and then deletes those conversations. It starts every request from the summary, which uses far less of your language model than reading old conversations.",
+              "Once a week, on Sunday night, this digital employee writes a summary of its conversations with you, keeps it, and then deletes those conversations. It starts every request from the summary, for lower usage and cost of your language model.",
             )}
           </ItemDescription>
         </ItemContent>
