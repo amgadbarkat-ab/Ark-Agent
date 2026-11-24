@@ -270,22 +270,33 @@ function encodedWords(text: string): string {
 }
 
 /**
- * One reply as a MIME message: plain text and HTML, From and Reply-To the support address. Built
+ * One reply as a MIME message: plain text and HTML, From the mailbox that sends it (General@) and
+ * Reply-To the support address. Built
  * here rather than as Graph's JSON message so the email carries both parts, and so nothing a person
  * typed can reach a header (the address is checked, the subject encoded).
  */
 export function replyMime(
   mail: OutgoingMail,
-  options: { from: string; fromName?: string; now: number; random: string },
+  options: {
+    from: string;
+    replyTo: string;
+    fromName?: string;
+    now: number;
+    random: string;
+  },
 ): string {
-  if (!MIME_EMAIL.test(mail.to) || !MIME_EMAIL.test(options.from))
+  if (
+    !MIME_EMAIL.test(mail.to) ||
+    !MIME_EMAIL.test(options.from) ||
+    !MIME_EMAIL.test(options.replyTo)
+  )
     throw new GraphError("not an email address");
   const boundary = `ark-${options.random}`;
   const name = options.fromName ?? "BlackArk Support";
   const date = new Date(options.now).toUTCString().replace("GMT", "+0000");
   return [
     `From: ${name} <${options.from}>`,
-    `Reply-To: ${name} <${options.from}>`,
+    `Reply-To: ${name} <${options.replyTo}>`,
     `To: <${mail.to}>`,
     `Subject: ${encodedWords(mail.subject.replace(/[\r\n]+/g, " "))}`,
     `Date: ${date}`,
@@ -311,25 +322,28 @@ export function replyMime(
 
 /**
  * Sends replies from General@ through Graph `sendMail` (application permission Mail.Send, limited
- * to General@ by the same ApplicationAccessPolicy as the reader). From and Reply-To are support@:
- * if Exchange shows General@ as the sender instead, the customer's answer still goes to support@
- * and comes back to the case by its "[Case #N]" tag. A copy stays in General@'s Sent Items.
+ * to General@ by the same ApplicationAccessPolicy as the reader). From is General@ itself (Amgad,
+ * 24 Nov 2026: support@ is not a sending address; Exchange sent it as General@ anyway), Reply-To is
+ * support@, which lands in General@ too, so the customer's answer comes back to the case by its
+ * "[Case #N]" tag. A copy stays in General@'s Sent Items.
  */
 export function graphSender(
   settings: GraphSettings,
   options: {
-    from?: string;
+    /** Where answers go: support@ (an alias of General@). */
+    replyTo?: string;
     fetch?: typeof fetch;
     now?: () => number;
     random?: () => string;
   } = {},
 ): ReplyMailer {
   const fetcher = options.fetch ?? fetch;
-  const from = options.from ?? SUPPORT_ADDRESS;
+  const replyTo = options.replyTo ?? SUPPORT_ADDRESS;
   return {
     async send(mail) {
       const mime = replyMime(mail, {
-        from,
+        from: settings.mailbox,
+        replyTo,
         now: (options.now ?? Date.now)(),
         random:
           options.random?.() ??

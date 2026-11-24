@@ -409,7 +409,7 @@ describe("the reply email itself", () => {
     expect(html).not.toContain("<b>x</b>");
   });
 
-  test("the MIME message: From and Reply-To support@, both parts, nothing typed can reach a header", () => {
+  test("the MIME message: From General@, Reply-To support@, both parts, nothing typed can reach a header", () => {
     const mail: OutgoingMail = {
       to: "maria@shop.example",
       subject: "[Case #3] Δεν ανοίγει\r\nBcc: evil@example.com",
@@ -419,13 +419,14 @@ describe("the reply email itself", () => {
       caseNumber: 3,
     };
     const mime = replyMime(mail, {
-      from: "support@blackark.uk",
+      from: "General@blackark.uk",
+      replyTo: "support@blackark.uk",
       now: Date.UTC(2026, 10, 24, 10, 0),
       random: "abc123",
     });
     const [head, ...rest] = mime.split("\r\n\r\n");
     expect(head?.split("\r\n").slice(0, 3)).toEqual([
-      "From: BlackArk Support <support@blackark.uk>",
+      "From: BlackArk Support <General@blackark.uk>",
       "Reply-To: BlackArk Support <support@blackark.uk>",
       "To: <maria@shop.example>",
     ]);
@@ -456,7 +457,12 @@ describe("the reply email itself", () => {
     expect(() =>
       replyMime(
         { ...mail, to: "x@y.example>\r\nBcc: evil@example.com" },
-        { from: "support@blackark.uk", now: 0, random: "r" },
+        {
+          from: "General@blackark.uk",
+          replyTo: "support@blackark.uk",
+          now: 0,
+          random: "r",
+        },
       ),
     ).toThrow("not an email address");
   });
@@ -500,7 +506,9 @@ describe("the reply email itself", () => {
     expect(send?.headers.get("content-type")).toBe("text/plain");
     expect(
       Buffer.from(send?.body ?? "", "base64").toString("utf8"),
-    ).toStartWith("From: BlackArk Support <support@blackark.uk>\r\n");
+    ).toStartWith(
+      "From: BlackArk Support <General@blackark.uk>\r\nReply-To: BlackArk Support <support@blackark.uk>\r\n",
+    );
 
     const refused = graphSender(
       {

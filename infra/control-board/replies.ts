@@ -4,8 +4,8 @@
  * - The customer's language first, then an English copy below it (GCC English, as staff write it).
  *   Staff write both: no text of a customer's case is sent to any model to translate.
  * - By email, when the case has an address: the sender of an email case, or the address a person
- *   gave before their install was activated. It goes from General@ through Microsoft Graph with From
- *   and Reply-To support@blackark.uk, in BlackArk's HTML look with a plain-text part, and
+ *   gave before their install was activated. It goes from General@ through Microsoft Graph (From
+ *   General@, Reply-To support@blackark.uk), in BlackArk's HTML look with a plain-text part, and
  *   "[Case #N]" in the subject so the customer's answer comes back to the same case (intake.ts).
  * - In the app, when the case came from an install: blackark.uk asks `POST /intake/replies`, signed
  *   with INTAKE_SECRET as the intake is, for one install's cases and their replies, after checking

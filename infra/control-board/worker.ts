@@ -148,7 +148,7 @@ export function replyMailer(env: Env): ReplyMailer | null {
       clientSecret: env.MS_CLIENT_SECRET,
       mailbox: env.MAIL_USER,
     },
-    { from: env.SUPPORT_ADDRESS || SUPPORT_ADDRESS },
+    { replyTo: env.SUPPORT_ADDRESS || SUPPORT_ADDRESS },
   );
 }
 

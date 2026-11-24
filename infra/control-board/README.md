@@ -268,12 +268,11 @@ On a case page, owner, admin and support write **Reply to the customer**:
   customer come back, with their replies, never a note.
 - **By email,** when the case has an address: the sender of an email case, or the address given
   before activation.
-  - It goes from General@ through Graph `sendMail` as a MIME message, with From and Reply-To
-    `support@blackark.uk` and the name "BlackArk Support".
+  - It goes from General@ through Graph `sendMail` as a MIME message: From General@, Reply-To
+    `support@blackark.uk`, the name "BlackArk Support" (Amgad, 24 Nov: support@ is not a sending
+    address).
   - It is in BlackArk's HTML look (the same as the low-balance email), with a plain-text part.
   - The subject is `[Case #N] <subject>`, so the customer's answer comes back to the case.
-  - If Exchange shows `general@` as the sender (COO's tests, 23 Nov), the answer still goes to
-    support@ and threads by the tag.
   - **Off until `REPLY_EMAIL = "on"`** in `wrangler.toml`. Turn it on only after `Mail.Send` is
     granted and `Test-ApplicationAccessPolicy` still gives Granted for General@ and Denied for
     any other mailbox.
