@@ -6,6 +6,8 @@
  * - POST /requests   send it (kept and sent again later if BlackArk cannot be reached)
  * - GET  /replies    BlackArk's replies to the person's own requests (Gap 3); `available` false
  *                    when they cannot be fetched now
+ * - GET  /priority   24/7 Priority Support: the offer, this customer's plan and BlackArk's buy page
+ *                    (`?fresh=1` asks BlackArk again, after paying)
  */
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
@@ -46,6 +48,10 @@ export function supportRoutes(
     const cases = await service.replies(context.var.actor.id);
     return context.json({ available: cases !== null, cases: cases ?? [] });
   });
+
+  app.get("/priority", async (context) =>
+    context.json(await service.priority(context.req.query("fresh") === "1")),
+  );
 
   const read = async (raw: unknown) => body.safeParse(raw);
 

@@ -13,6 +13,7 @@ import {
   PageSection,
   PageShell,
 } from "@/components/layout/page-shell";
+import { PrioritySupportSection } from "@/components/settings/priority-support-section";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -129,6 +130,8 @@ function HelpPage() {
           </PageRows>
         )}
       </PageSection>
+
+      <PrioritySupportSection />
 
       <PageSection title={t("Your requests")}>
         {state.isPending || !state.data ? null : state.data.requests.length ===

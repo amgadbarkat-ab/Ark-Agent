@@ -228,6 +228,16 @@ Every 5 minutes a Cron Trigger (`mail.ts`, `graphMailbox`):
 Nothing else in General@ is read in full, flagged, moved, deleted or sent. Attachments are not fetched.
 Mail to support@ older than 14 days is left for a person.
 
+### 24/7 Priority Support orders
+
+`POST /intake/order`, signed with `INTAKE_SECRET` and sent by blackark.uk's Stripe webhook (`orders.ts`):
+- A paid 24/7 subscription opens **one case**: customer, name, company, email, licence, Stripe subscription id, start date and status.
+- A renewal, a failed renewal or a cancellation updates the same order (`support_orders`) and adds a note to the same case.
+- While the customer's support is active:
+  - their cases show a **24/7** tag in the list, and the case page says so;
+  - a new case of theirs opens **urgent, due within 1 hour**, any day, any time.
+- Exempt from Cloudflare Access like `/intake/app`. New table: run the schema before the deploy.
+
 #### Setting up the Graph app (COO, on Amgad's order)
 
 1. **Entra admin centre → App registrations → New registration:** "BlackArk Control Board", single

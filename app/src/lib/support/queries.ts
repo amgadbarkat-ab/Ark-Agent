@@ -66,6 +66,28 @@ export const supportKeys = {
   all: ["support"] as const,
   state: ["support", "state"] as const,
   replies: ["support", "replies"] as const,
+  priority: ["support", "priority"] as const,
+};
+
+/**
+ * 24/7 Priority Support (Amgad, 24 Nov 2026): the offer as BlackArk sells it, in Greek and English,
+ * this customer's plan, and BlackArk's buy page (Stripe Checkout, in the browser).
+ */
+export type PriorityState = {
+  /** False before activation: nothing can be ordered until BlackArk knows whose computer it is. */
+  available: boolean;
+  offer: {
+    monthlyCents: number;
+    vat: "excluded";
+    scope: { el: string; en: string };
+  } | null;
+  plan: {
+    status: "active" | "past_due" | "cancelled";
+    startedAt: string;
+    paidUntil: string | null;
+  } | null;
+  buyUrl: string | null;
+  error: string | null;
 };
 
 /** The requests, or null when this server does not offer Help & support. */
@@ -100,5 +122,24 @@ export function supportRepliesQueryOptions() {
       return body.available ? body.cases : null;
     },
     refetchInterval: 5 * 60 * 1000,
+  });
+}
+
+/** 24/7 Priority Support, or null when this server does not offer it. Watched while not active. */
+export function supportPriorityQueryOptions() {
+  return queryOptions({
+    queryKey: supportKeys.priority,
+    queryFn: async (): Promise<PriorityState | null> => {
+      const response = await tryClient("/api/support/priority").catch(
+        () => null,
+      );
+      if (response?.status !== 200) return null;
+      return (await response.json()) as PriorityState;
+    },
+    // After ordering in the browser, "active" shows without a reload.
+    refetchInterval: (query) =>
+      query.state.data?.available && query.state.data.plan?.status !== "active"
+        ? 60_000
+        : false,
   });
 }
