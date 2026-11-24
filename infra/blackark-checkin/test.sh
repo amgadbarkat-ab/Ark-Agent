@@ -93,6 +93,7 @@ if ($path === '/fakestripe/v1/checkout/sessions') {
         'private_server_small_monthly' => ['price_srvSmallM', 950, 'recurring'],
         'private_server_gpu_entry_monthly' => ['price_srvGpuM', 35700, 'recurring'],
         'private_server_gpu_entry_activation' => ['price_srvGpuA', 34800, 'one_time'],
+        'arkagent_support_247_monthly_eur' => ['price_sup247', 10000, 'recurring'],
     ];
     $data = [];
     foreach ((array) ($q['lookup_keys'] ?? []) as $key) {
@@ -101,7 +102,10 @@ if ($path === '/fakestripe/v1/checkout/sessions') {
             if (is_file(__DIR__ . '/price_drift') && $key === 'private_server_small_monthly') {
                 $amount = 1050;
             }
-            $data[] = ['id' => $id, 'lookup_key' => $key, 'active' => true, 'unit_amount' => $amount, 'currency' => 'eur', 'type' => $type]
+            if (is_file(__DIR__ . '/support_drift') && $key === 'arkagent_support_247_monthly_eur') {
+                $amount = 9000;
+            }
+            $data[] = ['id' => $id, 'lookup_key' => $key, 'active' => true, 'unit_amount' => $amount, 'currency' => 'eur', 'type' => $type, 'tax_behavior' => 'exclusive']
                 + ($type === 'recurring' ? ['recurring' => ['interval' => 'month']] : []);
         }
     }
@@ -129,6 +133,18 @@ header('Content-Type: application/json');
 if (!hash_equals($want, $_SERVER['HTTP_X_ARK_SIGNATURE'] ?? '') || abs(time() - (int) $time) > 300) {
     http_response_code(403);
     echo '{}';
+    exit;
+}
+if (str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/intake/order')) {
+    // The orders stand-in: keeps each order message, one per line; `board_down` makes it unreachable.
+    if (is_file(__DIR__ . '/board_down')) {
+        http_response_code(503);
+        echo '{}';
+        exit;
+    }
+    file_put_contents(__DIR__ . '/orders.log', $body . "\n", FILE_APPEND);
+    http_response_code(201);
+    echo '{"case":31}';
     exit;
 }
 if (str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/intake/replies')) {
@@ -771,6 +787,70 @@ list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")
 php -r '$o = json_decode($argv[1], true)["order"]; exit($o["status"] === "cancelled" && $o["apiKey"] === null ? 0 : 1);' "$list" \
   && { pass=$((pass+1)); echo "ok   a cancelled server is shown as cancelled, and its key is no longer sent"; } || { fail=$((fail+1)); echo "FAIL cancelled: $list"; }
 expect "the catalogue file is not served" 404 "http://127.0.0.1:$port/checkin/servers-catalogue.php"
+
+# 24/7 Priority Support (Amgad, 24 Nov): the app's offer and plan, the checkout by lookup key, the
+# webhook's plan, and each change reaching the Control Board as an order, even when it is down.
+priority="http://127.0.0.1:$port/checkin/support/priority/"
+pri_inst=6d7e8f90-0000-4000-8000-0000000000d1
+pri_body() { echo "{\"customerId\":\"$1\",\"installId\":\"$pri_inst\",\"proof\":$2}"; }
+orders="$work/board/orders.log"
+expect "the support plan refuses GET" 405 "$priority"
+expect "the support plan without proof is refused" 403 -X POST --data "$(pri_body demo-shop null)" "$priority"
+expect "the support plan is not offered before activation" 400 -X POST --data "$(pri_body unverified null)" "$priority"
+expect "the support plan with another customer's proof is refused" 403 -X POST --data "$(pri_body demo-clinic "$(profile_proof "$good")")" "$priority"
+plan="$(curl -s -X POST --data "$(pri_body demo-shop "$(profile_proof "$good")")" "$priority")"
+php -r '$d = json_decode($argv[1], true); exit($d["offer"]["monthlyCents"] === 10000 && $d["offer"]["vat"] === "excluded"
+  && str_starts_with($d["offer"]["scope"]["en"], "24/7 support: response within 1 hour, around the clock, 7 days a week")
+  && str_contains($d["offer"]["scope"]["el"], "1 ώρα") && $d["plan"] === null
+  && $d["buyUrl"] === "https://blackark.example/checkin/buy/?customer=demo-shop&support=247" ? 0 : 1);' "$plan" \
+  && { pass=$((pass+1)); echo "ok   the app gets the 24/7 offer (the offer's own words, EUR 100 excl. VAT), no plan yet, and the buy link"; } || { fail=$((fail+1)); echo "FAIL support plan offer: $plan"; }
+got="$(location "$buy?customer=demo-shop&support=247")"
+[[ "$got" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] && grep -q 'mode=subscription' <(last) \
+  && grep -q 'line_items%5B0%5D%5Bprice%5D=price_sup247' <(last) && ! grep -q 'line_items%5B1%5D' <(last) \
+  && grep -q 'metadata%5Bkind%5D=support_247' <(last) && grep -q 'subscription_data%5Bmetadata%5D%5Bkind%5D=support_247' <(last) \
+  && grep -q 'billing_address_collection=required' <(last) && grep -q 'custom_fields%5B0%5D%5Bkey%5D=company' <(last) \
+  && grep -q 'client_reference_id=demo-shop' <(last) && grep -q 'done%3Dsupport' <(last) \
+  && { pass=$((pass+1)); echo "ok   24/7 support opens one subscription checkout on the price found by its lookup key, asking name, email and company"; } \
+  || { fail=$((fail+1)); echo "FAIL support checkout ($got): $(last)"; }
+touch "$work/fake/support_drift"
+expect "a 24/7 price that differs from the offer is never charged" 503 "$buy?customer=demo-shop&support=247"
+rm -f "$work/fake/support_drift"
+branded "the 24/7 support thank-you page" "$buy?done=support"
+
+sup_checkout='{"id":"evt_sup_1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_support001","client_reference_id":"demo-shop","customer":"cus_7","subscription":"sub_sup_1","payment_status":"paid","customer_details":{"name":"Maria Papadopoulou","email":"maria@shop.example"},"custom_fields":[{"key":"company","text":{"value":"Demo Shop IKE"}}],"metadata":{"kind":"support_247","customer_id":"demo-shop"}}}}'
+[[ "$(send_event "$sup_checkout")" == 200 ]] && [[ "$(send_event "$sup_checkout")" == 200 ]] || { fail=$((fail+1)); echo "FAIL support checkout event"; }
+php -r '$lines = array_values(array_filter(explode("\n", file_get_contents($argv[1]))));
+  $o = json_decode($lines[0], true);
+  exit(count($lines) === 1 && $o["kind"] === "support_247" && $o["event"] === "started" && $o["customerId"] === "demo-shop"
+    && $o["subscriptionId"] === "sub_sup_1" && $o["status"] === "active" && $o["name"] === "Maria Papadopoulou"
+    && $o["company"] === "Demo Shop IKE" && $o["email"] === "maria@shop.example" && is_string($o["startedAt"]) && isset($o["licence"]) ? 0 : 1);' "$orders" \
+  && { pass=$((pass+1)); echo "ok   a paid 24/7 order reaches the board once, signed, with name, company, email, licence, subscription, start and status"; } || { fail=$((fail+1)); echo "FAIL support order to board: $(cat "$orders" 2>/dev/null)"; }
+[[ "$(php -r '$d = new PDO("sqlite:" . $argv[1]); echo $d->query("SELECT status FROM support_plans WHERE subscription_id = '"'"'sub_sup_1'"'"'")->fetchColumn(), " ", $d->query("SELECT COUNT(*) FROM licenses WHERE subscription_id = '"'"'sub_sup_1'"'"'")->fetchColumn(), " ", implode(",", array_column($d->query("PRAGMA table_info(support_plans)")->fetchAll(), "name"));' "$db")" == "active 0 subscription_id,customer_id,status,session_id,started_at,paid_until,updated_at" ]] \
+  && { pass=$((pass+1)); echo "ok   blackark.uk keeps the plan, never as a licence, and never the name, email or company"; } || { fail=$((fail+1)); echo "FAIL support plan row"; }
+plan="$(curl -s -X POST --data "$(pri_body demo-shop "$(profile_proof "$good")")" "$priority")"
+php -r 'exit(json_decode($argv[1], true)["plan"]["status"] === "active" ? 0 : 1);' "$plan" \
+  && { pass=$((pass+1)); echo "ok   the app shows 24/7 support as active"; } || { fail=$((fail+1)); echo "FAIL plan active: $plan"; }
+send_event '{"id":"evt_sup_2","type":"invoice.payment_failed","data":{"object":{"subscription":"sub_sup_1"}}}' >/dev/null
+plan="$(curl -s -X POST --data "$(pri_body demo-shop "$(profile_proof "$good")")" "$priority")"
+php -r 'exit(json_decode($argv[1], true)["plan"]["status"] === "past_due" ? 0 : 1);' "$plan" && grep -q '"event":"payment_failed"' "$orders" \
+  && { pass=$((pass+1)); echo "ok   a failed renewal shows as past due in the app and updates the board's order"; } || { fail=$((fail+1)); echo "FAIL past_due: $plan"; }
+touch "$work/board/board_down"
+sup_end=$(( $(date +%s) + 31*86400 ))
+send_event '{"id":"evt_sup_3","type":"invoice.paid","data":{"object":{"subscription":"sub_sup_1","lines":{"data":[{"price":{"id":"price_sup247"},"quantity":1,"period":{"end":'"$sup_end"'}}]}}}}' >/dev/null
+waiting="$(php -r '$d = new PDO("sqlite:" . $argv[1]); echo $d->query("SELECT COUNT(*) FROM board_outbox")->fetchColumn();' "$db")"
+rm -f "$work/board/board_down"
+plan="$(curl -s -X POST --data "$(pri_body demo-shop "$(profile_proof "$good")")" "$priority")"
+[[ "$waiting" == 1 ]] && grep -q '"event":"renewed"' "$orders" \
+  && [[ "$(php -r '$d = new PDO("sqlite:" . $argv[1]); echo $d->query("SELECT COUNT(*) FROM board_outbox")->fetchColumn();' "$db")" == 0 ]] \
+  && php -r '$p = json_decode($argv[1], true)["plan"]; exit($p["status"] === "active" && $p["paidUntil"] !== null ? 0 : 1);' "$plan" \
+  && { pass=$((pass+1)); echo "ok   when the board is down the renewal waits, and reaches it on the next call; paid again, the plan is active"; } || { fail=$((fail+1)); echo "FAIL outbox: waiting=$waiting $plan"; }
+send_event '{"id":"evt_sup_4","type":"customer.subscription.deleted","data":{"object":{"id":"sub_sup_1","metadata":{"kind":"support_247"}}}}' >/dev/null
+plan="$(curl -s -X POST --data "$(pri_body demo-shop "$(profile_proof "$good")")" "$priority")"
+php -r 'exit(json_decode($argv[1], true)["plan"]["status"] === "cancelled" ? 0 : 1);' "$plan" && grep -q '"event":"cancelled"' "$orders" \
+  && { pass=$((pass+1)); echo "ok   a cancelled plan shows as inactive in the app and closes the loop on the board's order"; } || { fail=$((fail+1)); echo "FAIL cancelled plan: $plan"; }
+other_plan="$(curl -s -X POST --data '{"customerId":"demo-clinic","installId":"'"$pri_inst"'","proof":'"$(profile_proof "$other")"'}' "$priority")"
+php -r 'exit(json_decode($argv[1], true)["plan"] === null ? 0 : 1);' "$other_plan" \
+  && { pass=$((pass+1)); echo "ok   another customer never sees it"; } || { fail=$((fail+1)); echo "FAIL other customer plan: $other_plan"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]
