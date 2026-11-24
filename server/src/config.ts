@@ -1912,7 +1912,12 @@ export function loadConfig(
      */
     singleUser:
       !organizationAuthUrl &&
-      singleUserAllowed(environment, configuredAuthProviders(auth).length > 0),
+      singleUserAllowed(
+        environment,
+        // Password sign-in is a way in too (the desktop, 24 Nov 2026): nobody is let in unasked.
+        configuredAuthProviders(auth).length > 0 ||
+          auth?.passwordSignIn === true,
+      ),
     accessibility: accessibilityEnabled(environment),
     generativeUi: generativeUiEnabled(environment),
     ...(optional(environment, "APP_DIST_DIR")
