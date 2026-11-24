@@ -125,6 +125,12 @@ export type AuthConfig = {
   microsoft?: OAuthClient & { tenantId: string };
   /** Okta is an OIDC provider rather than a named one, so it is identified by its issuer. */
   okta?: OAuthClient & { issuer: string };
+  /**
+   * Email and password sign-in for a company's own team (ArkAgent, Amgad 24 Nov 2026), on with
+   * `OPENBOT_PASSWORD_SIGNIN=true`. Nobody can register: the first account on an empty deployment is
+   * its administrator (`team/setup`), and after that only an administrator creates people.
+   */
+  passwordSignIn?: boolean;
 };
 
 /**
@@ -1028,7 +1034,9 @@ function authConfig(
   const secret = optional(environment, "BETTER_AUTH_SECRET");
   const baseUrl = url(environment, "BETTER_AUTH_URL");
 
-  if (!google && !microsoft && !okta) {
+  const passwordSignIn =
+    optional(environment, "OPENBOT_PASSWORD_SIGNIN") === "true";
+  if (!google && !microsoft && !okta && !passwordSignIn) {
     if (secret || baseUrl) {
       throw new Error(
         "BETTER_AUTH_SECRET or BETTER_AUTH_URL is set but no identity provider is. Configure GOOGLE_OAUTH_*, MICROSOFT_OAUTH_* or OKTA_OAUTH_*, or unset both",
@@ -1058,7 +1066,8 @@ function authConfig(
     environment,
     "INITIAL_ADMIN_EMAILS",
   );
-  if (initialAdminEmails.length === 0) {
+  // With password sign-in the first account is the administrator (team/setup), so no list is needed.
+  if (initialAdminEmails.length === 0 && !passwordSignIn) {
     throw new Error(
       "Sign-in requires INITIAL_ADMIN_EMAILS naming at least one administrator. Nothing else grants the role, and no screen can promote somebody once the deployment is running",
     );
@@ -1163,6 +1172,7 @@ function authConfig(
     ...(google ? { google } : {}),
     ...(microsoft ? { microsoft } : {}),
     ...(okta ? { okta } : {}),
+    ...(passwordSignIn ? { passwordSignIn: true } : {}),
   };
 }
 

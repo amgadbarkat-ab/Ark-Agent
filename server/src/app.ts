@@ -6,6 +6,8 @@ import { MAX_IMAGE_BYTES } from "../../shared/attachments";
 import { withAccountProvisioning } from "./accounts/provisioning";
 import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
 import type { AccountStore } from "./accounts/store";
+import type { TeamService } from "./accounts/team";
+import { teamRoutes, teamSetupRoutes } from "./accounts/team-routes";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
@@ -515,6 +517,11 @@ export function createApp(
    * Appended last, for the positional reason above. Absent leaves `/api/chat-summary` unmounted.
    */
   chatSummary?: ChatSummaryService,
+  /**
+   * A customer's team with password sign-in (Amgad, 24 Nov 2026): set-up, sub-profiles, and which of
+   * them may use the deployment now. Appended last, for the positional reason above.
+   */
+  team?: TeamService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -743,7 +750,11 @@ export function createApp(
   const signedIn = config.singleUser
     ? createDevRequireUser()
     : auth && roleRepository
-      ? createRequireUser(auth, roleRepository)
+      ? createRequireUser(
+          auth,
+          roleRepository,
+          team ? (userId) => team.mayUse(userId) : undefined,
+        )
       : authenticationUnavailable;
   // Every signed-in person belongs to an account before anything runs for them. See provisioning.ts.
   const requireUser = accountServices
@@ -1818,6 +1829,12 @@ export function createApp(
       "/api/private-server",
       privateServerRoutes(requireUser, privateServer),
     );
+  }
+
+  if (team) {
+    // Set-up first: it is what a deployment with nobody on it yet can answer.
+    app.route("/api/team", teamSetupRoutes(team));
+    app.route("/api/team", teamRoutes(requireUser, team));
   }
 
   if (chatSummary) {

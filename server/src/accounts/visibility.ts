@@ -1,6 +1,20 @@
-import { and, eq, exists, isNotNull, isNull, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  eq,
+  exists,
+  isNotNull,
+  isNull,
+  not,
+  or,
+  type SQL,
+} from "drizzle-orm";
 import type { Database } from "../db/client";
-import { agentProfiles, tenantMemberships } from "../db/schema";
+import {
+  agentProfiles,
+  subprofileAgents,
+  teamMembers,
+  tenantMemberships,
+} from "../db/schema";
 
 type Actor = { id: string; role: "admin" | "user" };
 
@@ -18,6 +32,9 @@ type Actor = { id: string; role: "admin" | "user" };
  *
  * An administrator is platform staff and sees everything.
  *
+ * A staff sub-profile of a customer's team (accounts/team.ts) sees exactly the employees its
+ * administrator gave it, and nothing else: not its company's other employees, not the platform's.
+ *
  * One definition, used by the roster, the runtime and the profile store, because three copies of a
  * rule about who can see whose work is how one of them ends up different.
  */
@@ -26,6 +43,39 @@ export function visibleAgentProfiles(
   actor: Actor,
 ): SQL | undefined {
   if (actor.role === "admin") return undefined;
+  const isSubprofile = exists(
+    database
+      .select({ one: teamMembers.userId })
+      .from(teamMembers)
+      .where(
+        and(
+          eq(teamMembers.userId, actor.id),
+          eq(teamMembers.kind, "subprofile"),
+        ),
+      ),
+  );
+  const assigned = exists(
+    database
+      .select({ one: subprofileAgents.agentId })
+      .from(subprofileAgents)
+      .where(
+        and(
+          eq(subprofileAgents.agentId, agentProfiles.agentId),
+          eq(subprofileAgents.userId, actor.id),
+        ),
+      ),
+  );
+  return or(
+    and(isSubprofile, assigned),
+    and(not(isSubprofile), everyone(database, actor)),
+  );
+}
+
+/** Everybody but a sub-profile: their own, the platform's public ones, their account's public ones. */
+function everyone(
+  database: Pick<Database, "select">,
+  actor: Actor,
+): SQL | undefined {
   return or(
     eq(agentProfiles.ownerUserId, actor.id),
     and(

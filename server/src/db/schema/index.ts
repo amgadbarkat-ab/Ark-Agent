@@ -14,6 +14,7 @@ export * from "./phone";
 export * from "./phone-line";
 export * from "./plugins";
 export * from "./push";
+export * from "./team";
 export * from "./tenants";
 export * from "./terms";
 export * from "./trial";

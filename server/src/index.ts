@@ -30,6 +30,11 @@ import { workOwner } from "../../shared/work-owner";
 import { RunGateAgent } from "./accounts/run-gate";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
+import {
+  createTeamService,
+  type TeamAuthContext,
+  type TeamBilling,
+} from "./accounts/team";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
 import { containerRelayCheck } from "./agents/container-relay";
 import { createAgentFetch } from "./agents/endpoint";
@@ -539,6 +544,22 @@ const auth: AuthService | undefined = config.organizationAuthUrl
         signInAuditStore,
       )
     : undefined;
+/*
+ * A customer's team (Amgad, 24 Nov 2026): with password sign-in, the administrator made at first
+ * start and the staff sub-profiles they add, each signing in as themselves. Billing for sub-profiles
+ * goes through BlackArk (`teamBilling`, once this install is activated).
+ */
+const team =
+  auth && config.auth?.passwordSignIn
+    ? createTeamService({
+        database,
+        authContext: async () =>
+          (await (auth as unknown as { $context: Promise<TeamAuthContext> })
+            .$context) as TeamAuthContext,
+        billing: () => teamBilling,
+      })
+    : undefined;
+const teamBilling: TeamBilling | null = null;
 /*
  * Running in Ark's cloud: what it may do, and the record of the time it uses (docs/ark/17-cloud-runtime.md).
  *
@@ -2052,6 +2073,8 @@ const app = createApp(
   }),
   // The weekly summary and chat cleanup: each employee's setting and summary file.
   chatSummary,
+  // The customer's team: administrator and paid sub-profiles, with password sign-in.
+  team,
 );
 // The Sunday-night summary and cleanup, checked every 15 minutes; each person's own window.
 repeatAfterEach(async () => {
