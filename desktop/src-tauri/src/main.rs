@@ -2826,6 +2826,123 @@ fn with_language(destination: String, language: Option<&str>) -> String {
     }
 }
 
+/// The relay a staff computer runs to reach its company's ArkAgent (`join.rs`). At most one.
+static JOIN_RELAY: std::sync::OnceLock<Mutex<Option<std::process::Child>>> =
+    std::sync::OnceLock::new();
+
+/// Stops the relay, if this computer started one. On quit, and before starting another.
+fn stop_join_relay() {
+    if let Some(slot) = JOIN_RELAY.get() {
+        if let Some(mut child) = slot.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// The join code this computer keeps, if it joined its company's ArkAgent (option A, 24 Nov 2026).
+#[tauri::command]
+fn joined_company(app: tauri::AppHandle) -> Option<String> {
+    let config = app.path().app_config_dir().ok()?;
+    openbot_desktop_lib::join::saved(&config)
+}
+
+/// Joins the company's ArkAgent with the code the administrator gave.
+///
+/// Lays down the program files and Bun, and nothing else: no container engine, no database and no
+/// model, because everything runs on the administrator's computer. Starts the relay, waits for it to
+/// find the company's computer with the certificate the code names, keeps the code for the next
+/// start, and opens the window there, where the person signs in with their own sub-profile.
+#[tauri::command]
+async fn join_company(
+    app: tauri::AppHandle,
+    root: String,
+    code: String,
+    language: Option<String>,
+) -> Result<(), Problem> {
+    use openbot_desktop_lib::join;
+    if !join::looks_like_code(&code) {
+        return Err(Problem::plain(
+            "That is not a join code. Copy it again from your administrator's Settings, then Team.",
+        ));
+    }
+    let root = stack::root_from(&root);
+    deployment_ready(&app, &root).await?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let bun = install::ensure_bun(&root, which_bun())?;
+        let config = handle
+            .path()
+            .app_config_dir()
+            .map_err(|error| Problem::from(error.to_string()))?;
+        stop_join_relay();
+        let child = join::spawn(
+            &root,
+            &bun,
+            &code,
+            join::JOIN_PORT,
+            language.as_deref(),
+            &root.join(".logs"),
+        )
+        .map_err(|error| {
+            Problem::with(
+                "ArkAgent could not start its connection to your company.",
+                error.to_string(),
+            )
+        })?;
+        *JOIN_RELAY
+            .get_or_init(|| Mutex::new(None))
+            .lock()
+            .unwrap() = Some(child);
+        match join::reach(join::JOIN_PORT, std::time::Duration::from_secs(20)) {
+            join::Reached::Connected => {}
+            join::Reached::NotFound => {
+                return Err(Problem::plain(
+                    "Your company's ArkAgent did not answer. Check that the administrator's computer is on and on this network, that the office network is switched on in its Settings, then Team, and that this is the join code it shows now.",
+                ));
+            }
+            join::Reached::NoRelay => {
+                stop_join_relay();
+                return Err(Problem::plain(
+                    "ArkAgent could not start its connection to your company. Try again.",
+                ));
+            }
+        }
+        join::save(&config, &code).map_err(|error| {
+            Problem::with("ArkAgent could not keep the join code.", error.to_string())
+        })?;
+        let destination = with_language(join::address(join::JOIN_PORT), language.as_deref());
+        allow_save_as(&handle, &destination);
+        let window = handle
+            .get_webview_window("main")
+            .ok_or_else(|| Problem::plain("The ArkAgent window is not there to show it in."))?;
+        let url = destination
+            .parse()
+            .map_err(|_| Problem::plain("ArkAgent returned an invalid app destination."))?;
+        window
+            .navigate(url)
+            .map_err(|_| Problem::plain("ArkAgent could not open your company's ArkAgent."))
+    })
+    .await
+    .map_err(|error| Problem::with("ArkAgent could not join your company.", error.to_string()))?
+}
+
+/// This computer stops joining the company's ArkAgent; setup is offered again.
+#[tauri::command]
+fn leave_company(app: tauri::AppHandle) -> Result<(), Problem> {
+    stop_join_relay();
+    let config = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| Problem::from(error.to_string()))?;
+    openbot_desktop_lib::join::forget(&config).map_err(|error| {
+        Problem::with(
+            "ArkAgent could not forget the join code.",
+            error.to_string(),
+        )
+    })
+}
+
 /// Resolve the configured setup page before WebView2's first navigation completes.
 /// Tauri 2's App URL mapping uses devUrl in development and the platform app protocol for
 /// bundled files. Keep this aligned with Tauri's get_app_url and prepare_webview mapping:
@@ -3863,6 +3980,7 @@ fn chose(app: &tauri::AppHandle, item: &str) {
         // Exit rather than hide: quitting is a decision to stop, and the exit handler is what stops
         // the processes with it.
         "quit" => {
+            stop_join_relay();
             app.exit(0);
         }
         _ => {}
@@ -4161,6 +4279,9 @@ fn main() {
             local_model_prepare,
             local_model_cancel,
             ask_the_bot,
+            joined_company,
+            join_company,
+            leave_company,
         ])
         // A packaged application is not a browser tab. Left alone, WebView2 answers a right-click
         // with Back, Refresh, Save as and Print: Back walks the window out of OpenBot with nothing

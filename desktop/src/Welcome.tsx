@@ -44,7 +44,14 @@ const EMBERS = Array.from({ length: 16 }, (_, index) => ({
  * decided to care yet: they need to know what this is, that it will not ask them for anything
  * technical, and where to press. Everything else waits for a screen that needs it.
  */
-export function Welcome({ onStart }: { onStart: () => void }) {
+export function Welcome({
+  onStart,
+  onJoin,
+}: {
+  onStart: () => void;
+  /** A staff computer joining the company's ArkAgent instead (option A, 24 Nov 2026). */
+  onJoin?: () => void;
+}) {
   const t = useT();
   const tx = useTx();
   return (
@@ -92,6 +99,11 @@ export function Welcome({ onStart }: { onStart: () => void }) {
           <button type="button" className="cta" onClick={onStart}>
             {t("Set up ArkAgent")}
           </button>
+          {onJoin ? (
+            <button type="button" className="quiet" onClick={onJoin}>
+              {t("Join my company's ArkAgent")}
+            </button>
+          ) : null}
         </div>
         <p className="footnote">
           {t(

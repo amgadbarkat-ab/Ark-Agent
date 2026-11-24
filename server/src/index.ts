@@ -163,11 +163,9 @@ import {
   serveMetrics,
   serverMetrics,
 } from "./observability";
-import {
-  asOwnOrigin,
-  createOfficeService,
-  DEFAULT_OFFICE_PORT,
-} from "./office/service";
+import { hubClientUrl } from "./office/hub-socket";
+import { officeServeOptions } from "./office/listener";
+import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
 import { originAllowed, trustedOrigins } from "./origin-guard";
 import { deploymentFacts } from "./overview/facts";
 import { createOverviewStore } from "./overview/store";
@@ -593,23 +591,17 @@ const office =
         encryptionKey: config.keyEncryptionKey,
         port: officePort,
         hostname: () => hostname(),
-        listen: (tls) => {
-          const appOrigin =
-            config.appUrl ?? config.auth?.trustedOrigins[0] ?? "";
-          return serve<SocketData>({
+        listen: (tls) =>
+          serve({
             ...serverOptions,
             hostname: "0.0.0.0",
             port: officePort,
             tls,
-            fetch(request, server) {
-              return serverOptions.fetch.call(
-                server,
-                asOwnOrigin(request, appOrigin),
-                server,
-              );
-            },
-          });
-        },
+            ...officeServeOptions(serverOptions, {
+              appOrigin: config.appUrl ?? config.auth?.trustedOrigins[0] ?? "",
+              hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
+            }),
+          }),
       })
     : undefined;
 // Paid sub-profiles activate by themselves, and unpaid ones are suspended: BlackArk asked every 10 minutes.

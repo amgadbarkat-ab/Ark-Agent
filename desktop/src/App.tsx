@@ -13,6 +13,7 @@ import {
 } from "./HarnessPicker";
 import { isHttpEndpointUrl } from "./http-endpoint-url";
 import { languageForApp, sentenceNow, tNow, useT } from "./i18n";
+import { JoinCompany } from "./JoinCompany";
 import { asProblem, Failure, type Problem } from "./Problem";
 import {
   type HeldConfiguration,
@@ -100,6 +101,22 @@ export function App() {
   const [blockerFailure, setBlockerFailure] = useState<Problem | null>(null);
   const [instruction, setInstruction] = useState("");
   const [root, setRoot] = useState("");
+  /*
+   * A staff computer that joins the company's ArkAgent (option A, 24 Nov 2026): "ask" when the person
+   * chose to, "saved" when this computer joined before and goes straight back. Null: set up here.
+   */
+  const [joining, setJoining] = useState<"ask" | "saved" | null>(null);
+  const [savedJoin, setSavedJoin] = useState<string | null>(null);
+  useEffect(() => {
+    invoke<string | null>("joined_company")
+      .then((code) => {
+        if (code) {
+          setSavedJoin(code);
+          setJoining("saved");
+        }
+      })
+      .catch(() => undefined);
+  }, []);
   /*
    * Which Bot and which model, as two separate answers.
    *
@@ -630,10 +647,26 @@ export function App() {
    * Skipped entirely when a stack is already up: somebody returning to a running ArkAgent is not
    * setting one up, and asking them to pick a Bot again would be the wizard asking twice.
    */
+  if (!running && joining && root) {
+    return (
+      <JoinCompany
+        onBack={() => {
+          setJoining(null);
+          setSavedJoin(null);
+        }}
+        root={root}
+        saved={joining === "saved" ? savedJoin : null}
+      />
+    );
+  }
+
   if (!running && step === "welcome") {
     return (
       <main className="welcome-main">
-        <Welcome onStart={() => setStep("model")} />
+        <Welcome
+          onJoin={() => setJoining("ask")}
+          onStart={() => setStep("model")}
+        />
         {displayedFailure && <Failure problem={displayedFailure} />}
       </main>
     );

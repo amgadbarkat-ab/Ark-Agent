@@ -13,6 +13,7 @@
  * No dependencies beyond Bun and node:crypto: it runs from the installed files as they are.
  */
 import { fingerprintOf } from "./certificate";
+import { withHubAddress, withSocketAllowed } from "./hub-socket";
 import { type JoinCode, parseJoinCode } from "./join-code";
 
 export type Upstream = { origin: string; ca: string };
@@ -203,11 +204,25 @@ export function startJoinProxy(options: {
         const location = headers.get("location");
         if (location?.startsWith(to.origin))
           headers.set("location", local + location.slice(to.origin.length));
-        return new Response(answer.body, {
-          status: answer.status,
-          statusText: answer.statusText,
-          headers,
-        });
+        const passed = withSocketAllowed(
+          new Response(answer.body, {
+            status: answer.status,
+            statusText: answer.statusText,
+            headers,
+          }),
+          local.replace(/^http/, "ws"),
+        );
+        // The hub's live connection, which the company's computer carries for the office network:
+        // the page reaches it through this computer, like everything else.
+        const remote = to.origin.replace(/^https/, "wss");
+        const here = local.replace(/^http/, "ws");
+        return url.pathname.startsWith("/api/copilotkit")
+          ? withHubAddress(passed, (current) =>
+              current.startsWith(remote)
+                ? here + current.slice(remote.length)
+                : null,
+            )
+          : passed;
       } catch {
         // The company's computer went away, or changed address: look for it again next time.
         upstream = null;
