@@ -8,10 +8,12 @@ import { graphSender, replyMime } from "./mail";
 import {
   appReplies,
   type OutgoingMail,
+  REPEAT_MS,
   type ReplyMailer,
   replyHtml,
   replySubject,
   replyText,
+  replyToCase,
 } from "./replies";
 import { Browser, ORIGIN, type TestBoard, testBoard } from "./test-helpers";
 
@@ -354,6 +356,64 @@ describe("replies to the customer, from the board", () => {
         "SELECT email, emailed_to FROM case_replies",
       ),
     ).toEqual({ email: "none", emailed_to: null });
+  });
+
+  test("the same reply sent twice (a double click, live on 24 Nov): kept and emailed once; again after 2 minutes it is a new reply", async () => {
+    const mailer = mailbox();
+    const { t, browser } = await setup({ mailer });
+    await fromApp(t);
+    const words = { body: "Δοκιμή απάντησης", english: "Test reply" };
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    // Both in flight at once, as two clicks before the page answers.
+    const row = (await getCase(t.sql, 1)) as NonNullable<
+      Awaited<ReturnType<typeof getCase>>
+    >;
+    const other = { body: "Δεύτερη", english: "Second" };
+    const both = await Promise.all([
+      replyToCase(t.sql, mailer, row, "maria", other, t.clock.now),
+      replyToCase(t.sql, mailer, row, "maria", other, t.clock.now),
+    ]);
+    expect(both.filter((one) => one?.reply).length).toBe(1);
+    expect(mailer.sent).toHaveLength(2);
+    expect(
+      await t.sql.first<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM case_replies",
+      ),
+    ).toEqual({ n: 2 });
+    expect(
+      (await readAudit(t.sql, 20, 0))
+        .filter((r) => r.action === "case.reply")
+        .map((r) => `${r.outcome} ${r.detail}`),
+    ).toContain(
+      "refused the same reply again within 2 minutes: not sent again",
+    );
+
+    t.clock.now += REPEAT_MS + 1000;
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    expect(mailer.sent).toHaveLength(3);
+  });
+
+  test("after a failed email, the same reply can be tried again at once", async () => {
+    let fail = true;
+    const sent: OutgoingMail[] = [];
+    const flaky: ReplyMailer = {
+      async send(mail) {
+        if (fail) {
+          const error = new Error("sendMail refused (HTTP 503)");
+          error.name = "GraphError";
+          throw error;
+        }
+        sent.push(mail);
+      },
+    };
+    const { t, browser } = await setup({ mailer: flaky });
+    await fromApp(t);
+    const words = { body: "Γεια", english: "Hello" };
+    expect((await reply(browser, 1, words)).status).toBe(502);
+    fail = false;
+    expect((await reply(browser, 1, words)).status).toBe(303);
+    expect(sent).toHaveLength(1);
   });
 
   test("read-only accounts see replies but cannot send one", async () => {

@@ -13,6 +13,7 @@
  * - Each reply is kept as sent (never changed or removed), written into the case notes with its text,
  *   and into the audit log without it. A new or open case then waits for the customer.
  */
+import { createHash } from "node:crypto";
 import { CUSTOMER_ID, type Extension } from "./board";
 import { addNote, type Case, changeCase, reachOf } from "./cases";
 import { json, readSigned } from "./intake";
@@ -160,10 +161,14 @@ export async function replyRoute(
 }
 
 export type ReplyOutcome = {
-  reply: Reply;
+  /** Null for a repeat: the same reply was just sent, and is not sent again. */
+  reply: Reply | null;
   /** For the audit log: how it went, never the words. */
   detail: string;
 };
+
+/** How long the same reply from the same person counts as a repeat of the one just sent. */
+export const REPEAT_MS = 2 * 60 * 1000;
 
 /**
  * Sends (when it can) and keeps one reply. Refused with null when the case has no way back to the
@@ -180,6 +185,22 @@ export async function replyToCase(
   const route = await replyRoute(sql, row, mailer);
   const english = row.language === "el" ? words.english : null;
   if (!route.app && !(route.email && mailer)) return null;
+  // A double click, or the form sent again while the page was slow, is the same reply: claimed once.
+  const digest = createHash("sha256")
+    .update(JSON.stringify([by, words.body, english]))
+    .digest("hex");
+  await sql.run("DELETE FROM case_reply_claims WHERE at < ?", now - REPEAT_MS);
+  const claimed = await sql.run(
+    "INSERT OR IGNORE INTO case_reply_claims (case_number, digest, at) VALUES (?, ?, ?)",
+    row.number,
+    digest,
+    now,
+  );
+  if (claimed.changes === 0)
+    return {
+      reply: null,
+      detail: "the same reply again within 2 minutes: not sent again",
+    };
   let email: Reply["email"] = "none";
   let failure = "";
   if (route.email && mailer) {
@@ -197,6 +218,12 @@ export async function replyToCase(
       email = "sent";
     } catch (error) {
       email = "failed";
+      // So the person can try again at once.
+      await sql.run(
+        "DELETE FROM case_reply_claims WHERE case_number = ? AND digest = ?",
+        row.number,
+        digest,
+      );
       // GraphError carries only the HTTP status; nothing else is kept.
       failure =
         error instanceof Error && error.name === "GraphError"

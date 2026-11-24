@@ -281,6 +281,10 @@ On a case page, owner, admin and support write **Reply to the customer**:
     email failed, or app only.
   - It is a case note with its text, and an audit row (`case.reply`) without it.
   - A new or open case moves to "waiting".
+- **The same reply twice** (a double click, or the form sent again while the page was slow: case #2
+  on 24 Nov) is kept and emailed once. The same words from the same person on the same case within
+  2 minutes are a repeat; the audit log notes it, refused. After a failed email the same reply can be
+  sent again at once.
 - **A failed email** is said on the page and kept as "failed". The reply still shows in the app if
   the case came from there.
 - **A case with no address that did not come from the app** has no reply form. The page says so:

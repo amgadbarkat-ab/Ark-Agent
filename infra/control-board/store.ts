@@ -150,6 +150,14 @@ export const SCHEMA: string[] = [
     email TEXT NOT NULL CHECK (email IN ('sent', 'failed', 'none'))
   )`,
   "CREATE INDEX IF NOT EXISTS case_replies_case ON case_replies (case_number, id)",
+  // One claim per reply being sent: the same words from the same person on the same case within 2
+  // minutes are a repeat (a double click), sent once. The primary key makes the claim atomic.
+  `CREATE TABLE IF NOT EXISTS case_reply_claims (
+    case_number INTEGER NOT NULL,
+    digest TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (case_number, digest)
+  )`,
   `CREATE TRIGGER IF NOT EXISTS case_replies_no_update BEFORE UPDATE ON case_replies
     BEGIN SELECT RAISE(ABORT, 'Replies are kept as sent.'); END`,
   `CREATE TRIGGER IF NOT EXISTS case_replies_no_delete BEFORE DELETE ON case_replies

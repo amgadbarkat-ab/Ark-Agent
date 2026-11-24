@@ -759,10 +759,10 @@ export function casesExtension(
         await context.audit(
           "case.reply",
           `case:${row.number}`,
-          "ok",
+          outcome.reply ? "ok" : "refused",
           outcome.detail,
         );
-        if (outcome.reply.email === "failed")
+        if (outcome.reply?.email === "failed")
           return again(
             t(
               lang,

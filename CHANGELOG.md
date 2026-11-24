@@ -9,6 +9,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 ## Unreleased
 
 - **Control Board: reply emails say From General@ (Amgad, 24 Nov).** support@ is not a sending address; the email now names General@, the mailbox that sends it (Exchange already delivered it so), and Reply-To stays support@, so the customer's answer still comes back to the case. Board only: takes effect at the next board deploy.
+- **Control Board: a reply sent twice goes once.** The live test on 24 Nov kept and emailed one reply twice, 3 seconds apart (a double click or a slow page). The same words from the same person on the same case within 2 minutes are now one reply. A new table, `case_reply_claims`: run the schema again before the deploy.
 
 ## 0.1.52
 
