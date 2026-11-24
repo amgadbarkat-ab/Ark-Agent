@@ -157,6 +157,9 @@ fn send(text: &str, post: &mut impl FnMut(&str) -> Result<(u16, String), String>
                 .and_then(|value| value.get("changed")?.as_bool())
                 .unwrap_or(true),
         },
+        // Nobody signed in yet (sign-in per person, 24 Nov 2026): not a refusal of the file. It stays
+        // for the next start, and the administrator can also give it on the Activate screen.
+        Ok((401, _)) => Outcome::Unreachable,
         Ok((status, answer)) if (400..500).contains(&status) => Outcome::Refused(
             serde_json::from_str::<serde_json::Value>(&answer)
                 .ok()
@@ -351,6 +354,15 @@ mod tests {
         assert_eq!(attempts[0].outcome, Outcome::Unreachable);
         assert!(import_dir(&config).join("demo-shop.arktrial").exists());
         assert_eq!(log(&config)[0]["outcome"], "unreachable");
+    }
+
+    #[test]
+    fn nobody_signed_in_yet_leaves_the_file_for_the_next_start() {
+        let config = crate::test_support::temp_root("trial-import-signed-out");
+        drop_in(&config, "demo-shop.arktrial", GOOD);
+        let attempts = pick_up_with(&config, |_| Ok((401, r#"{"error":"Sign in"}"#.into())));
+        assert_eq!(attempts[0].outcome, Outcome::Unreachable);
+        assert!(import_dir(&config).join("demo-shop.arktrial").exists());
     }
 
     #[test]

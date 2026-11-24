@@ -803,17 +803,21 @@ pub fn compose(
     // that came with the deployment, and the Bots somebody was given are not the Bots they get.
     env.insert("TENANT_PACKAGE_DIR".into(), "../examples/fintech".into());
 
-    // The one person, named. `OPENBOT_SINGLE_USER` says there is nobody else; this says who that
-    // somebody is, so the routes that ask what an actor may do have an actor to answer about.
-    env.insert("INITIAL_ADMIN_EMAILS".into(), "dev@openbot.local".into());
-
-    // One machine, one person, no sign-in.
+    // Every person signs in as themselves (Amgad, 24 Nov 2026): the company's administrator, made at
+    // first start, and the staff sub-profiles the administrator adds. Email and password, checked by
+    // this machine's own server; nobody signs up on their own. An install that had one person before
+    // keeps it: the administrator made at first start takes over that person's employees and chats.
     //
-    // The server refuses to start with no identity provider rather than serve a deployment where
-    // every visitor is an administrator, which is the right refusal on a server and the wrong
-    // question on a laptop: there is nobody else here. Saying so explicitly is how that refusal is
-    // answered, and it is the same switch `ci.yml` uses for the same reason.
-    env.insert("OPENBOT_SINGLE_USER".into(), "true".into());
+    // Both written on every start, so an install laid down by an earlier version (no sign-in, one
+    // administrator) is moved over, not left half in each.
+    env.insert("OPENBOT_SINGLE_USER".into(), "false".into());
+    env.insert("OPENBOT_PASSWORD_SIGNIN".into(), "true".into());
+    env.insert("INITIAL_ADMIN_EMAILS".into(), String::new());
+    // Where sign-in answers: this machine's API, the same address the connectors come back to.
+    env.insert(
+        "BETTER_AUTH_URL".into(),
+        format!("http://localhost:{}", ports.server),
+    );
 
     // Activation (#109, v0.1.42): on a desktop install nothing runs without a trial activation
     // code, a paid licence key or the trial setup file. Only the desktop app sets this, so a hosted
@@ -956,8 +960,10 @@ pub const NO_KEY_NEEDED: &str = "no-key-needed";
 const BANNER: &str = "# Written by ArkAgent Desktop. Anything else in this file is left alone.";
 
 /// The secrets this deployment mints for itself, once.
-pub const MINTED: [&str; 8] = [
+pub const MINTED: [&str; 9] = [
     "AGENT_TOOL_TOKEN",
+    // What sign-in sessions are signed with (sign-in per person, 24 Nov 2026).
+    "BETTER_AUTH_SECRET",
     "COMPUTER_TOKEN",
     // Ark Hub's two secrets: the key the server presents to it, and the secret it signs the tokens
     // that let a window join a conversation with. Minted here, once, so there is nothing to sign in
@@ -1558,7 +1564,7 @@ HTTPS_PROXY=http://proxy:8080
     }
 
     #[test]
-    fn a_desktop_install_is_single_user_or_the_server_refuses_to_start() {
+    fn a_desktop_install_signs_in_each_person_rather_than_admitting_anyone() {
         let env = compose(
             &Model::default(),
             &engine_status(None),
@@ -1567,9 +1573,28 @@ HTTPS_PROXY=http://proxy:8080
             None,
             &BTreeMap::new(),
         );
+        let get = |key: &str| env.get(key).map(String::as_str);
+        assert_eq!(get("OPENBOT_SINGLE_USER"), Some("false"));
+        assert_eq!(get("OPENBOT_PASSWORD_SIGNIN"), Some("true"));
+        assert_eq!(get("INITIAL_ADMIN_EMAILS"), Some(""));
         assert_eq!(
-            env.get("OPENBOT_SINGLE_USER").map(String::as_str),
-            Some("true")
+            get("BETTER_AUTH_URL"),
+            Some(format!("http://localhost:{}", Ports::default().server).as_str())
+        );
+        // Minted, long enough for the server, and never the same on two installs.
+        let secret = get("BETTER_AUTH_SECRET").unwrap_or_default();
+        assert!(secret.len() >= 32, "{secret}");
+        let other = compose(
+            &Model::default(),
+            &engine_status(None),
+            &Ports::default(),
+            &pinned(),
+            None,
+            &BTreeMap::new(),
+        );
+        assert_ne!(
+            other.get("BETTER_AUTH_SECRET").map(String::as_str),
+            Some(secret)
         );
     }
 
