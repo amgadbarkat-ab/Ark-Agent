@@ -94,6 +94,7 @@ if ($path === '/fakestripe/v1/checkout/sessions') {
         'private_server_gpu_entry_monthly' => ['price_srvGpuM', 35700, 'recurring'],
         'private_server_gpu_entry_activation' => ['price_srvGpuA', 34800, 'one_time'],
         'arkagent_support_247_monthly_eur' => ['price_sup247', 10000, 'recurring'],
+        'arkagent_subprofile_monthly_eur' => ['price_sub15', 1500, 'recurring'],
     ];
     $data = [];
     foreach ((array) ($q['lookup_keys'] ?? []) as $key) {
@@ -110,6 +111,30 @@ if ($path === '/fakestripe/v1/checkout/sessions') {
         }
     }
     echo json_encode(['object' => 'list', 'data' => $data]);
+} elseif (preg_match('#^/fakestripe/v1/subscription_items(/(si_[a-z0-9]+))?$#', $path, $m)) {
+    // Sub-profiles: one item kept in a file. `pay_fails` makes a change stay pending (unpaid).
+    $state = __DIR__ . '/items.json';
+    $items = is_file($state) ? json_decode(file_get_contents($state), true) : [];
+    parse_str(file_get_contents('php://input') ?: '', $f);
+    $id = $m[2] ?? ('si_' . (count($items) + 1));
+    if (!isset($items[$id])) {
+        $items[$id] = ['id' => $id, 'subscription' => $f['subscription'] ?? '', 'price' => ['id' => $f['price'] ?? ''], 'quantity' => 0];
+    }
+    if (!is_file(__DIR__ . '/pay_fails')) {
+        $items[$id]['quantity'] = (int) ($f['quantity'] ?? $items[$id]['quantity']);
+    }
+    file_put_contents($state, json_encode($items));
+    echo json_encode($items[$id]);
+} elseif (preg_match('#^/fakestripe/v1/subscriptions/(sub_[A-Za-z0-9_]+)$#', $path, $m)) {
+    $state = __DIR__ . '/items.json';
+    $items = is_file($state) ? json_decode(file_get_contents($state), true) : [];
+    $data = array_values(array_filter($items, fn ($i) => $i['subscription'] === $m[1]));
+    if ($m[1] === 'sub_trial_team') {
+        $data = [['id' => 'si_trial', 'price' => ['id' => 'price_sub15'], 'quantity' => 2]];
+    }
+    echo json_encode(['id' => $m[1], 'status' => is_file(__DIR__ . '/sub_past_due') ? 'past_due' : 'active', 'items' => ['data' => $data]]);
+} elseif ($path === '/fakestripe/v1/checkout/sessions/cs_test_fake') {
+    echo json_encode(['id' => 'cs_test_fake', 'status' => is_file(__DIR__ . '/checkout_done') ? 'complete' : 'open', 'subscription' => is_file(__DIR__ . '/checkout_done') ? 'sub_trial_team' : null]);
 } elseif ($path === '/fakestripe/v1/invoiceitems') {
     echo json_encode(['id' => 'ii_test_1']);
 } elseif (preg_match('#^/fakestripe/v1/invoices(/in_test_1/(finalize|pay))?$#', $path)) {
@@ -132,6 +157,11 @@ $want = hash_hmac('sha256', $time . '.' . $nonce . '.' . $body, 'intake-secret-f
 header('Content-Type: application/json');
 if (!hash_equals($want, $_SERVER['HTTP_X_ARK_SIGNATURE'] ?? '') || abs(time() - (int) $time) > 300) {
     http_response_code(403);
+    echo '{}';
+    exit;
+}
+if (str_starts_with($_SERVER['REQUEST_URI'] ?? '', '/intake/team')) {
+    file_put_contents(__DIR__ . '/team.log', $body . "\n", FILE_APPEND);
     echo '{}';
     exit;
 }
@@ -851,6 +881,51 @@ php -r 'exit(json_decode($argv[1], true)["plan"]["status"] === "cancelled" ? 0 :
 other_plan="$(curl -s -X POST --data '{"customerId":"demo-clinic","installId":"'"$pri_inst"'","proof":'"$(profile_proof "$other")"'}' "$priority")"
 php -r 'exit(json_decode($argv[1], true)["plan"] === null ? 0 : 1);' "$other_plan" \
   && { pass=$((pass+1)); echo "ok   another customer never sees it"; } || { fail=$((fail+1)); echo "FAIL other customer plan: $other_plan"; }
+
+# Staff sub-profiles (Amgad, 24 Nov): EUR 15 each on top of Ark Team, off until the first one, paid
+# before it counts. A customer with Ark Team: an item on that subscription. Without: a checkout first.
+team_url="http://127.0.0.1:$port/checkin/team/"
+team_inst=7e8f9012-0000-4000-8000-0000000000e1
+team_body() { echo "{\"customerId\":\"$1\",\"installId\":\"$team_inst\",\"proof\":$2${3:-}}"; }
+ask_team() { curl -s -X POST --data "$1" "$team_url"; }
+sent_to() { grep "^/fakestripe$1 " "$work/fake/sent.log" | tail -1; } # the last request to one Stripe path
+expect "the team endpoint refuses GET" 405 "$team_url"
+expect "the team endpoint without proof is refused" 403 -X POST --data "$(team_body demo-shop null)" "$team_url"
+expect "the team endpoint is not for an install before activation" 400 -X POST --data "$(team_body unverified null)" "$team_url"
+expect "more than 50 sub-profiles is refused" 400 -X POST --data "$(team_body demo-shop "$(profile_proof "$good")" ',"quantity":51')" "$team_url"
+got="$(ask_team "$(team_body demo-shop "$(profile_proof "$good")")")"
+[[ "$got" == '{"paid":0,"status":"none","checkoutUrl":null}' ]] && ! grep -q 'subscription_items' "$work/fake/sent.log" \
+  && { pass=$((pass+1)); echo "ok   off by default: nothing paid, nothing asked of Stripe"; } || { fail=$((fail+1)); echo "FAIL team status: $got"; }
+got="$(ask_team "$(team_body demo-shop "$(profile_proof "$good")" ',"quantity":2')")"
+php -r '$d = json_decode($argv[1], true); exit($d["paid"] === 0 && $d["status"] === "checkout" && $d["checkoutUrl"] === "https://checkout.stripe.com/c/pay/cs_test_fake" ? 0 : 1);' "$got" \
+  && grep -q 'line_items%5B0%5D%5Bprice%5D=price_sub15' <(sent_to /v1/checkout/sessions) && grep -q 'line_items%5B0%5D%5Bquantity%5D=2' <(sent_to /v1/checkout/sessions) && grep -q 'metadata%5Bkind%5D=subprofiles' <(sent_to /v1/checkout/sessions) \
+  && { pass=$((pass+1)); echo "ok   without Ark Team: 2 sub-profiles open a checkout on the EUR 15 price by lookup key, nothing paid yet"; } || { fail=$((fail+1)); echo "FAIL team checkout: $got $(last)"; }
+touch "$work/fake/checkout_done"
+got="$(ask_team "$(team_body demo-shop "$(profile_proof "$good")" ',"members":[{"name":"Maria","email":"maria@shop.example","role":"admin","status":"active","createdAt":"2026-11-24T10:00:00Z","agents":5},{"name":"Nikos","email":"nikos@shop.example","role":"subprofile","status":"pending_payment","createdAt":"2026-11-24T11:00:00Z","agents":2}]')")"
+[[ "$got" == '{"paid":2,"status":"active","checkoutUrl":null}' ]] && grep -q '"kind":"subprofiles"' "$orders" && grep -q '"quantity":2' "$orders" \
+  && grep -q '"email":"nikos@shop.example"' "$work/board/team.log" \
+  && { pass=$((pass+1)); echo "ok   once the checkout is paid, 2 count; the board gets the order and the team list"; } || { fail=$((fail+1)); echo "FAIL team paid: $got"; }
+ask_team "$(team_body demo-shop "$(profile_proof "$good")" ',"members":[{"name":"Maria","email":"maria@shop.example","role":"admin","status":"active","createdAt":"2026-11-24T10:00:00Z","agents":5},{"name":"Nikos","email":"nikos@shop.example","role":"subprofile","status":"pending_payment","createdAt":"2026-11-24T11:00:00Z","agents":2}]')" >/dev/null
+[[ "$(grep -c . "$work/board/team.log")" == 1 ]] && [[ "$(php -r '$d = new PDO("sqlite:" . $argv[1]); echo implode(",", array_column($d->query("PRAGMA table_info(team_digests)")->fetchAll(), "name"));' "$db")" == "customer_id,digest,at" ]] \
+  && { pass=$((pass+1)); echo "ok   the same team list is not sent twice, and no name or email is kept here"; } || { fail=$((fail+1)); echo "FAIL team list repeat"; }
+
+got="$(ask_team "$(team_body demo-phone "$licence" ',"quantity":1')")"
+[[ "$got" == '{"paid":1,"status":"active","checkoutUrl":null}' ]] && grep -q 'subscription=sub_2' <(sent_to /v1/subscription_items) && grep -q 'proration_behavior=always_invoice' <(sent_to /v1/subscription_items) && grep -q 'payment_behavior=pending_if_incomplete' <(sent_to /v1/subscription_items) \
+  && { pass=$((pass+1)); echo "ok   with Ark Team: the sub-profile is an item on that subscription, prorated, charged now, applied only if paid"; } || { fail=$((fail+1)); echo "FAIL team on licence: $got $(last)"; }
+touch "$work/fake/pay_fails"
+got="$(ask_team "$(team_body demo-phone "$licence" ',"quantity":3')")"
+[[ "$got" == '{"paid":1,"status":"active","checkoutUrl":null}' ]] \
+  && { pass=$((pass+1)); echo "ok   when the charge fails, the paid number stays where it was: nothing activates unpaid"; } || { fail=$((fail+1)); echo "FAIL team pay fails: $got"; }
+rm -f "$work/fake/pay_fails"
+touch "$work/fake/sub_past_due"
+got="$(ask_team "$(team_body demo-phone "$licence")")"
+[[ "$got" == '{"paid":0,"status":"past_due","checkoutUrl":null}' ]] && grep -q '"status":"past_due"' "$orders" \
+  && { pass=$((pass+1)); echo "ok   a failed renewal: none count, and the board is told"; } || { fail=$((fail+1)); echo "FAIL team past due: $got"; }
+rm -f "$work/fake/sub_past_due"
+got="$(ask_team "$(team_body demo-phone "$licence" ',"quantity":0')")"
+[[ "$got" == '{"paid":0,"status":"active","checkoutUrl":null}' ]] && grep -q 'quantity=0' <(grep "^/fakestripe/v1/subscription_items/si_" "$work/fake/sent.log" | tail -1) \
+  && { pass=$((pass+1)); echo "ok   removing the last sub-profile takes the quantity to 0 (prorated)"; } || { fail=$((fail+1)); echo "FAIL team to zero: $got"; }
+branded "the sub-profile thank-you page" "$buy?done=team"
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

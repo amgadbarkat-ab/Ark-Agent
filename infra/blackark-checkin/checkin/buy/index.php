@@ -57,6 +57,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
 if (($_GET['done'] ?? '') === 'server') {
     page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Ο ιδιωτικός σας διακομιστής θα είναι έτοιμος μέσα σε 1 εργάσιμη ημέρα. Το ArkAgent δείχνει πότε είναι έτοιμος, στις Ρυθμίσεις, Μοντέλα.', 'Thank you. Your private server will be ready within 1 working day. ArkAgent shows when it is ready, in Settings, Models.');
 }
+if (($_GET['done'] ?? '') === 'team') {
+    page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Τα νέα προφίλ προσωπικού ενεργοποιούνται μόλις το επιβεβαιώσει η Stripe, σε λίγα λεπτά. Το ArkAgent το δείχνει στις Ρυθμίσεις, Ομάδα.', 'Thank you. The new staff sub-profiles are active as soon as Stripe confirms the payment, within a few minutes. ArkAgent shows it in Settings, Team.');
+}
 if (($_GET['done'] ?? '') === 'support') {
     page(200, 'Ευχαριστούμε!', 'Η πληρωμή ολοκληρώθηκε. Η υποστήριξη 24/7 είναι ενεργή μόλις το επιβεβαιώσει η Stripe, σε λίγα λεπτά. Το ArkAgent το δείχνει στις Ρυθμίσεις, Βοήθεια και υποστήριξη.', 'Thank you. 24/7 support is active as soon as Stripe confirms the payment, within a few minutes. ArkAgent shows it in Settings, Help & support.');
 }
