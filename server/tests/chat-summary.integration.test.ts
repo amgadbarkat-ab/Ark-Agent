@@ -25,8 +25,15 @@ import type { ConversationService } from "../src/privacy/conversations";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 const database = createDatabase(testDatabaseUrl(), TEST_POOL);
-const made = { users: [] as string[], agents: [] as string[] };
+const made = {
+  users: [] as string[],
+  agents: [] as string[],
+  channels: [] as string[],
+};
 afterAll(async () => {
+  // Removed, so other test files never see these conversations (the naming tests look for unnamed ones).
+  if (made.channels.length)
+    await database.delete(channels).where(inArray(channels.id, made.channels));
   if (made.users.length)
     await database.delete(users).where(inArray(users.id, made.users));
   if (made.agents.length)
@@ -97,6 +104,7 @@ async function conversation(
 ): Promise<{ channelId: string; threadId: string }> {
   const channelId = `ch-${randomUUID()}`;
   const threadId = randomUUID();
+  made.channels.push(channelId);
   await database.insert(channels).values({
     id: channelId,
     name: "Chat",
