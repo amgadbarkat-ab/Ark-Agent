@@ -17,6 +17,7 @@ import { Route as AuthedAppRouteImport } from './routes/_authed/_app'
 import { Route as AuthedAcceptTermsRouteImport } from './routes/_authed/accept-terms'
 import { Route as AuthedActivateRouteImport } from './routes/_authed/activate'
 import { Route as AuthedAdminRouteRouteImport } from './routes/_authed/admin/route'
+import { Route as AuthedNewPasswordRouteImport } from './routes/_authed/new-password'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed/onboarding'
 import { Route as AuthedSettingsRouteRouteImport } from './routes/_authed/settings/route'
 import { Route as AuthedAppIndexRouteImport } from './routes/_authed/_app/index'
@@ -43,6 +44,7 @@ import { Route as AuthedSettingsModelsRouteImport } from './routes/_authed/setti
 import { Route as AuthedSettingsPhoneApprovalRouteImport } from './routes/_authed/settings/phone-approval'
 import { Route as AuthedSettingsPlanRouteImport } from './routes/_authed/settings/plan'
 import { Route as AuthedSettingsPrivacyRouteImport } from './routes/_authed/settings/privacy'
+import { Route as AuthedSettingsTeamRouteImport } from './routes/_authed/settings/team'
 import { Route as AuthedAppAgentsIndexRouteImport } from './routes/_authed/_app/agents/index'
 import { Route as AuthedAppChannelChannelIdRouteImport } from './routes/_authed/_app/channel/$channelId'
 import { Route as AuthedAppChannelNewRouteImport } from './routes/_authed/_app/channel/new'
@@ -98,6 +100,11 @@ const AuthedActivateRoute = AuthedActivateRouteImport.update({
 const AuthedAdminRouteRoute = AuthedAdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedNewPasswordRoute = AuthedNewPasswordRouteImport.update({
+  id: '/new-password',
+  path: '/new-password',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
@@ -232,6 +239,11 @@ const AuthedSettingsPrivacyRoute = AuthedSettingsPrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => AuthedSettingsRouteRoute,
 } as any)
+const AuthedSettingsTeamRoute = AuthedSettingsTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AuthedSettingsRouteRoute,
+} as any)
 const AuthedAppAgentsIndexRoute = AuthedAppAgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
@@ -346,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthedSettingsRouteRouteWithChildren
   '/accept-terms': typeof AuthedAcceptTermsRoute
   '/activate': typeof AuthedActivateRoute
+  '/new-password': typeof AuthedNewPasswordRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/approvals': typeof AuthedAppApprovalsRoute
   '/bot': typeof AuthedAppBotRoute
@@ -368,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/settings/phone-approval': typeof AuthedSettingsPhoneApprovalRoute
   '/settings/plan': typeof AuthedSettingsPlanRoute
   '/settings/privacy': typeof AuthedSettingsPrivacyRoute
+  '/settings/team': typeof AuthedSettingsTeamRoute
   '/admin/': typeof AuthedAdminIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -396,6 +410,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/accept-terms': typeof AuthedAcceptTermsRoute
   '/activate': typeof AuthedActivateRoute
+  '/new-password': typeof AuthedNewPasswordRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/approvals': typeof AuthedAppApprovalsRoute
   '/bot': typeof AuthedAppBotRoute
@@ -418,6 +433,7 @@ export interface FileRoutesByTo {
   '/settings/phone-approval': typeof AuthedSettingsPhoneApprovalRoute
   '/settings/plan': typeof AuthedSettingsPlanRoute
   '/settings/privacy': typeof AuthedSettingsPrivacyRoute
+  '/settings/team': typeof AuthedSettingsTeamRoute
   '/admin': typeof AuthedAdminIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/channel/$channelId': typeof AuthedAppChannelChannelIdRoute
@@ -450,6 +466,7 @@ export interface FileRoutesById {
   '/_authed/_app': typeof AuthedAppRouteWithChildren
   '/_authed/accept-terms': typeof AuthedAcceptTermsRoute
   '/_authed/activate': typeof AuthedActivateRoute
+  '/_authed/new-password': typeof AuthedNewPasswordRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/_authed/_app/approvals': typeof AuthedAppApprovalsRoute
   '/_authed/_app/bot': typeof AuthedAppBotRoute
@@ -472,6 +489,7 @@ export interface FileRoutesById {
   '/_authed/settings/phone-approval': typeof AuthedSettingsPhoneApprovalRoute
   '/_authed/settings/plan': typeof AuthedSettingsPlanRoute
   '/_authed/settings/privacy': typeof AuthedSettingsPrivacyRoute
+  '/_authed/settings/team': typeof AuthedSettingsTeamRoute
   '/_authed/_app/': typeof AuthedAppIndexRoute
   '/_authed/admin/': typeof AuthedAdminIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
@@ -505,6 +523,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/accept-terms'
     | '/activate'
+    | '/new-password'
     | '/onboarding'
     | '/approvals'
     | '/bot'
@@ -527,6 +546,7 @@ export interface FileRouteTypes {
     | '/settings/phone-approval'
     | '/settings/plan'
     | '/settings/privacy'
+    | '/settings/team'
     | '/admin/'
     | '/settings/'
     | '/channel/$channelId'
@@ -555,6 +575,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/accept-terms'
     | '/activate'
+    | '/new-password'
     | '/onboarding'
     | '/approvals'
     | '/bot'
@@ -577,6 +598,7 @@ export interface FileRouteTypes {
     | '/settings/phone-approval'
     | '/settings/plan'
     | '/settings/privacy'
+    | '/settings/team'
     | '/admin'
     | '/settings'
     | '/channel/$channelId'
@@ -608,6 +630,7 @@ export interface FileRouteTypes {
     | '/_authed/_app'
     | '/_authed/accept-terms'
     | '/_authed/activate'
+    | '/_authed/new-password'
     | '/_authed/onboarding'
     | '/_authed/_app/approvals'
     | '/_authed/_app/bot'
@@ -630,6 +653,7 @@ export interface FileRouteTypes {
     | '/_authed/settings/phone-approval'
     | '/_authed/settings/plan'
     | '/_authed/settings/privacy'
+    | '/_authed/settings/team'
     | '/_authed/_app/'
     | '/_authed/admin/'
     | '/_authed/settings/'
@@ -716,6 +740,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AuthedAdminRouteRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/new-password': {
+      id: '/_authed/new-password'
+      path: '/new-password'
+      fullPath: '/new-password'
+      preLoaderRoute: typeof AuthedNewPasswordRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/onboarding': {
@@ -898,6 +929,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/settings/privacy'
       preLoaderRoute: typeof AuthedSettingsPrivacyRouteImport
+      parentRoute: typeof AuthedSettingsRouteRoute
+    }
+    '/_authed/settings/team': {
+      id: '/_authed/settings/team'
+      path: '/team'
+      fullPath: '/settings/team'
+      preLoaderRoute: typeof AuthedSettingsTeamRouteImport
       parentRoute: typeof AuthedSettingsRouteRoute
     }
     '/_authed/_app/agents/': {
@@ -1084,6 +1122,7 @@ interface AuthedSettingsRouteRouteChildren {
   AuthedSettingsPhoneApprovalRoute: typeof AuthedSettingsPhoneApprovalRoute
   AuthedSettingsPlanRoute: typeof AuthedSettingsPlanRoute
   AuthedSettingsPrivacyRoute: typeof AuthedSettingsPrivacyRoute
+  AuthedSettingsTeamRoute: typeof AuthedSettingsTeamRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedSettingsComponentsGalleryNameRoute: typeof AuthedSettingsComponentsGalleryNameRoute
   AuthedSettingsConnectedAccountsKeyRoute: typeof AuthedSettingsConnectedAccountsKeyRoute
@@ -1097,6 +1136,7 @@ const AuthedSettingsRouteRouteChildren: AuthedSettingsRouteRouteChildren = {
   AuthedSettingsPhoneApprovalRoute: AuthedSettingsPhoneApprovalRoute,
   AuthedSettingsPlanRoute: AuthedSettingsPlanRoute,
   AuthedSettingsPrivacyRoute: AuthedSettingsPrivacyRoute,
+  AuthedSettingsTeamRoute: AuthedSettingsTeamRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedSettingsComponentsGalleryNameRoute:
     AuthedSettingsComponentsGalleryNameRoute,
@@ -1151,6 +1191,7 @@ interface AuthedRouteChildren {
   AuthedAppRoute: typeof AuthedAppRouteWithChildren
   AuthedAcceptTermsRoute: typeof AuthedAcceptTermsRoute
   AuthedActivateRoute: typeof AuthedActivateRoute
+  AuthedNewPasswordRoute: typeof AuthedNewPasswordRoute
   AuthedOnboardingRoute: typeof AuthedOnboardingRoute
 }
 
@@ -1160,6 +1201,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAppRoute: AuthedAppRouteWithChildren,
   AuthedAcceptTermsRoute: AuthedAcceptTermsRoute,
   AuthedActivateRoute: AuthedActivateRoute,
+  AuthedNewPasswordRoute: AuthedNewPasswordRoute,
   AuthedOnboardingRoute: AuthedOnboardingRoute,
 }
 

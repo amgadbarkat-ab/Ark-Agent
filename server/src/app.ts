@@ -605,6 +605,8 @@ export function createApp(
        * build machine cannot offer a provider that machine had never heard of.
        */
       authProviders: configuredAuthProviders(config.auth),
+      // A customer's team signs in with email and password (ArkAgent, accounts/team.ts).
+      passwordSignIn: config.auth?.passwordSignIn === true,
       /*
        * Whether any enterprise identity provider has been registered.
        *
@@ -810,6 +812,7 @@ export function createApp(
         billing,
         appUrl: config.appUrl,
         audit,
+        isSubprofile: team?.isSubprofile,
       }),
     );
     app.route(
@@ -1821,7 +1824,10 @@ export function createApp(
   }
 
   if (support) {
-    app.route("/api/support", supportRoutes(requireUser, support));
+    app.route(
+      "/api/support",
+      supportRoutes(requireUser, support, team?.isSubprofile),
+    );
   }
 
   if (privateServer) {

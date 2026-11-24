@@ -600,6 +600,11 @@ export function createTeamService(dependencies: {
       };
     },
 
+    /** A staff sub-profile (any status): never buys, never sees billing, never manages people. */
+    async isSubprofile(userId: string) {
+      return (await member(userId))?.kind === "subprofile";
+    },
+
     /** The person's own standing, for the app: role, and whether they must choose a new password. */
     async me(userId: string) {
       const row = await member(userId);

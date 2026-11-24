@@ -42,10 +42,30 @@ export function accountRoutes(options: {
   /** Where the app is served, so a payment page can send the customer back. */
   appUrl: string | undefined;
   audit?: AccountAudit;
+  /**
+   * A company's staff sub-profile (Amgad, 24 Nov 2026): it cannot buy, change or cancel a plan, or
+   * open the billing page; only the company's administrator can.
+   */
+  isSubprofile?: (userId: string) => Promise<boolean>;
 }) {
-  const { requireUser, accounts, billing, appUrl, audit } = options;
+  const { requireUser, accounts, billing, appUrl, audit, isSubprofile } =
+    options;
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("*", requireUser);
+  const billingOnly: Middleware = async (context, next) => {
+    if (await isSubprofile?.(context.var.actor.id))
+      return context.json(
+        {
+          error: "Only your administrator can change the plan or billing.",
+          code: "subprofile_no_billing",
+        },
+        403,
+      );
+    await next();
+  };
+  app.use("/plan", billingOnly);
+  app.use("/portal", billingOnly);
+  app.use("/cancel", billingOnly);
 
   const returnUrl = (context: { req: { url: string } }) =>
     `${appUrl?.replace(/\/+$/, "") ?? new URL(context.req.url).origin}/settings/plan`;

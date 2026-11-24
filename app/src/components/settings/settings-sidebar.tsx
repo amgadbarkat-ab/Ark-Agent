@@ -8,6 +8,7 @@ import {
   IconPlug,
   IconSettings,
   IconShieldLock,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, type LinkOptions } from "@tanstack/react-router";
@@ -25,6 +26,7 @@ import {
 import { tNow, useT } from "@/lib/i18n";
 import { phoneSettingsQueryOptions } from "@/lib/phone/queries";
 import { supportStateQueryOptions } from "@/lib/support/queries";
+import { teamMeQueryOptions } from "@/lib/team/queries";
 import { queryClient } from "@/query-client";
 
 const appLinkOptions = { to: "/" } satisfies LinkOptions;
@@ -82,6 +84,12 @@ const ITEMS: {
     linkOptions: { to: "/settings/phone-approval" },
   },
   {
+    /* The administrator's staff sub-profiles (Amgad, 24 Nov 2026); listed for the administrator only. */
+    title: tNow("Team"),
+    icon: IconUsers,
+    linkOptions: { to: "/settings/team" },
+  },
+  {
     /* Writing to BlackArk about a problem (#149): the only support channel. */
     title: tNow("Help & support"),
     icon: IconLifebuoy,
@@ -107,10 +115,15 @@ export function SettingsSidebar({
   );
   // Help & support is listed where this server offers it (a desktop install), as phone approval is.
   const support = useQuery(supportStateQueryOptions(), queryClient);
+  // The team is the administrator's; a sub-profile has no billing or people rights, so no Plan either.
+  const me = useQuery(teamMeQueryOptions(), queryClient);
   const items = ITEMS.filter(
     (item) =>
       (item.linkOptions.to !== "/settings/phone-approval" || phone.isSuccess) &&
-      (item.linkOptions.to !== "/settings/help" || Boolean(support.data)),
+      (item.linkOptions.to !== "/settings/help" || Boolean(support.data)) &&
+      (item.linkOptions.to !== "/settings/team" || me.data?.role === "admin") &&
+      (item.linkOptions.to !== "/settings/plan" ||
+        me.data?.role !== "subprofile"),
   );
   return (
     <Sidebar {...props}>

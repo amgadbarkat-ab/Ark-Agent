@@ -32,6 +32,8 @@ const sendBody = body.extend({ previewId: z.string().uuid().optional() });
 export function supportRoutes(
   requireUser: Middleware,
   service: SupportService,
+  /** A staff sub-profile sees the plan but never the buy page (Amgad, 24 Nov 2026). */
+  isSubprofile?: (userId: string) => Promise<boolean>,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("*", requireUser);
@@ -49,9 +51,14 @@ export function supportRoutes(
     return context.json({ available: cases !== null, cases: cases ?? [] });
   });
 
-  app.get("/priority", async (context) =>
-    context.json(await service.priority(context.req.query("fresh") === "1")),
-  );
+  app.get("/priority", async (context) => {
+    const view = await service.priority(context.req.query("fresh") === "1");
+    return context.json(
+      (await isSubprofile?.(context.var.actor.id))
+        ? { ...view, buyUrl: null }
+        : view,
+    );
+  });
 
   const read = async (raw: unknown) => body.safeParse(raw);
 

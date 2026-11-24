@@ -1,3 +1,4 @@
+import { authClient } from "./client";
 import { queryOptions } from "@tanstack/react-query";
 import { client, tryClient } from "@/lib/client";
 
@@ -67,6 +68,8 @@ export type SignInOptions = {
    * use this deployment, before they have signed in.
    */
   sso: boolean;
+  /** A customer's team signs in with email and password (ArkAgent): the form, not provider buttons. */
+  password: boolean;
 };
 
 async function signInOptions(): Promise<SignInOptions> {
@@ -75,11 +78,16 @@ async function signInOptions(): Promise<SignInOptions> {
   // while the server was saying it has one.
   const body = (await (
     await client("/api/capabilities", { fallback: "Could not load sign-in" })
-  ).json()) as { authProviders?: AuthProviderId[]; ssoConfigured?: boolean };
+  ).json()) as {
+    authProviders?: AuthProviderId[];
+    ssoConfigured?: boolean;
+    passwordSignIn?: boolean;
+  };
 
   return {
     providers: body.authProviders ?? [],
     sso: body.ssoConfigured === true,
+    password: body.passwordSignIn === true,
   };
 }
 
@@ -107,6 +115,19 @@ async function currentUser(): Promise<AuthenticatedUser | null> {
   if (response.status === 401) {
     return null;
   }
+  if (response.status === 403) {
+    // A team sub-profile that is not paid for (yet), suspended or removed: signed out, and the
+    // sign-in screen says why (accounts/team.ts on the server).
+    const body = (await response.json().catch(() => null)) as {
+      code?: string;
+      error?: string;
+    } | null;
+    if (body?.code === "subprofile_inactive") {
+      rememberSignInNotice(body.error ?? "");
+      await authClient.signOut().catch(() => undefined);
+      return null;
+    }
+  }
   if (!response.ok) {
     throw new Error(`Could not load the current user (${response.status})`);
   }
@@ -121,4 +142,25 @@ export function currentUserQueryOptions() {
     queryFn: currentUser,
     staleTime: 60_000,
   });
+}
+
+const NOTICE_KEY = "ark.signin.notice";
+
+/** A sentence for the sign-in screen, kept across the redirect to it. */
+export function rememberSignInNotice(text: string) {
+  try {
+    sessionStorage.setItem(NOTICE_KEY, text);
+  } catch {
+    // Private windows: the screen simply says nothing.
+  }
+}
+
+export function takeSignInNotice(): string | null {
+  try {
+    const text = sessionStorage.getItem(NOTICE_KEY);
+    sessionStorage.removeItem(NOTICE_KEY);
+    return text;
+  } catch {
+    return null;
+  }
 }

@@ -1,0 +1,87 @@
+/**
+ * The team (Amgad, 24 Nov 2026): signing in as yourself, the administrator's account, staff
+ * sub-profiles at EUR 15 a month on top of Ark Team, and which digital employees each one uses.
+ * Polite plural, short on buttons, as everywhere else in the app. The server's sentences are here
+ * too, so a refusal reads in Greek.
+ */
+export const EL_TEAM: Record<string, string> = {
+  // Signing in, and the administrator's account on a fresh ArkAgent.
+  Email: "Email",
+  "Make the administrator's account for this ArkAgent. The administrator adds the rest of the team later.":
+    "Δημιουργήστε τον λογαριασμό του διαχειριστή για αυτό το ArkAgent. Ο διαχειριστής προσθέτει την υπόλοιπη ομάδα αργότερα.",
+  "Make the account and sign in": "Δημιουργία λογαριασμού και σύνδεση",
+  "The password again": "Ο κωδικός ξανά",
+  "The two passwords are not the same.": "Οι δύο κωδικοί δεν είναι ίδιοι.",
+  "That email and password do not match.":
+    "Το email και ο κωδικός δεν ταιριάζουν.",
+  "The account could not be made.": "Ο λογαριασμός δεν δημιουργήθηκε.",
+  "Signing in did not work. Try again.": "Η σύνδεση δεν έγινε. Δοκιμάστε ξανά.",
+
+  // The first sign-in of a sub-profile.
+  "Choose your password": "Επιλέξτε τον κωδικό σας",
+  "Your administrator gave you a first password. Choose your own now: only you will know it.":
+    "Ο διαχειριστής σας σάς έδωσε έναν πρώτο κωδικό. Επιλέξτε τώρα τον δικό σας: θα τον ξέρετε μόνο εσείς.",
+  "The password you were given": "Ο κωδικός που σας δόθηκε",
+  "Your new password (at least 10 characters)":
+    "Ο νέος σας κωδικός (τουλάχιστον 10 χαρακτήρες)",
+  "Choose a password that is not the one you were given.":
+    "Επιλέξτε κωδικό διαφορετικό από αυτόν που σας δόθηκε.",
+  "Save and continue": "Αποθήκευση και συνέχεια",
+
+  // Settings, then Team.
+  "Add the people who work with you. Each signs in as themselves, on any computer, and uses only the digital employees you give them. Each sub-profile is €15 a month excl. VAT, on top of your Ark Team plan, and can sign in once it is paid.":
+    "Προσθέστε τους ανθρώπους που δουλεύουν μαζί σας. Ο καθένας συνδέεται με τον δικό του λογαριασμό, από οποιονδήποτε υπολογιστή, και χρησιμοποιεί μόνο τους ψηφιακούς υπαλλήλους που του δίνετε. Κάθε υποπροφίλ κοστίζει €15 τον μήνα χωρίς ΦΠΑ, επιπλέον του πλάνου σας Ark Team, και μπορεί να συνδεθεί μόλις πληρωθεί.",
+  "Add a sub-profile": "Προσθήκη υποπροφίλ",
+  "Add and pay €15 a month": "Προσθήκη και πληρωμή €15 τον μήνα",
+  "Pay for the new sub-profile": "Πληρωμή για το νέο υποπροφίλ",
+  "Administrator: every digital employee":
+    "Διαχειριστής: όλοι οι ψηφιακοί υπάλληλοι",
+  "Waiting for payment": "Αναμονή πληρωμής",
+  "Suspended: payment did not go through":
+    "Σε αναστολή: η πληρωμή δεν ολοκληρώθηκε",
+  Removed: "Αφαιρέθηκε",
+  "The team could not be loaded.": "Η ομάδα δεν φορτώθηκε.",
+  "Remove this sub-profile?": "Αφαίρεση αυτού του υποπροφίλ;",
+  "They are signed out at once, their digital employees are free to give to somebody else, and the €15 a month stops (prorated).":
+    "Αποσυνδέεται αμέσως, οι ψηφιακοί υπάλληλοί του μένουν ελεύθεροι για κάποιον άλλο και η χρέωση των €15 τον μήνα σταματά (αναλογικά).",
+  Keep: "Διατήρηση",
+  "Digital employees for {name}": "Ψηφιακοί υπάλληλοι για {name}",
+  "Choose exactly which digital employees this person can use and chat with. A digital employee belongs to one sub-profile at a time.":
+    "Επιλέξτε ακριβώς ποιους ψηφιακούς υπαλλήλους μπορεί να χρησιμοποιεί και να συνομιλεί αυτό το άτομο. Ένας ψηφιακός υπάλληλος ανήκει σε ένα υποπροφίλ κάθε φορά.",
+  "First password (they choose their own at first sign-in)":
+    "Πρώτος κωδικός (επιλέγει τον δικό του στην πρώτη σύνδεση)",
+  "Move these digital employees?": "Μεταφορά αυτών των ψηφιακών υπαλλήλων;",
+  "{agent}: from {person}": "{agent}: από {person}",
+  "They lose these digital employees when you confirm.":
+    "Χάνει αυτούς τους ψηφιακούς υπαλλήλους μόλις επιβεβαιώσετε.",
+  "Move them and save": "Μεταφορά και αποθήκευση",
+
+  // The server's answers.
+  "Choose at least one digital employee for this person.":
+    "Επιλέξτε τουλάχιστον έναν ψηφιακό υπάλληλο για αυτό το άτομο.",
+  "No such sub-profile.": "Δεν υπάρχει τέτοιο υποπροφίλ.",
+  "One of those digital employees is not the company's.":
+    "Ένας από αυτούς τους ψηφιακούς υπαλλήλους δεν ανήκει στην εταιρεία.",
+  "Only the administrator can do this.":
+    "Μόνο ο διαχειριστής μπορεί να το κάνει αυτό.",
+  "Some of these digital employees belong to another person. Confirm to move them.":
+    "Κάποιοι από αυτούς τους ψηφιακούς υπαλλήλους ανήκουν σε άλλο άτομο. Επιβεβαιώστε για να τους μεταφέρετε.",
+  "That email address is already used here.":
+    "Αυτή η διεύθυνση email χρησιμοποιείται ήδη εδώ.",
+  "The current password is not right.": "Ο τρέχων κωδικός δεν είναι σωστός.",
+  "The password must be 10 to 128 characters.":
+    "Ο κωδικός πρέπει να έχει από 10 έως 128 χαρακτήρες.",
+  "This ArkAgent already has its administrator.":
+    "Αυτό το ArkAgent έχει ήδη διαχειριστή.",
+  "Write a name.": "Γράψτε ένα όνομα.",
+  "At most 50 sub-profiles.": "Το πολύ 50 υποπροφίλ.",
+  "Write a valid email address.": "Γράψτε μια έγκυρη διεύθυνση email.",
+  "Only your administrator can change the plan or billing.":
+    "Μόνο ο διαχειριστής σας μπορεί να αλλάξει το πλάνο ή τη χρέωση.",
+  "This sub-profile is not active yet: your administrator's payment for it has not gone through.":
+    "Αυτό το υποπροφίλ δεν είναι ακόμη ενεργό: η πληρωμή του διαχειριστή σας γι' αυτό δεν έχει ολοκληρωθεί.",
+  "This sub-profile is suspended: the last payment for it did not go through. Ask your administrator.":
+    "Αυτό το υποπροφίλ είναι σε αναστολή: η τελευταία πληρωμή του δεν ολοκληρώθηκε. Ρωτήστε τον διαχειριστή σας.",
+  "This sub-profile was removed by your administrator.":
+    "Αυτό το υποπροφίλ αφαιρέθηκε από τον διαχειριστή σας.",
+};
