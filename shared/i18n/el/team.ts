@@ -76,6 +76,8 @@ export const EL_TEAM: Record<string, string> = {
   "Write a name.": "Γράψτε ένα όνομα.",
   "At most 50 sub-profiles.": "Το πολύ 50 υποπροφίλ.",
   "Write a valid email address.": "Γράψτε μια έγκυρη διεύθυνση email.",
+  "Only your administrator can add digital employees. Ask them to give you one.":
+    "Μόνο ο διαχειριστής σας μπορεί να προσθέσει ψηφιακούς υπαλλήλους. Ζητήστε του να σας δώσει έναν.",
   "Only your administrator can change the plan or billing.":
     "Μόνο ο διαχειριστής σας μπορεί να αλλάξει το πλάνο ή τη χρέωση.",
   "This sub-profile is not active yet: your administrator's payment for it has not gone through.":

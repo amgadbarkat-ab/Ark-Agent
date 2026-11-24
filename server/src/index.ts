@@ -398,6 +398,8 @@ const agentLimit = createAgentLimit({
   activation,
   countAgents: () => countOwnedAgents(database),
   isSeeding: () => trial.isSeeding(),
+  // Bound late: the team is made further down, and is only asked once somebody adds one.
+  isSubprofile: async (userId) => (await team?.isSubprofile(userId)) ?? false,
   audit: (event) =>
     recordAuditEvent(bootAuditStore, {
       eventType: event.eventType,
