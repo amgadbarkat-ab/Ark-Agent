@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.52
+
 - **Replies to the customer from the Control Board (Gap 3, Amgad 23 Nov, #149).**
   - On a case, staff write the reply: Greek and its English copy for a Greek case, English only otherwise.
   - **In the app,** Help & support shows BlackArk's replies under each request, fetched through blackark.uk's new `checkin/support/replies/` with the same proof as the request.
