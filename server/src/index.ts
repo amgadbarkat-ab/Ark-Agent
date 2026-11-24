@@ -35,6 +35,7 @@ import {
   type TeamAuthContext,
   type TeamBilling,
 } from "./accounts/team";
+import { blackarkTeamBilling } from "./accounts/team-billing";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
 import { containerRelayCheck } from "./agents/container-relay";
 import { createAgentFetch } from "./agents/endpoint";
@@ -559,7 +560,18 @@ const team =
         billing: () => teamBilling,
       })
     : undefined;
-const teamBilling: TeamBilling | null = null;
+const teamBilling: TeamBilling | null = team
+  ? blackarkTeamBilling(database, {
+      ...(process.env.ARK_TEAM_URL?.trim()
+        ? { url: process.env.ARK_TEAM_URL.trim() }
+        : {}),
+    })
+  : null;
+// Paid sub-profiles activate by themselves, and unpaid ones are suspended: BlackArk asked every 10 minutes.
+if (team)
+  repeatAfterEach(async () => {
+    await team.syncBilling().catch(() => undefined);
+  }, 10 * 60_000);
 /*
  * Running in Ark's cloud: what it may do, and the record of the time it uses (docs/ark/17-cloud-runtime.md).
  *

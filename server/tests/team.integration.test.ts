@@ -98,13 +98,20 @@ const authContext = async (): Promise<TeamAuthContext> => ({
 function billing(start = 0) {
   let paid = start;
   const asked: number[] = [];
-  const bill: TeamBilling & { setPaid(n: number): void; asked: number[] } = {
+  const rosters: unknown[] = [];
+  const bill: TeamBilling & {
+    setPaid(n: number): void;
+    asked: number[];
+    rosters: unknown[];
+  } = {
     asked,
+    rosters,
     setPaid: (n) => {
       paid = n;
     },
-    async request(quantity) {
+    async request(quantity, members) {
       asked.push(quantity);
+      rosters.push(members);
       return {
         paidQuantity: paid,
         checkoutUrl:
@@ -210,6 +217,22 @@ describe("a customer's team", () => {
     );
     expect(made1.checkoutUrl).toStartWith("https://checkout.stripe.com/");
     expect(bill.asked).toEqual([1]);
+    // The board's view of the team: names, emails, roles, status, employees; no password.
+    expect(bill.rosters[0]).toEqual([
+      expect.objectContaining({
+        name: "Maria",
+        role: "admin",
+        status: "active",
+        agents: 3,
+      }),
+      expect.objectContaining({
+        name: "Nikos",
+        role: "subprofile",
+        status: "pending_payment",
+        agents: 1,
+      }),
+    ]);
+    expect(JSON.stringify(bill.rosters[0])).not.toContain("password");
     expect(await team.mayUse(made1.userId)).toEqual({
       ok: false,
       reason:

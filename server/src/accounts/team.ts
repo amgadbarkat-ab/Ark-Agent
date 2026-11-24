@@ -54,14 +54,25 @@ export type TeamAuthContext = {
   };
 };
 
+/** One person as BlackArk's board shows the team: no password, no conversation, nothing else. */
+export type TeamRosterEntry = {
+  name: string;
+  email: string;
+  role: "admin" | "subprofile";
+  status: "pending_payment" | "active" | "suspended";
+  createdAt: string;
+  agents: number;
+};
+
 /** BlackArk's side of the EUR 15 sub-profiles: how many are paid for, and asking for a new number. */
 export type TeamBilling = {
   /** Asks for `quantity` paid sub-profiles (prorated). A checkout address when it must be paid first. */
   request(
     quantity: number,
+    members?: TeamRosterEntry[],
   ): Promise<{ paidQuantity: number; checkoutUrl: string | null }>;
   /** How many sub-profiles are paid for right now. */
-  paid(): Promise<number>;
+  paid(members?: TeamRosterEntry[]): Promise<number>;
 };
 
 export class TeamError extends Error {
@@ -298,20 +309,50 @@ export function createTeamService(dependencies: {
     }
   }
 
+  /** The team as BlackArk's board shows it. */
+  async function roster(): Promise<TeamRosterEntry[]> {
+    const rows = await database
+      .select({
+        userId: teamMembers.userId,
+        kind: teamMembers.kind,
+        status: teamMembers.status,
+        createdAt: teamMembers.createdAt,
+        name: users.name,
+        email: users.email,
+      })
+      .from(teamMembers)
+      .innerJoin(users, eq(users.id, teamMembers.userId))
+      .where(ne(teamMembers.status, "removed"))
+      .orderBy(asc(teamMembers.createdAt));
+    const held = await database.select().from(subprofileAgents);
+    const company = (await companyAgents()).size;
+    return rows.map((row) => ({
+      name: row.name ?? "",
+      email: row.email,
+      role: row.kind,
+      status: row.status === "removed" ? "suspended" : row.status,
+      createdAt: row.createdAt.toISOString(),
+      agents:
+        row.kind === "admin"
+          ? company
+          : held.filter((one) => one.userId === row.userId).length,
+    }));
+  }
+
   async function askBilling(quantity: number) {
     const billing = dependencies.billing?.() ?? null;
-    if (!billing)
-      return {
-        paidQuantity: 0,
-        checkoutUrl: null,
-        error:
-          "Activate ArkAgent first: sub-profiles are paid through BlackArk.",
-      };
+    const notActivated = {
+      paidQuantity: 0,
+      checkoutUrl: null,
+      error: "Activate ArkAgent first: sub-profiles are paid through BlackArk.",
+    };
+    if (!billing) return notActivated;
     try {
-      const answer = await billing.request(quantity);
+      const answer = await billing.request(quantity, await roster());
       await applyPaid(answer.paidQuantity);
       return { ...answer, error: null };
-    } catch {
+    } catch (error) {
+      if ((error as Error)?.name === "NotActivatedError") return notActivated;
       return {
         paidQuantity: 0,
         checkoutUrl: null,
@@ -532,7 +573,13 @@ export function createTeamService(dependencies: {
     async syncBilling() {
       const billing = dependencies.billing?.() ?? null;
       if (!billing) return;
-      await applyPaid(await billing.paid());
+      // Nothing to ask while nobody but the administrator is on the team: off by default.
+      if ((await subprofileCount()) === 0) return;
+      try {
+        await applyPaid(await billing.paid(await roster()));
+      } catch {
+        // Not activated, or BlackArk not reachable: the next run asks again; nobody is changed.
+      }
     },
 
     /** Whether this person may use ArkAgent now: the administrator, or an active sub-profile. */
