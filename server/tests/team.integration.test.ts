@@ -186,6 +186,10 @@ async function company(
   return { adminId, agentIds: ids };
 }
 
+const madeUsers = (id: string) => {
+  made.users.push(id);
+};
+
 const staff = (email: string, agentIds: string[], move?: boolean) => ({
   name: "Nikos",
   email,
@@ -371,6 +375,32 @@ describe("a customer's team", () => {
     expect(await team.isAssigned(b)).toBe(false);
     // Told once the assignment is kept, so the administrator's browser lets that employee go.
     expect(assigned).toEqual([[a]]);
+  });
+
+  test("two set-ups at the same moment make exactly one administrator, and leave nobody half-made", async () => {
+    const { team } = await service();
+    const tries = await Promise.allSettled(
+      ["one", "two", "three"].map((who) =>
+        team.setup({
+          name: who,
+          email: `${who}-${randomUUID()}@shop.example`,
+          password: "first-password-1",
+        }),
+      ),
+    );
+    const made = tries.flatMap((one) =>
+      one.status === "fulfilled" ? [one.value.userId] : [],
+    );
+    for (const id of made) madeUsers(id);
+    expect(made).toHaveLength(1);
+    for (const one of tries)
+      if (one.status === "rejected")
+        expect((one.reason as { status?: number }).status).toBe(409);
+    const admins = await database
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.kind, "admin"));
+    expect(admins.map((row) => row.userId)).toEqual(made);
   });
 
   test("two administrators giving the same employee at once: the database keeps exactly one", async () => {

@@ -1,4 +1,5 @@
-import type { Hono as HonoApp, MiddlewareHandler } from "hono";
+import { createHash } from "node:crypto";
+import type { Context, Hono as HonoApp, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
@@ -30,6 +31,7 @@ import {
   DEPLOYMENT_INITIATOR,
   recordAuditEvent,
 } from "./audit";
+import { attemptGuard, createAttemptLimiter } from "./auth/attempts";
 import { createDevRequireUser } from "./auth/dev-actor";
 import {
   type AppVariables,
@@ -101,7 +103,7 @@ import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
 import { officeCertificateRoutes, officeRoutes } from "./office/routes";
-import type { OfficeService } from "./office/service";
+import { OFFICE_MARK, type OfficeService } from "./office/service";
 import { originGuard } from "./origin-guard";
 import { adminOverviewRoutes } from "./overview/routes";
 import { parsePageLimit } from "./paging";
@@ -657,6 +659,66 @@ export function createApp(
     "/api/auth/sso/register": "identity_provider.registered",
     "/api/auth/sso/delete-provider": "identity_provider.removed",
   };
+
+  /*
+   * Wrong passwords (security review of v0.1.54): five for one account within fifteen minutes lock it
+   * for fifteen, and each is written down. Attempts that came over the office network are counted
+   * apart from this computer's own window, so nobody on the network can lock the administrator out
+   * of their own computer.
+   */
+  if (config.auth?.passwordSignIn) {
+    const attempts = createAttemptLimiter();
+    const scope = (context: {
+      req: { header: (name: string) => string | undefined };
+    }) => (context.req.header(OFFICE_MARK) === "office" ? "office" : "local");
+    const cookieKey = (cookie: string | undefined) =>
+      createHash("sha256")
+        .update(cookie ?? "")
+        .digest("hex")
+        .slice(0, 32);
+    const onFailure =
+      (what: string) => async (context: Context, locked: boolean) => {
+        if (!auditStore) return;
+        await recordAuditEvent(auditStore, {
+          eventType: "session.refused",
+          targetType: "person",
+          payload: {
+            reason: locked
+              ? `${what}: wrong password, locked for 15 minutes`
+              : `${what}: wrong password`,
+            via: scope(context),
+          },
+        });
+      };
+    const guard = (
+      keyOf: (context: Context) => Promise<string>,
+      what: string,
+    ): MiddlewareHandler =>
+      attemptGuard({ limiter: attempts, keyOf, onFailure: onFailure(what) });
+    app.use(
+      "/api/auth/sign-in/email",
+      guard(async (context) => {
+        const body = (await context.req.raw
+          .clone()
+          .json()
+          .catch(() => null)) as { email?: unknown } | null;
+        const email =
+          typeof body?.email === "string"
+            ? body.email.trim().toLowerCase()
+            : "";
+        return `sign-in:${scope(context)}:${email}`;
+      }, "sign-in"),
+    );
+    for (const path of ["/api/auth/change-password", "/api/team/me/password"])
+      app.use(
+        path,
+        guard(
+          async (context) =>
+            `password:${scope(context)}:${cookieKey(context.req.header("cookie"))}`,
+          "password change",
+        ),
+      );
+  }
 
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
     if (
@@ -1864,7 +1926,12 @@ export function createApp(
 
   if (team) {
     // Set-up first: it is what a deployment with nobody on it yet can answer.
-    app.route("/api/team", teamSetupRoutes(team));
+    app.route(
+      "/api/team",
+      teamSetupRoutes(team, {
+        setupToken: process.env.ARK_SETUP_TOKEN?.trim() || undefined,
+      }),
+    );
     if (office) {
       app.route("/api/team/office", officeRoutes(requireUser, office));
       app.route("/api/office/certificate", officeCertificateRoutes(office));

@@ -83,8 +83,8 @@ function companyComputer() {
   return { office, cert, seenOrigins };
 }
 
-function staffComputer(company: ReturnType<typeof companyComputer>) {
-  const relay = startJoinProxy({
+async function staffComputer(company: ReturnType<typeof companyComputer>) {
+  const relay = await startJoinProxy({
     code: {
       addresses: ["127.0.0.1"],
       port: company.office.port as number,
@@ -111,7 +111,7 @@ function talk(url: string, say: string): Promise<string> {
 
 test("the chat's live connection reaches the hub through the staff computer, at its own address", async () => {
   const company = companyComputer();
-  const local = staffComputer(company);
+  const local = await staffComputer(company);
   const info = await fetch(`${local}/api/copilotkit/info`);
   const wsUrl = (await info.json()).intelligence.wsUrl as string;
   // Not the hub's loopback on the company's computer, which this computer cannot reach.
@@ -126,7 +126,7 @@ test("the chat's live connection reaches the hub through the staff computer, at 
 
 test("the server's own sockets and requests pass too, as the app's own", async () => {
   const company = companyComputer();
-  const local = staffComputer(company);
+  const local = await staffComputer(company);
   expect(
     await talk(`${local.replace("http", "ws")}/api/channels/socket`, "hello"),
   ).toBe("server hello");

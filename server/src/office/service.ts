@@ -16,6 +16,8 @@ import { encodeJoinCode } from "./join-code";
  * for it. Everything else stays on this computer only, as before. Nobody gets in without signing in.
  */
 export const OFFICE_ROW = "office";
+/** Set by the office listener on every request it passes on, so a request knows how it came. */
+export const OFFICE_MARK = "x-ark-via";
 export const DEFAULT_OFFICE_PORT = 52443;
 
 export type OfficeListener = {
@@ -58,6 +60,11 @@ export function createOfficeService(dependencies: {
   addresses?: () => string[];
   hostname?: () => string;
   now?: () => Date;
+  /**
+   * Whether this ArkAgent has its administrator. The office network never opens before it does,
+   * whatever was saved (security review of v0.1.54): nobody on the network meets a set-up screen.
+   */
+  hasAdministrator?: () => Promise<boolean>;
 }) {
   const { database } = dependencies;
   const port = dependencies.port ?? DEFAULT_OFFICE_PORT;
@@ -156,7 +163,13 @@ export function createOfficeService(dependencies: {
 
     /** On start: answers on the office network again if the administrator left it on. */
     async start() {
-      if ((await row())?.enabled) await open();
+      if (!(await row())?.enabled) return;
+      if (
+        dependencies.hasAdministrator &&
+        !(await dependencies.hasAdministrator())
+      )
+        return;
+      await open();
     },
 
     async setEnabled(on: boolean): Promise<OfficeStatus> {

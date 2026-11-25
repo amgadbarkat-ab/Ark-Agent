@@ -12,6 +12,7 @@
  * A 409 from a member change with `conflicts` lists the employees another person has, and who: the
  * app asks the administrator to confirm, then sends `move: true`.
  */
+import { timingSafeEqual } from "node:crypto";
 import { type Context, Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import type { AppVariables } from "../auth/guards";
@@ -46,13 +47,45 @@ function failed(error: unknown) {
   throw error;
 }
 
-/** Mounted before sign-in: only whether set-up is needed, and the set-up itself, once. */
-export function teamSetupRoutes(service: TeamService) {
+/** The header the install's own window sends its set-up secret in. */
+export const SETUP_TOKEN_HEADER = "x-ark-setup-token";
+
+function sameSecret(offered: string, expected: string): boolean {
+  const a = Buffer.from(offered);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Mounted before sign-in: only whether set-up is needed, and the set-up itself, once.
+ *
+ * With `setupToken` (the desktop, security review of v0.1.54): only the install's own window can make
+ * the administrator. The desktop gives that window the secret, and nothing else on the computer or
+ * on a web page knows it, so an upgraded install waiting for its administrator cannot be claimed
+ * first by somebody else.
+ */
+export function teamSetupRoutes(
+  service: TeamService,
+  options: { setupToken?: string } = {},
+) {
   const app = new Hono();
   app.get("/setup", async (context) =>
     context.json({ needed: await service.setupNeeded() }),
   );
   app.post("/setup", async (context) => {
+    const expected = options.setupToken?.trim();
+    if (
+      expected &&
+      !sameSecret(context.req.header(SETUP_TOKEN_HEADER) ?? "", expected)
+    )
+      return context.json(
+        {
+          error:
+            "Make the administrator's account in the ArkAgent window on this computer.",
+          code: "setup_window_only",
+        },
+        403,
+      );
     const parsed = z
       .strictObject(person)
       .safeParse(await context.req.json().catch(() => null));
@@ -163,6 +196,8 @@ export function teamRoutes(requireUser: Middleware, service: TeamService) {
   );
   app.post("/billing/sync", (context) =>
     run(context, async () => {
+      // The administrator only, checked before BlackArk is asked (security review, 25 Nov).
+      await service.list(context.var.actor.id);
       await service.syncBilling();
       return { members: await service.list(context.var.actor.id) };
     }),
