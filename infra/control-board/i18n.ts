@@ -254,6 +254,18 @@ export const EL: Record<string, string> = {
   "No notes yet.": "Καμία σημείωση ακόμη.",
   "Replies to the customer": "Απαντήσεις στον πελάτη",
   "24/7 Priority Support": "Υποστήριξη προτεραιότητας 24/7",
+  Team: "Ομάδα",
+  Name: "Όνομα",
+  Created: "Δημιουργήθηκε",
+  "Digital employees": "Ψηφιακοί υπάλληλοι",
+  Administrator: "Διαχειριστής",
+  "Sub-profile": "Προφίλ προσωπικού",
+  "waiting for payment": "αναμονή πληρωμής",
+  suspended: "σε αναστολή",
+  "renewal payment failed (past due)": "η πληρωμή ανανέωσης απέτυχε",
+  "As the customer's app last sent it":
+    "Όπως το έστειλε τελευταία η εφαρμογή του πελάτη",
+  "Sub-profile orders": "Παραγγελίες προφίλ προσωπικού",
   "Active: answer within 1 hour, any day, any time":
     "Ενεργή: απάντηση μέσα σε 1 ώρα, κάθε μέρα, οποιαδήποτε ώρα",
   "Renewal payment failed: not active":

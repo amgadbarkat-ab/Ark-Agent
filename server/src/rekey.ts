@@ -2,7 +2,12 @@ import { and, asc, eq, gt, isNotNull } from "drizzle-orm";
 import { isEnvelope } from "./auth/encrypt-sso-config";
 import { decryptSecret, encryptSecret, needsResealing } from "./credentials";
 import type { Database } from "./db/client";
-import { credentials, modelConnections, ssoProviders } from "./db/schema";
+import {
+  credentials,
+  modelConnections,
+  officeNetwork,
+  ssoProviders,
+} from "./db/schema";
 
 /**
  * Re-seal everything the server keeps encrypted under the current key, so a retired key can be
@@ -149,6 +154,31 @@ export function sealedColumns(database: Database): SealedColumn[] {
     },
     ssoColumn("oidc_config", "oidcConfig"),
     ssoColumn("saml_config", "samlConfig"),
+    {
+      // The office network certificate's private key (office/service.ts).
+      table: "office_network",
+      column: "sealed_key",
+      page: async (after, size) =>
+        database
+          .select({ id: officeNetwork.id, value: officeNetwork.sealedKey })
+          .from(officeNetwork)
+          .where(after === null ? undefined : gt(officeNetwork.id, after))
+          .orderBy(asc(officeNetwork.id))
+          .limit(size),
+      replace: async (id, previous, next) => {
+        const done = await database
+          .update(officeNetwork)
+          .set({ sealedKey: next })
+          .where(
+            and(
+              eq(officeNetwork.id, id),
+              eq(officeNetwork.sealedKey, previous),
+            ),
+          )
+          .returning({ id: officeNetwork.id });
+        return done.length > 0;
+      },
+    },
   ];
 }
 

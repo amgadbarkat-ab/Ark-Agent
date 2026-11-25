@@ -13,6 +13,8 @@
 import { appendAudit } from "./audit";
 import { CUSTOMER_ID, type Extension } from "./board";
 import { addNote, openCase } from "./cases";
+import { type Html, html } from "./html";
+import { type Lang, t, when } from "./i18n";
 import { json, readSigned } from "./intake";
 import type { Sql } from "./sql";
 
@@ -165,10 +167,39 @@ export function appOrders(
     async handle() {
       return null;
     },
+    async customerSection(customerId, lang) {
+      return customerTeamSection(db, customerId, lang);
+    },
     async handlePublic(request, url) {
+      if (url.pathname === "/intake/team") {
+        const signed = await readSigned(db, request, options.secret, now());
+        if (signed instanceof Response) return signed;
+        const team = readTeam(signed.json);
+        if (!team) return json(400, { error: "Not a team." });
+        await db.run(
+          "INSERT INTO customer_teams (customer_id, members, updated_at) VALUES (?, ?, ?) ON CONFLICT(customer_id) DO UPDATE SET members = excluded.members, updated_at = excluded.updated_at",
+          team.customerId,
+          JSON.stringify(team.members),
+          new Date(now()).toISOString(),
+        );
+        await appendAudit(
+          db,
+          {
+            actor: "intake:team",
+            action: "team.update",
+            target: `customer:${team.customerId}`,
+            outcome: "ok",
+            detail: `${team.members.length} people`,
+          },
+          now(),
+        );
+        return json(200, { ok: true });
+      }
       if (url.pathname !== "/intake/order") return null;
       const signed = await readSigned(db, request, options.secret, now());
       if (signed instanceof Response) return signed;
+      if ((signed.json as { kind?: unknown } | null)?.kind === "subprofiles")
+        return subprofileOrder(db, signed.json, now());
       const order = readOrder(signed.json);
       if (!order) return json(400, { error: "Not an order." });
       const at = new Date(now()).toISOString();
@@ -270,4 +301,205 @@ export function appOrders(
       return json(200, { case: known.case_number });
     },
   };
+}
+
+// ---- Staff sub-profiles and the team (Amgad, 24 Nov 2026) --------------------------------------
+
+type TeamMember = {
+  name: string;
+  email: string;
+  role: "admin" | "subprofile";
+  status: "pending_payment" | "active" | "suspended";
+  createdAt: string;
+  agents: number;
+};
+
+function readTeam(
+  value: unknown,
+): { customerId: string; members: TeamMember[] } | null {
+  const body = (value ?? {}) as Record<string, unknown>;
+  if (
+    typeof body.customerId !== "string" ||
+    !CUSTOMER_ID.test(body.customerId) ||
+    !Array.isArray(body.members) ||
+    body.members.length > 60
+  )
+    return null;
+  const text = (v: unknown, max: number) =>
+    typeof v === "string" ? v.slice(0, max) : "";
+  return {
+    customerId: body.customerId,
+    members: body.members.map((raw) => {
+      const one = (raw ?? {}) as Record<string, unknown>;
+      return {
+        name: text(one.name, 120),
+        email: EMAIL.test(text(one.email, 254)) ? text(one.email, 254) : "",
+        role: one.role === "admin" ? "admin" : "subprofile",
+        status:
+          one.status === "pending_payment" || one.status === "suspended"
+            ? one.status
+            : "active",
+        createdAt: text(one.createdAt, 40),
+        agents:
+          typeof one.agents === "number" && Number.isInteger(one.agents)
+            ? Math.max(0, one.agents)
+            : 0,
+      };
+    }),
+  };
+}
+
+type SubprofileOrder = {
+  subscription_id: string;
+  customer_id: string;
+  quantity: number;
+  status: "active" | "past_due" | "cancelled";
+  case_number: number | null;
+  started_at: string;
+  updated_at: string;
+};
+
+/** A change of a customer's paid sub-profiles: one case per subscription, a note per change. */
+async function subprofileOrder(
+  db: Sql,
+  value: unknown,
+  now: number,
+): Promise<Response> {
+  const body = (value ?? {}) as Record<string, unknown>;
+  const customerId = body.customerId;
+  const subscriptionId = body.subscriptionId;
+  const quantity = body.quantity;
+  const status = STATUSES.find((one) => one === body.status);
+  if (
+    typeof customerId !== "string" ||
+    !CUSTOMER_ID.test(customerId) ||
+    typeof subscriptionId !== "string" ||
+    !/^sub_[A-Za-z0-9_]+$/.test(subscriptionId) ||
+    typeof quantity !== "number" ||
+    !Number.isInteger(quantity) ||
+    quantity < 0 ||
+    quantity > 50 ||
+    !status
+  )
+    return json(400, { error: "Not an order." });
+  const at = new Date(now).toISOString();
+  const known = await db.first<SubprofileOrder>(
+    "SELECT * FROM subprofile_orders WHERE subscription_id = ?",
+    subscriptionId,
+  );
+  if (known && known.customer_id !== customerId)
+    return json(409, { error: "Another customer's order." });
+  const line = `Staff sub-profiles paid: ${quantity} × EUR 15 a month (excl. VAT), on top of Ark Team.\nStripe subscription: ${subscriptionId}\nStatus: ${STATUS_WORDS[status]}`;
+  if (!known) {
+    const made = await openCase(
+      db,
+      {
+        customerId,
+        channel: "in-app",
+        language: "el",
+        priority: "normal",
+        plan: "paid",
+        subject: `Staff sub-profiles order: ${quantity}`,
+        note: line,
+        sourceRef: `subprofiles:${subscriptionId}`,
+      },
+      "intake:order",
+      now,
+    );
+    await db.run(
+      "INSERT INTO subprofile_orders (subscription_id, customer_id, quantity, status, case_number, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      subscriptionId,
+      customerId,
+      quantity,
+      status,
+      made.number,
+      at,
+      at,
+    );
+    await appendAudit(
+      db,
+      {
+        actor: "intake:order",
+        action: "order.create",
+        target: `case:${made.number}`,
+        outcome: "ok",
+        detail: `sub-profiles, customer ${customerId}, ${quantity}, ${status}`,
+      },
+      now,
+    );
+    return json(201, { case: made.number });
+  }
+  if (known.quantity === quantity && known.status === status)
+    return json(200, { case: known.case_number });
+  await db.run(
+    "UPDATE subprofile_orders SET quantity = ?, status = ?, updated_at = ? WHERE subscription_id = ?",
+    quantity,
+    status,
+    at,
+    subscriptionId,
+  );
+  if (known.case_number !== null)
+    await addNote(
+      db,
+      known.case_number,
+      "intake:order",
+      `Changed: ${known.quantity} → ${quantity} paid.\n${line}`,
+      now,
+    );
+  await appendAudit(
+    db,
+    {
+      actor: "intake:order",
+      action: "order.update",
+      target: `case:${known.case_number ?? "-"}`,
+      outcome: "ok",
+      detail: `sub-profiles, customer ${customerId}, ${known.quantity}→${quantity}, ${status}`,
+    },
+    now,
+  );
+  return json(200, { case: known.case_number });
+}
+
+const MEMBER_STATUS: Record<TeamMember["status"], string> = {
+  active: "active",
+  pending_payment: "waiting for payment",
+  suspended: "suspended",
+};
+
+/** The customer's team and sub-profile orders, on their page. */
+async function customerTeamSection(
+  db: Sql,
+  customerId: string,
+  l: Lang,
+): Promise<Html | null> {
+  const team = await db.first<{ members: string; updated_at: string }>(
+    "SELECT members, updated_at FROM customer_teams WHERE customer_id = ?",
+    customerId,
+  );
+  const orders = await db.all<SubprofileOrder>(
+    "SELECT * FROM subprofile_orders WHERE customer_id = ? ORDER BY started_at DESC",
+    customerId,
+  );
+  if (!team && orders.length === 0) return null;
+  const members = team ? (JSON.parse(team.members) as TeamMember[]) : [];
+  return html`<h2>${t(l, "Team")}</h2>
+${
+  team
+    ? html`<div class="scroll"><table>
+<thead><tr><th>${t(l, "Name")}</th><th>${t(l, "Email")}</th><th>${t(l, "Role")}</th><th>${t(l, "Status")}</th><th>${t(l, "Created")}</th><th>${t(l, "Digital employees")}</th></tr></thead>
+<tbody>${members.map(
+        (one) =>
+          html`<tr><td>${one.name}</td><td>${one.email}</td><td>${t(l, one.role === "admin" ? "Administrator" : "Sub-profile")}</td><td>${t(l, MEMBER_STATUS[one.status])}</td><td>${one.createdAt ? when(l, one.createdAt) : "–"}</td><td>${one.agents}</td></tr>`,
+      )}</tbody></table></div>
+<p class="muted">${t(l, "As the customer's app last sent it")}: ${when(l, team.updated_at)}</p>`
+    : ""
+}
+${
+  orders.length
+    ? html`<h3>${t(l, "Sub-profile orders")}</h3><ul>${orders.map(
+        (one) =>
+          html`<li><code>${one.subscription_id}</code> · ${one.quantity} × €15 · ${t(l, STATUS_WORDS[one.status])}${one.case_number ? html` · <a href="/cases/${one.case_number}">#${one.case_number}</a>` : ""}</li>`,
+      )}</ul>`
+    : ""
+}`;
 }

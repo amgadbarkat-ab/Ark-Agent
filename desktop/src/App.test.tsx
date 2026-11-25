@@ -2535,3 +2535,71 @@ test("no screen of setup asks for, or mentions, a CopilotKit account, a project 
     "root",
   ]);
 });
+
+/*
+ * A staff computer joins the company's ArkAgent (Amgad, 24 Nov 2026, option A): the join code from the
+ * administrator's Settings, then Team, and nothing set up on this computer.
+ */
+test("a staff computer joins the company's ArkAgent with its join code, and sets up nothing here", async () => {
+  setupRootConfiguration("/tmp/join-ask", async () => emptyConfiguration());
+  const previous = invokeHandler;
+  invokeHandler = async (command, args) => {
+    if (command === "joined_company") return null;
+    if (command === "join_company") return null;
+    return previous(command, args);
+  };
+  const view = await renderApp();
+  await userEvent.click(
+    await view.findByRole("button", { name: "Join my company's ArkAgent" }),
+  );
+  const join = view.getByRole("button", { name: "Join" });
+  // Nothing to join with yet.
+  expect(join.hasAttribute("disabled")).toBe(true);
+  await userEvent.type(
+    view.getByLabelText("Join code"),
+    "ARK-abcdefghijklmnopqrstuvwxyz",
+  );
+  await userEvent.click(join);
+  await waitFor(() =>
+    expect(
+      invokeCalls.find((call) => call.command === "join_company")?.args,
+    ).toMatchObject({
+      root: "/tmp/join-ask",
+      code: "ARK-abcdefghijklmnopqrstuvwxyz",
+    }),
+  );
+  expect(installationCalls()).toEqual([]);
+});
+
+test("a computer that joined before goes straight back; when the company's is off it says so and can try again", async () => {
+  setupRootConfiguration("/tmp/join-saved", async () => emptyConfiguration());
+  const previous = invokeHandler;
+  let joins = 0;
+  invokeHandler = async (command, args) => {
+    if (command === "joined_company") return "ARK-savedcodesavedcodesaved";
+    if (command === "join_company") {
+      joins += 1;
+      if (joins === 1)
+        throw { said: "Your company's ArkAgent did not answer." };
+      return null;
+    }
+    if (command === "leave_company") return null;
+    return previous(command, args);
+  };
+  const view = await renderApp();
+  await view.findByText("Your company's ArkAgent did not answer.");
+  expect(joins).toBe(1);
+  await userEvent.click(view.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(joins).toBe(2));
+
+  // Or this computer stops joining, and setup is offered again.
+  await userEvent.click(
+    view.getByRole("button", {
+      name: "Set up ArkAgent on this computer instead",
+    }),
+  );
+  await view.findByRole("button", { name: "Set up ArkAgent" });
+  expect(invokeCalls.some((call) => call.command === "leave_company")).toBe(
+    true,
+  );
+});

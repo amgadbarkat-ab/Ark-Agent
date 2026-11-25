@@ -6,6 +6,8 @@ import { MAX_IMAGE_BYTES } from "../../shared/attachments";
 import { withAccountProvisioning } from "./accounts/provisioning";
 import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
 import type { AccountStore } from "./accounts/store";
+import type { TeamService } from "./accounts/team";
+import { teamRoutes, teamSetupRoutes } from "./accounts/team-routes";
 import {
   authoriseAgentCall,
   parseAgentToolCallInput,
@@ -98,6 +100,8 @@ import { appleAppSiteAssociation, assetLinks } from "./mobile/links";
 import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
+import { officeCertificateRoutes, officeRoutes } from "./office/routes";
+import type { OfficeService } from "./office/service";
 import { originGuard } from "./origin-guard";
 import { adminOverviewRoutes } from "./overview/routes";
 import { parsePageLimit } from "./paging";
@@ -515,6 +519,16 @@ export function createApp(
    * Appended last, for the positional reason above. Absent leaves `/api/chat-summary` unmounted.
    */
   chatSummary?: ChatSummaryService,
+  /**
+   * A customer's team with password sign-in (Amgad, 24 Nov 2026): set-up, sub-profiles, and which of
+   * them may use the deployment now. Appended last, for the positional reason above.
+   */
+  team?: TeamService,
+  /**
+   * The office network (Amgad, 24 Nov 2026, option A): staff computers on the same network sign in
+   * to this one, over HTTPS with its own certificate. Only with a team. Appended last, as above.
+   */
+  office?: OfficeService,
 ) {
   const app = new Hono<{ Variables: AppVariables }>();
   // First, so it sees every request and every answer, including the ones a later guard refuses.
@@ -598,6 +612,8 @@ export function createApp(
        * build machine cannot offer a provider that machine had never heard of.
        */
       authProviders: configuredAuthProviders(config.auth),
+      // A customer's team signs in with email and password (ArkAgent, accounts/team.ts).
+      passwordSignIn: config.auth?.passwordSignIn === true,
       /*
        * Whether any enterprise identity provider has been registered.
        *
@@ -743,7 +759,11 @@ export function createApp(
   const signedIn = config.singleUser
     ? createDevRequireUser()
     : auth && roleRepository
-      ? createRequireUser(auth, roleRepository)
+      ? createRequireUser(
+          auth,
+          roleRepository,
+          team ? (userId) => team.mayUse(userId) : undefined,
+        )
       : authenticationUnavailable;
   // Every signed-in person belongs to an account before anything runs for them. See provisioning.ts.
   const requireUser = accountServices
@@ -799,6 +819,7 @@ export function createApp(
         billing,
         appUrl: config.appUrl,
         audit,
+        isSubprofile: team?.isSubprofile,
       }),
     );
     app.route(
@@ -1696,6 +1717,16 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
+        ...(team
+          ? {
+              refuse: async (actor, botId) =>
+                (await team.isSubprofile(actor.id))
+                  ? "Your browser here is your administrator's. Digital employees cannot use it from a sub-profile."
+                  : (await team.isAssigned(botId))
+                    ? "This digital employee belongs to a sub-profile, who works from another computer, so it cannot use this computer's browser."
+                    : null,
+            }
+          : {}),
       }),
     );
   }
@@ -1709,6 +1740,14 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
+        ...(team
+          ? {
+              refuse: async (actor) =>
+                (await team.isSubprofile(actor.id))
+                  ? "The folders on this computer are your administrator's. A sub-profile cannot give them to a digital employee."
+                  : null,
+            }
+          : {}),
         botName: agentProfileStore
           ? async (botId, actor) =>
               (await agentProfileStore.get(actor, botId))?.name ?? null
@@ -1810,7 +1849,10 @@ export function createApp(
   }
 
   if (support) {
-    app.route("/api/support", supportRoutes(requireUser, support));
+    app.route(
+      "/api/support",
+      supportRoutes(requireUser, support, team?.isSubprofile),
+    );
   }
 
   if (privateServer) {
@@ -1818,6 +1860,16 @@ export function createApp(
       "/api/private-server",
       privateServerRoutes(requireUser, privateServer),
     );
+  }
+
+  if (team) {
+    // Set-up first: it is what a deployment with nobody on it yet can answer.
+    app.route("/api/team", teamSetupRoutes(team));
+    if (office) {
+      app.route("/api/team/office", officeRoutes(requireUser, office));
+      app.route("/api/office/certificate", officeCertificateRoutes(office));
+    }
+    app.route("/api/team", teamRoutes(requireUser, team));
   }
 
   if (chatSummary) {

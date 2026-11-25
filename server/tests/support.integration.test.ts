@@ -431,6 +431,28 @@ describe("Help & support (#149)", () => {
     expect((await service.priority()).plan).toBeNull();
     expect(sent).toHaveLength(1);
     expect((await service.priority(true)).plan?.status).toBe("active");
+
+    // A staff sub-profile sees the plan, never the buy page.
+    for (const [subprofile, buyUrl] of [
+      [true, null],
+      [false, first.buyUrl],
+    ] as const) {
+      const app = new Hono();
+      app.route(
+        "/api/support",
+        supportRoutes(
+          async (context, next) => {
+            context.set("actor" as never, { id: "user-1" } as never);
+            await next();
+          },
+          service,
+          async () => subprofile,
+        ),
+      );
+      const view = await (await app.request("/api/support/priority")).json();
+      expect(view.buyUrl).toBe(buyUrl);
+      expect(view.offer).not.toBeNull();
+    }
   });
 
   test("24/7 Priority Support before activation: not available, nothing is asked", async () => {

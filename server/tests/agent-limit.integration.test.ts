@@ -30,6 +30,7 @@ import {
 import { createActivationService } from "../src/trial/activation";
 import {
   AgentLimitReachedError,
+  SubprofileCannotAddError,
   countOwnedAgents,
   createAgentLimit,
 } from "../src/trial/agent-limit";
@@ -158,7 +159,7 @@ async function countMine(): Promise<number> {
   return Number(row?.value ?? 0);
 }
 
-function harness() {
+function harness(options: { subprofile?: boolean } = {}) {
   const audited: { eventType: string; payload: Record<string, unknown> }[] = [];
   const trial = createTrialService(database, {
     keys: [trialKey.publicKey],
@@ -180,6 +181,7 @@ function harness() {
     audit: async (event) => {
       audited.push(event);
     },
+    isSubprofile: async () => options.subprofile === true,
   });
   const profiles = guardProfiles(
     createAgentProfileStore(database, undefined),
@@ -202,6 +204,17 @@ async function fill(add: (name: string) => Promise<unknown>, how: number) {
 }
 
 describe("Ark Team's agent limit (v0.1.49)", () => {
+  test("a staff sub-profile adds none, with room to spare: only the administrator adds", async () => {
+    const { activation, add } = harness({ subprofile: true });
+    await activation.apply(license({ maxAgents: 5 }));
+    const refused = await add("Mine").catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(SubprofileCannotAddError);
+    expect((refused as SubprofileCannotAddError).code).toBe(
+      "subprofile_cannot_add",
+    );
+    expect(await countMine()).toBe(0);
+  });
+
   test("at the limit, the next one is refused with an audit row and both sentences", async () => {
     const { activation, limit, add, audited } = harness();
     await activation.apply(license({ maxAgents: 5 }));

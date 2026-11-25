@@ -10,7 +10,7 @@ import "./no-telemetry";
 // application's graph without it failed about three times in ten.
 import "eventsource";
 import { randomUUID } from "node:crypto";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import {
   CopilotKitIntelligence,
@@ -30,6 +30,12 @@ import { workOwner } from "../../shared/work-owner";
 import { RunGateAgent } from "./accounts/run-gate";
 import { createRunSlots } from "./accounts/run-slots";
 import { billingModeFrom, createAccountStore } from "./accounts/store";
+import {
+  createTeamService,
+  type TeamAuthContext,
+  type TeamBilling,
+} from "./accounts/team";
+import { blackarkTeamBilling } from "./accounts/team-billing";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
 import { containerRelayCheck } from "./agents/container-relay";
 import { createAgentFetch } from "./agents/endpoint";
@@ -157,6 +163,9 @@ import {
   serveMetrics,
   serverMetrics,
 } from "./observability";
+import { hubClientUrl } from "./office/hub-socket";
+import { officeServeOptions } from "./office/listener";
+import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
 import { originAllowed, trustedOrigins } from "./origin-guard";
 import { deploymentFacts } from "./overview/facts";
 import { createOverviewStore } from "./overview/store";
@@ -392,6 +401,8 @@ const agentLimit = createAgentLimit({
   activation,
   countAgents: () => countOwnedAgents(database),
   isSeeding: () => trial.isSeeding(),
+  // Bound late: the team is made further down, and is only asked once somebody adds one.
+  isSubprofile: async (userId) => (await team?.isSubprofile(userId)) ?? false,
   audit: (event) =>
     recordAuditEvent(bootAuditStore, {
       eventType: event.eventType,
@@ -539,6 +550,65 @@ const auth: AuthService | undefined = config.organizationAuthUrl
         signInAuditStore,
       )
     : undefined;
+/*
+ * A customer's team (Amgad, 24 Nov 2026): with password sign-in, the administrator made at first
+ * start and the staff sub-profiles they add, each signing in as themselves. Billing for sub-profiles
+ * goes through BlackArk (`teamBilling`, once this install is activated).
+ */
+const team =
+  auth && config.auth?.passwordSignIn
+    ? createTeamService({
+        database,
+        authContext: async () =>
+          (await (auth as unknown as { $context: Promise<TeamAuthContext> })
+            .$context) as TeamAuthContext,
+        billing: () => teamBilling,
+        // An employee given to a sub-profile leaves the administrator's browser (bound late: made below).
+        onAssigned: (agentIds) => {
+          for (const agentId of agentIds) ownBrowser?.release(agentId);
+        },
+      })
+    : undefined;
+const teamBilling: TeamBilling | null = team
+  ? blackarkTeamBilling(database, {
+      ...(process.env.ARK_TEAM_URL?.trim()
+        ? { url: process.env.ARK_TEAM_URL.trim() }
+        : {}),
+    })
+  : null;
+/*
+ * The office network (Amgad, 24 Nov 2026, option A): only where the desktop offers it and there is a
+ * team to sign in to. The listener is opened later, once `serverOptions` exists, and only if the
+ * administrator switched it on; it serves the same app and API, over HTTPS, on every interface.
+ */
+const officePort = Number(
+  process.env.ARK_OFFICE_PORT?.trim() || DEFAULT_OFFICE_PORT,
+);
+const office =
+  team && process.env.ARK_OFFICE_NETWORK?.trim() === "available"
+    ? createOfficeService({
+        database,
+        encryptionKey: config.keyEncryptionKey,
+        port: officePort,
+        hostname: () => hostname(),
+        listen: (tls) =>
+          serve({
+            ...serverOptions,
+            hostname: "0.0.0.0",
+            port: officePort,
+            tls,
+            ...officeServeOptions(serverOptions, {
+              appOrigin: config.appUrl ?? config.auth?.trustedOrigins[0] ?? "",
+              hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
+            }),
+          }),
+      })
+    : undefined;
+// Paid sub-profiles activate by themselves, and unpaid ones are suspended: BlackArk asked every 10 minutes.
+if (team)
+  repeatAfterEach(async () => {
+    await team.syncBilling().catch(() => undefined);
+  }, 10 * 60_000);
 /*
  * Running in Ark's cloud: what it may do, and the record of the time it uses (docs/ark/17-cloud-runtime.md).
  *
@@ -2052,6 +2122,10 @@ const app = createApp(
   }),
   // The weekly summary and chat cleanup: each employee's setting and summary file.
   chatSummary,
+  // The customer's team: administrator and paid sub-profiles, with password sign-in.
+  team,
+  // Staff computers on the office network sign in to this one (desktop only, off until switched on).
+  office,
 );
 // The Sunday-night summary and cleanup, checked every 15 minutes; each person's own window.
 repeatAfterEach(async () => {
@@ -2296,6 +2370,16 @@ for (const hostname of hosts) {
     );
   }
 }
+
+// The office network, if the administrator left it on. After the listeners above, which it copies.
+await office?.start().catch((error: unknown) => {
+  console.warn(
+    JSON.stringify({
+      type: "office-network-not-started",
+      reason: String(error),
+    }),
+  );
+});
 
 // Writes down every route this process registered, for the security tests (server/tests/security), which
 // need the real inventory: `createApp` registers a route only when the store behind it was given, so an

@@ -10,6 +10,33 @@ export const EL_DESKTOP: Record<string, string> = {
   "Some of the roles": "Μερικοί από τους ρόλους",
   "and more": "και άλλοι",
   "Set up ArkAgent": "Ρύθμιση του ArkAgent",
+  // A staff computer joins the company's ArkAgent (24 Nov 2026, option A).
+  "Join my company's ArkAgent": "Σύνδεση στο ArkAgent της εταιρείας μου",
+  "Your administrator finds the join code in ArkAgent, under Settings, then Team, once the office network is switched on. Everything stays on their computer: you sign in with your own sub-profile.":
+    "Ο διαχειριστής σας βρίσκει τον κωδικό σύνδεσης στο ArkAgent, στις Ρυθμίσεις και μετά Ομάδα, μόλις ενεργοποιήσει το δίκτυο γραφείου. Όλα μένουν στον υπολογιστή του: συνδέεστε με το δικό σας υποπροφίλ.",
+  "Connecting to your company's ArkAgent…":
+    "Σύνδεση στο ArkAgent της εταιρείας σας…",
+  Join: "Σύνδεση",
+  "Set up ArkAgent on this computer instead":
+    "Ρύθμιση του ArkAgent σε αυτόν τον υπολογιστή",
+  "That is not a join code. Copy it again from your administrator's Settings, then Team.":
+    "Αυτός δεν είναι κωδικός σύνδεσης. Αντιγράψτε τον ξανά από τις Ρυθμίσεις του διαχειριστή σας, και μετά Ομάδα.",
+  "ArkAgent could not start its connection to your company.":
+    "Το ArkAgent δεν μπόρεσε να ξεκινήσει τη σύνδεση με την εταιρεία σας.",
+  "Your company's ArkAgent did not answer. Check that the administrator's computer is on and on this network, that the office network is switched on in its Settings, then Team, and that this is the join code it shows now.":
+    "Το ArkAgent της εταιρείας σας δεν απάντησε. Ελέγξτε ότι ο υπολογιστής του διαχειριστή είναι ανοιχτός και σε αυτό το δίκτυο, ότι το δίκτυο γραφείου είναι ενεργό στις Ρυθμίσεις του και μετά Ομάδα, και ότι αυτός είναι ο κωδικός σύνδεσης που δείχνει τώρα.",
+  "ArkAgent could not start its connection to your company. Try again.":
+    "Το ArkAgent δεν μπόρεσε να ξεκινήσει τη σύνδεση με την εταιρεία σας. Δοκιμάστε ξανά.",
+  "ArkAgent could not keep the join code.":
+    "Το ArkAgent δεν μπόρεσε να κρατήσει τον κωδικό σύνδεσης.",
+  "The ArkAgent window is not there to show it in.":
+    "Το παράθυρο του ArkAgent δεν είναι εκεί για να το δείξει.",
+  "ArkAgent could not open your company's ArkAgent.":
+    "Το ArkAgent δεν μπόρεσε να ανοίξει το ArkAgent της εταιρείας σας.",
+  "ArkAgent could not join your company.":
+    "Το ArkAgent δεν μπόρεσε να συνδεθεί με την εταιρεία σας.",
+  "ArkAgent could not forget the join code.":
+    "Το ArkAgent δεν μπόρεσε να ξεχάσει τον κωδικό σύνδεσης.",
   "Takes a few minutes. ArkAgent installs what it needs first, then asks how you want to connect an AI model.":
     "Χρειάζεται λίγα λεπτά. Το ArkAgent εγκαθιστά πρώτα ό,τι χρειάζεται και μετά ρωτά πώς θέλετε να συνδέσετε ένα μοντέλο AI.",
   "Runs a written routine": "Εκτελεί μια γραπτή διαδικασία",

@@ -8,6 +8,7 @@ import { EL_ADMIN2 } from "./admin2";
 import { EL_BUILTIN_TOOLS } from "./builtin-tools";
 import { EL_BUSINESS } from "./business";
 import { EL_CHAT_SUMMARY } from "./chat-summary";
+import { EL_TEAM } from "./team";
 import { EL_COMMON } from "./common";
 import { EL_COMPONENTS } from "./components";
 import { EL_DAILY } from "./daily";
@@ -52,4 +53,5 @@ export const EL: Readonly<Record<string, string>> = {
   ...EL_SUPPORT,
   ...EL_PRIVATE_SERVER,
   ...EL_CHAT_SUMMARY,
+  ...EL_TEAM,
 };

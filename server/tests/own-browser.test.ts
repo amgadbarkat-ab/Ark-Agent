@@ -348,7 +348,12 @@ describe("the same gateway decides for the person's browser", () => {
 });
 
 describe("the routes", () => {
-  function app(options: { canUse?: (botId: string) => boolean } = {}) {
+  function app(
+    options: {
+      canUse?: (botId: string) => boolean;
+      refuse?: (botId: string) => string | null;
+    } = {},
+  ) {
     const own = createOwnBrowser();
     const audit = trail();
     const forgotten: string[] = [];
@@ -373,6 +378,9 @@ describe("the routes", () => {
           forgotten.push(botId);
         },
         fetchImpl,
+        ...(options.refuse
+          ? { refuse: async (_actor, botId) => options.refuse?.(botId) ?? null }
+          : {}),
       }),
     );
     const desktop = (url: string | null, token = "desktop-token") =>
@@ -461,5 +469,18 @@ describe("the routes", () => {
     });
     await desktop(OWN);
     expect((await use("someone-elses", true)).status).toBe(404);
+  });
+
+  test("a sub-profile's employee is refused this computer's browser, and nothing is chosen", async () => {
+    const { desktop, use, own } = app({
+      refuse: (botId) =>
+        botId === "nikos-sales" ? "It belongs to a sub-profile." : null,
+    });
+    await desktop(OWN);
+    const refused = await use("nikos-sales", true);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error).toBe("It belongs to a sub-profile.");
+    expect(own.chosen("nikos-sales")).toBe(false);
+    expect((await use("maria-books", true)).status).toBe(200);
   });
 });

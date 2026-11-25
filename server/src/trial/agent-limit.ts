@@ -43,11 +43,31 @@ export type AgentAddPath = "create" | "duplicate" | "marketplace";
 
 export class AgentLimitReachedError extends Error {
   readonly notice: AgentLimitNotice;
-  readonly code = "agent_limit_reached";
+  readonly code: string = "agent_limit_reached";
   constructor(notice: AgentLimitNotice) {
     super(notice.en);
     this.name = "AgentLimitReachedError";
     this.notice = notice;
+  }
+}
+
+const SUBPROFILE_ADD =
+  "Only your administrator can add digital employees. Ask them to give you one.";
+
+/**
+ * A staff sub-profile does not add digital employees (Amgad, 24 Nov 2026): the administrator adds
+ * them and gives each sub-profile its own, so the plan's limit counts every one the company has.
+ */
+export class SubprofileCannotAddError extends AgentLimitReachedError {
+  override readonly code = "subprofile_cannot_add";
+  constructor() {
+    super({
+      en: SUBPROFILE_ADD,
+      el: "Μόνο ο διαχειριστής σας μπορεί να προσθέσει ψηφιακούς υπαλλήλους. Ζητήστε του να σας δώσει έναν.",
+      template: SUBPROFILE_ADD,
+      values: {},
+    });
+    this.name = "SubprofileCannotAddError";
   }
 }
 
@@ -79,6 +99,8 @@ export function createAgentLimit(dependencies: {
   /** True while the signed trial roster is being set up. */
   isSeeding?: () => boolean;
   audit?: AgentLimitAudit;
+  /** Whether this person is a staff sub-profile, who never adds digital employees. */
+  isSubprofile?: (userId: string) => Promise<boolean>;
 }) {
   async function allowance(): Promise<
     AgentAllowance & { planId: string | null }
@@ -115,6 +137,8 @@ export function createAgentLimit(dependencies: {
     /** Refuses, with the sentence and an audit row, when one more would pass the limit. */
     async refuseAdd(actor: AgentActor, path: AgentAddPath): Promise<void> {
       if (dependencies.isSeeding?.()) return;
+      if (await dependencies.isSubprofile?.(actor.id))
+        throw new SubprofileCannotAddError();
       const state = await allowance();
       if (state.canAdd || !state.notice) return;
       await dependencies

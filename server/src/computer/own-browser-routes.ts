@@ -46,6 +46,15 @@ export function createOwnBrowserRoutes(options: {
    */
   forgetSnapshot?: (botId: string) => Promise<void>;
   fetchImpl?: typeof fetch;
+  /**
+   * Why this person may not put this employee in this computer's browser, or null when they may.
+   * A staff sub-profile works from another computer, and the browser here is the administrator's
+   * (Amgad, 24 Nov 2026); an employee given to a sub-profile is that person's, so the same.
+   */
+  refuse?: (
+    actor: AppVariables["actor"],
+    botId: string,
+  ) => Promise<string | null>;
 }) {
   const routes = new Hono<{ Variables: AppVariables }>();
   const { own, requireUser, canUseBot } = options;
@@ -172,6 +181,8 @@ export function createOwnBrowserRoutes(options: {
       );
     }
     if (body.use) {
+      const refused = await options.refuse?.(actor, botId);
+      if (refused) return context.json({ error: refused }, 403);
       if (!own.available()) {
         return context.json({ error: SWITCH_IT_ON_FIRST }, 409);
       }

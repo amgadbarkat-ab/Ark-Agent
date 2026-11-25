@@ -6,6 +6,7 @@ import {
 } from "../lib/auth/queries";
 import { CopilotProvider } from "../lib/copilot/provider";
 import { AppHotkeys } from "../lib/hotkeys/app-hotkeys";
+import { teamMeQueryOptions } from "../lib/team/queries";
 import { activationQueryOptions } from "../lib/trial/queries";
 
 export const Route = createFileRoute("/_authed")({
@@ -31,6 +32,18 @@ export const Route = createFileRoute("/_authed")({
      */
     if (needsOnboarding(user) && location.pathname !== "/onboarding") {
       throw redirect({ to: "/onboarding" });
+    }
+    /*
+     * A staff sub-profile's first sign-in (Amgad, 24 Nov 2026): they choose their own password
+     * before anything else. Null where there is no team; an error is not a reason to lock out.
+     */
+    if (location.pathname !== "/new-password") {
+      const me = await context.queryClient
+        .ensureQueryData(teamMeQueryOptions())
+        .catch(() => null);
+      if (me?.mustChangePassword) {
+        throw redirect({ to: "/new-password" });
+      }
     }
     /*
      * Activation (#109, v0.1.42): on a desktop install, nothing opens without a trial activation

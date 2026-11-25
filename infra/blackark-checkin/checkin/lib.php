@@ -1005,3 +1005,92 @@ function ark_board_flush(PDO $db, int $limit = 10): int
     }
     return (int) $db->query('SELECT COUNT(*) FROM board_outbox')->fetchColumn();
 }
+
+/**
+ * Staff sub-profiles (Amgad, 24 Nov 2026): EUR 15 a month each, an add-on on top of the Ark Team seat
+ * price, off until the customer's administrator makes the first one. The price is found by its lookup
+ * key and must match exactly, or nothing is sold.
+ */
+const ARK_SUBPROFILE_LOOKUP = 'arkagent_subprofile_monthly_eur';
+const ARK_SUBPROFILE_CENTS = 1500;
+const ARK_SUBPROFILE_MAX = 50;
+
+function ark_subprofile_price(): ?string
+{
+    $answer = ark_stripe_get('/v1/prices', ['lookup_keys' => [ARK_SUBPROFILE_LOOKUP], 'active' => 'true', 'limit' => 1]);
+    $price = $answer['data'][0] ?? null;
+    if (
+        !is_array($price) || ($price['lookup_key'] ?? '') !== ARK_SUBPROFILE_LOOKUP || ($price['active'] ?? false) !== true
+        || (int) ($price['unit_amount'] ?? -1) !== ARK_SUBPROFILE_CENTS || strtolower((string) ($price['currency'] ?? '')) !== 'eur'
+        || ($price['type'] ?? '') !== 'recurring' || ($price['recurring']['interval'] ?? '') !== 'month'
+        || ($price['tax_behavior'] ?? '') !== 'exclusive'
+        || preg_match('/^price_[A-Za-z0-9]{1,80}$/', (string) ($price['id'] ?? '')) !== 1
+    ) {
+        error_log('ark-subprofile: the Stripe price is missing or differs from EUR 15 a month.');
+        return null;
+    }
+    return (string) $price['id'];
+}
+
+/**
+ * One row per customer: where their sub-profiles are billed (an item on their Ark Team subscription, or
+ * a subscription of its own for a customer without one), and the last paid number and status seen, so
+ * a change reaches the Control Board once.
+ */
+function ark_subprofile_table(PDO $db): void
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS subprofile_plans (
+        customer_id TEXT PRIMARY KEY,
+        subscription_id TEXT,
+        item_id TEXT,
+        session_id TEXT,
+        paid INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT \'none\',
+        updated_at INTEGER NOT NULL
+    )');
+}
+
+/**
+ * How many sub-profiles this customer has paid for, asked of Stripe (never a copy kept here): the
+ * item's quantity while its subscription is active, otherwise 0. A checkout left open finishes here.
+ */
+function ark_subprofile_paid(PDO $db, string $customer): array
+{
+    ark_subprofile_table($db);
+    $read = $db->prepare('SELECT * FROM subprofile_plans WHERE customer_id = ?');
+    $read->execute([$customer]);
+    $row = $read->fetch() ?: null;
+    if (!$row) {
+        return ['paid' => 0, 'status' => 'none', 'subscription' => null];
+    }
+    $subscription = (string) ($row['subscription_id'] ?? '');
+    $item = (string) ($row['item_id'] ?? '');
+    if ($subscription === '' && (string) ($row['session_id'] ?? '') !== '') {
+        // A customer without Ark Team paid on a checkout: find what it made.
+        $session = ark_stripe_get('/v1/checkout/sessions/' . rawurlencode((string) $row['session_id']), ['expand' => ['line_items']]);
+        if (($session['status'] ?? '') === 'complete' && preg_match('/^sub_[A-Za-z0-9_]+$/', (string) ($session['subscription'] ?? '')) === 1) {
+            $subscription = (string) $session['subscription'];
+            $db->prepare('UPDATE subprofile_plans SET subscription_id = ?, updated_at = ? WHERE customer_id = ?')
+                ->execute([$subscription, time(), $customer]);
+        }
+    }
+    if ($subscription === '') {
+        return ['paid' => 0, 'status' => 'checkout', 'subscription' => null];
+    }
+    $sub = ark_stripe_get('/v1/subscriptions/' . rawurlencode($subscription), []);
+    $status = (string) ($sub['status'] ?? '');
+    $quantity = 0;
+    $price = ark_subprofile_price();
+    foreach ((array) ($sub['items']['data'] ?? []) as $one) {
+        if ($price !== null && ($one['price']['id'] ?? '') === $price) {
+            $quantity = (int) ($one['quantity'] ?? 0);
+            if ($item === '') {
+                $item = (string) ($one['id'] ?? '');
+                $db->prepare('UPDATE subprofile_plans SET item_id = ?, updated_at = ? WHERE customer_id = ?')
+                    ->execute([$item, time(), $customer]);
+            }
+        }
+    }
+    $active = in_array($status, ['active', 'trialing'], true);
+    return ['paid' => $active ? $quantity : 0, 'status' => $active ? 'active' : ($status ?: 'unknown'), 'subscription' => $subscription];
+}

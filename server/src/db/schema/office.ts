@@ -1,0 +1,24 @@
+import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+
+/**
+ * The office network (Amgad, 24 Nov 2026, option A): the administrator's computer is the company's
+ * ArkAgent, and staff computers on the same network sign in to it over HTTPS. One row: whether it is
+ * switched on, and the certificate this ArkAgent made for itself. Staff computers trust that exact
+ * certificate, by its SHA-256 fingerprint in the join code, and no other.
+ *
+ * `sealedKey` is the certificate's private key, sealed with KEY_ENCRYPTION_KEY like every other
+ * secret here (see rekey.ts).
+ */
+export const officeNetwork = pgTable("office_network", {
+  id: text("id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(false),
+  certificate: text("certificate").notNull(),
+  sealedKey: text("sealed_key").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

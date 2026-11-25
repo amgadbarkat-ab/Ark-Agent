@@ -4,7 +4,7 @@ import type { AppVariables } from "../src/auth/guards";
 import { createHostAccessBroker } from "../src/host-access/broker";
 import { createHostAccessRoutes } from "../src/host-access/routes";
 
-function appFor() {
+function appFor(refuse?: string) {
   const broker = createHostAccessBroker();
   const app = new Hono<{ Variables: AppVariables }>();
   app.route(
@@ -23,6 +23,7 @@ function appFor() {
       canUseBot: async (actor, botId) =>
         actor.id === "user-a" && botId === "bot-a",
       botName: async () => "Readable digital employee Name",
+      ...(refuse ? { refuse: async () => refuse } : {}),
     }),
   );
   return { app, broker };
@@ -112,5 +113,21 @@ describe("host access routes", () => {
     expect(await denied.json()).toEqual({
       error: "That digital employee is not available to you.",
     });
+  });
+
+  test("a sub-profile cannot ask for a folder on this computer, and nothing is asked of it", async () => {
+    const { app, broker } = appFor(
+      "The folders here are your administrator's.",
+    );
+    const denied = await app.request("/api/host-access/grants", {
+      method: "POST",
+      body: JSON.stringify({ botId: "bot-a" }),
+      headers: { "content-type": "application/json" },
+    });
+    expect(denied.status).toBe(403);
+    expect((await denied.json()).error).toBe(
+      "The folders here are your administrator's.",
+    );
+    expect(broker.statusFor("user-a").grants).toEqual([]);
   });
 });

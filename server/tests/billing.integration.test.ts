@@ -337,6 +337,7 @@ function appFor(
     role?: "admin" | "user";
     provider?: typeof sandbox;
     mode?: "internal" | "subscriptions";
+    subprofile?: boolean;
   } = {},
 ) {
   const store = options.mode
@@ -364,6 +365,7 @@ function appFor(
         audit: async (event) => {
           events.push(event);
         },
+        isSubprofile: async () => options.subprofile === true,
       }),
     )
     .route(
@@ -496,6 +498,22 @@ describe("a customer's account", () => {
     expect(events.map((e) => e.eventType)).toEqual([
       "account.subscription_changed",
     ]);
+  });
+
+  test("a staff sub-profile cannot buy, change, cancel or open billing, and changes nothing", async () => {
+    const ann = await person();
+    const { app, events } = appFor(ann, { subprofile: true });
+    for (const [path, body] of [
+      ["/api/account/plan", { planId: "team" }],
+      ["/api/account/portal", undefined],
+      ["/api/account/cancel", undefined],
+    ] as const) {
+      const response = await call(app, "POST", path, body);
+      expect(response.status).toBe(403);
+      expect((await response.json()).code).toBe("subprofile_no_billing");
+    }
+    expect(events).toEqual([]);
+    expect((await call(app, "GET", "/api/account")).status).toBe(200);
   });
 
   test("needs a signed-in person", async () => {

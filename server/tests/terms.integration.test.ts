@@ -112,10 +112,10 @@ describe("the routes", () => {
   const asPerson = (id: string, role: "admin" | "user") => {
     const store = createTermsStore(database, { version: V1, required: true });
     const auditStore = createAuditStore(database);
-    // createApp takes its stores by position: `auditStore` is the 13th and `overview` the 40th and `push` the 41st, `approvals` the 42nd, `memories` the 43rd, `ownsConversation` the 44th and `ownBrowser` the 45th, `teamFanoutDesk` the 46th, `phoneApprovals` the 47th, `trial` the 48th, `phoneLine` the 49th, `support` the 50th, `privateServer` the 51st and `chatSummary` the 52nd, the last (`terms` is the 39th).
+    // createApp takes its stores by position: `auditStore` is the 13th and `overview` the 40th and `push` the 41st, `approvals` the 42nd, `memories` the 43rd, `ownsConversation` the 44th and `ownBrowser` the 45th, `teamFanoutDesk` the 46th, `phoneApprovals` the 47th, `trial` the 48th, `phoneLine` the 49th, `support` the 50th, `privateServer` the 51st, `chatSummary` the 52nd, `team` the 53rd and `office` the 54th, the last (`terms` is the 39th).
     // Every parameter from the 4th on is optional, so a miscount type-checks and silently does nothing;
     // the length is asserted so that adding a parameter makes this fail where it is wrong.
-    expect(createApp.length).toBe(52);
+    expect(createApp.length).toBe(54);
     const none = (count: number) => Array.from({ length: count }) as never[];
     const app = createApp(
       loadConfig(testEnvironment()),

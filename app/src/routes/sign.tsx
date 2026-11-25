@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
+import { PasswordSignIn } from "@/components/auth/password-sign-in";
 import { ProviderLogo } from "@/components/auth/provider-logo";
 import { ParticleMark } from "@/components/brand/particle-mark";
 import { Button } from "@/components/ui/button";
@@ -176,6 +177,11 @@ function SignScreen() {
           transition={{ duration: ENTRANCE_SECONDS, ease: EASE_OUT }}
           variants={{ hidden, shown }}
         >
+          {options?.password ? (
+            <div className={providers.length > 0 ? "mb-6" : undefined}>
+              <PasswordSignIn />
+            </div>
+          ) : null}
           {providers.length > 0 ? (
             <div className="flex flex-col gap-2">
               {providers.map((provider) => (
@@ -211,7 +217,7 @@ function SignScreen() {
                 </Button>
               ))}
             </div>
-          ) : showCompanySignIn ? null : (
+          ) : showCompanySignIn || options?.password ? null : (
             <p className="text-center text-sm text-muted-foreground">
               {inIosApp
                 ? t(

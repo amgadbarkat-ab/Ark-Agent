@@ -57,6 +57,13 @@ export function createRoleRepository(database: Database): RoleRepository {
 export function createRequireUser(
   auth: AuthService,
   roleRepository: RoleRepository,
+  /**
+   * Whether this person may use the deployment now (accounts/team.ts): a customer's sub-profile only
+   * while it is paid for. Absent: everybody signed in with a role may, as before.
+   */
+  mayUse?: (
+    userId: string,
+  ) => Promise<{ ok: true } | { ok: false; reason: string }>,
 ): MiddlewareHandler<{ Variables: AppVariables }> {
   return async (context, next) => {
     const session = await auth.api.getSession({
@@ -79,6 +86,14 @@ export function createRequireUser(
 
     if (!role) {
       return context.json({ error: "Authorization required." }, 403);
+    }
+    if (mayUse) {
+      const standing = await mayUse(session.user.id);
+      if (!standing.ok)
+        return context.json(
+          { error: standing.reason, code: "subprofile_inactive" },
+          403,
+        );
     }
 
     context.set("actor", {

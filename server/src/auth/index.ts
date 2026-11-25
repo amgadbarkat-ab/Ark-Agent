@@ -252,6 +252,21 @@ export function createAuth(
       accountLinking: { enabled: false },
     },
     plugins,
+    /*
+     * A company's own team (ArkAgent): email and password, nobody registers themselves. The first
+     * account is made by `team/setup` on an empty deployment, every other one by an administrator
+     * (accounts/team.ts), both through this deployment's own code, never the public sign-up route.
+     */
+    ...(authConfig.passwordSignIn
+      ? {
+          emailAndPassword: {
+            enabled: true,
+            disableSignUp: true,
+            minPasswordLength: 10,
+            maxPasswordLength: 128,
+          },
+        }
+      : {}),
     socialProviders: {
       ...(authConfig.google ? { google: authConfig.google } : {}),
       ...(authConfig.microsoft

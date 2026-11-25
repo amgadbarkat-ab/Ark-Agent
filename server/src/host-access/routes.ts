@@ -50,6 +50,11 @@ export function createHostAccessRoutes(options: {
     botId: string,
     actor: AppVariables["actor"],
   ) => Promise<string | null>;
+  /**
+   * Why this person may not give an employee a folder on this computer, or null when they may. A
+   * staff sub-profile works from another computer; the folders here are the administrator's.
+   */
+  refuse?: (actor: AppVariables["actor"]) => Promise<string | null>;
 }) {
   const routes = new Hono<{ Variables: AppVariables }>();
   const { broker, requireUser, canUseBot, auditStore } = options;
@@ -105,6 +110,8 @@ export function createHostAccessRoutes(options: {
       return context.json({ error: "botId is required." }, 400);
     }
     const actor = context.var.actor;
+    const refused = await options.refuse?.(actor);
+    if (refused) return context.json({ error: refused }, 403);
     if (!(await canUseBot(actor, botId))) {
       return context.json(
         { error: "That digital employee is not available to you." },
