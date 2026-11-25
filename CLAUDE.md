@@ -35,6 +35,14 @@ Specs go under `specs/NNN-<name>/`; the git branch is still `claude/<topic>`.
 
 - `/speckit-taskstoissues` is not used (it writes GitHub Issues).
 
+## Security Engineer (Amgad, 25 Nov 2026)
+
+`.claude/agents/security-engineer.md` reviews **every release before it is published for customers**,
+starting with v0.1.54. It is read-only: it never builds, fixes, merges or releases, and never writes
+to GitHub. It reports to the PE, who tells Amgad in chat and the COO on #149, with recommendations
+and actions. A release with a blocking finding is not offered to customers until the finding is
+fixed or Amgad accepts it.
+
 ## Standing rules that still hold
 
 - Feature branches only; nothing reaches `main` without a PR that a person can review.
