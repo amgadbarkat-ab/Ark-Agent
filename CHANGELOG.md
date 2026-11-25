@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.54
+
 - **Sign in per person, and staff sub-profiles (Amgad, 24 Nov, #149).**
   - **The desktop asks who you are:** email and password on every install. The first person on a fresh install makes the administrator's account. An install that had one person keeps that person's digital employees and chats.
   - **Settings → Team (administrator only):** add a sub-profile with a name, an email and a first password, which the person replaces at first sign-in.
