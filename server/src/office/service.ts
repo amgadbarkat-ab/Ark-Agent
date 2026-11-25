@@ -16,8 +16,6 @@ import { encodeJoinCode } from "./join-code";
  * for it. Everything else stays on this computer only, as before. Nobody gets in without signing in.
  */
 export const OFFICE_ROW = "office";
-/** Set by the office listener on every request it passes on, so a request knows how it came. */
-export const OFFICE_MARK = "x-ark-via";
 export const DEFAULT_OFFICE_PORT = 52443;
 
 export type OfficeListener = {
@@ -151,6 +149,14 @@ export function createOfficeService(dependencies: {
 
   return {
     status,
+
+    /**
+     * Whether this Bun server is the office listener (security review of v0.1.55): how a request
+     * came is told by which listener took it, never by a header anybody can write.
+     */
+    servedBy(server: unknown): boolean {
+      return listener !== null && server === listener;
+    },
 
     /**
      * The certificate staff computers check against the join code, while it is switched on. Public:

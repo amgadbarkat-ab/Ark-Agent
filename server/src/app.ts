@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Context, Hono as HonoApp, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -103,7 +102,7 @@ import { modelGatewayRoutes } from "./models/gateway";
 import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
 import { officeCertificateRoutes, officeRoutes } from "./office/routes";
-import { OFFICE_MARK, type OfficeService } from "./office/service";
+import type { OfficeService } from "./office/service";
 import { originGuard } from "./origin-guard";
 import { adminOverviewRoutes } from "./overview/routes";
 import { parsePageLimit } from "./paging";
@@ -668,14 +667,13 @@ export function createApp(
    */
   if (config.auth?.passwordSignIn) {
     const attempts = createAttemptLimiter();
-    const scope = (context: {
-      req: { header: (name: string) => string | undefined };
-    }) => (context.req.header(OFFICE_MARK) === "office" ? "office" : "local");
-    const cookieKey = (cookie: string | undefined) =>
-      createHash("sha256")
-        .update(cookie ?? "")
-        .digest("hex")
-        .slice(0, 32);
+    // Which listener took the request: the office network's, or this computer's own.
+    const scope = (context: Context) =>
+      office?.servedBy(
+        (context.env as { server?: unknown } | undefined)?.server,
+      )
+        ? "office"
+        : "local";
     const onFailure =
       (what: string) => async (context: Context, locked: boolean) => {
         if (!auditStore) return;
@@ -691,7 +689,7 @@ export function createApp(
         });
       };
     const guard = (
-      keyOf: (context: Context) => Promise<string>,
+      keyOf: (context: Context) => Promise<string | null>,
       what: string,
     ): MiddlewareHandler =>
       attemptGuard({ limiter: attempts, keyOf, onFailure: onFailure(what) });
@@ -709,14 +707,17 @@ export function createApp(
         return `sign-in:${scope(context)}:${email}`;
       }, "sign-in"),
     );
+    // A password change is counted per signed-in person; without a session it is not counted at all.
     for (const path of ["/api/auth/change-password", "/api/team/me/password"])
       app.use(
         path,
-        guard(
-          async (context) =>
-            `password:${scope(context)}:${cookieKey(context.req.header("cookie"))}`,
-          "password change",
-        ),
+        guard(async (context) => {
+          const session = await auth?.api
+            .getSession({ headers: context.req.raw.headers })
+            .catch(() => null);
+          const userId = session?.user?.id;
+          return userId ? `password:${scope(context)}:${userId}` : null;
+        }, "password change"),
       );
   }
 

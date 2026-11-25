@@ -11,9 +11,9 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 - **Security fixes from the review of v0.1.54 (25 Nov, #149).** v0.1.54 is not offered to customers; this release replaces it.
   - **Only the install's own window can make the administrator.** An updated install waiting for its administrator could be claimed first by another program or a malicious web page. The desktop now gives its own window a secret that set-up requires, the database holds exactly one administrator, and the office network never opens before one exists.
   - **Web pages can no longer reach this computer's ArkAgent by renaming themselves (DNS rebinding).** The server, the office listener and the staff relay answer only requests that name this computer.
-  - **Wrong passwords are limited.** Five for one account within 15 minutes lock it for 15 minutes, counted separately for the office network so nobody there can lock the administrator out of their own computer. Each one is written to the audit trail.
+  - **Wrong passwords are limited.** Five for one account within 15 minutes lock it for 15 minutes. Attempts for one account are checked one at a time, so sending many at once gains nothing. The office network is counted apart from this computer, by the connection a request arrived on, so wrong passwords sent over the office network do not lock the administrator out of their own computer. Each one is written to the audit trail.
   - **Staff computers check the company's certificate on every connection.** Before, any certificate a system trusts was accepted, so someone on the network could have read passwords and chats.
-  - **An unpaid, suspended or removed sub-profile gets no session.** The chat runtime, an employee's live screen and routines refuse it too, and removing one deletes its password. Only the administrator can ask BlackArk for the paid count.
+  - **An unpaid, suspended or removed sub-profile gets no new session.** The chat runtime and routines refuse it too, an employee's live screen already open is closed within 10 seconds, and removing one deletes its password. Only the administrator can ask BlackArk for the paid count. Other connections already open when this happens close when they are next re-made; cutting them at once comes in a follow-up.
 
 ## 0.1.54
 

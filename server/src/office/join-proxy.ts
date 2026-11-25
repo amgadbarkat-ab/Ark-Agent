@@ -390,6 +390,22 @@ export async function startJoinProxy(options: {
 
 // Run by the desktop app on a staff computer: `bun server/src/office/join-proxy.ts`.
 if (import.meta.main) {
+  /*
+   * Never through a proxy set on this computer (security review of v0.1.55): the bridge is plain
+   * HTTP on loopback, and a proxy would see every password and cookie on its way to it.
+   */
+  const loopback = "127.0.0.1,localhost,::1";
+  for (const name of ["NO_PROXY", "no_proxy"])
+    process.env[name] = [process.env[name], loopback].filter(Boolean).join(",");
+  for (const name of [
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+  ])
+    delete process.env[name];
   const code = parseJoinCode(process.env.ARK_JOIN_CODE ?? "");
   const port = Number(process.env.ARK_JOIN_PORT);
   if (!code || !Number.isInteger(port) || port < 1) {

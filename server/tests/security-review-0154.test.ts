@@ -93,6 +93,48 @@ describe("wrong passwords", () => {
   });
 });
 
+describe("wrong passwords sent all at once (security review of v0.1.55)", () => {
+  test("a burst is answered one at a time: only one reaches the password check while it runs", async () => {
+    const limiter = createAttemptLimiter();
+    let checking = 0;
+    let most = 0;
+    let checked = 0;
+    const app = new Hono();
+    app.use("/sign-in", attemptGuard({ limiter, keyOf: async () => "maria" }));
+    app.post("/sign-in", async (context) => {
+      checking += 1;
+      checked += 1;
+      most = Math.max(most, checking);
+      await Bun.sleep(20);
+      checking -= 1;
+      return context.json({ error: "no" }, 401);
+    });
+    const burst = await Promise.all(
+      Array.from({ length: 50 }, () =>
+        app.request("/sign-in", { method: "POST" }),
+      ),
+    );
+    expect(most).toBe(1);
+    expect(checked).toBe(1);
+    expect(burst.filter((one) => one.status === 429)).toHaveLength(49);
+    // One after another: the fifth wrong one locks it, and nothing more is checked.
+    for (let i = 0; i < 10; i++)
+      await app.request("/sign-in", { method: "POST" });
+    expect(checked).toBe(5);
+  });
+
+  test("an attempt nobody can be counted against (no session) passes through uncounted", async () => {
+    const limiter = createAttemptLimiter();
+    const app = new Hono();
+    app.use("/change", attemptGuard({ limiter, keyOf: async () => null }));
+    app.post("/change", (context) => context.json({ error: "Sign in" }, 401));
+    for (let i = 0; i < 20; i++)
+      expect((await app.request("/change", { method: "POST" })).status).toBe(
+        401,
+      );
+  });
+});
+
 describe("making the administrator", () => {
   const service = {
     setupNeeded: async () => true,

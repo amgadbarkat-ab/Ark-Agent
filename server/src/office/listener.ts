@@ -8,19 +8,7 @@ import {
   withHubAddress,
   withSocketAllowed,
 } from "./hub-socket";
-import { asOwnOrigin, OFFICE_MARK } from "./service";
-
-/**
- * Marked as having come over the office network, whatever the sender put there. A socket's
- * handshake is left as it came: Bun upgrades only the request it was handed.
- */
-function markedOffice(request: Request): Request {
-  if (request.headers.get("upgrade")?.toLowerCase() === "websocket")
-    return request;
-  const headers = new Headers(request.headers);
-  headers.set(OFFICE_MARK, "office");
-  return new Request(request, { headers });
-}
+import { asOwnOrigin } from "./service";
 
 /**
  * What the office listener serves (Amgad, 24 Nov 2026, option A): the same app and API as this
@@ -70,7 +58,7 @@ export function officeServeOptions<Data>(
       }
       const answer = await base.fetch.call(
         server as unknown as Server<Data>,
-        markedOffice(asOwnOrigin(request, options.appOrigin)),
+        asOwnOrigin(request, options.appOrigin),
         server as unknown as Server<Data>,
       );
       if (!answer) return answer as unknown as Response;

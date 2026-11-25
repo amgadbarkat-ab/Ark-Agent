@@ -18,6 +18,7 @@ import { file, type ServerWebSocket } from "bun";
 import { DICTATION_HTTP_IDLE_SECONDS } from "../shared/dictation";
 import { listenHosts } from "../shared/listen-hosts";
 import { listenPort } from "../shared/listen-port";
+import { hostAllowed } from "../shared/local-hosts";
 
 const DIST = join(import.meta.dir, "dist");
 const appPort = listenPort(process.env.APP_PORT, 3010);
@@ -216,6 +217,15 @@ if (import.meta.main) {
     },
     async fetch(request, server) {
       const url = new URL(request.url);
+      // Only requests that name this computer (security review of v0.1.55): a web page that points
+      // its own domain at 127.0.0.1 is refused here too, sockets included.
+      if (
+        process.env.ARK_LOOPBACK_HOST_ONLY?.trim() === "true" &&
+        !hostAllowed(request.headers.get("host"))
+      )
+        return new Response("This address is not this ArkAgent.", {
+          status: 421,
+        });
       if (url.pathname === "/api/audio/transcriptions") {
         server.timeout(request, DICTATION_HTTP_IDLE_SECONDS);
       }

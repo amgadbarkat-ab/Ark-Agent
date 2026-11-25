@@ -277,3 +277,14 @@ test("never opens on the network before the administrator exists, whatever was s
   expect(upgraded.opened()).toBe(0);
   expect((await upgraded.service.status()).listening).toBe(false);
 });
+
+test("a request is known to have come over the office network by the listener that took it, not by a header", async () => {
+  const { service } = office(0);
+  await service.setEnabled(true);
+  const listener = servers[0];
+  expect(service.servedBy(listener)).toBe(true);
+  expect(service.servedBy({})).toBe(false);
+  expect(service.servedBy(undefined)).toBe(false);
+  await service.setEnabled(false);
+  expect(service.servedBy(listener)).toBe(false);
+});

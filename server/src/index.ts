@@ -2210,7 +2210,13 @@ const streamPathBotId = (pathname: string): string | null => {
 };
 
 /** What each proxied socket carries: where to connect inward, and the socket once opened. */
-type StreamData = { upstream: string; inward?: WebSocket };
+type StreamData = {
+  upstream: string;
+  inward?: WebSocket;
+  /** Who opened it and for which employee, asked again while it stays open. */
+  viewer?: { id: string; role: OpenBotRole; botId: string };
+  recheck?: ReturnType<typeof setInterval>;
+};
 
 /**
  * Bun takes exactly one WebSocket handler for the server, and two features need one: the app proxies
@@ -2318,7 +2324,14 @@ const serverOptions = {
           { status: 502 },
         );
       }
-      if (server.upgrade(request, { data: { upstream } })) {
+      if (
+        server.upgrade(request, {
+          data: {
+            upstream,
+            viewer: { id: actor.id, role: actor.role, botId: streamBotId },
+          },
+        })
+      ) {
         return undefined as unknown as Response;
       }
       return new Response("Expected a WebSocket upgrade.", { status: 400 });
@@ -2344,6 +2357,25 @@ const serverOptions = {
       };
       inward.onclose = () => ws.close();
       inward.onerror = () => ws.close();
+      /*
+       * Asked again every ten seconds while it stays open (security review of v0.1.55): a sub-profile
+       * suspended or removed, or an employee given to somebody else, closes the screen it was
+       * watching and driving, rather than leaving it open until the tab is closed.
+       */
+      const viewer = ws.data.viewer;
+      if (viewer)
+        ws.data.recheck = setInterval(async () => {
+          const standing = await team?.mayUse(viewer.id).catch(() => null);
+          const still =
+            (standing === undefined || standing?.ok === true) &&
+            (await agentProfileStore
+              .get({ id: viewer.id, role: viewer.role }, viewer.botId)
+              .catch(() => null)) !== null;
+          if (!still) {
+            inward.close();
+            ws.close(4403, "No longer yours to watch.");
+          }
+        }, 10_000);
     },
     message(ws, raw) {
       if (!isProxiedStream(ws.data)) {
@@ -2357,6 +2389,7 @@ const serverOptions = {
         channelSocket.close(asChannelSocket(ws), code, reason);
         return;
       }
+      clearInterval(ws.data.recheck);
       ws.data.inward?.close();
     },
   },
