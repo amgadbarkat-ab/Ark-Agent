@@ -15,6 +15,10 @@ export const EL_TEAM: Record<string, string> = {
   "That email and password do not match.":
     "Το email και ο κωδικός δεν ταιριάζουν.",
   "The account could not be made.": "Ο λογαριασμός δεν δημιουργήθηκε.",
+  "Too many wrong passwords. Try again in 15 minutes.":
+    "Πάρα πολλοί λάθος κωδικοί. Δοκιμάστε ξανά σε 15 λεπτά.",
+  "Make the administrator's account in the ArkAgent window on this computer.":
+    "Δημιουργήστε τον λογαριασμό του διαχειριστή στο παράθυρο του ArkAgent σε αυτόν τον υπολογιστή.",
   "Signing in did not work. Try again.": "Η σύνδεση δεν έγινε. Δοκιμάστε ξανά.",
 
   // The first sign-in of a sub-profile.

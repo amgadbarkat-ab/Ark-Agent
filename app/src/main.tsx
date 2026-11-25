@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { captureSetupSecret } from "./lib/auth/setup-secret";
 import { installExternalLinks } from "./lib/external-links";
 import { queryClient } from "./query-client";
 import { router } from "./router";
@@ -9,6 +10,8 @@ import "@copilotkit/react-core/v2/styles.css";
 import "./styles.css";
 
 installExternalLinks();
+// Before the router: a redirect to the sign-in screen would drop the desktop's set-up secret.
+captureSetupSecret();
 
 const rootElement = document.getElementById("root");
 

@@ -2801,6 +2801,17 @@ fn show_openbot_on<R: tauri::Runtime>(
         .get_webview_window("main")
         .ok_or("the ArkAgent window is not there to show it in")?;
     let destination = with_language(destination, language);
+    // The set-up secret, for this window only (security review of v0.1.54): an upgraded install waiting
+    // for its administrator can be claimed from nowhere else. In the fragment, so it is never sent to
+    // a server or written to a log; the app keeps it only for the set-up screen.
+    let setup_token = openbot_desktop_lib::vault::already_given_no_ui(
+        &root,
+        &root.join(".env"),
+        &["ARK_SETUP_TOKEN"],
+    )
+    .ok()
+    .and_then(|found| found.get("ARK_SETUP_TOKEN").cloned());
+    let destination = with_setup_token(destination, setup_token.as_deref());
     allow_save_as(&app, &destination);
     let outcome = window
         .navigate(
@@ -2941,6 +2952,26 @@ fn leave_company(app: tauri::AppHandle) -> Result<(), Problem> {
             error.to_string(),
         )
     })
+}
+
+/// The app's address with this install's set-up secret in its fragment, for the set-up screen.
+fn with_setup_token(destination: String, token: Option<&str>) -> String {
+    match token {
+        Some(token) if !token.is_empty() => {
+            let encoded: String = token
+                .chars()
+                .map(|c| match c {
+                    '+' => "%2B".to_string(),
+                    '/' => "%2F".to_string(),
+                    '=' => "%3D".to_string(),
+                    c if c.is_ascii_alphanumeric() || c == '-' || c == '_' => c.to_string(),
+                    _ => String::new(),
+                })
+                .collect();
+            format!("{destination}#ark-setup={encoded}")
+        }
+        _ => destination,
+    }
 }
 
 /// Resolve the configured setup page before WebView2's first navigation completes.
@@ -4596,6 +4627,22 @@ mod tests {
         );
         assert_eq!(
             super::with_language("http://127.0.0.1:3010/".into(), None),
+            "http://127.0.0.1:3010/"
+        );
+    }
+
+    #[test]
+    fn only_this_window_is_given_the_set_up_secret_in_its_fragment() {
+        assert_eq!(
+            super::with_setup_token("http://127.0.0.1:3010/?lang=el".into(), Some("ab+c/d=")),
+            "http://127.0.0.1:3010/?lang=el#ark-setup=ab%2Bc%2Fd%3D"
+        );
+        assert_eq!(
+            super::with_setup_token("http://127.0.0.1:3010/".into(), None),
+            "http://127.0.0.1:3010/"
+        );
+        assert_eq!(
+            super::with_setup_token("http://127.0.0.1:3010/".into(), Some("")),
             "http://127.0.0.1:3010/"
         );
     }
