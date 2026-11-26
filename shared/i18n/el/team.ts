@@ -76,6 +76,30 @@ export const EL_TEAM: Record<string, string> = {
   "Another program on this computer is using the office network port, so staff cannot reach it. Close that program, then switch this on again.":
     "Ένα άλλο πρόγραμμα σε αυτόν τον υπολογιστή χρησιμοποιεί τη θύρα του δικτύου γραφείου, οπότε οι υπάλληλοι δεν μπορούν να τον βρουν. Κλείστε εκείνο το πρόγραμμα και ενεργοποιήστε ξανά.",
 
+  // Remote staff through BlackArk's staff relay (v0.1.56).
+  "Let my staff sign in from outside the office":
+    "Οι υπάλληλοί μου να συνδέονται εκτός γραφείου",
+  "Through BlackArk's relay, for staff working from home or on the road. The relay passes their encrypted connection to this computer and cannot read it: passwords, chats and files stay between their computer and this one. This computer must be on and connected to the internet while they work.":
+    "Μέσω του αναμεταδότη της BlackArk, για υπαλλήλους που δουλεύουν από το σπίτι ή εν κινήσει. Ο αναμεταδότης περνά την κρυπτογραφημένη σύνδεσή τους σε αυτόν τον υπολογιστή και δεν μπορεί να τη διαβάσει: κωδικοί, συνομιλίες και αρχεία μένουν ανάμεσα στον υπολογιστή τους και σε αυτόν. Αυτός ο υπολογιστής πρέπει να είναι ανοιχτός και συνδεδεμένος στο διαδίκτυο όσο δουλεύουν.",
+  "Connected to BlackArk's relay.":
+    "Συνδεδεμένο στον αναμεταδότη της BlackArk.",
+  "Connecting to BlackArk's relay…": "Σύνδεση στον αναμεταδότη της BlackArk…",
+  "Make a new join code": "Νέος κωδικός σύνδεσης",
+  "The old code then stops working outside the office. Give the new one to your staff.":
+    "Ο παλιός κωδικός τότε σταματά να λειτουργεί εκτός γραφείου. Δώστε τον νέο στους υπαλλήλους σας.",
+  "This ArkAgent cannot use BlackArk's staff relay.":
+    "Αυτό το ArkAgent δεν μπορεί να χρησιμοποιήσει τον αναμεταδότη υπαλλήλων της BlackArk.",
+  "BlackArk's relay did not accept this ArkAgent's licence. Remote staff needs a licence key or trial activation code that is still valid.":
+    "Ο αναμεταδότης της BlackArk δεν δέχτηκε την άδεια αυτού του ArkAgent. Η σύνδεση εκτός γραφείου χρειάζεται κλειδί άδειας ή κωδικό ενεργοποίησης δοκιμής που ισχύει ακόμα.",
+  "BlackArk's relay refused this ArkAgent. Make a new join code, then give it to your staff again.":
+    "Ο αναμεταδότης της BlackArk απέρριψε αυτό το ArkAgent. Φτιάξτε νέο κωδικό σύνδεσης και δώστε τον ξανά στους υπαλλήλους σας.",
+  "BlackArk's relay refused the connection. Update ArkAgent, then switch remote staff on again.":
+    "Ο αναμεταδότης της BlackArk απέρριψε τη σύνδεση. Ενημερώστε το ArkAgent και ενεργοποιήστε ξανά τη σύνδεση εκτός γραφείου.",
+  "Remote staff needs this ArkAgent's licence key or trial activation code. Activate ArkAgent first.":
+    "Η σύνδεση εκτός γραφείου χρειάζεται το κλειδί άδειας ή τον κωδικό ενεργοποίησης δοκιμής αυτού του ArkAgent. Ενεργοποιήστε πρώτα το ArkAgent.",
+  "BlackArk's relay cannot be reached from this computer. Staff on the office network are not affected.":
+    "Ο αναμεταδότης της BlackArk δεν είναι προσβάσιμος από αυτόν τον υπολογιστή. Οι υπάλληλοι στο δίκτυο γραφείου δεν επηρεάζονται.",
+
   // The server's answers.
   "Your browser here is your administrator's. Digital employees cannot use it from a sub-profile.":
     "Ο φυλλομετρητής εδώ είναι του διαχειριστή σας. Οι ψηφιακοί υπάλληλοι δεν μπορούν να τον χρησιμοποιήσουν από υποπροφίλ.",

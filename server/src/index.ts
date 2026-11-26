@@ -142,6 +142,7 @@ import {
 } from "./credentials";
 import { createDatabase } from "./db/client";
 import {
+  activationState,
   agentProfiles,
   intelligenceChannelMappings,
   pluginGrants,
@@ -605,10 +606,32 @@ const office =
         port: officePort,
         hasAdministrator: async () => !(await team.setupNeeded()),
         hostname: () => hostname(),
-        listen: (tls) =>
+        /*
+         * Remote staff (v0.1.56): BlackArk's staff relay, which carries a staff computer's TLS
+         * connection to this listener without being able to read it. The relay admits this
+         * ArkAgent by its own BlackArk licence key or trial activation code.
+         */
+        relay: {
+          url:
+            process.env.ARK_STAFF_RELAY_URL?.trim() ||
+            "wss://blackark-staff.blackark.workers.dev",
+          licence: async () => {
+            const [held] = await database
+              .select({
+                payload: activationState.payload,
+                signature: activationState.signature,
+              })
+              .from(activationState)
+              .limit(1);
+            return held ? `ARK1-${held.payload}.${held.signature}` : null;
+          },
+          log: (line) => console.log(JSON.stringify({ type: "office", line })),
+        },
+        listen: (tls, where) =>
           serve({
             ...serverOptions,
-            hostname: "0.0.0.0",
+            // On every network only for the office network; loopback only for the relay alone.
+            hostname: where.everywhere ? "0.0.0.0" : "127.0.0.1",
             port: officePort,
             tls,
             ...officeServeOptions(serverOptions, {

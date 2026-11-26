@@ -179,6 +179,40 @@ export function sealedColumns(database: Database): SealedColumn[] {
         return done.length > 0;
       },
     },
+    {
+      // The staff relay's host key and access key (office/service.ts, remote staff).
+      table: "office_network",
+      column: "sealed_relay",
+      page: async (after, size) => {
+        const rows = await database
+          .select({ id: officeNetwork.id, value: officeNetwork.sealedRelay })
+          .from(officeNetwork)
+          .where(
+            and(
+              after === null ? undefined : gt(officeNetwork.id, after),
+              isNotNull(officeNetwork.sealedRelay),
+            ),
+          )
+          .orderBy(asc(officeNetwork.id))
+          .limit(size);
+        return rows.flatMap((row) =>
+          row.value === null ? [] : [{ id: row.id, value: row.value }],
+        );
+      },
+      replace: async (id, previous, next) => {
+        const done = await database
+          .update(officeNetwork)
+          .set({ sealedRelay: next })
+          .where(
+            and(
+              eq(officeNetwork.id, id),
+              eq(officeNetwork.sealedRelay, previous),
+            ),
+          )
+          .returning({ id: officeNetwork.id });
+        return done.length > 0;
+      },
+    },
   ];
 }
 

@@ -575,6 +575,13 @@
       "when": 1795623140525,
       "tag": "0081_one_administrator",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795691673383,
+      "tag": "0082_remote_staff",
+      "breakpoints": true
     }
   ]
 }

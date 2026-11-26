@@ -14,8 +14,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { sentenceNow, tNow, useT } from "@/lib/i18n";
 import {
+  newJoinCodeMutationOptions,
   officeQueryOptions,
   setOfficeMutationOptions,
+  setRemoteStaffMutationOptions,
 } from "@/lib/team/office";
 import { queryClient } from "@/query-client";
 
@@ -28,9 +30,14 @@ export function OfficeNetworkSection() {
   const t = useT();
   const office = useQuery(officeQueryOptions());
   const set = useMutation(setOfficeMutationOptions(queryClient));
+  const setRemote = useMutation(setRemoteStaffMutationOptions(queryClient));
+  const renew = useMutation(newJoinCodeMutationOptions(queryClient));
   const [copied, setCopied] = useState(false);
   const data = office.data;
   if (!data) return null;
+  const remote = data.remote;
+  const anyOn = data.enabled || remote?.enabled;
+  const failed = set.error ?? setRemote.error ?? renew.error;
 
   return (
     <PageSection title={t("Office network")}>
@@ -54,7 +61,45 @@ export function OfficeNetworkSection() {
           />
         </ItemActions>
       </Item>
-      {data.enabled && data.joinCode ? (
+      {remote?.available ? (
+        <Item className="mt-3" size="sm" variant="outline">
+          <ItemContent>
+            <ItemTitle>
+              {t("Let my staff sign in from outside the office")}
+            </ItemTitle>
+            <ItemDescription className="line-clamp-none">
+              {t(
+                "Through BlackArk's relay, for staff working from home or on the road. The relay passes their encrypted connection to this computer and cannot read it: passwords, chats and files stay between their computer and this one. This computer must be on and connected to the internet while they work.",
+              )}
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Switch
+              aria-label={t("Let my staff sign in from outside the office")}
+              checked={remote.enabled}
+              disabled={setRemote.isPending}
+              onCheckedChange={(next) => setRemote.mutate(next)}
+            />
+          </ItemActions>
+        </Item>
+      ) : null}
+      {remote?.enabled ? (
+        <p
+          className={
+            remote.connected
+              ? "mt-3 text-sm text-muted-foreground"
+              : "mt-3 text-sm text-destructive"
+          }
+          role={remote.connected ? undefined : "alert"}
+        >
+          {remote.connected
+            ? t("Connected to BlackArk's relay.")
+            : remote.error
+              ? sentenceNow(remote.error)
+              : t("Connecting to BlackArk's relay…")}
+        </p>
+      ) : null}
+      {anyOn && data.joinCode ? (
         <div className="mt-3 flex flex-col gap-2">
           <label className="text-sm font-medium" htmlFor="office-join-code">
             {t("Join code")}
@@ -79,12 +124,34 @@ export function OfficeNetworkSection() {
               {copied ? t("Copied") : t("Copy")}
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {tNow("This computer: {addresses}, port {port}.", {
-              addresses: data.addresses.join(", "),
-              port: data.port,
-            })}
-          </p>
+          {data.enabled ? (
+            <p className="text-sm text-muted-foreground">
+              {tNow("This computer: {addresses}, port {port}.", {
+                addresses: data.addresses.join(", "),
+                port: data.port,
+              })}
+            </p>
+          ) : null}
+          {remote?.enabled ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={renew.isPending}
+                onClick={() => {
+                  setCopied(false);
+                  renew.mutate();
+                }}
+                size="sm"
+                variant="outline"
+              >
+                {t("Make a new join code")}
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {t(
+                  "The old code then stops working outside the office. Give the new one to your staff.",
+                )}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
       {data.enabled && !data.addresses.length ? (
@@ -94,9 +161,9 @@ export function OfficeNetworkSection() {
           )}
         </p>
       ) : null}
-      {data.error || set.error ? (
+      {data.error || failed ? (
         <p className="mt-3 text-sm text-destructive" role="alert">
-          {sentenceNow(data.error ?? (set.error as Error).message)}
+          {sentenceNow(data.error ?? (failed as Error).message)}
         </p>
       ) : null}
     </PageSection>
