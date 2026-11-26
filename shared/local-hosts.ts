@@ -41,3 +41,32 @@ export function hostAllowed(
   if (OWN_NAMES.has(name) || name.endsWith(".localhost")) return true;
   return extraNames.some((extra) => extra.toLowerCase() === name);
 }
+
+/** Whether a peer address is this computer itself. */
+export function isLoopbackPeer(address: string | null | undefined): boolean {
+  if (!address) return false;
+  const plain = address.toLowerCase().replace(/^::ffff:/, "");
+  return plain === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(plain);
+}
+
+/**
+ * What a desktop server listening on every interface (when it could not confirm that its
+ * containers reach loopback; security review of v0.1.55, R5) answers from a peer that is not this
+ * computer: only what the containers call, each with its own token. Sign-in, set-up, the app's API
+ * and its sockets are this computer's alone; staff come in over the office listener, over HTTPS.
+ */
+export const CONTAINER_PATHS = [
+  "/api/agent-tools/",
+  "/api/model-provider/",
+  "/health",
+] as const;
+
+export function peerAllowed(
+  address: string | null | undefined,
+  path: string,
+): boolean {
+  if (isLoopbackPeer(address)) return true;
+  return CONTAINER_PATHS.some((prefix) =>
+    prefix.endsWith("/") ? path.startsWith(prefix) : path === prefix,
+  );
+}

@@ -1321,11 +1321,14 @@ fn write_host_pid_file<T: Serialize>(root: &Path, value: &T) -> Result<(), Probl
 }
 
 /// The desktop approval transport belongs only to the API server. In particular it must never
-/// reach the worker running model tools or the frontend development server.
+/// reach the worker running model tools or the frontend development server. Nor does the set-up
+/// secret (security review of v0.1.55, R9): only the server checks it, and the window is given it
+/// by the shell itself.
 fn configure_host_process_env(command: &mut Command, name: &str, secrets: &Secrets) {
     command.envs(secrets);
     if name != "server" {
         command.env_remove("OPENBOT_DESKTOP_HOST_TOKEN");
+        command.env_remove("ARK_SETUP_TOKEN");
     }
 }
 
@@ -1335,9 +1338,12 @@ fn configure_host_process_runtime(command: &mut Command, name: &str) {
     // process environment: written only to `.env`, the server still gave up on a silent model at
     // five minutes.
     command.env("BUN_CONFIG_HTTP_IDLE_TIMEOUT", HTTP_IDLE_SECONDS);
-    // Only this computer's own window opens the web app, so it never listens beyond loopback.
+    // Only this computer's own window opens the web app, so it never listens beyond loopback, and
+    // it answers only requests that name this computer (DNS rebinding; security review of v0.1.55,
+    // R7). It is started without the root `.env`, so this has to be said here.
     if name == "app" {
         command.env("LISTEN_HOSTS", "127.0.0.1,::1");
+        command.env("ARK_LOOPBACK_HOST_ONLY", "true");
     }
 }
 
@@ -3719,6 +3725,12 @@ mod tests {
                 name == "app",
                 "{name}"
             );
+            if name == "app" {
+                assert_eq!(
+                    vars[std::ffi::OsStr::new("ARK_LOOPBACK_HOST_ONLY")],
+                    Some(std::ffi::OsStr::new("true"))
+                );
+            }
         }
     }
 
@@ -3726,6 +3738,7 @@ mod tests {
     fn desktop_approval_transport_credential_reaches_only_the_server() {
         let secrets = Secrets::from([
             ("OPENBOT_DESKTOP_HOST_TOKEN".into(), "fixture-only".into()),
+            ("ARK_SETUP_TOKEN".into(), "setup-fixture".into()),
             ("INTELLIGENCE_API_KEY".into(), "other-fixture".into()),
         ]);
         for name in ["server", "worker", "app"] {
@@ -3736,6 +3749,11 @@ mod tests {
                 vars[std::ffi::OsStr::new("OPENBOT_DESKTOP_HOST_TOKEN")],
                 (name == "server").then_some(std::ffi::OsStr::new("fixture-only")),
                 "approval credential exposure to {name}"
+            );
+            assert_eq!(
+                vars[std::ffi::OsStr::new("ARK_SETUP_TOKEN")],
+                (name == "server").then_some(std::ffi::OsStr::new("setup-fixture")),
+                "set-up secret exposure to {name}"
             );
             assert_eq!(
                 vars[std::ffi::OsStr::new("INTELLIGENCE_API_KEY")],

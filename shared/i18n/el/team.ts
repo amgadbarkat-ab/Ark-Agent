@@ -76,6 +76,15 @@ export const EL_TEAM: Record<string, string> = {
   "Another program on this computer is using the office network port, so staff cannot reach it. Close that program, then switch this on again.":
     "Ένα άλλο πρόγραμμα σε αυτόν τον υπολογιστή χρησιμοποιεί τη θύρα του δικτύου γραφείου, οπότε οι υπάλληλοι δεν μπορούν να τον βρουν. Κλείστε εκείνο το πρόγραμμα και ενεργοποιήστε ξανά.",
 
+  "Another sign-in for this account is still being checked. Wait a moment, then try again.":
+    "Μια άλλη σύνδεση για αυτόν τον λογαριασμό ελέγχεται ακόμα. Περιμένετε λίγο και δοκιμάστε ξανά.",
+  "Set-up is closed: this ArkAgent has no set-up secret. Set ARK_SETUP_TOKEN, then open ArkAgent with it.":
+    "Η ρύθμιση είναι κλειστή: αυτό το ArkAgent δεν έχει μυστικό ρύθμισης. Ορίστε το ARK_SETUP_TOKEN και ανοίξτε το ArkAgent με αυτό.",
+  "ArkAgent answers staff over HTTPS on the office network, not here.":
+    "Το ArkAgent απαντά στους υπαλλήλους μέσω HTTPS στο δίκτυο γραφείου, όχι εδώ.",
+  "No longer allowed to use this ArkAgent.":
+    "Δεν επιτρέπεται πλέον η χρήση αυτού του ArkAgent.",
+
   // Remote staff through BlackArk's staff relay (v0.1.56).
   "Let my staff sign in from outside the office":
     "Οι υπάλληλοί μου να συνδέονται εκτός γραφείου",

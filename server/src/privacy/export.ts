@@ -63,6 +63,11 @@ export function exportPerson(
     database: Database;
     accounts: AccountStore;
     conversations?: ConversationService;
+    /**
+     * A staff sub-profile shares the company's account but is refused its billing (F9): their own
+     * download leaves out the company's subscription and cloud charges.
+     */
+    isSubprofile?: (userId: string) => Promise<boolean>;
   },
   userId: string,
   options: { auditPageSize?: number } = {},
@@ -119,7 +124,12 @@ export function exportPerson(
         )[0]?.instructions ?? null,
     };
 
-    if (tenantId) {
+    const staff = (await dependencies.isSubprofile?.(userId)) === true;
+    if (tenantId && staff) {
+      sections.account =
+        "Your company's account and its billing are kept by your administrator.";
+    }
+    if (tenantId && !staff) {
       const [account] = await database
         .select({
           name: tenants.name,
@@ -314,7 +324,7 @@ export function exportPerson(
       .from(attachments)
       .where(eq(attachments.uploadedBy, userId));
 
-    if (tenantId) {
+    if (tenantId && !staff) {
       sections.marketplace = {
         publisher: await database
           .select({
@@ -396,7 +406,7 @@ export function exportPerson(
 
     // When their coworkers used Ark's computers: the record the monthly charge is worked out from.
     yield ',"cloudUsage":[';
-    if (tenantId) {
+    if (tenantId && !staff) {
       let firstUse = true;
       let afterUse: string | undefined;
       for (;;) {

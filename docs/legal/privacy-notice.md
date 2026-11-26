@@ -27,7 +27,7 @@ your apps, and running tasks on a schedule. To do that, we hold what you tell th
 | --- | --- | --- |
 | **Your sign-in details**: your name, email address and profile picture from the account you sign in with (Google, or Microsoft for our staff); when you signed in; your session | To let you in and tell people apart | Contract: providing Ark to you |
 | **Your acceptance of our terms of service**: which version you accepted, and when | To be able to show what you agreed to | Legitimate interests (being able to show what was agreed), and contract |
-| **Your plan and billing status**: which plan you have, whether it is active, and the identifiers Paddle gives your subscription | To provide and limit the service you bought | Contract |
+| **Your plan and billing status**: which plan you have, whether it is active, and the identifiers Stripe gives your subscription | To provide and limit the service you bought | Contract |
 | **Cloud running**, if you choose to run your digital employees on our computers: that you switched it on, your monthly limit, the prices you agreed to and when, the months we charged and what for, and a record of when your digital employees ran | To charge you for what you chose to use, at the prices you agreed to, and to keep you to your limit | Contract |
 | **What you create**: your coworkers (names, instructions, settings), skills, routines, preferences | To make Ark behave as you asked | Contract |
 | **Your conversations and files**: what you say to a coworker, what it answers, tool results, and files you attach | To show them back to you and for the coworker to continue the work | Contract |
@@ -40,6 +40,8 @@ your apps, and running tasks on a schedule. To do that, we hold what you tell th
 | **Help & support requests**, only when you send one from the app: what you write, whether it stops your work, your language, the customer id, the computer's random id, the app version, and BlackArk's own signed trial file or licence key that proves the request comes from your computer. If you tick "Include diagnostics", also the system (for example "Windows 10") and the computer's recent warnings and errors, with names, email and web addresses, numbers, ids and keys removed. You see all of it before it is sent. Never your conversations, mail, files or keys. **Before the computer is activated** (no trial or licence yet), there is no signed file to send: the request says it is unverified, and you may add an email address for the answer. To limit such requests to 3 a day, the check-in service keeps, for 24 hours, a scrambled form of the internet address the request came from (a keyed hash, not the address itself). | To answer your request, within our support hours; to stop the unverified requests from being abused | Contract (support for the service you use) |
 | **Ark Private Server**, only if you order one from the app: which server you ordered, when you paid and until when, its status, and the address, model name and key BlackArk gives your server. Your payment is taken by Stripe; we never see your card number. | To set up and run the server you ordered, and to connect your app to it | Contract |
 | **Staff sub-profiles**, only if your administrator adds them. If you add staff sub-profiles, their names, email addresses and status are sent to BlackArk to manage your subscription and support. In detail: each person's name, email address, role (administrator or sub-profile), status (waiting for payment, active, suspended or removed), the date it was made and how many digital employees it has, and the sub-profile subscription's id, quantity and status. Never a password, a conversation or anything anyone wrote. | To bill the sub-profiles you add, and to support your team | Contract |
+| **24/7 Priority Support**, only if you order it from the app: your name, company, email address and licence, the Stripe subscription, when it started and its status, sent to BlackArk's support board, where your support cases are marked as 24/7 while it is active | To answer your cases around the clock, as you ordered | Contract |
+| **Remote staff**, only if your administrator switches on "Let my staff sign in from outside the office": each staff connection to your company's ArkAgent passes through BlackArk's staff relay on Cloudflare. It is encrypted from the staff member's computer to the administrator's, and BlackArk cannot read it: not passwords, conversations or files. The relay keeps your customer id and scrambled forms (hashes) of the relay's keys, and sees the internet addresses of the computers that connect, when, and how much they send. | To let your staff reach your company's ArkAgent from outside the office | Contract |
 | **Email to support@blackark.uk**: the message, its sender and the other addresses on it | To answer it as a support request | Contract, or legitimate interests (answering people who write to us) |
 
 We do not collect more than this, we do not sell your data, we do not use it for advertising, and **we
@@ -50,11 +52,11 @@ do not use your conversations or files to train AI models**.
 | Who | What | Why |
 | --- | --- | --- |
 | **Microsoft Azure** (data centres in Western Europe) | Everything, as our hosting provider | Running Ark, backups, logs |
-| **Paddle** | Your name, address, country and what you buy | Paddle is the seller of your plan: it takes payment, collects tax and sends invoices, under its own privacy notice. We never see your card number. |
 | **The AI model provider you choose** (for example Anthropic, OpenAI or Google, or a model running on your own computer) | The text and files of the conversation your coworker is having | To produce the answers. You connect your own account with that provider, so the data goes where you told it to, under that provider's terms. With a model on your own computer, it goes nowhere. |
 | **Composio** | The connection to the apps you link, and the calls your coworker makes through them | To let a coworker use your apps |
 | **Contabo** (Small, Medium and Large) and **Hetzner** (GPU Entry and GPU High), servers in Germany, only if you order an Ark Private Server | What your digital employees send to the model on your private server: the text and files of their conversations | To run the model on the server you ordered, under their EU data processing terms (GDPR data processing agreements) |
-| **Stripe** | Your name, email address, country and card, when you buy an Ark Private Server | Stripe takes the payment and sends invoices, under its own privacy notice. We never see your card number. |
+| **Stripe** | Your name, email address, country and card, when you buy a plan or an add-on (Ark Team, staff sub-profiles, 24/7 Priority Support, phone time, an Ark Private Server) | Stripe takes the payment and sends invoices, under its own privacy notice. We never see your card number. |
+| **Cloudflare**, only for remote staff | The encrypted staff connections described above, and the internet addresses they come from | To carry them between the staff computer and your company's ArkAgent. Cloudflare cannot read them either. [Lawyer to confirm Cloudflare's data processing terms and where it processes.] |
 | **Google** | That you signed in | Sign-in with Google, under Google's own notice |
 | **BlackArk's own support systems**: the check-in service at blackark.uk (hosted by one.com in the EU) and the support board (on a server in the EU, reached only through Cloudflare's secure tunnel) | The check-ins, Help & support requests and staff sub-profiles above | To run trials and licences, and to answer support requests. Only BlackArk staff with their own account and two-step sign-in can see them. [Lawyer to confirm the hosting providers' names and contracts.] |
 
@@ -71,7 +73,9 @@ maintain. [Lawyer to confirm the wording per provider.]
 ## How long we keep it
 
 - **Your account, coworkers, conversations, files and connections:** until you delete them or your
-  account.
+  account. With the weekly summary switched on (the default for digital employees made from version
+  0.1.53), each week a digital employee's one-to-one conversations are written into its summary, and
+  then deleted; group conversations, and conversations used in the last hour, are kept.
 - **When you delete your account:** everything above is removed (see "Your rights"). Backups fall out of
   our 35-day window by themselves.
 - **The record of actions:** 365 days, then removed. It is kept when you delete your account because
@@ -84,7 +88,12 @@ maintain. [Lawyer to confirm the wording per provider.]
   support, until you remove the app.
 - **Ark Private Server:** while you have it. After you cancel, the server and everything on it are kept
   for 6 days, then deleted.
-- **Payment and tax records:** held by Paddle, as the seller, for as long as the law requires.
+- **Staff sub-profiles and 24/7 Priority Support orders on the support board:** while the subscription
+  runs, [and for N months after it ends]. The team list is replaced each time the app sends it.
+- **Remote staff:** the relay keeps its keys' hashes while remote staff is switched on; it keeps no
+  record of connections.
+- **Payment and tax records:** held by Stripe, and by BlackArk as the seller, for as long as the law
+  requires. [Lawyer to confirm.]
 
 ## Your rights
 

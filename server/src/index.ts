@@ -166,6 +166,7 @@ import {
   serverMetrics,
 } from "./observability";
 import { hostAllowed } from "./office/hosts";
+import { peerAllowed } from "../../shared/local-hosts";
 import { hubClientUrl } from "./office/hub-socket";
 import { officeServeOptions } from "./office/listener";
 import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
@@ -276,7 +277,7 @@ async function resolveRequestActor(request: Request): Promise<{
   }
   // A staff sub-profile waiting for payment, suspended or removed runs nothing, here as on every
   // other route (the runtime, threads, join tokens and the live screen all ask this function).
-  const standing = await team?.mayUse(user.id);
+  const standing = await team?.mayAct(user.id);
   if (standing && !standing.ok) {
     throw new Error(standing.reason);
   }
@@ -638,6 +639,7 @@ const office =
               appOrigin: config.appUrl ?? config.auth?.trustedOrigins[0] ?? "",
               hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
               ownNames: () => [hostname(), `${hostname()}.local`],
+              mayUse: async (userId) => (await team.mayUse(userId)).ok,
             }),
           }),
       })
@@ -1333,7 +1335,7 @@ const actorFor = async (ownerUserId: string): Promise<AgentActor> => {
     throw new Error("A routine requires an authorized owner.");
   }
   // A staff sub-profile's routines stop while it waits for payment, is suspended or was removed.
-  const standing = await team?.mayUse(ownerUserId);
+  const standing = await team?.mayAct(ownerUserId);
   if (standing && !standing.ok) {
     throw new Error(standing.reason);
   }
@@ -2447,6 +2449,22 @@ const listenerOptions =
             return new Response("This address is not this ArkAgent.", {
               status: 421,
             });
+          /*
+           * Listening on every interface (when the desktop could not confirm that its containers
+           * reach loopback; security review of v0.1.55, R5): only what the containers call is
+           * answered to anybody but this computer. Everything else is refused over plain HTTP.
+           */
+          if (
+            hosts.length === 0 &&
+            !peerAllowed(
+              server.requestIP(request)?.address,
+              new URL(request.url).pathname,
+            )
+          )
+            return new Response(
+              "ArkAgent answers staff over HTTPS on the office network, not here.",
+              { status: 403 },
+            );
           return serverOptions.fetch.call(server, request, server);
         },
       }

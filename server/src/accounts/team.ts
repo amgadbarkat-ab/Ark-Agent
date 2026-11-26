@@ -155,6 +155,23 @@ export function createTeamService(dependencies: {
     return row !== undefined;
   }
 
+  async function standingOf(
+    userId: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const row = await member(userId);
+    if (!row || row.kind === "admin" || row.status === "active")
+      return { ok: true };
+    return {
+      ok: false,
+      reason:
+        row.status === "pending_payment"
+          ? "This sub-profile is not active yet: your administrator's payment for it has not gone through."
+          : row.status === "suspended"
+            ? "This sub-profile is suspended: the last payment for it did not go through. Ask your administrator."
+            : "This sub-profile was removed by your administrator.",
+    };
+  }
+
   async function member(userId: string) {
     const [row] = await database
       .select()
@@ -635,22 +652,7 @@ export function createTeamService(dependencies: {
     },
 
     /** Whether this person may use ArkAgent now: the administrator, or an active sub-profile. */
-    async mayUse(
-      userId: string,
-    ): Promise<{ ok: true } | { ok: false; reason: string }> {
-      const row = await member(userId);
-      if (!row || row.kind === "admin" || row.status === "active")
-        return { ok: true };
-      return {
-        ok: false,
-        reason:
-          row.status === "pending_payment"
-            ? "This sub-profile is not active yet: your administrator's payment for it has not gone through."
-            : row.status === "suspended"
-              ? "This sub-profile is suspended: the last payment for it did not go through. Ask your administrator."
-              : "This sub-profile was removed by your administrator.",
-      };
-    },
+    mayUse: standingOf,
 
     /** Whether this employee is given to a sub-profile, who works with it from another computer. */
     async isAssigned(agentId: string) {
@@ -676,8 +678,37 @@ export function createTeamService(dependencies: {
       };
     },
 
-    /** The first sign-in's new password, checked against the initial one. */
-    async changePassword(userId: string, current: string, next: string) {
+    /**
+     * Whether this person may use digital employees now: as `mayUse`, and not while a sub-profile
+     * still has the first password its administrator chose (security review of v0.1.54, F9). The
+     * app sends them to choose their own; this holds for a request sent without the app as well.
+     */
+    async mayAct(
+      userId: string,
+    ): Promise<{ ok: true } | { ok: false; reason: string }> {
+      const standing = await standingOf(userId);
+      if (!standing.ok) return standing;
+      const row = await member(userId);
+      if (row?.kind === "subprofile" && row.mustChangePassword)
+        return {
+          ok: false,
+          reason:
+            "Choose your own password first: your administrator's first password is only for signing in once.",
+        };
+      return { ok: true };
+    },
+
+    /**
+     * The person's new password, checked against the current one. Every other session of theirs is
+     * signed out (F9): a password someone else knew opens nothing afterwards. `keepToken` is the
+     * session the change was made from, which stays signed in.
+     */
+    async changePassword(
+      userId: string,
+      current: string,
+      next: string,
+      keepToken?: string,
+    ) {
       if (next.length < 10 || next.length > 128)
         throw new TeamError("The password must be 10 to 128 characters.");
       const auth = await dependencies.authContext();
@@ -700,6 +731,13 @@ export function createTeamService(dependencies: {
         .update(teamMembers)
         .set({ mustChangePassword: false, updatedAt: now() })
         .where(eq(teamMembers.userId, userId));
+      await database
+        .delete(sessions)
+        .where(
+          keepToken
+            ? and(eq(sessions.userId, userId), ne(sessions.token, keepToken))
+            : eq(sessions.userId, userId),
+        );
     },
 
     /** Whether an employee is the company's (for the routes). */

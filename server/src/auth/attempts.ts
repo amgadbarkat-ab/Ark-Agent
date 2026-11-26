@@ -18,6 +18,9 @@ export const LOCK_MS = 15 * 60_000;
 
 export type AttemptLimiter = ReturnType<typeof createAttemptLimiter>;
 
+/** How many accounts' counts are kept at most. */
+const MAX_KEYS = 10_000;
+
 export function createAttemptLimiter(
   options: {
     maxFailures?: number;
@@ -34,13 +37,21 @@ export function createAttemptLimiter(
   const lockedUntil = new Map<string, number>();
   const inFlight = new Set<string>();
 
-  /** Old entries go, so a flood of made-up keys cannot fill the memory. */
+  /**
+   * Old entries go, so a flood of made-up keys cannot fill the memory. If a flood within the window
+   * still leaves too many, the oldest counts go first (never a lock): at worst one account's count
+   * of wrong passwords starts again, and a password check is slow enough that this takes a lot.
+   */
   function prune(at: number) {
-    if (failures.size + lockedUntil.size < 10_000) return;
+    if (failures.size + lockedUntil.size < MAX_KEYS) return;
     for (const [key, times] of failures)
       if (times.every((when) => at - when >= windowMs)) failures.delete(key);
     for (const [key, until] of lockedUntil)
       if (until <= at) lockedUntil.delete(key);
+    for (const key of failures.keys()) {
+      if (failures.size + lockedUntil.size < MAX_KEYS / 2) break;
+      failures.delete(key);
+    }
   }
 
   return {
@@ -117,14 +128,25 @@ export function attemptGuard(options: {
     if (key === null) return next();
     const left = options.limiter.lockedFor(key);
     if (left > 0) return tooMany(context, Math.ceil(left / 60_000));
-    if (!options.limiter.begin(key)) return tooMany(context, 1);
-    let status = 500;
+    if (!options.limiter.begin(key))
+      return context.json(
+        {
+          error:
+            "Another sign-in for this account is still being checked. Wait a moment, then try again.",
+          code: "attempt_in_progress",
+        },
+        429,
+      );
+    let status = 0;
     try {
       await next();
-      status = context.res.status;
+      // Hono turns a throw into a 500 and keeps the error: still a throw, so still counted.
+      status = context.error ? 0 : context.res.status;
     } finally {
       options.limiter.end(key);
-      if (status === 400 || status === 401 || status === 403 || status >= 500) {
+      // A throw counts as wrong (it may be a way round the check). A server error answered as one
+      // (the database is down) is not a wrong password, and is not written down as one.
+      if (status === 0 || status === 400 || status === 401 || status === 403) {
         const locked = options.limiter.fail(key);
         await options.onFailure?.(context, locked).catch(() => undefined);
       } else if (status < 300) options.limiter.succeed(key);

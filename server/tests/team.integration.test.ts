@@ -503,6 +503,44 @@ describe("a customer's team", () => {
     expect((await team.me(sub.userId)).mustChangePassword).toBe(false);
   });
 
+  test("until it chooses its own password, a paid sub-profile signs in but uses no employee; then every other session ends", async () => {
+    const bill = billing(5);
+    const { team } = await service(bill);
+    const { adminId, agentIds } = await company(team);
+    const sub = await team.addSubprofile(
+      adminId,
+      staff(`k-${randomUUID()}@shop.example`, [agentIds[0] as string]),
+    );
+    bill.setPaid(1);
+    await team.syncBilling();
+    expect(await team.mayUse(sub.userId)).toEqual({ ok: true });
+    expect((await team.mayAct(sub.userId)).ok).toBe(false);
+    // The administrator is never held to it.
+    expect(await team.mayAct(adminId)).toEqual({ ok: true });
+
+    const kept = randomUUID();
+    const other = randomUUID();
+    for (const token of [kept, other])
+      await database.insert(sessions).values({
+        id: randomUUID(),
+        userId: sub.userId,
+        token,
+        expiresAt: new Date(Date.now() + 86_400_000),
+      });
+    await team.changePassword(
+      sub.userId,
+      "initial-password-1",
+      "my-own-password-1",
+      kept,
+    );
+    expect(await team.mayAct(sub.userId)).toEqual({ ok: true });
+    const left = await database
+      .select({ token: sessions.token })
+      .from(sessions)
+      .where(eq(sessions.userId, sub.userId));
+    expect(left).toEqual([{ token: kept }]);
+  });
+
   test("a sub-profile must be given at least one employee, and only the company's", async () => {
     const { team } = await service(billing(5));
     const { adminId } = await company(team);

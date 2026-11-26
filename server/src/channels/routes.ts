@@ -1184,6 +1184,9 @@ export function parseActivityInput(
   };
 }
 
+/** How often an open live-updates socket's person is checked again. */
+export const CHANNEL_RECHECK_MS = 10_000;
+
 export function createChannelRoutes(
   store: ChannelStore,
   requireUser: MiddlewareHandler<{ Variables: AppVariables }>,
@@ -1191,6 +1194,12 @@ export function createChannelRoutes(
   events?: ChannelEventHub,
   /** Where a channel's removal is written. Absent in tests that do not care about the trail. */
   auditStore?: AuditStore,
+  /**
+   * Whether this person may still use ArkAgent. An open live-updates socket is closed within
+   * seconds once they may not (an unpaid, suspended or removed sub-profile; security review of
+   * v0.1.55, R4). Absent: checked only when it opens.
+   */
+  mayUse?: (userId: string) => Promise<boolean>,
 ) {
   const routes = new Hono<{ Variables: AppVariables }>();
 
@@ -1252,12 +1261,28 @@ export function createChannelRoutes(
         // and nothing it later sends can change that.
         const { id: userId } = context.var.actor;
         let detach = () => {};
+        let recheck: ReturnType<typeof setInterval> | null = null;
+        const stop = () => {
+          detach();
+          if (recheck) clearInterval(recheck);
+          recheck = null;
+        };
         return {
           onOpen: (_event, ws) => {
             detach = events.register(userId, (payload) => ws.send(payload));
+            if (mayUse)
+              recheck = setInterval(() => {
+                void mayUse(userId)
+                  .catch(() => false)
+                  .then((still) => {
+                    if (still) return;
+                    stop();
+                    ws.close(4403, "No longer allowed to use this ArkAgent.");
+                  });
+              }, CHANNEL_RECHECK_MS);
           },
-          onClose: () => detach(),
-          onError: () => detach(),
+          onClose: stop,
+          onError: stop,
         };
       }),
     );

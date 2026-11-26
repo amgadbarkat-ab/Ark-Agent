@@ -14,7 +14,34 @@ export type HubSocketData = {
   hub: string;
   inward?: WebSocket;
   queued: (string | ArrayBuffer | Uint8Array)[];
+  /** Whose join token opened it, and the check that they may still use ArkAgent. */
+  userId?: string;
+  mayUse?: (userId: string) => Promise<boolean>;
+  recheck?: ReturnType<typeof setInterval>;
 };
+
+/** How often a carried socket's person is checked again (security review of v0.1.55, R4). */
+export const RECHECK_MS = 10_000;
+
+/**
+ * The person a join token names, read without checking its signature: the hub checks that itself,
+ * and refuses the socket if it was forged, so a made-up id here never gets a socket. Used only to
+ * refuse earlier, never to let anybody in.
+ */
+export function joinTokenUser(search: string): string | null {
+  const token = new URLSearchParams(search).get("join_token") ?? "";
+  const body = token.split(".")[0] ?? "";
+  try {
+    const claims = JSON.parse(
+      Buffer.from(body, "base64url").toString("utf8"),
+    ) as {
+      s?: { userId?: unknown };
+    };
+    return typeof claims.s?.userId === "string" ? claims.s.userId : null;
+  } catch {
+    return null;
+  }
+}
 
 export const isHubSocket = (data: unknown): data is HubSocketData =>
   typeof (data as HubSocketData | undefined)?.hub === "string";
@@ -36,6 +63,17 @@ type Socket = {
 /** Both ways, and what the page sends before the hub has answered is held, not lost. */
 export const hubSocket = {
   open(ws: Socket) {
+    const { userId, mayUse } = ws.data;
+    if (userId && mayUse)
+      ws.data.recheck = setInterval(() => {
+        void mayUse(userId)
+          .catch(() => false)
+          .then((still) => {
+            if (still) return;
+            ws.data.inward?.close();
+            ws.close(4403, "No longer allowed to use this ArkAgent.");
+          });
+      }, RECHECK_MS);
     const inward = new WebSocket(ws.data.hub);
     inward.binaryType = "arraybuffer";
     ws.data.inward = inward;
@@ -58,6 +96,7 @@ export const hubSocket = {
     else ws.data.queued.push(message);
   },
   close(ws: Socket) {
+    if (ws.data.recheck) clearInterval(ws.data.recheck);
     ws.data.inward?.close();
   },
 };
