@@ -180,3 +180,39 @@ export function jsonSignInOnly(): MiddlewareHandler {
     return next();
   };
 }
+
+/**
+ * A password change through Better Auth's own route signs out every other session, whatever the
+ * request asked (v0.1.57; the security review of v0.1.56). The team's own route already does
+ * (accounts/team.ts `changePassword`); this one let `revokeOtherSessions` be left out, so a session
+ * somebody else held went on working after the password that let them in was changed. Only JSON is
+ * read, as the app sends it: anything else is refused before a password is checked.
+ */
+export function revokeOtherSessionsOnPasswordChange(): MiddlewareHandler {
+  return async (context, next) => {
+    if (context.req.method !== "POST") return next();
+    const type = (context.req.header("content-type") ?? "").toLowerCase();
+    const body = (type.split(";")[0] ?? "").trim().endsWith("/json")
+      ? ((await context.req.raw
+          .clone()
+          .json()
+          .catch(() => null)) as unknown)
+      : null;
+    if (!body || typeof body !== "object" || Array.isArray(body))
+      return context.json(
+        {
+          error: "Change your password from the ArkAgent app.",
+          code: "json_only",
+        },
+        415,
+      );
+    const headers = new Headers(context.req.raw.headers);
+    headers.delete("content-length");
+    context.req.raw = new Request(context.req.raw.url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ...body, revokeOtherSessions: true }),
+    });
+    return next();
+  };
+}

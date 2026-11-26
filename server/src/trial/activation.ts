@@ -708,7 +708,10 @@ export function createActivationService(
       fetching.fastUntil = new Date(now().getTime() + FAST_FOR);
       const view = await current();
       if (!view.buyUrl || !view.customerId) return { buyUrl: view.buyUrl };
-      return { buyUrl: (await signedBuyUrl(view.customerId, view.buyUrl)) ?? view.buyUrl };
+      return {
+        buyUrl:
+          (await signedBuyUrl(view.customerId, view.buyUrl)) ?? view.buyUrl,
+      };
     },
 
     /**

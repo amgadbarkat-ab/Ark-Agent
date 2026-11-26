@@ -4,14 +4,15 @@ import {
   attemptGuard,
   createAttemptLimiter,
   jsonSignInOnly,
+  revokeOtherSessionsOnPasswordChange,
 } from "../src/auth/attempts";
-import { isPrivateAddress } from "../src/models/routes";
 import {
   createPublicModelFetch,
   type GuardedFetch,
   HTTPS_ONLY_FOR_SUBPROFILE,
   modelFetchFor,
 } from "../src/models/public-fetch";
+import { isPrivateAddress } from "../src/models/routes";
 
 /**
  * The fixes from the Security Engineer's full review of v0.1.56 (26 Nov 2026) that need no
@@ -172,7 +173,11 @@ describe("a sub-profile's model is checked when it is used, not only when it is 
     expect(answered).not.toContain("https://inside.example/v1/models");
   });
   test("private addresses typed as numbers are refused", async () => {
-    for (const address of ["https://127.0.0.1/v1", "https://[::1]/v1", "https://192.168.1.2/v1"])
+    for (const address of [
+      "https://127.0.0.1/v1",
+      "https://[::1]/v1",
+      "https://192.168.1.2/v1",
+    ])
       await expect(send(address)).rejects.toThrow();
   });
   test("only a sub-profile gets the public fetch; failing to tell counts as one", async () => {
@@ -214,4 +219,57 @@ describe("the model address check knows every range that is not the internet", (
       expect(isPrivateAddress(address)).toBe(false);
     },
   );
+});
+
+describe("a password change through Better Auth's route signs out the other sessions", () => {
+  function app() {
+    const seen: unknown[] = [];
+    const hono = new Hono();
+    hono.use("/change-password", revokeOtherSessionsOnPasswordChange());
+    hono.post("/change-password", async (context) => {
+      seen.push(await context.req.json());
+      return context.json({ ok: true });
+    });
+    return { hono, seen };
+  }
+  const json = { "content-type": "application/json" };
+
+  test("revokeOtherSessions is always true, even when the request said false or left it out", async () => {
+    const { hono, seen } = app();
+    for (const extra of [{}, { revokeOtherSessions: false }]) {
+      const response = await hono.request("/change-password", {
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({
+          currentPassword: "old-password-1",
+          newPassword: "new-password-1",
+          ...extra,
+        }),
+      });
+      expect(response.status).toBe(200);
+    }
+    expect(seen).toEqual([
+      {
+        currentPassword: "old-password-1",
+        newPassword: "new-password-1",
+        revokeOtherSessions: true,
+      },
+      {
+        currentPassword: "old-password-1",
+        newPassword: "new-password-1",
+        revokeOtherSessions: true,
+      },
+    ]);
+  });
+
+  test("a web form is refused before anything is checked", async () => {
+    const { hono, seen } = app();
+    const response = await hono.request("/change-password", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "currentPassword=a&newPassword=b&revokeOtherSessions=false",
+    });
+    expect(response.status).toBe(415);
+    expect(seen).toEqual([]);
+  });
 });

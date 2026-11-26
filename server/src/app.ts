@@ -35,6 +35,7 @@ import {
   attemptGuard,
   createAttemptLimiter,
   jsonSignInOnly,
+  revokeOtherSessionsOnPasswordChange,
 } from "./auth/attempts";
 import { createDevRequireUser } from "./auth/dev-actor";
 import {
@@ -733,6 +734,9 @@ export function createApp(
         }, "password change"),
       );
   }
+
+  // Every password change signs out the person's other sessions (v0.1.57).
+  app.use("/api/auth/change-password", revokeOtherSessionsOnPasswordChange());
 
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
     if (

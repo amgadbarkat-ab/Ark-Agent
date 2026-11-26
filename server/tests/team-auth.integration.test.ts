@@ -1,8 +1,10 @@
 import { afterAll, beforeEach, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
+import { Hono } from "hono";
 import { createTeamService, type TeamAuthContext } from "../src/accounts/team";
 import { createAuth } from "../src/auth";
+import { revokeOtherSessionsOnPasswordChange } from "../src/auth/attempts";
 import { loadConfig } from "../src/config";
 import { createDatabase } from "../src/db/client";
 import {
@@ -246,4 +248,50 @@ test("a sub-profile waiting for payment or suspended gets no session; removed, i
   await team.remove(adminId, id);
   // Removed: the password no longer works at all.
   expect((await signIn(staff, "first-password-1")).status).toBe(401);
+});
+
+test("a password change through Better Auth's own route signs out every other session (v0.1.57)", async () => {
+  const admin = email();
+  await team.setup({
+    name: "Maria",
+    email: admin,
+    password: "a-long-password",
+  });
+  const cookieOf = (response: Response) =>
+    response.headers
+      .getSetCookie()
+      .map((line) => line.split(";")[0])
+      .filter((pair) => pair?.includes("session_token"))
+      .join("; ");
+  const here = cookieOf(await signIn(admin, "a-long-password"));
+  const elsewhere = cookieOf(await signIn(admin, "a-long-password"));
+  expect(here).not.toBe("");
+  expect(elsewhere).not.toBe("");
+  // As the server mounts it: the middleware, then Better Auth.
+  const app = new Hono();
+  app.use("/api/auth/change-password", revokeOtherSessionsOnPasswordChange());
+  app.on(["GET", "POST"], "/api/auth/*", (context) =>
+    auth.handler(context.req.raw),
+  );
+  const changed = await app.request(
+    "http://localhost:3001/api/auth/change-password",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:52110",
+        cookie: here,
+      },
+      body: JSON.stringify({
+        currentPassword: "a-long-password",
+        newPassword: "another-long-password",
+        revokeOtherSessions: false,
+      }),
+    },
+  );
+  expect(changed.status).toBe(200);
+  const session = (cookie: string) =>
+    auth.api.getSession({ headers: new Headers({ cookie }) });
+  expect(await session(elsewhere)).toBeNull();
+  expect((await signIn(admin, "another-long-password")).status).toBe(200);
 });

@@ -9,8 +9,8 @@ import {
   providerById,
 } from "../../../shared/model-providers";
 import { checkAgentEndpoint } from "../agents/endpoint";
-import { isInternalAddress } from "../computer/target";
 import type { AppVariables } from "../auth/guards";
+import { isInternalAddress } from "../computer/target";
 import { createLimiter } from "../rate-limit";
 import {
   type ModelConnectionStore,

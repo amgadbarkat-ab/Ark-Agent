@@ -23,6 +23,7 @@ import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
 import { createDrain } from "../../shared/drain";
 import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
 import { listenHosts } from "../../shared/listen-hosts";
+import { peerAllowed } from "../../shared/local-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
 import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
@@ -159,10 +160,7 @@ import {
   createModelForActor,
   createModelHeaderForActor,
 } from "./models/for-actor";
-import {
-  createPublicModelFetch,
-  modelFetchFor,
-} from "./models/public-fetch";
+import { createPublicModelFetch, modelFetchFor } from "./models/public-fetch";
 import { createStarterModel } from "./models/starter";
 import {
   registerBusinessMetrics,
@@ -170,9 +168,8 @@ import {
   serverMetrics,
 } from "./observability";
 import { hostAllowed } from "./office/hosts";
-import { peerAllowed } from "../../shared/local-hosts";
-import { BLACKARK_STAFF_RELAY } from "./office/join-code";
 import { hubClientUrl } from "./office/hub-socket";
+import { BLACKARK_STAFF_RELAY } from "./office/join-code";
 import { officeServeOptions } from "./office/listener";
 import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
 import { originAllowed, trustedOrigins } from "./origin-guard";
@@ -618,8 +615,7 @@ const office =
          * ArkAgent by its own BlackArk licence key or trial activation code.
          */
         relay: {
-          url:
-            process.env.ARK_STAFF_RELAY_URL?.trim() || BLACKARK_STAFF_RELAY,
+          url: process.env.ARK_STAFF_RELAY_URL?.trim() || BLACKARK_STAFF_RELAY,
           licence: async () => {
             const [held] = await database
               .select({

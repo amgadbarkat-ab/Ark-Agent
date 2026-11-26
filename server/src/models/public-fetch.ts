@@ -13,7 +13,10 @@
  */
 import { createAgentFetch, EndpointNotAllowedError } from "../agents/endpoint";
 
-export type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
+export type GuardedFetch = (
+  url: string,
+  init?: RequestInit,
+) => Promise<Response>;
 
 export const HTTPS_ONLY_FOR_SUBPROFILE =
   "A sub-profile's model must be reached over https. Choose a hosted provider, or ask the administrator.";
@@ -27,7 +30,10 @@ export function createPublicModelFetch(
 ): GuardedFetch {
   const underlying = options.fetchImpl ?? fetch;
   // Every hop passes through here, the first and each redirect, so none of them can be http.
-  const httpsOnly = (async (input: string | URL | Request, init?: RequestInit) => {
+  const httpsOnly = (async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     if (url.protocol !== "https:") {
       throw new EndpointNotAllowedError(HTTPS_ONLY_FOR_SUBPROFILE);

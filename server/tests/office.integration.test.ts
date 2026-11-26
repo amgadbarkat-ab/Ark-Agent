@@ -16,6 +16,7 @@ import {
   makeOfficeCertificate,
 } from "../src/office/certificate";
 import { encodeJoinCode, parseJoinCode } from "../src/office/join-code";
+import type { startRemoteHost } from "../src/office/remote-host";
 import { officeCertificateRoutes, officeRoutes } from "../src/office/routes";
 import {
   asOwnOrigin,
@@ -23,7 +24,6 @@ import {
   OFFICE_ROW,
   officeAddresses,
 } from "../src/office/service";
-import type { startRemoteHost } from "../src/office/remote-host";
 import { TEST_POOL, testDatabaseUrl } from "./support/database";
 
 /**

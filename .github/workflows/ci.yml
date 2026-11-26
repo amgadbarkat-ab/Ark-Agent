@@ -259,6 +259,15 @@ jobs:
       # notices, requests from other websites, outbound fetches, hostile input. A failure here is a
       # hole, not a flaky test. It creates and drops its own databases on the service above.
       - run: bun run test:security
+      # blackark.uk's licence, buy and support pages (infra/blackark-checkin), on PHP's own server, so
+      # the fixes there are tested on every change, not only by hand before an upload (v0.1.57).
+      - name: blackark.uk receiver
+        run: |
+          set -euo pipefail
+          if ! php -m | grep -qix sodium || ! php -m | grep -qix pdo_sqlite; then
+            sudo apt-get install -y -qq php-cli php-sqlite3
+          fi
+          bash infra/blackark-checkin/test.sh
 
   startup:
     name: startup (${{ matrix.os }})

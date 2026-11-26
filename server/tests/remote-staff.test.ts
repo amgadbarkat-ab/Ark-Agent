@@ -3,9 +3,9 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { startBunRelay } from "../../infra/staff-relay/bun-runtime";
 import { makeOfficeCertificate } from "../src/office/certificate";
 import {
+  encodeJoinCode,
   type JoinCode,
   parseJoinCode,
-  encodeJoinCode,
 } from "../src/office/join-code";
 import { startJoinProxy } from "../src/office/join-proxy";
 import { relayRefusal, startRemoteHost } from "../src/office/remote-host";
