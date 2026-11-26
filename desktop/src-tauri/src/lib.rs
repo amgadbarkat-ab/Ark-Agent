@@ -2,6 +2,7 @@
 pub mod about;
 pub mod acquire;
 pub mod ask;
+pub mod auto_update;
 pub mod bridge;
 pub mod crash_log;
 pub mod deployment;

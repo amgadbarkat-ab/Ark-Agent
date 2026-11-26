@@ -28,6 +28,12 @@ on:
         required: false
       ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET:
         required: false
+      # BlackArk's update-signing key (v0.1.57; Amgad, 26 Nov 2026: kept in Actions secrets). A release
+      # build signs its update files with it; without it a build makes no update files.
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
 
 permissions:
   contents: read
@@ -156,10 +162,18 @@ jobs:
         if: matrix.platform.name == 'windows'
         run: bun scripts/fetch-ffmpeg.ts
         working-directory: desktop
-      - run: bun run tauri build --config src-tauri/tauri.build-version.conf.json $EXTRA_CONFIG
+      - run: |
+          # A release with the update key also writes the signed update files (auto_update.rs).
+          if [ "$CHANNEL" = release ] && [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            EXTRA_CONFIG="$EXTRA_CONFIG --config src-tauri/tauri.updater.conf.json"
+          fi
+          bun run tauri build --config src-tauri/tauri.build-version.conf.json $EXTRA_CONFIG
         shell: bash
         working-directory: desktop
         env:
+          CHANNEL: ${{ inputs.channel }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           EXTRA_CONFIG: ${{ matrix.platform.name == 'windows' && '--config src-tauri/tauri.windows-node.conf.json' || '' }}
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform.name == 'macos' && '-' || '' }}
           # Where the app downloads a release from: the company's own website, because customers
@@ -268,6 +282,8 @@ jobs:
             desktop/src-tauri/target/release/bundle/**/*.AppImage
             desktop/src-tauri/target/release/bundle/**/*.deb
             desktop/src-tauri/target/release/bundle/**/*.rpm
+            desktop/src-tauri/target/release/bundle/**/*.app.tar.gz
+            desktop/src-tauri/target/release/bundle/**/*.sig
             desktop/build-version.json
           if-no-files-found: error
           retention-days: 7

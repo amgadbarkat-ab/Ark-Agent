@@ -555,6 +555,8 @@ jobs:
     secrets:
       OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET: ${{ secrets.OPENBOT_GOOGLE_MODEL_OAUTH_CLIENT_SECRET }}
       ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   attach-installers:
     name: attach installers
@@ -606,3 +608,40 @@ jobs:
           done
           ls -l stable
           gh release upload "$VERSION" stable/* --clobber
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: repo
+          persist-credentials: false
+      # Automatic updates (v0.1.57): the signed update files and update.json, which every installed
+      # app reads from the company site (ARK_RELEASE_BASE_URL) to update itself. A release without the
+      # update key has none, and says so; with the key, missing files fail the release.
+      - name: Attach the update files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_BASE: ${{ vars.ARK_RELEASE_BASE_URL }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          signatures=(installers/**/*.sig)
+          if [ "${#signatures[@]}" -eq 0 ]; then
+            if [ "$HAS_KEY" = true ]; then
+              echo "::error::The update key is set but the build made no signed update files."
+              exit 1
+            fi
+            echo "::warning::No update key: this release does not update installed apps by itself."
+            exit 0
+          fi
+          if [ -z "$RELEASE_BASE" ]; then
+            echo "::error::ARK_RELEASE_BASE_URL is not set, so update.json cannot say where the files are."
+            exit 1
+          fi
+          bun repo/scripts/update-manifest.ts installers "$VERSION" "$RELEASE_BASE" > update.json
+          cat update.json
+          updates=(installers/**/*.app.tar.gz "${signatures[@]}")
+          gh release upload "$VERSION" update.json "${updates[@]}" --clobber

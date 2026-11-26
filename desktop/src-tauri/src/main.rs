@@ -4282,6 +4282,8 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // Automatic updates (v0.1.57): signed by BlackArk, checked in the background (auto_update.rs).
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Save As for files the app makes (v0.1.49); no permission until allow_save_as grants it.
         .plugin(save_as_plugin())
         .manage(Shell::default())
@@ -4354,6 +4356,8 @@ fn main() {
             )));
 
             remember_setup_url(app.handle())?;
+            // Every installed app gets each release by itself (Amgad, 26 Nov 2026).
+            openbot_desktop_lib::auto_update::start(app.handle().clone());
 
             // The status menu lets somebody open the window, stop the stack, or quit the app.
             use openbot_desktop_lib::language::pick;
