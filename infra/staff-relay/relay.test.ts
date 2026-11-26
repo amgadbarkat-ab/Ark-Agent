@@ -358,10 +358,15 @@ describe("what the relay keeps, and for how long", () => {
       });
       hosts.push({ texts, closed });
     }
-    await until(() =>
-      hosts.slice(0, 3).every((one) => one.texts.includes("welcome")),
+    // All four at once: exactly three are welcomed, whichever they are, and one is refused.
+    const refused = await Promise.race([
+      Promise.any(hosts.map((one) => one.closed)),
+      Bun.sleep(3000).then(() => 0),
+    ]);
+    expect(refused).toBe(CLOSE.busy);
+    await until(
+      () => hosts.filter((one) => one.texts.includes("welcome")).length === 3,
     );
-    expect(await hosts[3]?.closed).toBe(CLOSE.busy);
   });
 
   test("an office whose computer has not been back for 30 days makes room for a new one", async () => {

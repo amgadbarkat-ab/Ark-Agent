@@ -68,6 +68,8 @@ export const MAX_STREAM_BYTES = 4 * 1024 * 1024 * 1024;
 export const MAX_STREAM_MS = 12 * 60 * 60 * 1000;
 /** An office whose computer has not connected for this long gives up its place in the count. */
 export const IDLE_OFFICE_MS = 30 * 24 * 60 * 60 * 1000;
+/** An office counted in this recently is never asked whether it is still in use. */
+const RECENT_OFFICE_MS = 5 * 60 * 1000;
 /** Requests per minute from one internet address, per relay instance. */
 export const PER_ADDRESS_PER_MINUTE = 240;
 /** At most this many staff connections open at once per office. */
@@ -332,6 +334,8 @@ function randomId(): string {
 export class OfficeObject {
   private readonly now: () => number;
   private readonly pairingMs: number;
+  /** While this office waits for its customer's object to count it in. */
+  private registering = false;
 
   constructor(
     private readonly state: DurableObjectState,
@@ -456,7 +460,7 @@ export class OfficeObject {
     // A customer's own object: which offices are theirs, at most MAX_OFFICES.
     if (verified.route === "offices") {
       this.state.storage.sql.exec(
-        "CREATE TABLE IF NOT EXISTS offices (office TEXT PRIMARY KEY)",
+        "CREATE TABLE IF NOT EXISTS offices (office TEXT PRIMARY KEY, at INTEGER NOT NULL DEFAULT 0)",
       );
       const office = String(verified.office);
       const held = this.customerOffices();
@@ -470,8 +474,18 @@ export class OfficeObject {
       if (!held.includes(office) && held.length >= MAX_OFFICES) {
         // Offices whose computer has not been back for IDLE_OFFICE_MS make room, and are forgotten.
         const namespace = this.env.OFFICE;
+        const recent = new Set(
+          this.state.storage.sql
+            .exec<{ office: string }>(
+              "SELECT office FROM offices WHERE at > ?",
+              this.now() - RECENT_OFFICE_MS,
+            )
+            .toArray()
+            .map((row) => row.office),
+        );
         for (const other of held) {
           if (!namespace) break;
+          if (recent.has(other)) continue;
           const answer = await namespace
             .get(namespace.idFromName(`office:${other}`))
             .fetch(
@@ -495,8 +509,9 @@ export class OfficeObject {
           return new Response("Too many offices.", { status: 409 });
       }
       this.state.storage.sql.exec(
-        "INSERT OR IGNORE INTO offices (office) VALUES (?)",
+        "INSERT OR IGNORE INTO offices (office, at) VALUES (?, ?)",
         office,
+        this.now(),
       );
       return new Response("ok");
     }
@@ -515,6 +530,8 @@ export class OfficeObject {
 
     // Asked by the customer's own object, when its offices are full: is this one still in use?
     if (verified.route === "alive") {
+      // Being registered right now (its customer's object is the one asking): in use.
+      if (this.registering) return Response.json({ inUse: true });
       if (!kept) return Response.json({ inUse: false });
       const hosted = this.host() !== undefined;
       const lastSeen = this.lastSeen();
@@ -535,7 +552,15 @@ export class OfficeObject {
       const customer = String(verified.customer);
       const accessHash = String(verified.accessHash);
       if (!kept) {
-        if (!(await this.customer(customer, String(verified.office), true)))
+        this.registering = true;
+        const counted = await this.customer(
+          customer,
+          String(verified.office),
+          true,
+        ).finally(() => {
+          this.registering = false;
+        });
+        if (!counted)
           return this.refuse(
             CLOSE.busy,
             `This licence already has ${MAX_OFFICES} offices at the relay. Ask BlackArk.`,
