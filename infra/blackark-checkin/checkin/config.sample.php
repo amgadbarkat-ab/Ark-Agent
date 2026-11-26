@@ -67,6 +67,13 @@ return [
     // their customers update ArkAgent before buying. If this is ever set false, a licence bought
     // through an unsigned link is held for BlackArk to check (admin page, "Held purchases").
     'buy_requires_token' => true,
+
+    // ---- Self-serve trials (v0.1.58; Amgad, 26 Nov 2026) -----------------------------------------
+    // The key blackark.uk signs self-serve trials with: from `bun scripts/ark-trial.ts selfserve-keygen`
+    // on your own computer, the line in ~/.arkselfserve/selfserve-config.php.txt. Never post it. Its
+    // PUBLIC key goes into ArkAgent (shared/trial-public-key.ts), which trusts it only for a 7-day
+    // Ark Team trial. Empty: the app's "Start a free 7-day trial" answers that trials are not open yet.
+    'selfserve_trial_secret_key' => '',
     // A RESTRICTED Stripe key (rk_live_…). It needs: Checkout Sessions write; for automatic top-up
     // also Invoices write and Customers read. Nothing else. Never post it.
     'stripe_api_key' => '',

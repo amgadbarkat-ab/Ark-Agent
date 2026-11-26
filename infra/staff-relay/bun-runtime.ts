@@ -118,7 +118,11 @@ class StandInState implements DurableObjectState {
 
 /** Starts the relay on a loopback port. `keys` are the BlackArk public keys it trusts. */
 export function startBunRelay(options: {
-  keys: { license: readonly string[]; trial: readonly string[] };
+  keys: {
+    license: readonly string[];
+    trial: readonly string[];
+    selfServe?: readonly string[];
+  };
   now?: () => number;
   log?: (line: string) => void;
   pairingMs?: number;

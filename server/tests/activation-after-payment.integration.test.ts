@@ -9,6 +9,8 @@
  *
  * Needs php 8 with pdo_sqlite and sodium (as infra/blackark-checkin/test.sh); skipped without it.
  */
+
+import { Database } from "bun:sqlite";
 import {
   afterAll,
   beforeAll,
@@ -19,7 +21,16 @@ import {
 } from "bun:test";
 import { spawn, spawnSync } from "node:child_process";
 import { createHmac, generateKeyPairSync, type KeyObject } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -35,6 +46,7 @@ import type { AppVariables } from "../src/auth/guards";
 import { createDatabase } from "../src/db/client";
 import {
   activationState,
+  supportInstall,
   trialCheckIns,
   trialCodes,
   trialRoster,
@@ -59,6 +71,8 @@ const database = createDatabase(testDatabaseUrl(), TEST_POOL);
 const trialKey = generateKeyPairSync("ed25519");
 const licenseKey = generateKeyPairSync("ed25519");
 const stranger = generateKeyPairSync("ed25519");
+/** blackark.uk's self-serve trial key (v0.1.58). */
+const selfServeKey = generateKeyPairSync("ed25519");
 const WEBHOOK_SECRET = "whsec_end_to_end";
 /** renew/index.php exactly as it was before v0.1.49 asked for proof. */
 const RENEW_TODAY = `<?php
@@ -107,6 +121,8 @@ function sodiumSecret(key: { privateKey: KeyObject; publicKey: KeyObject }) {
 }
 
 async function clear() {
+  // A new computer each test: its own install id too (blackark.uk counts one trial per computer).
+  await database.delete(supportInstall);
   await database.delete(activationState);
   await database.delete(trialState);
   await database.delete(trialRoster);
@@ -125,6 +141,7 @@ beforeAll(async () => {
   // renew/ as it is on blackark.uk today (v0.1.44 to v0.1.48), before it asks for proof: the app
   // must work against it until COO uploads the new one.
   mkdirSync(join(work, "checkin/renew-today"));
+  mkdirSync(join(work, "outbox"));
   writeFileSync(join(work, "checkin/renew-today/index.php"), RENEW_TODAY);
   const port = await freePort();
   base = `http://127.0.0.1:${port}/checkin`;
@@ -141,6 +158,8 @@ return [
   'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1]],
   'public_base_url' => '${base}',
   'buy_link_secret' => 'buy-link-secret-for-tests-0123456789abcdef',
+  'selfserve_trial_secret_key' => '${sodiumSecret(selfServeKey)}',
+  'mail_outbox_dir' => '${join(work, "outbox")}',
 ];
 `,
   );
@@ -268,6 +287,7 @@ function desktop(
     required: true,
     trialKeys: [trustedTrialKey],
     licenseKeys: [licenseKey.publicKey],
+    selfServeKeys: [selfServeKey.publicKey],
     trial,
     version: "0.1.49",
     now,
@@ -298,6 +318,18 @@ function desktop(
     activation,
     view: async () => (await call("/")).activation as Record<string, unknown>,
     openBuyPage: () => call("/buying", { method: "POST" }),
+    startTrial: (body: Record<string, unknown>) =>
+      app.request("/api/activation/trial/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    confirmTrial: (body: Record<string, unknown>) =>
+      app.request("/api/activation/trial/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
     advance: (ms: number) => {
       clock = new Date(clock.getTime() + ms);
     },
@@ -312,6 +344,146 @@ async function until(check: () => Promise<boolean>, ms = 5_000) {
   }
   return false;
 }
+
+/** The text of the email blackark.uk sent last (written to the test outbox instead of being sent). */
+function lastMail(): string {
+  const dir = join(work, "outbox");
+  const file = readdirSync(dir)
+    .filter((name) => name.startsWith("trial-"))
+    .map((name) => ({ name, at: statSync(join(dir, name)).mtimeMs }))
+    .sort((a, b) => b.at - a.at)[0]?.name;
+  if (!file) return "";
+  const message = readFileSync(join(dir, file), "utf8");
+  const plain = message.split(/text\/plain[^\n]*\n[^\n]*\n\r?\n/)[1] ?? "";
+  return Buffer.from(
+    plain.split("--ark-")[0]?.replace(/\s+/g, "") ?? "",
+    "base64",
+  ).toString("utf8");
+}
+
+/** The 6-digit code in the email blackark.uk sent last. */
+function mailedCode(): string {
+  return lastMail().match(/\b\d{6}\b/)?.[0] ?? "";
+}
+
+describe.skipIf(!havePhp)(
+  "the whole journey with nothing typed but an email and its code (v0.1.58)",
+  () => {
+    test("a new computer: a self-serve trial by email, then a signed buy link, then paid", async () => {
+      // blackark.uk signs with the real clock, so this install's clock is the real one too.
+      const install = desktop(new Date().toISOString());
+      expect(await install.view()).toMatchObject({
+        state: "none",
+        allowed: false,
+        selfServeTrial: true,
+      });
+      const started = await install.startTrial({
+        name: "Μαρία",
+        company: "Οινοποιείο Λάμπρου",
+        email: "Maria@Lambrou.example",
+        language: "el",
+      });
+      expect(started.status).toBe(202);
+      const code = mailedCode();
+      expect(code).toMatch(/^\d{6}$/);
+      // A wrong code first: refused, and nothing changes.
+      const wrong = await install.confirmTrial({
+        email: "maria@lambrou.example",
+        code: code === "000000" ? "111111" : "000000",
+      });
+      expect(wrong.status).toBe(400);
+      const confirmed = await install.confirmTrial({
+        email: "maria@lambrou.example",
+        code,
+      });
+      expect(confirmed.status).toBe(200);
+      const view = await install.view();
+      expect(view).toMatchObject({
+        state: "trial",
+        allowed: true,
+        source: "trial-code",
+        planId: "team",
+        selfServeTrial: false,
+      });
+      // Seven days from when blackark.uk signed it, to the minute.
+      expect(
+        Math.abs(
+          Date.parse(String(view.until)) - (Date.now() + 7 * 86_400_000),
+        ),
+      ).toBeLessThan(60_000);
+      expect(String(view.customerId)).toMatch(/^oinopoieio-lamprou-[a-z0-9]+$/);
+
+      // Buying needs nothing more: the self-serve trial is the proof for a signed link.
+      const opened = await install.openBuyPage();
+      expect(String(opened.buyUrl)).toContain(`customer=${view.customerId}&e=`);
+      await customerPays(
+        String(view.customerId),
+        new Date(Date.now() + 30 * 86_400_000),
+      );
+      expect(await install.activation.fetchKey()).toBe("activated");
+      expect(await install.view()).toMatchObject({
+        state: "paid",
+        source: "license",
+      });
+    });
+
+    test("one free trial per email: a second computer with the same address gets no code", async () => {
+      const install = desktop("2026-11-26T12:00:00Z");
+      // A minute later, as blackark.uk waits that long between two codes to one address.
+      const data = new Database(join(work, "checkin/data/checkins.sqlite"));
+      data.run("UPDATE selfserve_pending SET sent_at = sent_at - 120");
+      data.close();
+      const again = await install.startTrial({
+        name: "Maria",
+        company: "Lambrou",
+        email: "maria@lambrou.example",
+        language: "en",
+      });
+      // The same answer as for a new trial, so nobody learns from it who had one; the email says.
+      expect(again.status).toBe(202);
+      expect(lastMail()).toContain("already used");
+      expect(mailedCode()).toBe("");
+    });
+
+    test("a self-serve code cannot be typed into the code box: only the trial's own steps apply it", async () => {
+      const install = desktop(new Date().toISOString());
+      const payload = encodeBase64Url(
+        JSON.stringify({
+          v: 1,
+          action: "trial",
+          customer: "demo-typed",
+          nonce: "nonce-typed-1",
+          issuedAt: new Date().toISOString(),
+          until: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+          plan: "team",
+        }),
+      );
+      const typed = `ARK1-${payload}.${signText(selfServeKey.privateKey, payload)}`;
+      await expect(install.activation.apply(typed)).rejects.toThrow(
+        "not signed by BlackArk",
+      );
+    });
+
+    test("a self-serve key cannot stand for more than a 7-day Ark Team trial", async () => {
+      const install = desktop("2026-11-26T12:00:00Z");
+      const payload = encodeBase64Url(
+        JSON.stringify({
+          v: 1,
+          action: "trial",
+          customer: "demo-long",
+          nonce: "nonce-long-1",
+          issuedAt: "2026-11-26T00:00:00Z",
+          until: "2027-03-01T00:00:00Z",
+          plan: "team",
+        }),
+      );
+      const typed = `ARK1-${payload}.${signText(selfServeKey.privateKey, payload)}`;
+      await expect(install.activation.apply(typed)).rejects.toThrow(
+        "not signed by BlackArk",
+      );
+    });
+  },
+);
 
 describe.skipIf(!havePhp)(
   "a payment reaches the app with nothing typed (#109, v0.1.49)",

@@ -25,7 +25,8 @@ export type TrialAudit = (event: {
   eventType:
     | "trial.profile_imported"
     | "trial.code_applied"
-    | "activation.code_applied";
+    | "activation.code_applied"
+    | "activation.selfserve_trial";
   actorUserId: string;
   payload: Record<string, unknown>;
 }) => Promise<void>;
@@ -59,6 +60,19 @@ export type TrialRouteDependencies = {
 
 const profileBody = z.strictObject({ text: z.string().min(2).max(400_000) });
 const codeBody = z.strictObject({ code: z.string().min(8).max(4_000) });
+const trialStartBody = z.strictObject({
+  name: z.string().trim().min(1).max(100),
+  company: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().max(200),
+  language: z.enum(["el", "en"]).default("el"),
+});
+const trialConfirmBody = z.strictObject({
+  email: z.string().trim().email().max(200),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/),
+});
 const checkInBody = z.strictObject({
   customerId: z.string().regex(/^[a-z0-9][a-z0-9-]{1,63}$/),
   installId: z.string().uuid(),
@@ -291,6 +305,60 @@ export function activationRoutes(
       );
     }
     return context.json({ buyUrl });
+  });
+
+  /*
+   * The self-serve trial (v0.1.58): the administrator asks for a code by email, then types it, and
+   * the 7-day trial starts with nothing else to do. Only before this computer has any activation.
+   */
+  app.post("/trial/start", async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    const parsed = trialStartBody.safeParse(
+      await context.req.json().catch(() => undefined),
+    );
+    if (!parsed.success)
+      return context.json(
+        { error: "Write your name, your company and your email." },
+        400,
+      );
+    try {
+      await activation.startTrial(parsed.data);
+      return context.json({ sent: true }, 202);
+    } catch (error) {
+      if (error instanceof TrialRefusedError)
+        return context.json({ error: error.message }, 400);
+      throw error;
+    }
+  });
+
+  app.post("/trial/confirm", async (context) => {
+    const denied = requireAdmin(context);
+    if (denied) return denied;
+    const parsed = trialConfirmBody.safeParse(
+      await context.req.json().catch(() => undefined),
+    );
+    if (!parsed.success)
+      return context.json(
+        { error: "Type the 6-digit code from the email." },
+        400,
+      );
+    try {
+      const applied = await activation.confirmTrial(parsed.data);
+      await audit?.({
+        eventType: "activation.selfserve_trial",
+        actorUserId: context.var.actor.id,
+        payload: {
+          customer: applied.activation.customerId,
+          until: applied.activation.until,
+        },
+      });
+      return context.json(applied);
+    } catch (error) {
+      if (error instanceof TrialRefusedError)
+        return context.json({ error: error.message }, 400);
+      throw error;
+    }
   });
 
   app.post("/code", async (context) => {

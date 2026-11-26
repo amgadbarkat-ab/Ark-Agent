@@ -29,6 +29,43 @@ export function applyUnlockCodeMutationOptions(queryClient: QueryClient) {
   });
 }
 
+/** The free trial, step one (v0.1.58): blackark.uk emails a 6-digit code to this address. */
+export function startSelfServeTrialMutationOptions() {
+  return mutationOptions({
+    mutationFn: async (input: {
+      name: string;
+      company: string;
+      email: string;
+      language: "el" | "en";
+    }): Promise<{ sent: boolean }> =>
+      (
+        await client("/api/activation/trial/start", {
+          method: "POST",
+          body: input,
+          fallback: "Could not send the code",
+        })
+      ).json(),
+  });
+}
+
+/** The free trial, step two: the emailed code starts the 7-day trial on this computer. */
+export function confirmSelfServeTrialMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: async (input: {
+      email: string;
+      code: string;
+    }): Promise<{ kind: "trial"; changed: boolean; activation: Activation }> =>
+      (
+        await client("/api/activation/trial/confirm", {
+          method: "POST",
+          body: input,
+          fallback: "Could not check the code",
+        })
+      ).json(),
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
 /** The one box: a trial activation code, a licence key, or an unlock code (#109, v0.1.42). */
 export function applyActivationCodeMutationOptions(queryClient: QueryClient) {
   return mutationOptions({

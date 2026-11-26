@@ -28,8 +28,12 @@ import { randomUUID } from "node:crypto";
 import { arch, release, type } from "node:os";
 import { and, desc, eq } from "drizzle-orm";
 import type { Database } from "../db/client";
-import { supportInstall, supportRequests } from "../db/schema";
-import { type InstallProof, installIdentity } from "../trial/install-proof";
+import { supportRequests } from "../db/schema";
+import {
+  type InstallProof,
+  installIdentity,
+  preActivationInstallId,
+} from "../trial/install-proof";
 import type { RecentLogs } from "./scrub";
 
 export const DEFAULT_SUPPORT_URL = "https://blackark.uk/checkin/support/";
@@ -267,12 +271,7 @@ export function createSupportService(
   }
 
   /** This install's own random id before activation, made once. */
-  async function unverifiedInstallId(): Promise<string> {
-    await database.insert(supportInstall).values({}).onConflictDoNothing();
-    const [row] = await database.select().from(supportInstall).limit(1);
-    if (!row) throw new Error("The install id could not be kept.");
-    return row.installId;
-  }
+  const unverifiedInstallId = () => preActivationInstallId(database);
 
   async function build(
     input: SupportInput,

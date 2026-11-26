@@ -28,6 +28,9 @@ on:
         required: false
       ARKAGENT_GOOGLE_OAUTH_CLIENT_SECRET:
         required: false
+      # Not the update-signing key, ever (security review U1): this workflow runs on every pull
+      # request and branch, and its build runs code any branch can change. The release signs the
+      # finished files in a job of its own (publish-release.yml, sign-updates).
 
 permissions:
   contents: read
@@ -212,6 +215,23 @@ jobs:
           subprocess.run(['codesign', '--verify', '--deep', '--strict', '--verbose=2', str(app)], check=True)
           print(f"Verified packaged Mac version: {build['version']}")
           PY
+      # The Mac's update file (auto_update.rs): the same app as the DMG, as the archive the updater
+      # unpacks (it drops the archive's first folder, ArkAgent.app). Made here, without any key; the
+      # release signs it afterwards in a job of its own.
+      - name: Mac update archive
+        if: matrix.platform.name == 'macos' && inputs.channel == 'release'
+        run: |
+          images=(desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          test "${#images[@]}" -eq 1
+          mount="$RUNNER_TEMP/arkagent-update-archive"
+          mkdir -p "$mount"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount" "${images[0]}"
+          trap 'hdiutil detach "$mount"' EXIT
+          out=desktop/src-tauri/target/release/bundle/macos
+          mkdir -p "$out"
+          COPYFILE_DISABLE=1 tar -czf "$out/ArkAgent.app.tar.gz" -C "$mount" ArkAgent.app
+          tar -tzf "$out/ArkAgent.app.tar.gz" | grep -q '^ArkAgent.app/Contents/Info.plist$'
+          ls -l "$out/ArkAgent.app.tar.gz"
       # Frontend assets and platform dependencies are ready after the packaged build.
       # Include main.rs regressions as well as lib.rs; ignored live tests remain opt-in.
       - name: Rust regression tests
@@ -268,6 +288,7 @@ jobs:
             desktop/src-tauri/target/release/bundle/**/*.AppImage
             desktop/src-tauri/target/release/bundle/**/*.deb
             desktop/src-tauri/target/release/bundle/**/*.rpm
+            desktop/src-tauri/target/release/bundle/**/*.app.tar.gz
             desktop/build-version.json
           if-no-files-found: error
           retention-days: 7

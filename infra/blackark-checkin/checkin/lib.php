@@ -248,7 +248,89 @@ function ark_code_ok($proof, string $customerId): ?bool
             return true;
         }
     }
-    return false;
+    // A self-serve trial (v0.1.58): signed by this server's own trial key, and only ever a short Ark
+    // Team trial without add-ons, so that key can never stand for anything more.
+    $self = ark_selfserve_public();
+    return $action === 'trial' && $self !== null
+        && sodium_crypto_sign_verify_detached($signature, $proof['payload'], $self)
+        && ark_selfserve_shape_ok($code);
+}
+
+/**
+ * Self-serve trials (Amgad, 26 Nov 2026: "the full journey must be automated"). blackark.uk signs
+ * them itself with `selfserve_trial_secret_key` (config.php only; made by
+ * `bun scripts/ark-trial.ts selfserve-keygen`). A separate key from BlackArk's own trial key, and
+ * trusted, here and in the app, only for this: an Ark Team trial of ARK_SELFSERVE_DAYS, no add-ons.
+ */
+const ARK_SELFSERVE_DAYS = 7;
+
+function ark_selfserve_secret(): ?string
+{
+    $secret = base64_decode((string) ark_config('selfserve_trial_secret_key', ''), true);
+    return $secret !== false && strlen($secret) === 64 ? $secret : null;
+}
+
+function ark_selfserve_public(): ?string
+{
+    $secret = ark_selfserve_secret();
+    return $secret === null || !function_exists('sodium_crypto_sign_publickey_from_secretkey')
+        ? null
+        : sodium_crypto_sign_publickey_from_secretkey($secret);
+}
+
+/**
+ * Whether a trial code is what a self-serve key may sign: team, no add-ons, at most 7 days (+1 day),
+ * and dated now (the Security Engineer's review of v0.1.58, M1): issued no later than 5 minutes from
+ * now and ending no later than 8 days from now, so a leaked key cannot sign a trial for years ahead.
+ */
+function ark_selfserve_shape_ok(array $code, ?int $now = null): bool
+{
+    $at = $now ?? time();
+    $issued = is_string($code['issuedAt'] ?? null) ? strtotime($code['issuedAt']) : false;
+    $until = is_string($code['until'] ?? null) ? strtotime($code['until']) : false;
+    $limit = (ARK_SELFSERVE_DAYS + 1) * 86400;
+    return ($code['action'] ?? '') === 'trial'
+        && ($code['plan'] ?? '') === 'team'
+        && empty($code['addons'])
+        && $issued !== false && $until !== false
+        && $until > $issued && $until - $issued <= $limit
+        && $issued <= $at + 300 && $until <= $at + $limit;
+}
+
+/** The self-serve trial tables (v0.1.58), for trial/ and the admin page. */
+function ark_selfserve_tables(PDO $db): void
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS selfserve_trials (
+        email_key TEXT PRIMARY KEY, email TEXT NOT NULL, install_id TEXT NOT NULL, domain TEXT, customer_id TEXT NOT NULL,
+        name TEXT NOT NULL, company TEXT NOT NULL, code TEXT NOT NULL, issued_at INTEGER NOT NULL, until INTEGER NOT NULL)');
+    $db->exec('CREATE INDEX IF NOT EXISTS selfserve_trials_install ON selfserve_trials (install_id)');
+    $db->exec('CREATE INDEX IF NOT EXISTS selfserve_trials_domain ON selfserve_trials (domain)');
+    $db->exec('CREATE TABLE IF NOT EXISTS selfserve_pending (
+        email_key TEXT PRIMARY KEY, install_id TEXT NOT NULL, name TEXT NOT NULL, company TEXT NOT NULL,
+        code_hash TEXT NOT NULL, sent_at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
+        codes INTEGER NOT NULL DEFAULT 0, day_from INTEGER NOT NULL)');
+}
+
+/** A self-serve trial activation code for this customer, as the app reads it: `ARK1-<payload>.<sig>`. */
+function ark_sign_selfserve_trial(string $customerId, ?int $now = null): ?array
+{
+    $secret = ark_selfserve_secret();
+    if ($secret === null || !function_exists('sodium_crypto_sign_detached')) {
+        return null;
+    }
+    $at = $now ?? time();
+    $until = $at + ARK_SELFSERVE_DAYS * 86400;
+    $payload = ark_base64url(json_encode([
+        'v' => 1,
+        'action' => 'trial',
+        'customer' => $customerId,
+        'nonce' => ark_base64url(random_bytes(16)),
+        'issuedAt' => gmdate('Y-m-d\TH:i:s\Z', $at),
+        'until' => gmdate('Y-m-d\TH:i:s\Z', $until),
+        'plan' => 'team',
+    ], JSON_UNESCAPED_SLASHES));
+    $signature = ark_base64url(sodium_crypto_sign_detached($payload, $secret));
+    return ['code' => 'ARK1-' . $payload . '.' . $signature, 'until' => gmdate('c', $until)];
 }
 
 /**
@@ -1012,16 +1094,24 @@ function ark_phone_low_email(PDO $db, string $customerId, array $view): void
         '{minutes}' => (string) $view['minutesLeftAtLeast'],
         '{link}' => $view['topUpUrl'],
     ]);
+    ark_send_mail((string) $row['email'], $text['subject'], $body, $text['language'], $customerId);
+}
+
+/**
+ * One email from blackark.uk (v0.1.47; shared from v0.1.58): the text as written (text/plain), and the
+ * same words in BlackArk's HTML for mail apps that show it (multipart/alternative; Amgad, 23 Nov).
+ * Sent with PHP's own mail() on one.com, or, in tests, written to `mail_outbox_dir` as <name>.eml.
+ */
+function ark_send_mail(string $to, string $subjectText, string $body, string $language, string $name): void
+{
     $from = (string) ark_config('phone_low_email_from', 'no-reply@blackark.uk');
     $replyTo = (string) ark_config('phone_low_email_reply_to', '');
-    // Amgad, 23 Nov: the BlackArk look in the email too. The approved text as it is (text/plain), and
-    // the same words in BlackArk's HTML for mail apps that show it (multipart/alternative).
     $boundary = 'ark-' . bin2hex(random_bytes(12));
     $headers = "From: $from\r\n"
         . ($replyTo !== '' ? "Reply-To: $replyTo\r\n" : '')
         . "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
-    $subject = '=?UTF-8?B?' . base64_encode($text['subject']) . '?=';
-    $html = ark_email_html($body, $text['language'], $text['subject']);
+    $subject = '=?UTF-8?B?' . base64_encode($subjectText) . '?=';
+    $html = ark_email_html($body, $language, $subjectText);
     $encoded = "--$boundary\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
         . chunk_split(base64_encode($body), 76, "\r\n")
         . "--$boundary\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
@@ -1030,10 +1120,10 @@ function ark_phone_low_email(PDO $db, string $customerId, array $view): void
     $outbox = (string) ark_config('mail_outbox_dir', '');
     if ($outbox !== '') {
         // Tests only: the message is written to a folder instead of being sent.
-        file_put_contents($outbox . '/' . $customerId . '.eml', "To: {$row['email']}\r\nSubject: $subject\r\n$headers\r\n$encoded");
+        file_put_contents($outbox . '/' . $name . '.eml', "To: $to\r\nSubject: $subject\r\n$headers\r\n$encoded");
         return;
     }
-    @mail((string) $row['email'], $subject, $encoded, $headers);
+    @mail($to, $subject, $encoded, $headers);
 }
 
 /**

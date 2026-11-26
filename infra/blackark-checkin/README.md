@@ -62,6 +62,52 @@ So from v0.1.57 a buy link comes from blackark.uk, signed, only after it checked
 `curl -i -X POST https://blackark.uk/checkin/buy/link/ --data '{"customerId":"blackark-test","installId":"00000000-0000-4000-8000-000000000001"}'`
 answers 403 (no proof), not 503 (no secret).
 
+## Self-serve trials (v0.1.58)
+
+Amgad, 26 Nov 2026: "the full journey must be automated". On a new computer, the Activate screen
+offers **Start a free 7-day trial**:
+
+1. The administrator writes their name, company and email.
+2. `POST /checkin/trial/` (`start`) emails a 6-digit code, good for 15 minutes.
+3. The code (`confirm`, 5 tries) makes a new customer id from the company's name. blackark.uk signs
+   a trial activation code with `selfserve_trial_secret_key`: 7 days, Ark Team, no add-ons. The app
+   applies it at once.
+4. From there, everything is automated already: the signed buy link, Stripe, the licence key fetched
+   by the app, sub-profiles and add-ons.
+
+The rules:
+- **One trial per email, per computer, and per company email domain.**
+  - An email is compared without its +tag, and Gmail addresses also without dots.
+  - A free-mail domain such as gmail.com is not a company.
+  - The same email from the same computer gets the same trial back while it lasts, so a trial that
+    could not be applied is not lost.
+- **The answer to `start` is always "sent".** Nobody learns from it whether someone had a trial;
+  the email says so instead.
+- **Limits:**
+  - 5 starts an hour per computer, and 20 per internet address;
+  - 5 codes a day per email;
+  - 5 wrong codes a day per email, however many codes were asked for.
+- **Kept here:** each trial's email, name, company, domain, install id, customer id and code, listed
+  on the admin page under "Self-serve trials", and deleted 2 years after the trial ends. A pending
+  code is kept only as a keyed hash, for a day at most. All of this is in the privacy notice.
+- **Self-serve codes are checked against today's date.** One dated in the future, or lasting past 8
+  days from now, is refused everywhere. The app accepts one only through the trial's own steps,
+  never typed into the code box.
+- **The key is separate from BlackArk's own trial key** and is trusted, by the app, the relay and
+  this server, only for a 7-day Ark Team trial without add-ons. A leak can start short trials and
+  nothing more: no unlock codes, no setup files, no licences.
+
+**To switch on (COO, after Amgad's yes):**
+1. On your own computer, run `bun scripts/ark-trial.ts selfserve-keygen`.
+2. Paste the line from `~/.arkselfserve/selfserve-config.php.txt` into the live `config.php`.
+3. Post the PUBLIC key on #149. The PE adds it to the app (`SELF_SERVE_TRIAL_PUBLIC_KEYS`) for the
+   next release.
+4. Check: `curl -i -X POST https://blackark.uk/checkin/trial/ --data '{"action":"start","installId":"00000000-0000-4000-8000-000000000001","email":"x@example.com"}'`
+   must answer 400 (name missing), not 503 (no key).
+
+Email goes out with PHP's `mail()` on one.com, from `phone_low_email_from` (default
+`no-reply@blackark.uk`), as the low-balance email does.
+
 ## Deploy (Site Admin packages, COO uploads only after Amgad's yes on this exact build)
 
 1. **Make the password hash on your own computer**, never on the server:

@@ -10,6 +10,7 @@ import {
   BuyLicence,
   PaymentReceived,
 } from "@/components/activation/buy-licence";
+import { SelfServeTrial } from "@/components/activation/self-serve-trial";
 import { ArkAgentPortrait } from "@/components/brand/arkagent-portrait";
 import { PageRows } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,14 @@ function Activate() {
           )}
         </p>
         {activation.data ? <BuyLicence activation={activation.data} /> : null}
+        {activation.data ? (
+          <SelfServeTrial
+            activation={activation.data}
+            onActivated={() => {
+              void navigate({ to: "/" });
+            }}
+          />
+        ) : null}
         <ActivationForm
           onActivated={() => {
             void navigate({ to: "/" });

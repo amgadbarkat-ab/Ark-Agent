@@ -43,11 +43,12 @@ import {
   type TrialAddon,
   TrialFormatError,
 } from "../../../shared/trial";
+import { selfServeTrialShapeOk } from "../../../shared/trial-public-key";
 import { signedByAny } from "../../../shared/trial-sign";
 import type { Entitlement } from "../accounts/store";
 import type { Database } from "../db/client";
 import { activationState } from "../db/schema";
-import { installIdentity } from "./install-proof";
+import { installIdentity, preActivationInstallId } from "./install-proof";
 import {
   TrialRefusedError,
   type TrialService,
@@ -95,6 +96,8 @@ export type ActivationView = {
    * activation is required, the customer is known, and it is not paid. Null otherwise.
    */
   buyUrl: string | null;
+  /** Whether a free trial can be started here by email (v0.1.58): self-serve, nothing activated yet. */
+  selfServeTrial: boolean;
   /** When a key fetched after a payment activated this install, since the server started. */
   paymentReceivedAt: string | null;
 };
@@ -180,6 +183,13 @@ export function createActivationService(
     required: boolean;
     trialKeys: readonly KeyObject[];
     licenseKeys: readonly KeyObject[];
+    /**
+     * blackark.uk's self-serve trial keys (v0.1.58): trusted only for a short Ark Team trial code
+     * (`selfServeTrialShapeOk`), never for anything else.
+     */
+    selfServeKeys?: readonly KeyObject[];
+    /** Where a self-serve trial is started (blackark.uk's checkin/trial/). */
+    trialUrl?: string;
     trial: TrialService;
     version: string;
     now?: () => Date;
@@ -196,6 +206,13 @@ export function createActivationService(
   const send = options.fetch ?? fetch;
   const licenseUrl = options.licenseUrl ?? DEFAULT_LICENSE_URL;
   const buyUrl = options.buyUrl ?? DEFAULT_BUY_URL;
+  const trialUrl = options.trialUrl ?? new URL("../trial/", buyUrl).toString();
+  /** A self-serve trial being started: the email the code went to, and this install's id for it. */
+  let selfServePending: {
+    email: string;
+    installId: string;
+    at: number;
+  } | null = null;
   /** In memory: since this server started. A restart asks again at once, which is what is wanted. */
   const fetching = {
     lastAttemptAt: null as Date | null,
@@ -265,6 +282,7 @@ export function createActivationService(
         license: options.licenseKeys.length > 0,
       },
       buyUrl: null as string | null,
+      selfServeTrial: false,
       paymentReceivedAt: fetching.paymentReceivedAt?.toISOString() ?? null,
     };
     const fromRow = (state: ActivationState) => ({
@@ -336,6 +354,10 @@ export function createActivationService(
         daysLeft: null,
       };
     }
+    view.selfServeTrial =
+      options.required &&
+      view.state === "none" &&
+      (options.selfServeKeys?.length ?? 0) > 0;
     if (options.required && view.customerId && view.state !== "paid") {
       // The existing buy page (buy/index.php): the plan, and the phone add-on when this install's
       // trial carries it, so the customer pays for what they tried in one checkout.
@@ -387,6 +409,39 @@ export function createActivationService(
     }
   }
 
+  /** One request to blackark.uk's trial page; its status and what it said. */
+  async function askTrial(body: Record<string, unknown>): Promise<{
+    status: number;
+    error?: string;
+    code?: unknown;
+  }> {
+    try {
+      const response = await send(trialUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const parsed = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        code?: unknown;
+      };
+      return {
+        status: response.status,
+        ...(typeof parsed.error === "string"
+          ? { error: parsed.error.slice(0, 300) }
+          : {}),
+        ...(parsed.code !== undefined ? { code: parsed.code } : {}),
+      };
+    } catch {
+      return {
+        status: 0,
+        error:
+          "BlackArk could not be reached. Check the internet connection and try again.",
+      };
+    }
+  }
+
   async function current(): Promise<ActivationView> {
     return (await resolve()).view;
   }
@@ -413,15 +468,28 @@ export function createActivationService(
     signature: string,
     code: ActivationCode,
     quiet = false,
+    /** Only from `confirmTrial` (v0.1.58 review, M2): a self-serve code is not typed in. */
+    allowSelfServe = false,
   ): Promise<boolean> {
     const isLicense = code.action === "license";
     const what = isLicense ? "licence key" : "trial activation code";
-    checkSigned(
-      isLicense ? options.licenseKeys : options.trialKeys,
-      payload,
-      signature,
-      what,
-    );
+    const selfServe =
+      !isLicense &&
+      (options.selfServeKeys?.length ?? 0) > 0 &&
+      !signedByAny(options.trialKeys, payload, signature) &&
+      signedByAny(options.selfServeKeys ?? [], payload, signature);
+    if (selfServe) {
+      // A self-serve trial: only ever a short Ark Team trial (v0.1.58).
+      if (!allowSelfServe || !selfServeTrialShapeOk(code, now().getTime()))
+        throw new TrialRefusedError(`This ${what} is not signed by BlackArk.`);
+    } else {
+      checkSigned(
+        isLicense ? options.licenseKeys : options.trialKeys,
+        payload,
+        signature,
+        what,
+      );
+    }
     const { row, profile } = await resolve();
     const owner = profile?.customerId ?? row?.customerId;
     if (owner && owner !== code.customer) {
@@ -468,6 +536,10 @@ export function createActivationService(
       }
     }
     const values = {
+      // A self-serve trial keeps the install id blackark.uk saw, so its one-per-computer rule holds.
+      ...(selfServe && selfServePending
+        ? { installId: selfServePending.installId }
+        : {}),
       kind: code.action,
       customerId: code.customer,
       payload,
@@ -704,6 +776,73 @@ export function createActivationService(
      * The person opened the buy page from the app (v0.1.49): ask every 20 seconds for the next 30
      * minutes, so the key arrives moments after Stripe says paid. Returns the page to open.
      */
+    /**
+     * The self-serve trial (v0.1.58; Amgad, 26 Nov 2026): blackark.uk emails a 6-digit code to the
+     * address given. Only on a computer that is not activated and has no trial yet.
+     */
+    async startTrial(input: {
+      name: string;
+      company: string;
+      email: string;
+      language: "el" | "en";
+    }): Promise<void> {
+      if ((await current()).state !== "none")
+        throw new TrialRefusedError(
+          "This computer already has a trial or a licence.",
+        );
+      const email = input.email.trim().toLowerCase();
+      // The same id each time for this computer (the review of v0.1.58, M2), and the one its
+      // activation will keep.
+      const installId = await preActivationInstallId(database);
+      const answer = await askTrial({
+        action: "start",
+        name: input.name,
+        company: input.company,
+        email,
+        installId,
+        language: input.language,
+      });
+      if (answer.status !== 202)
+        throw new TrialRefusedError(
+          answer.error ?? "The trial could not be started. Try again shortly.",
+        );
+      selfServePending = { email, installId, at: now().getTime() };
+    },
+
+    /** The emailed code: blackark.uk signs the trial, and it is applied here at once. */
+    async confirmTrial(input: {
+      email: string;
+      code: string;
+    }): Promise<AppliedCode> {
+      const email = input.email.trim().toLowerCase();
+      if (!selfServePending || selfServePending.email !== email)
+        throw new TrialRefusedError(
+          "Ask for a code first: write your name, company and email.",
+        );
+      const answer = await askTrial({
+        action: "confirm",
+        email,
+        installId: selfServePending.installId,
+        code: input.code,
+      });
+      if (answer.status !== 200 || typeof answer.code !== "string")
+        throw new TrialRefusedError(
+          answer.error ?? "The code could not be checked. Try again shortly.",
+        );
+      const read = readActivationCode(answer.code);
+      if (read.code.action !== "trial")
+        throw new TrialRefusedError("BlackArk did not send a trial code.");
+      const changed = await activate(
+        read.payload,
+        read.signature,
+        read.code,
+        false,
+        true,
+      );
+      selfServePending = null;
+      return { kind: "trial", changed, activation: await current() };
+    },
+
     async expectPayment(): Promise<{ buyUrl: string | null }> {
       fetching.fastUntil = new Date(now().getTime() + FAST_FOR);
       const view = await current();

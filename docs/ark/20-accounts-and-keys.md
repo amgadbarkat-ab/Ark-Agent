@@ -273,6 +273,33 @@ Ask the authority for cloud signing that works from GitHub Actions. If the certi
 Key Vault (what the current workflow assumes), the authority must accept key attestation from a Key Vault
 HSM; many do not, which is why A is simpler.
 
+## 5a. The update-signing key (automatic updates, v0.1.57)
+
+Every installed ArkAgent installs a new release only if it is signed with BlackArk's update key
+(`desktop/src-tauri/src/auto_update.rs`). The key is made once, by BlackArk, on a trusted computer:
+
+1. `bunx @tauri-apps/cli@2.12.6 signer generate -w ~/.arkupdate/update.key` with a strong password.
+2. Keep `update.key` and its password offline as well. Lost, no new build can ever reach installed
+   apps by itself; every customer would need a manual install.
+3. In GitHub: Settings → Environments → **New environment** `update-signing`.
+   - Deployment branches and tags: **Selected branches**, `main` only.
+   - Required reviewers: the person who approves releases, with **Prevent self-review** on and
+     **Allow administrators to bypass** off.
+   - No repository or organisation secret may carry the same names: any branch's workflow could
+     read one.
+   - Environment secrets (not repository secrets): `TAURI_SIGNING_PRIVATE_KEY` (the contents of
+     `update.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+4. Post only `update.key.pub` (the public key) where the Product Engineer can put it in the app.
+
+The key is used in one job only, `sign-updates` in `.github/workflows/publish-release.yml`. That job
+runs no build and no repository code, so a branch or a dependency cannot read it. Each release waits
+there until the reviewer approves it.
+
+On the site, the release base (`ARK_RELEASE_BASE_URL`) holds `update.json` at its root and each
+release's files under `v<version>/`, with the names they have on the GitHub release. After an
+upload, `bun scripts/update-manifest.ts check <release base>` says whether every installed app can
+update from it.
+
 ## 6. All the names in one place
 
 | GitHub environment | Name | Kind | Where it comes from |

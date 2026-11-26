@@ -314,6 +314,57 @@ test("checkLicence reads the same codes as the app, and nothing else", async () 
   ).toBeNull();
 });
 
+test("a self-serve trial is let in only as a short Ark Team trial (v0.1.58)", async () => {
+  const selfServe = generateKeyPairSync("ed25519");
+  const withSelfServe = { ...keys, selfServe: [raw(selfServe.publicKey)] };
+  const now = Date.now();
+  const trialFor = (days: number, extra: Record<string, unknown> = {}) =>
+    code(
+      {
+        v: 1,
+        action: "trial",
+        customer: "demo-self",
+        nonce: "nonce-self-1",
+        plan: "team",
+        issuedAt: new Date(now).toISOString(),
+        until: new Date(now + days * 86_400_000).toISOString(),
+        ...extra,
+      },
+      selfServe.privateKey,
+    );
+  expect(await checkLicence(trialFor(7), now, withSelfServe)).toMatchObject({
+    customer: "demo-self",
+  });
+  // Not without the key, and never for more than a 7-day Ark Team trial without add-ons.
+  expect(await checkLicence(trialFor(7), now, keys)).toBeNull();
+  expect(await checkLicence(trialFor(90), now, withSelfServe)).toBeNull();
+  // Dated years ahead, 7 days long: a leaked key still cannot make it last (v0.1.58 review, M1).
+  const ahead = code(
+    {
+      v: 1,
+      action: "trial",
+      customer: "demo-self",
+      nonce: "nonce-ahead-1",
+      plan: "team",
+      issuedAt: "2035-01-01T00:00:00Z",
+      until: "2035-01-08T00:00:00Z",
+    },
+    selfServe.privateKey,
+  );
+  expect(await checkLicence(ahead, now, withSelfServe)).toBeNull();
+  expect(
+    await checkLicence(trialFor(7, { plan: "enterprise" }), now, withSelfServe),
+  ).toBeNull();
+  expect(
+    await checkLicence(trialFor(7, { addons: ["phone"] }), now, withSelfServe),
+  ).toBeNull();
+  const licenceBySelfServe = code(
+    { v: 1, action: "license", customer: "demo-self", validUntil: inAYear },
+    selfServe.privateKey,
+  );
+  expect(await checkLicence(licenceBySelfServe, now, withSelfServe)).toBeNull();
+});
+
 describe("what the relay keeps, and for how long", () => {
   test("the host is welcomed only once it holds its office", async () => {
     relay = startBunRelay({ keys });

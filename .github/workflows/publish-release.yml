@@ -606,3 +606,125 @@ jobs:
           done
           ls -l stable
           gh release upload "$VERSION" stable/* --clobber
+
+  # Automatic updates (v0.1.57; auto_update.rs): BlackArk's update key signs the finished update
+  # files here and nowhere else (security review U1). No build runs in this job and no repository
+  # code: only the Tauri signer, installed from its own lockfile (desktop/update-signer) with install
+  # scripts off. The key is a secret of the `update-signing` environment, which only main may use and
+  # which a person approves for each release, so no branch, pull request or hand-started run sees it.
+  sign-updates:
+    name: sign update files
+    needs: [metadata, desktop]
+    if: needs.metadata.outputs.is_release == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: update-signing
+    permissions:
+      contents: read
+    outputs:
+      signed: ${{ steps.sign.outputs.signed }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: openbot-desktop-*
+          path: installers
+          merge-multiple: true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: repo
+          persist-credentials: false
+          sparse-checkout: |
+            desktop/update-signer/package.json
+            desktop/update-signer/bun.lock
+          sparse-checkout-cone-mode: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - name: Install the signer
+        run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: repo/desktop/update-signer
+      # One file per kind of install. Each signature names the version it was signed for, which the
+      # app requires (`requireSignedVersion`), so an old genuine file cannot be passed off as new.
+      - name: Sign
+        id: sign
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::No update key in the update-signing environment: this release does not update installed apps by itself."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          signer="$PWD/repo/desktop/update-signer/node_modules/.bin/tauri"
+          mkdir -p signatures
+          for pattern in '*-setup.exe' '*.app.tar.gz' '*.AppImage' '*.deb' '*.rpm'; do
+            files=(installers/**/$pattern)
+            if [ "${#files[@]}" -ne 1 ]; then
+              echo "::error::Expected one update file matching $pattern, found ${#files[@]}."
+              exit 1
+            fi
+            "$signer" signer sign --app-version "${VERSION#v}" "${files[0]}"
+            # The app refuses a signature that does not name this version; a signer that stopped
+            # writing it would make every update fail without a word, so it stops the release here.
+            if ! base64 -d "${files[0]}.sig" | grep '^trusted comment: ' | tr '\t' '\n' | grep -qx "version:${VERSION#v}"; then
+              echo "::error::The signature of ${files[0]} does not name version ${VERSION#v}."
+              exit 1
+            fi
+            mv "${files[0]}.sig" signatures/
+          done
+          ls -l signatures
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+      - if: steps.sign.outputs.signed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: update-signatures
+          path: signatures/*.sig
+          if-no-files-found: error
+          retention-days: 7
+
+  # update.json and the update files on the release, beside the installers. Every installed app reads
+  # them from the company site (ARK_RELEASE_BASE_URL): `<base>/update.json`, and the files under
+  # `<base>/<version>/` with the names they have here. No key here.
+  attach-updates:
+    name: attach update files
+    needs: [metadata, attach-installers, sign-updates]
+    if: needs.metadata.outputs.is_release == 'true' && needs.sign-updates.outputs.signed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: openbot-desktop-*
+          path: installers
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: update-signatures
+          path: signatures
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: repo
+          persist-credentials: false
+      - name: Attach the update files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_BASE: ${{ vars.ARK_RELEASE_BASE_URL }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          if [ -z "$RELEASE_BASE" ]; then
+            echo "::error::ARK_RELEASE_BASE_URL is not set, so update.json cannot say where the files are."
+            exit 1
+          fi
+          bun repo/scripts/update-manifest.ts installers signatures "$VERSION" "$RELEASE_BASE" > update.json
+          cat update.json
+          gh release upload "$VERSION" update.json installers/**/*.app.tar.gz signatures/*.sig --clobber

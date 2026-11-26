@@ -21,7 +21,9 @@
         "resizable": true
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
@@ -29,7 +31,9 @@
       "entitlements": "./Entitlements.plist"
     },
     "linux": {
-      "deb": { "depends": ["pkexec", "procps", "lsof", "ca-certificates"] },
+      "deb": {
+        "depends": ["pkexec", "procps", "lsof", "ca-certificates"]
+      },
       "rpm": {
         "depends": [
           "/usr/bin/pkexec",
@@ -52,5 +56,14 @@
     "category": "DeveloperTool",
     "shortDescription": "Run ArkAgent on your own computer",
     "longDescription": "ArkAgent for desktop installs the container engine, raises the stack, and keeps it running."
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

@@ -262,7 +262,7 @@ $signedIn = !empty($_SESSION['signed_in']);
     $heldRows = $db->query('SELECT subscription_id, customer_id, stripe_customer, plan, seats, updated_at FROM licenses WHERE held = 1 ORDER BY updated_at DESC')->fetchAll();
 ?>
   <h2>Held purchases</h2>
-  <p class="note">A purchase that names a customer id another Stripe customer already pays for. No key is signed until you release it. Check with the customer who paid; refuse and refund it if it is not theirs.</p>
+  <p class="note">A purchase made through a buy link ArkAgent did not sign, or under a customer id another Stripe customer already pays for. No key is signed until you release it. Check with the customer who paid; refuse and refund it if it is not theirs.</p>
   <div class="wrap">
   <table>
     <thead><tr><th>Customer id</th><th>Bought by (Stripe)</th><th>Plan</th><th>Seats</th><th>When</th><th></th></tr></thead>
@@ -285,6 +285,32 @@ $signedIn = !empty($_SESSION['signed_in']);
             <button type="submit" name="action" value="licence_refuse">Refuse</button>
           </form>
         </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+<?php
+    ark_selfserve_tables($db);
+    $trials = $db->query('SELECT * FROM selfserve_trials ORDER BY issued_at DESC LIMIT 200')->fetchAll();
+?>
+  <h2>Self-serve trials</h2>
+  <p class="note">Started from the app with a verified email (v0.1.58): 7 days of Ark Team 5, one per email, computer and company domain. The newest 200.</p>
+  <div class="wrap">
+  <table>
+    <thead><tr><th>Customer id</th><th>Company</th><th>Name</th><th>Email</th><th>Started</th><th>Ends</th></tr></thead>
+    <tbody>
+    <?php if (!$trials): ?>
+      <tr><td colspan="6" class="muted">None yet.</td></tr>
+    <?php endif; ?>
+    <?php foreach ($trials as $trialRow): ?>
+      <tr>
+        <td><?= h($trialRow['customer_id']) ?></td>
+        <td><?= h($trialRow['company']) ?></td>
+        <td><?= h($trialRow['name']) ?></td>
+        <td><?= h($trialRow['email']) ?></td>
+        <td><?= athens(gmdate('Y-m-d\TH:i:s\Z', (int) $trialRow['issued_at'])) ?></td>
+        <td><?= athens(gmdate('Y-m-d\TH:i:s\Z', (int) $trialRow['until'])) ?></td>
       </tr>
     <?php endforeach; ?>
     </tbody>
