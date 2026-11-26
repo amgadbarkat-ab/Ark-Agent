@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { networkInterfaces } from "node:os";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { decryptSecret, encryptSecret } from "../credentials";
 import type { Database } from "../db/client";
 import { officeNetwork } from "../db/schema";
@@ -222,11 +222,17 @@ export function createOfficeService(dependencies: {
       listenerPort: () => listener?.port ?? null,
       // Only once the relay has accepted this computer does the join code name it (security review
       // of v0.1.56): a code never points staff at an office somebody else could still claim.
+      // Tied to this office: a late welcome for an office already left behind marks nothing.
       onWelcome: () => {
         void database
           .update(officeNetwork)
           .set({ relayRegistered: true, updatedAt: now() })
-          .where(eq(officeNetwork.id, OFFICE_ROW))
+          .where(
+            and(
+              eq(officeNetwork.id, OFFICE_ROW),
+              eq(officeNetwork.relayOffice, id),
+            ),
+          )
           .catch(() => undefined);
       },
       ...(relay.log ? { log: relay.log } : {}),

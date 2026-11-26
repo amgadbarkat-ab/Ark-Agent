@@ -364,6 +364,39 @@ describe("what the relay keeps, and for how long", () => {
     expect(await hosts[3]?.closed).toBe(CLOSE.busy);
   });
 
+  test("an office whose computer has not been back for 30 days makes room for a new one", async () => {
+    let clock = Date.now();
+    relay = startBunRelay({ keys, now: () => clock });
+    const register = async (id: string) => {
+      const socket = new WebSocket(`${relay.url}/v1/host?office=${id}`, {
+        headers: {
+          authorization: `Bearer ${hostKey}`,
+          "x-ark-licence": licence,
+          "x-ark-access": await sha256Hex(accessKey),
+        },
+      } as never);
+      sockets.push(socket);
+      const texts: string[] = [];
+      socket.onmessage = (event) => texts.push(String(event.data));
+      const closed = new Promise<number>((resolve) => {
+        socket.onclose = (event) => resolve(event.code);
+      });
+      return { socket, texts, closed };
+    };
+    const ids = ["a", "b", "c", "d"].map((x) => `${x}${office.slice(1)}`);
+    const first: Awaited<ReturnType<typeof register>>[] = [];
+    for (const id of ids.slice(0, 3)) first.push(await register(id));
+    await until(() => first.every((one) => one.texts.includes("welcome")));
+    for (const one of first) one.socket.close();
+    await Bun.sleep(50);
+    // Still within 30 days: no room.
+    const early = await register(ids[3] as string);
+    expect(await early.closed).toBe(CLOSE.busy);
+    clock += 31 * 86_400_000;
+    const later = await register(ids[3] as string);
+    await until(() => later.texts.includes("welcome"));
+  });
+
   test("a customer BlackArk cut off is refused, and its office closed", async () => {
     relay = startBunRelay({ keys, revoked: "someone-else, demo-shop" });
     const hosting = await host();

@@ -66,6 +66,8 @@ export const MAX_OFFICES = 3;
 /** A carried connection is closed after this many bytes either way, or this long. */
 export const MAX_STREAM_BYTES = 4 * 1024 * 1024 * 1024;
 export const MAX_STREAM_MS = 12 * 60 * 60 * 1000;
+/** An office whose computer has not connected for this long gives up its place in the count. */
+export const IDLE_OFFICE_MS = 30 * 24 * 60 * 60 * 1000;
 /** Requests per minute from one internet address, per relay instance. */
 export const PER_ADDRESS_PER_MINUTE = 240;
 /** At most this many staff connections open at once per office. */
@@ -390,6 +392,30 @@ export class OfficeObject {
     return answer.ok;
   }
 
+  /** When this office's computer was last connected, kept so an abandoned office can expire. */
+  private seen() {
+    try {
+      this.state.storage.sql.exec(
+        "UPDATE office SET last_seen = ? WHERE id = 1",
+        this.now(),
+      );
+    } catch {}
+  }
+
+  private lastSeen(): number {
+    try {
+      return (
+        this.state.storage.sql
+          .exec<{ last_seen: number }>(
+            "SELECT last_seen FROM office WHERE id = 1",
+          )
+          .toArray()[0]?.last_seen ?? 0
+      );
+    } catch {
+      return 0;
+    }
+  }
+
   private forgetAll() {
     for (const socket of this.state.getWebSockets())
       socket.close(1000, "This office was closed by its ArkAgent.");
@@ -399,10 +425,17 @@ export class OfficeObject {
   }
 
   private accept(tags: string[], attachment: Attachment): Response {
+    return this.acceptSocket(tags, attachment).response;
+  }
+
+  private acceptSocket(
+    tags: string[],
+    attachment: Attachment,
+  ): { response: Response; socket: CfWebSocket } {
     const { client, server } = this.platform.socketPair();
     this.state.acceptWebSocket(server, tags);
     server.serializeAttachment(attachment);
-    return this.platform.upgraded(client);
+    return { response: this.platform.upgraded(client), socket: server };
   }
 
   private refuse(code: number, reason: string): Response {
@@ -434,8 +467,33 @@ export class OfficeObject {
         );
         return new Response("ok");
       }
-      if (!held.includes(office) && held.length >= MAX_OFFICES)
-        return new Response("Too many offices.", { status: 409 });
+      if (!held.includes(office) && held.length >= MAX_OFFICES) {
+        // Offices whose computer has not been back for IDLE_OFFICE_MS make room, and are forgotten.
+        const namespace = this.env.OFFICE;
+        for (const other of held) {
+          if (!namespace) break;
+          const answer = await namespace
+            .get(namespace.idFromName(`office:${other}`))
+            .fetch(
+              new Request("https://office/alive", {
+                method: "POST",
+                headers: { [VERIFIED]: JSON.stringify({ route: "alive" }) },
+              }),
+            );
+          const { inUse } = (await answer
+            .json()
+            .catch(() => ({ inUse: true }))) as {
+            inUse?: boolean;
+          };
+          if (!inUse)
+            this.state.storage.sql.exec(
+              "DELETE FROM offices WHERE office = ?",
+              other,
+            );
+        }
+        if (this.customerOffices().length >= MAX_OFFICES)
+          return new Response("Too many offices.", { status: 409 });
+      }
       this.state.storage.sql.exec(
         "INSERT OR IGNORE INTO offices (office) VALUES (?)",
         office,
@@ -455,7 +513,20 @@ export class OfficeObject {
       return new Response("ok");
     }
 
+    // Asked by the customer's own object, when its offices are full: is this one still in use?
+    if (verified.route === "alive") {
+      if (!kept) return Response.json({ inUse: false });
+      const hosted = this.host() !== undefined;
+      const lastSeen = this.lastSeen();
+      if (!hosted && this.now() - lastSeen > IDLE_OFFICE_MS) {
+        this.forgetAll();
+        return Response.json({ inUse: false });
+      }
+      return Response.json({ inUse: true });
+    }
+
     if (kept && revoked(this.env as Env, kept.customer)) {
+      await this.customer(kept.customer, String(verified.office), false);
       this.forgetAll();
       return this.refuse(CLOSE.revoked, "Cut off by BlackArk.");
     }
@@ -470,7 +541,7 @@ export class OfficeObject {
             `This licence already has ${MAX_OFFICES} offices at the relay. Ask BlackArk.`,
           );
         this.state.storage.sql.exec(
-          "CREATE TABLE IF NOT EXISTS office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL)",
+          "CREATE TABLE IF NOT EXISTS office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0)",
         );
         this.state.storage.sql.exec(
           "INSERT INTO office (id, customer, host_hash, access_hash) VALUES (1, ?, ?, ?)",
@@ -494,13 +565,14 @@ export class OfficeObject {
       for (const older of this.state.getWebSockets("host"))
         older.close(1000, "Replaced by a newer connection.");
       this.platform.log("host connected");
-      const response = this.accept(["host"], {
+      this.seen();
+      const { response, socket } = this.acceptSocket(["host"], {
         kind: "host",
         validUntil: Number(verified.validUntil),
       });
-      // Said only now, once this host is the office's own: the app gives out a join code that
-      // names the relay only after hearing it.
-      this.host()?.send(WELCOME);
+      // Said only now, once this host is the office's own, on the socket just accepted: the app
+      // gives out a join code that names the relay only after hearing it.
+      socket.send(WELCOME);
       return response;
     }
 
@@ -593,6 +665,7 @@ export class OfficeObject {
   webSocketClose(socket: CfWebSocket, code: number, reason: string) {
     const attachment = socket.deserializeAttachment() as Attachment | null;
     if (attachment?.kind === "host") {
+      this.seen();
       this.platform.log("host disconnected");
       return;
     }
