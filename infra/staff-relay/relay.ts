@@ -27,7 +27,11 @@
  */
 
 import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
-import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
+import {
+  SELF_SERVE_TRIAL_PUBLIC_KEYS,
+  selfServeTrialShapeOk,
+  TRIAL_PUBLIC_KEYS,
+} from "../../shared/trial-public-key";
 import type {
   CfWebSocket,
   DurableObjectNamespace,
@@ -53,7 +57,11 @@ export type RelayPlatform = {
   /** How long a staff connection may wait for the host; PAIRING_MS unless a test says. */
   pairingMs?: number;
   /** BlackArk's public keys, base64 of 32 bytes each. The tests give their own. */
-  keys?: { license: readonly string[]; trial: readonly string[] };
+  keys?: {
+    license: readonly string[];
+    trial: readonly string[];
+    selfServe?: readonly string[];
+  };
 };
 
 export const PING = "ping";
@@ -171,9 +179,15 @@ export type CheckedLicence = { customer: string; validUntil: number };
 export async function checkLicence(
   typed: string,
   now: number,
-  keys: { license: readonly string[]; trial: readonly string[] } = {
+  keys: {
+    license: readonly string[];
+    trial: readonly string[];
+    /** blackark.uk's self-serve trial keys (v0.1.58): only for a 7-day Ark Team trial code. */
+    selfServe?: readonly string[];
+  } = {
     license: LICENSE_PUBLIC_KEYS,
     trial: TRIAL_PUBLIC_KEYS,
+    selfServe: SELF_SERVE_TRIAL_PUBLIC_KEYS,
   },
 ): Promise<CheckedLicence | null> {
   const compact = typed.replace(/\s+/g, "");
@@ -194,8 +208,23 @@ export async function checkLicence(
   if (!Number.isFinite(end) || end <= now) return null;
   if (
     !(await signedBy(isLicence ? keys.license : keys.trial, payload, signature))
-  )
-    return null;
+  ) {
+    // A self-serve trial: signed by blackark.uk's own trial key, and only ever a short Ark Team trial.
+    const selfServe =
+      !isLicence &&
+      (keys.selfServe?.length ?? 0) > 0 &&
+      selfServeTrialShapeOk({
+        action: String(raw.action),
+        plan: String(raw.plan ?? ""),
+        issuedAt: String(raw.issuedAt ?? ""),
+        until: String(raw.until ?? ""),
+        ...(Array.isArray(raw.addons)
+          ? { addons: raw.addons.map(String) }
+          : {}),
+      }) &&
+      (await signedBy(keys.selfServe ?? [], payload, signature));
+    if (!selfServe) return null;
+  }
   return { customer, validUntil: end };
 }
 

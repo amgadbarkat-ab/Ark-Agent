@@ -26,6 +26,11 @@
  *       with the licence key; until BlackArk makes a separate one, that is the trial key
  *       (shared/license-public-key.ts). Typing the same key again on a reinstall works.
  *
+ *   bun scripts/ark-trial.ts selfserve-keygen [--dir <folder>]
+ *       Makes the self-serve trial key for blackark.uk (v0.1.58): writes the config.php line to
+ *       <folder>/selfserve-config.php.txt (default ~/.arkselfserve) and prints only the PUBLIC key.
+ *       The app trusts that key for 7-day Ark Team trial codes and nothing else.
+ *
  *   bun scripts/ark-trial.ts license-keygen [--dir <folder>]
  *       Makes the SEPARATE licence signing key for the payment server on blackark.uk (v0.1.44).
  *       Writes <folder>/license-config.php.txt (default ~/.arklicense) holding the one config line
@@ -166,6 +171,46 @@ function licenseKeygen(args: string[]) {
   console.log(`The config.php line is in ${php}.`);
   console.log("");
   console.log("PUBLIC licence key (post this one on #109):");
+  console.log(publicKeyToBase64(publicKey));
+}
+
+/**
+ * The self-serve trial key for blackark.uk (v0.1.58; Amgad, 26 Nov 2026). Like the licence key: only
+ * the config.php line holds the secret, and it goes on blackark.uk alone. The app trusts its public
+ * key for one thing only, a 7-day Ark Team trial code (shared/trial-public-key.ts).
+ */
+function selfServeKeygen(args: string[]) {
+  const dir = resolve(
+    option(args, "--dir") ?? join(homedir(), ".arkselfserve"),
+  );
+  const php = join(dir, "selfserve-config.php.txt");
+  if (existsSync(php)) {
+    fail(
+      `${dir} already has a self-serve trial key. It is not replaced: every self-serve trial signed with it would stop working.`,
+    );
+  }
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  const der = privateKey.export({ format: "der", type: "pkcs8" });
+  const seed = Buffer.from(der.subarray(der.length - 32));
+  const raw = Buffer.from(publicKeyToBase64(publicKey), "base64");
+  // PHP sodium wants the 64-byte secret key: the 32-byte seed, then the 32-byte public key.
+  const sodiumSecret = Buffer.concat([seed, raw]).toString("base64");
+  writeFileSync(
+    php,
+    `// Paste into checkin/config.php on blackark.uk, inside the array. Never post it anywhere.\n'selfserve_trial_secret_key' => '${sodiumSecret}',\n`,
+    { mode: 0o600, flag: "wx" },
+  );
+  try {
+    chmodSync(php, 0o600);
+  } catch {
+    // Windows has no such mode; the folder is in the user's own profile.
+  }
+  console.log(
+    `The config.php line is in ${php} (blackark.uk only; never post it).`,
+  );
+  console.log("");
+  console.log("PUBLIC self-serve trial key (post this one on #149):");
   console.log(publicKeyToBase64(publicKey));
 }
 
@@ -370,6 +415,9 @@ try {
     case "license-keygen":
       licenseKeygen(rest);
       break;
+    case "selfserve-keygen":
+      selfServeKeygen(rest);
+      break;
     case "sign-trial-code":
       signTrialCode(rest);
       break;
@@ -381,7 +429,7 @@ try {
       break;
     default:
       fail(
-        "Use: keygen | sign-profile <draft.json> | sign-code --customer <id> --action extend|end|paid | sign-trial-code --customer <id> --until <date> | sign-license --customer <id> --period-end <date> | show <file|code>",
+        "Use: keygen | selfserve-keygen | sign-profile <draft.json> | sign-code --customer <id> --action extend|end|paid | sign-trial-code --customer <id> --until <date> | sign-license --customer <id> --period-end <date> | show <file|code>",
       );
   }
 } catch (error) {

@@ -41,6 +41,9 @@ hash="$(php -r 'echo password_hash("test-password", PASSWORD_DEFAULT);')"
 # A throwaway licence key pair, as license-keygen would make (64-byte sodium secret, 32-byte public).
 pair="$(php -r '$k = sodium_crypto_sign_keypair(); echo base64_encode(sodium_crypto_sign_secretkey($k)), " ", base64_encode(sodium_crypto_sign_publickey($k));')"
 license_secret="${pair% *}"; license_public="${pair#* }"
+# The self-serve trial key (v0.1.58), as selfserve-keygen makes it.
+selfserve_pair="$(php -r '$k = sodium_crypto_sign_keypair(); echo base64_encode(sodium_crypto_sign_secretkey($k)), " ", base64_encode(sodium_crypto_sign_publickey($k));')"
+selfserve_secret="${selfserve_pair% *}"; selfserve_public="${selfserve_pair#* }"
 cat > "$work/checkin/config.php" <<PHP
 <?php
 return [
@@ -75,6 +78,7 @@ return [
   'phone_low_email' => true,
   'phone_low_email_reply_to' => 'general@blackark.example',
   'mail_outbox_dir' => __DIR__ . '/../outbox',
+  'selfserve_trial_secret_key' => '$selfserve_secret',
 ];
 PHP
 
@@ -961,6 +965,40 @@ got="$(curl -s -X POST --data "{\"customerId\":\"demo-phone\",\"installId\":\"$o
   && { pass=$((pass+1)); echo "ok   it can still read how many are paid"; } || { fail=$((fail+1)); echo "FAIL other install read: $got"; }
 expect "more than 5 more sub-profiles at once is refused" 400 -X POST --data "$(team_body demo-phone "$licence" ',"quantity":6')" "$team_url"
 branded "the sub-profile thank-you page" "$buy?done=team"
+
+# The self-serve trial (v0.1.58; Amgad, 26 Nov): a verified email gets 7 days of Ark Team 5, signed here.
+buy_link="http://127.0.0.1:$port/checkin/buy/link/"
+trial_url="http://127.0.0.1:$port/checkin/trial/"
+ask_trial() { curl -s -o "$work/trial.out" -w '%{http_code}' -X POST --data "$1" "$trial_url"; }
+start_body() { echo "{\"action\":\"start\",\"name\":\"Maria\",\"company\":\"$1\",\"email\":\"$2\",\"installId\":\"$3\",\"language\":\"el\"}"; }
+mailed_code() { decoded "$work/outbox/trial-$1.eml" | grep -o '[0-9]\{6\}' | head -1; }
+t1=9a0b1c2d-0000-4000-8000-000000000001
+[[ "$(ask_trial "$(start_body 'Οινοποιείο Λάμπρου' maria@lambrou.example "$t1")")" == 202 ]] && [[ -n "$(mailed_code "$t1")" ]] \
+  && { pass=$((pass+1)); echo "ok   a trial start emails a 6-digit code"; } || { fail=$((fail+1)); echo "FAIL trial start: $(cat "$work/trial.out")"; }
+expect "asking again at once is refused (a minute between codes)" 429 -X POST --data "$(start_body Lambrou maria@lambrou.example "$t1")" "$trial_url"
+expect "a wrong code is refused" 400 -X POST --data "{\"action\":\"confirm\",\"email\":\"maria@lambrou.example\",\"installId\":\"$t1\",\"code\":\"000000\"}" "$trial_url"
+expect "the right code from another computer is refused" 400 -X POST --data "{\"action\":\"confirm\",\"email\":\"maria@lambrou.example\",\"installId\":\"9a0b1c2d-0000-4000-8000-0000000000ff\",\"code\":\"$(mailed_code "$t1")\"}" "$trial_url"
+[[ "$(ask_trial "{\"action\":\"confirm\",\"email\":\"maria@lambrou.example\",\"installId\":\"$t1\",\"code\":\"$(mailed_code "$t1")\"}")" == 200 ]] \
+  && trial_code="$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["code"] ?? "";' "$work/trial.out")" \
+  && php -r '[$p, $s] = explode(".", substr($argv[1], 5)); $d = json_decode(base64_decode(strtr($p, "-_", "+/")), true);
+       $ok = sodium_crypto_sign_verify_detached(base64_decode(strtr($s, "-_", "+/") . str_repeat("=", (4 - strlen($s) % 4) % 4)), $p, base64_decode($argv[2]));
+       exit($ok && $d["action"] === "trial" && $d["plan"] === "team" && !isset($d["addons"]) && strtotime($d["until"]) - strtotime($d["issuedAt"]) === 7 * 86400
+         && preg_match("/^oinopoieio-lamprou-[a-z0-9]+$/", $d["customer"]) ? 0 : 1);' "$trial_code" "$selfserve_public" \
+  && { pass=$((pass+1)); echo "ok   the right code gets a signed 7-day Ark Team trial for a new customer id named after the company"; } || { fail=$((fail+1)); echo "FAIL trial confirm: $(cat "$work/trial.out")"; }
+trial_customer="$(php -r '$p = explode(".", substr($argv[1], 5))[0]; echo json_decode(base64_decode(strtr($p, "-_", "+/")), true)["customer"];' "$trial_code")"
+expect "the same email cannot start a second trial" 409 -X POST --data "$(start_body Other maria@lambrou.example 9a0b1c2d-0000-4000-8000-000000000002)" "$trial_url"
+expect "nor the same computer with another email" 409 -X POST --data "$(start_body Other nikos@other.example "$t1")" "$trial_url"
+expect "nor someone else at the same company domain" 409 -X POST --data "$(start_body Lambrou nikos@lambrou.example 9a0b1c2d-0000-4000-8000-000000000003)" "$trial_url"
+expect "but a free-mail address is not a company: another gmail user may" 202 -X POST --data "$(start_body Shop1 one@gmail.com 9a0b1c2d-0000-4000-8000-000000000004)" "$trial_url"
+expect "and so may a second one" 202 -X POST --data "$(start_body Shop2 two@gmail.com 9a0b1c2d-0000-4000-8000-000000000005)" "$trial_url"
+expect "the self-serve trial is proof for a signed buy link" 200 -X POST --data "{\"customerId\":\"$trial_customer\",\"installId\":\"$t1\",\"proof\":$(key_proof "$trial_code")}" "$buy_link"
+# The self-serve key signs short Ark Team trials and nothing more: a longer one is not proof.
+long_code="$(php -r '$secret = base64_decode($argv[1]); $p = rtrim(strtr(base64_encode(json_encode(["v" => 1, "action" => "trial", "customer" => "demo-long", "nonce" => "nonce-long-1", "issuedAt" => gmdate("c"), "until" => gmdate("c", time() + 90 * 86400), "plan" => "team"])), "+/", "-_"), "=");
+  echo "ARK1-", $p, ".", rtrim(strtr(base64_encode(sodium_crypto_sign_detached($p, $secret)), "+/", "-_"), "=");' "$selfserve_secret")"
+expect "a 90-day trial signed with the self-serve key is not proof" 403 -X POST --data "{\"customerId\":\"demo-long\",\"installId\":\"$t1\",\"proof\":$(key_proof "$long_code")}" "$buy_link"
+page="$(curl -s -c "$jar" -b "$jar" "http://127.0.0.1:$port/checkin/admin/")"
+grep -q 'Self-serve trials' <<<"$page" && grep -q "$trial_customer" <<<"$page" \
+  && { pass=$((pass+1)); echo "ok   the admin page lists self-serve trials"; } || { fail=$((fail+1)); echo "FAIL admin self-serve list"; }
 
 # Signed buy links (v0.1.57; the independent assessment of 26 Nov, F1): only an install that proves it
 # is the customer gets a link that opens a checkout for that customer id.

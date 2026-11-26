@@ -8,6 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Free 7-day trial from the app, with nothing to wait for (Amgad, 26 Nov).** On a new computer, the Activate screen offers "Start a free 7-day trial".
+  - The administrator writes their name, company and email, and types the 6-digit code blackark.uk emails them.
+  - ArkAgent starts 7 days of Ark Team with 5 digital employees per person.
+  - From there everything is automated: buying through the signed link, the licence key arriving by itself after payment, sub-profiles and add-ons.
+  - One trial per email, per computer and per company email domain (free-mail addresses excepted), and requests are limited.
+  - The trials are signed by a separate blackark.uk key. The app, the relay and blackark.uk trust it only for a 7-day Ark Team trial without add-ons.
+  - **Needs** the key made and set on blackark.uk, and its public key added to the app. Until then the trial form does not show.
+
 - **Security fixes from the full review of v0.1.56 and the independent assessment of blackark.uk (26 Nov).**
   - **The wrong-password lock holds for web forms and disguised requests too.** Sign-in accepts only a request whose type is exactly the app's own JSON, and the sign-in library reads exactly what was counted.
   - **Device control from another computer asks the administrator's own screen first (Amgad, 26 Nov).** While the administrator's account is used from another computer (the office network or the relay, in the last 15 minutes), anything that reaches their own Chrome or Edge on this computer asks first in a native window: a chat with an employee working there, a click, a screenshot, the live view. The window names the account, how it connects, and that a yes lasts 10 minutes. Deny is the default button. Questions are limited: none for 2 minutes after a Deny, and at most 5 in 10 minutes. If ArkAgent is not open on this computer, it is refused. Folders, edits and commands already asked there.

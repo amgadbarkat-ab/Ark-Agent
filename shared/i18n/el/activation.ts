@@ -89,6 +89,46 @@ export const EL_ACTIVATION: Record<string, string> = {
   "Your trial ended on {date}. Your conversations and settings are kept. Enter a licence key or an unlock code to continue.":
     "Η δοκιμή σας έληξε στις {date}. Οι συνομιλίες και οι ρυθμίσεις σας διατηρούνται. Για να συνεχίσετε, εισαγάγετε κλειδί άδειας ή κωδικό ξεκλειδώματος.",
 
+  // The free self-serve trial (v0.1.58).
+  "Start a free 7-day trial": "Ξεκινήστε δωρεάν δοκιμή 7 ημερών",
+  "Ark Team with 5 digital employees per person, free for 7 days. No card needed. We email you a code to check the address.":
+    "Ark Team με 5 ψηφιακούς υπαλλήλους ανά άτομο, δωρεάν για 7 ημέρες. Χωρίς κάρτα. Σας στέλνουμε έναν κωδικό με email για να επιβεβαιώσουμε τη διεύθυνση.",
+  "Your name": "Το όνομά σας",
+  Company: "Εταιρεία",
+  Email: "Email",
+  "Email me a code": "Στείλτε μου κωδικό",
+  "Sending…": "Αποστολή…",
+  "The 6-digit code we sent to {email}":
+    "Ο 6ψήφιος κωδικός που στείλαμε στο {email}",
+  "Start my trial": "Έναρξη δοκιμής",
+  "The code works for 15 minutes. Not there? Check your spam folder, or ask for a new one.":
+    "Ο κωδικός ισχύει για 15 λεπτά. Δεν ήρθε; Ελέγξτε τα ανεπιθύμητα ή ζητήστε νέο.",
+  "Ask for a new code": "Ζητήστε νέο κωδικό",
+  "Write your name, your company and your email.":
+    "Γράψτε το όνομά σας, την εταιρεία σας και το email σας.",
+  "Type the 6-digit code from the email.":
+    "Πληκτρολογήστε τον 6ψήφιο κωδικό από το email.",
+  "This computer already has a trial or a licence.":
+    "Αυτός ο υπολογιστής έχει ήδη δοκιμή ή άδεια.",
+  "Ask for a code first: write your name, company and email.":
+    "Ζητήστε πρώτα κωδικό: γράψτε όνομα, εταιρεία και email.",
+  "BlackArk could not be reached. Check the internet connection and try again.":
+    "Δεν ήταν δυνατή η σύνδεση με την BlackArk. Ελέγξτε τη σύνδεση στο διαδίκτυο και δοκιμάστε ξανά.",
+  "A free trial was already used with this email, on this computer, or for this company. To continue, buy a licence or contact BlackArk.":
+    "Έχει ήδη χρησιμοποιηθεί δωρεάν δοκιμή με αυτό το email, σε αυτόν τον υπολογιστή ή για αυτή την εταιρεία. Για να συνεχίσετε, αγοράστε άδεια ή επικοινωνήστε με την BlackArk.",
+  "That code is not right. Check the email and try again.":
+    "Ο κωδικός δεν είναι σωστός. Ελέγξτε το email και δοκιμάστε ξανά.",
+  "This code has run out. Ask for a new one.": "Ο κωδικός έληξε. Ζητήστε νέο.",
+  "Too many wrong codes. Ask for a new one.":
+    "Πάρα πολλοί λάθος κωδικοί. Ζητήστε νέο.",
+  "A code was just sent. Wait a minute before asking for another.":
+    "Μόλις στάλθηκε κωδικός. Περιμένετε ένα λεπτό πριν ζητήσετε άλλον.",
+  "Too many tries. Wait an hour and try again.":
+    "Πάρα πολλές προσπάθειες. Περιμένετε μία ώρα και δοκιμάστε ξανά.",
+  "Write a valid email address.": "Γράψτε μια έγκυρη διεύθυνση email.",
+  "Free trials cannot be started here yet. Contact BlackArk.":
+    "Η δωρεάν δοκιμή δεν είναι ακόμη διαθέσιμη. Επικοινωνήστε με την BlackArk.",
+
   // The desktop app closed while the server kept running (#109, DT item 3).
   "ArkAgent is not open, so {name} cannot work right now. Open ArkAgent on this computer, then send your message again.":
     "Το ArkAgent δεν είναι ανοιχτό και ο υπάλληλος {name} δεν μπορεί να εργαστεί αυτή τη στιγμή. Ανοίξτε το ArkAgent σε αυτόν τον υπολογιστή και στείλτε ξανά το μήνυμά σας.",

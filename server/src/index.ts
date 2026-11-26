@@ -26,7 +26,10 @@ import { listenHosts } from "../../shared/listen-hosts";
 import { peerAllowed } from "../../shared/local-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
-import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
+import {
+  SELF_SERVE_TRIAL_PUBLIC_KEYS,
+  TRIAL_PUBLIC_KEYS,
+} from "../../shared/trial-public-key";
 import { workOwner } from "../../shared/work-owner";
 import { RunGateAgent } from "./accounts/run-gate";
 import { createRunSlots } from "./accounts/run-slots";
@@ -386,6 +389,14 @@ const activation = createActivationService(database, {
     LICENSE_PUBLIC_KEYS,
     config.singleUser ? undefined : process.env.ARK_LICENSE_PUBLIC_KEY,
   ),
+  // blackark.uk's self-serve trial signer (v0.1.58): only ever a 7-day Ark Team trial code.
+  selfServeKeys: trialKeysFrom(
+    SELF_SERVE_TRIAL_PUBLIC_KEYS,
+    config.singleUser ? undefined : process.env.ARK_SELF_SERVE_TRIAL_PUBLIC_KEY,
+  ),
+  ...(process.env.ARK_TRIAL_URL?.trim()
+    ? { trialUrl: process.env.ARK_TRIAL_URL.trim() }
+    : {}),
   trial,
   version: appVersion(),
   // blackark.uk unless set (v0.1.49): where the key is fetched before there is one, and the buy page.

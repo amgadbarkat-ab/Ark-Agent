@@ -107,6 +107,8 @@ export type Activation = {
   buyUrl?: string | null;
   /** When a key fetched after a payment activated this install (v0.1.49). */
   paymentReceivedAt?: string | null;
+  /** Whether a free trial can be started here by email (v0.1.58). */
+  selfServeTrial?: boolean;
 };
 
 /**
