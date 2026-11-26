@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.55
+
 - **Security fixes from the review of v0.1.54 (25 Nov, #149).** v0.1.54 is not offered to customers; this release replaces it.
   - **Only the install's own window can make the administrator.** An updated install waiting for its administrator could be claimed first by another program or a malicious web page. The desktop now gives its own window a secret that set-up requires, the database holds exactly one administrator, and the office network never opens before one exists.
   - **Web pages can no longer reach this computer's ArkAgent by renaming themselves (DNS rebinding).** The server, the office listener and the staff relay answer only requests that name this computer.
