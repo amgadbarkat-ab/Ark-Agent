@@ -283,7 +283,10 @@ Every installed ArkAgent installs a new release only if it is signed with BlackA
    apps by itself; every customer would need a manual install.
 3. In GitHub: Settings → Environments → **New environment** `update-signing`.
    - Deployment branches and tags: **Selected branches**, `main` only.
-   - Required reviewers: the person who approves releases.
+   - Required reviewers: the person who approves releases, with **Prevent self-review** on and
+     **Allow administrators to bypass** off.
+   - No repository or organisation secret may carry the same names: any branch's workflow could
+     read one.
    - Environment secrets (not repository secrets): `TAURI_SIGNING_PRIVATE_KEY` (the contents of
      `update.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 4. Post only `update.key.pub` (the public key) where the Product Engineer can put it in the app.

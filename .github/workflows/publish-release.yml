@@ -667,7 +667,12 @@ jobs:
               exit 1
             fi
             "$signer" signer sign --app-version "${VERSION#v}" "${files[0]}"
-            test -s "${files[0]}.sig"
+            # The app refuses a signature that does not name this version; a signer that stopped
+            # writing it would make every update fail without a word, so it stops the release here.
+            if ! base64 -d "${files[0]}.sig" | grep '^trusted comment: ' | tr '\t' '\n' | grep -qx "version:${VERSION#v}"; then
+              echo "::error::The signature of ${files[0]} does not name version ${VERSION#v}."
+              exit 1
+            fi
             mv "${files[0]}.sig" signatures/
           done
           ls -l signatures
