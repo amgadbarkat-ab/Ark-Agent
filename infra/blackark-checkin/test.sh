@@ -681,6 +681,18 @@ send_event '{"id":"evt_old5","type":"invoice.paid","data":{"object":{"subscripti
   && { pass=$((pass+1)); echo "ok   the next paid invoice brings it back, on the tier it is on now"; } || { fail=$((fail+1)); echo "FAIL after paid: $(key_of demo-old)"; }
 send_event '{"id":"evt_old6","type":"customer.subscription.deleted","data":{"object":{"id":"sub_8"}}}' >/dev/null
 [[ "$(key_of demo-old)" == none ]] && { pass=$((pass+1)); echo "ok   a deleted subscription gets no more keys"; } || { fail=$((fail+1)); echo "FAIL deleted: $(key_of demo-old)"; }
+# Somebody else buys under a paying customer's id (security assessment of 26 Nov): held, no key.
+send_event '{"id":"evt_imp1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_impostor1","client_reference_id":"demo-tier","customer":"cus_evil","subscription":"sub_evil"}}}' >/dev/null
+send_event '{"id":"evt_imp2","type":"invoice.paid","data":{"object":{"subscription":"sub_evil","lines":{"data":[{"price":{"id":"price_team"},"quantity":1,"period":{"end":'"$tend"'}}]}}}}' >/dev/null
+held_row="$(php -r '$db = new PDO("sqlite:" . $argv[1]); $q = $db->query("SELECT held, license_key FROM licenses WHERE subscription_id = \"sub_evil\""); $r = $q->fetch(); echo $r["held"] . ":" . ($r["license_key"] ?? "none");' "$work/checkin/data/checkins.sqlite")"
+held_page="$(curl -s "http://127.0.0.1:$port/checkin/key/?session_id=cs_test_impostor1")"
+[[ "$held_row" == "1:none" ]] && grep -q 'already belongs to another account' <<<"$held_page" && ! grep -q 'ARK1-' <<<"$held_page" \
+  && [[ -n "$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT license_key FROM licenses WHERE subscription_id = \"sub_9\"")->fetchColumn();' "$work/checkin/data/checkins.sqlite")" ]] \
+  && { pass=$((pass+1)); echo "ok   a purchase under a customer id another Stripe customer pays for is held: no key, and the page says why"; } || { fail=$((fail+1)); echo "FAIL held purchase: $held_row"; }
+send_event '{"id":"evt_own1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_own1","client_reference_id":"demo-tier","customer":"cus_9","subscription":"sub_9b"}}}' >/dev/null
+send_event '{"id":"evt_own2","type":"invoice.paid","data":{"object":{"subscription":"sub_9b","lines":{"data":[{"price":{"id":"price_phone"},"quantity":1,"period":{"end":'"$tend"'}},{"price":{"id":"price_team"},"quantity":1,"period":{"end":'"$tend"'}}]}}}}' >/dev/null
+own_row="$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT held FROM licenses WHERE subscription_id = \"sub_9b\"")->fetchColumn();' "$work/checkin/data/checkins.sqlite")"
+[[ "$own_row" == "0" ]] && { pass=$((pass+1)); echo "ok   the same Stripe customer buying again under its own id is not held"; } || { fail=$((fail+1)); echo "FAIL own purchase held: $own_row"; }
 cat > "$repo/.checkin-tier.ts" <<'TS'
 import { readActivationCode } from "./shared/activation";
 const read = readActivationCode(process.argv[2] ?? "");

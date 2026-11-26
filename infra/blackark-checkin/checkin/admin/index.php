@@ -62,17 +62,23 @@ if (($_POST['action'] ?? '') === 'logout' && hash_equals($_SESSION['csrf'] ?? ''
 
 if (($_POST['action'] ?? '') === 'login') {
     $window = time() - 900;
+    $address = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     $db->prepare('DELETE FROM login_failures WHERE at < ?')->execute([$window]);
-    $failures = (int) $db->query('SELECT COUNT(*) FROM login_failures')->fetchColumn();
+    // Per address (security assessment of 26 Nov 2026): 10 wrong in 15 minutes locks that address,
+    // so somebody else's guesses cannot lock BlackArk out. 200 from everywhere still locks all.
+    $mine = $db->prepare('SELECT COUNT(*) FROM login_failures WHERE address = ?');
+    $mine->execute([$address]);
+    $failures = (int) $mine->fetchColumn();
+    $everyone = (int) $db->query('SELECT COUNT(*) FROM login_failures')->fetchColumn();
     $hash = (string) ark_config('admin_password_hash', '');
-    if ($failures >= 10) {
+    if ($failures >= 10 || $everyone >= 200) {
         $error = 'Too many wrong passwords. Try again in 15 minutes.';
     } elseif (
         !hash_equals($_SESSION['csrf'] ?? '', (string) ($_POST['csrf'] ?? '')) ||
         $hash === '' ||
         !password_verify((string) ($_POST['password'] ?? ''), $hash)
     ) {
-        $db->prepare('INSERT INTO login_failures (at) VALUES (?)')->execute([time()]);
+        $db->prepare('INSERT INTO login_failures (at, address) VALUES (?, ?)')->execute([time(), $address]);
         sleep(1);
         $error = 'Wrong password.';
     } else {
@@ -85,6 +91,37 @@ if (($_POST['action'] ?? '') === 'login') {
 
 $notice = '';
 $action = (string) ($_POST['action'] ?? '');
+// A held purchase (see stripe/index.php): released, a key is signed; refused, it stays without one
+// and BlackArk refunds it in Stripe.
+if (in_array($action, ['licence_release', 'licence_refuse'], true)) {
+    if (empty($_SESSION['signed_in']) || !hash_equals($_SESSION['csrf'] ?? '', (string) ($_POST['csrf'] ?? ''))) {
+        http_response_code(403);
+        exit('Sign in again.');
+    }
+    $subscription = (string) ($_POST['subscription'] ?? '');
+    $find = $db->prepare('SELECT held FROM licenses WHERE subscription_id = ?');
+    $find->execute([$subscription]);
+    if ((int) $find->fetchColumn() !== 1) {
+        $error = 'No such held purchase.';
+    } elseif ($action === 'licence_refuse') {
+        $db->prepare("UPDATE licenses SET held = 3, status = 'refused', updated_at = ? WHERE subscription_id = ?")->execute([ark_now(), $subscription]);
+        $notice = 'Refused. Refund it in Stripe.';
+    } else {
+        $db->prepare('UPDATE licenses SET held = 2, updated_at = ? WHERE subscription_id = ?')->execute([ark_now(), $subscription]);
+        $read = $db->prepare('SELECT * FROM licenses WHERE subscription_id = ?');
+        $read->execute([$subscription]);
+        $row = $read->fetch();
+        if ($row && $row['status'] === 'active' && $row['plan'] && $row['period_end']) {
+            $addons = $row['addons'] ? explode(',', (string) $row['addons']) : [];
+            $signed = ark_sign_license((string) $row['customer_id'], (string) $row['plan'], (int) $row['seats'], $addons, (int) $row['period_end'], $row['max_agents'] === null ? null : (int) $row['max_agents']);
+            if ($signed) {
+                $db->prepare('UPDATE licenses SET license_key = ?, valid_until = ?, updated_at = ? WHERE subscription_id = ?')
+                    ->execute([$signed['key'], $signed['valid_until'], ark_now(), $subscription]);
+            }
+        }
+        $notice = 'Released. The buyer\'s key page shows the key.';
+    }
+}
 if (in_array($action, ['server_attach', 'server_stop'], true)) {
     if (empty($_SESSION['signed_in']) || !hash_equals($_SESSION['csrf'] ?? '', (string) ($_POST['csrf'] ?? ''))) {
         http_response_code(403);
@@ -215,6 +252,38 @@ $signedIn = !empty($_SESSION['signed_in']);
         <td<?= $stale ? ' class="flag" title="Not heard from in over 2 days"' : '' ?>><?= athens($row['last_seen']) ?></td>
         <td><?= athens($row['first_seen']) ?></td>
         <td><?= (int) $row['checkins'] ?></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+<?php
+    $heldRows = $db->query('SELECT subscription_id, customer_id, stripe_customer, plan, seats, updated_at FROM licenses WHERE held = 1 ORDER BY updated_at DESC')->fetchAll();
+?>
+  <h2>Held purchases</h2>
+  <p class="note">A purchase that names a customer id another Stripe customer already pays for. No key is signed until you release it. Check with the customer who paid; refuse and refund it if it is not theirs.</p>
+  <div class="wrap">
+  <table>
+    <thead><tr><th>Customer id</th><th>Bought by (Stripe)</th><th>Plan</th><th>Seats</th><th>When</th><th></th></tr></thead>
+    <tbody>
+    <?php if (!$heldRows): ?>
+      <tr><td colspan="6" class="muted">None.</td></tr>
+    <?php endif; ?>
+    <?php foreach ($heldRows as $held): ?>
+      <tr>
+        <td class="flag"><?= h($held['customer_id']) ?></td>
+        <td><?= h($held['stripe_customer']) ?></td>
+        <td><?= h($held['plan']) ?></td>
+        <td><?= (int) $held['seats'] ?></td>
+        <td><?= athens((string) $held['updated_at']) ?></td>
+        <td>
+          <form method="post" action="./" class="attach">
+            <input type="hidden" name="csrf" value="<?= h($csrf) ?>">
+            <input type="hidden" name="subscription" value="<?= h($held['subscription_id']) ?>">
+            <button type="submit" name="action" value="licence_release">Release</button>
+            <button type="submit" name="action" value="licence_refuse">Refuse</button>
+          </form>
+        </td>
       </tr>
     <?php endforeach; ?>
     </tbody>

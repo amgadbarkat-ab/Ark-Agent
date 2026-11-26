@@ -31,8 +31,13 @@ require dirname(__DIR__) . '/lib.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
+/** Set once an answer below 500 is sent: the event was handled and may stay recorded as taken. */
+$handled = false;
+
 function reply(int $status, string $message = 'ok'): void
 {
+    global $handled;
+    $handled = $status < 500;
     http_response_code($status);
     echo json_encode(['result' => $message]);
     exit;
@@ -84,6 +89,18 @@ $seen->execute([$event['id'], ark_now()]);
 if ($seen->rowCount() === 0) {
     reply(200, 'Already taken.');
 }
+/*
+ * Recorded first so that two deliveries at once are taken once. If handling it then fails part-way
+ * (security assessment of 26 Nov 2026), the record is taken back, so Stripe's retry is handled
+ * rather than answered "Already taken". Each credit below is taken once by its own reference.
+ */
+$eventId = $event['id'];
+register_shutdown_function(static function () use ($db, $eventId): void {
+    global $handled;
+    if (!$handled) {
+        $db->prepare('DELETE FROM stripe_events WHERE event_id = ?')->execute([$eventId]);
+    }
+});
 $object = is_array($event['data']['object'] ?? null) ? $event['data']['object'] : [];
 
 function customer_id_from($reference, $customer): string
@@ -113,6 +130,23 @@ function issue(PDO $db, string $subscription): void
     $row = $read->fetch();
     if (!$row || $row['status'] !== 'active' || !$row['customer_id'] || !$row['plan'] || !$row['period_end']) {
         return;
+    }
+    if ((int) ($row['held'] ?? 0) === 1) {
+        return;
+    }
+    /*
+     * A customer id is not a secret, and the buy link names it (security assessment of 26 Nov 2026):
+     * if another Stripe customer already pays under this id, the purchase is held for BlackArk to
+     * check, and no key is signed for it. BlackArk releases or refuses it on the admin page.
+     */
+    if ((int) ($row['held'] ?? 0) === 0 && $row['stripe_customer']) {
+        $other = $db->prepare("SELECT COUNT(*) FROM licenses WHERE customer_id = ? AND subscription_id != ? AND stripe_customer IS NOT NULL AND stripe_customer != ? AND status = 'active' AND held IN (0, 2)");
+        $other->execute([$row['customer_id'], $subscription, $row['stripe_customer']]);
+        if ((int) $other->fetchColumn() > 0) {
+            upsert($db, $subscription, ['held' => 1]);
+            error_log('ark-licence: purchase held, customer id ' . $row['customer_id'] . ' is paid for by another Stripe customer.');
+            return;
+        }
     }
     $addons = $row['addons'] ? explode(',', (string) $row['addons']) : [];
     $maxAgents = $row['max_agents'] === null ? null : (int) $row['max_agents'];
