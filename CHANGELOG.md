@@ -8,6 +8,8 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+## 0.1.56
+
 - **Staff outside the office (Amgad, 25 Nov, #149).** Settings → Team → "Let my staff sign in from outside the office".
   - Off until switched on. Staff working from home or on the road reach the company's ArkAgent through BlackArk's staff relay on Cloudflare, with the same join code.
   - **The relay cannot read what it carries.** Each staff connection is TLS from the staff computer to the administrator's computer. The staff computer checks the administrator's certificate by the fingerprint in the join code, as on the office network. Passwords, chats and files never leave that connection.
