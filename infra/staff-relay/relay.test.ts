@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { startBunRelay } from "./bun-runtime";
-import { CLOSE, checkLicence, sha256Hex } from "./relay";
+import { CLOSE, checkLicence, MAX_OFFICES, sha256Hex } from "./relay";
 
 const licenceKeys = generateKeyPairSync("ed25519");
 const trialKeys = generateKeyPairSync("ed25519");
@@ -338,9 +338,13 @@ describe("what the relay keeps, and for how long", () => {
     await until(() => fresh.texts.includes("welcome"));
   });
 
-  test("one licence holds at most three offices", async () => {
+  test("one licence holds at most MAX_OFFICES offices (10)", async () => {
     relay = startBunRelay({ keys });
-    const offices = ["a", "b", "c", "d"].map((x) => `${x}${office.slice(1)}`);
+    expect(MAX_OFFICES).toBe(10);
+    const offices = Array.from(
+      { length: MAX_OFFICES + 1 },
+      (_, n) => `${n.toString(36)}${office.slice(1)}`,
+    );
     const hosts: { texts: string[]; closed: Promise<number> }[] = [];
     for (const id of offices) {
       const socket = new WebSocket(`${relay.url}/v1/host?office=${id}`, {
@@ -358,14 +362,16 @@ describe("what the relay keeps, and for how long", () => {
       });
       hosts.push({ texts, closed });
     }
-    // All four at once: exactly three are welcomed, whichever they are, and one is refused.
+    // All at once: exactly MAX_OFFICES are welcomed, whichever they are, and one is refused.
     const refused = await Promise.race([
       Promise.any(hosts.map((one) => one.closed)),
       Bun.sleep(3000).then(() => 0),
     ]);
     expect(refused).toBe(CLOSE.busy);
     await until(
-      () => hosts.filter((one) => one.texts.includes("welcome")).length === 3,
+      () =>
+        hosts.filter((one) => one.texts.includes("welcome")).length ===
+        MAX_OFFICES,
     );
   });
 
@@ -388,17 +394,20 @@ describe("what the relay keeps, and for how long", () => {
       });
       return { socket, texts, closed };
     };
-    const ids = ["a", "b", "c", "d"].map((x) => `${x}${office.slice(1)}`);
+    const ids = Array.from(
+      { length: MAX_OFFICES + 1 },
+      (_, n) => `${n.toString(36)}${office.slice(1)}`,
+    );
     const first: Awaited<ReturnType<typeof register>>[] = [];
-    for (const id of ids.slice(0, 3)) first.push(await register(id));
+    for (const id of ids.slice(0, MAX_OFFICES)) first.push(await register(id));
     await until(() => first.every((one) => one.texts.includes("welcome")));
     for (const one of first) one.socket.close();
     await Bun.sleep(50);
     // Still within 30 days: no room.
-    const early = await register(ids[3] as string);
+    const early = await register(ids[MAX_OFFICES] as string);
     expect(await early.closed).toBe(CLOSE.busy);
     clock += 31 * 86_400_000;
-    const later = await register(ids[3] as string);
+    const later = await register(ids[MAX_OFFICES] as string);
     await until(() => later.texts.includes("welcome"));
   });
 

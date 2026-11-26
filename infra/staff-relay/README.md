@@ -28,7 +28,7 @@ ArkAgent through this Cloudflare Worker.
   - a connection the host doesn't take up within 15 seconds is closed;
   - at most 4 GB, or 12 hours, per connection;
   - 240 requests a minute per internet address, per relay instance;
-  - at most 3 offices per licence; an office whose computer has not connected for 30 days gives
+  - at most 10 offices per licence (an office is a company computer offering remote staff, not a person); an office whose computer has not connected for 30 days gives
     up its place, and is forgotten, when a new one needs it.
 - **What it keeps, and when it forgets:** nothing is stored for an office until a licensed host
   registers it. Switching remote staff off, or making a new join code, tells the relay to forget the

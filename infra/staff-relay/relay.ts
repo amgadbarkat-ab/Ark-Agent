@@ -61,8 +61,11 @@ export const PONG = "pong";
 export const READY = "ready";
 /** Sent to a host once the relay has accepted it as its office's own. */
 export const WELCOME = "welcome";
-/** At most this many offices per customer (one company's computer, a spare, a replacement). */
-export const MAX_OFFICES = 3;
+/**
+ * At most this many offices per customer (Amgad, 26 Nov 2026: "at least 5 per licence or more"). An
+ * office is one company computer offering remote staff, not a person: any number of staff join it.
+ */
+export const MAX_OFFICES = 10;
 /** A carried connection is closed after this many bytes either way, or this long. */
 export const MAX_STREAM_BYTES = 4 * 1024 * 1024 * 1024;
 export const MAX_STREAM_MS = 12 * 60 * 60 * 1000;

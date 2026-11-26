@@ -12,7 +12,7 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
   - Off until switched on. Staff working from home or on the road reach the company's ArkAgent through BlackArk's staff relay on Cloudflare, with the same join code.
   - **The relay cannot read what it carries.** Each staff connection is TLS from the staff computer to the administrator's computer. The staff computer checks the administrator's certificate by the fingerprint in the join code, as on the office network. Passwords, chats and files never leave that connection.
   - **Who gets through the relay:**
-    - only an ArkAgent with a valid BlackArk licence key or trial activation code can offer its office there, at most 3 offices per licence;
+    - only an ArkAgent with a valid BlackArk licence key or trial activation code can offer its office there, at most 10 offices per licence (an office is one company computer, not a person: any number of staff join it);
     - only a staff computer with that office's join code can reach it;
     - the join code names the relay only once the relay has accepted this computer's office;
     - "Make a new join code" starts a new office with new keys, so the old code stops working outside the office. Do this when someone leaves.
