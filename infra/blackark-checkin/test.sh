@@ -65,6 +65,8 @@ return [
   'stripe_buy' => ['tiers' => [5 => 'price_team', 10 => 'price_tier10', 20 => 'price_tier20'], 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
   'buy_link_secret' => 'buy-link-secret-for-tests-0123456789abcdef',
+  // Off for the older tests, which use unsigned links as apps before v0.1.57 do; on is the default.
+  'buy_requires_token' => false,
   'export_secret' => 'export-secret-for-tests-0123456789abcdef',
   'intake_url' => 'http://127.0.0.1:18767/intake/app',
   'intake_secret' => 'intake-secret-for-tests-0123456789abcdef',
@@ -976,8 +978,8 @@ link="$(curl -s -X POST --data "$(link_body demo-shop "$(profile_proof "$good")"
 ended_link="$(curl -s -X POST --data "$(link_body demo-shop "$(profile_proof "$ended")")" "$buy_link" | php -r 'echo json_decode(stream_get_contents(STDIN), true)["buyUrl"] ?? "";')"
 [[ "$ended_link" == *"&t="* ]] && { pass=$((pass+1)); echo "ok   an ended trial still gets one: that is who buys"; } || { fail=$((fail+1)); echo "FAIL ended trial link: $ended_link"; }
 query="${link#*buy/}"
-# Turn the requirement on, as config.php will once every install runs v0.1.57.
-sed -i "s/^  'buy_link_secret'/  'buy_requires_token' => true,\n  'buy_link_secret'/" "$work/checkin/config.php"
+# Turn the requirement on, as it is by default.
+sed -i "s/^  'buy_requires_token' => false,$/  'buy_requires_token' => true,/" "$work/checkin/config.php"
 expect "with the requirement on, an unsigned buy link is refused" 403 "$buy?customer=demo-shop&tier=5"
 expect "and a link signed for another customer is refused" 403 "$buy${query/customer=demo-shop/customer=demo-clinic}&tier=5"
 expect "and a link whose time was changed is refused" 403 "$buy$(sed -E 's/e=([0-9]+)/e=\19/' <<<"$query")&tier=5"
@@ -992,7 +994,16 @@ grep -q "tier=10" <<<"$tiers" && ! grep -qE 'href="\?customer=demo-shop&amp;tier
   && { pass=$((pass+1)); echo "ok   the tier page's links keep the signature"; } || { fail=$((fail+1)); echo "FAIL tier links lost the signature"; }
 [[ "$(location "$buy?customer=demo-phone&topup=1")" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
   && { pass=$((pass+1)); echo "ok   a top-up needs no signed link: the low-balance email's link keeps working"; } || { fail=$((fail+1)); echo "FAIL unsigned top-up"; }
-sed -i "/^  'buy_requires_token' => true,$/d" "$work/checkin/config.php"
+expect "a top-up beside a 24/7 support order is not a top-up: refused unsigned" 403 "$buy?customer=demo-shop&support=247&topup=1"
+expect "nor beside a private server order" 403 "$buy?customer=demo-shop&server=small&topup=1"
+sed -i "s/^  'buy_requires_token' => true,$/  'buy_requires_token' => false,/" "$work/checkin/config.php"
+
+# With the requirement off, a licence bought through an unsigned link is held, not signed (F-D).
+unproven='{"id":"evt_unproven1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_unproven1","client_reference_id":"demo-lab","customer":"cus_9","subscription":"sub_unproven","metadata":{"kind":"subscription","proven":"0"}}}}'
+send_event "$unproven" >/dev/null
+send_event '{"id":"evt_unproven2","type":"invoice.paid","data":{"object":{"subscription":"sub_unproven","lines":{"data":[{"price":{"id":"price_team"},"quantity":1,"period":{"end":4102444800}}]}}}}' >/dev/null
+row="$(php -r '$db = new PDO("sqlite:" . $argv[1]); $r = $db->query("SELECT held, license_key FROM licenses WHERE subscription_id = \"sub_unproven\"")->fetch(PDO::FETCH_ASSOC); echo $r ? $r["held"] . ":" . ($r["license_key"] ? "key" : "none") : "missing";' "$work/checkin/data/checkins.sqlite")"
+[[ "$row" == "1:none" ]] && { pass=$((pass+1)); echo "ok   a licence bought through an unsigned link is held, and no key is signed"; } || { fail=$((fail+1)); echo "FAIL unproven not held: $row"; }
 
 # Proofs that ended (v0.1.57): they no longer open paid features, unless the customer pays.
 expect "an ended trial cannot list private servers" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$link_inst\",\"proof\":$(profile_proof "$ended")}" "$servers"

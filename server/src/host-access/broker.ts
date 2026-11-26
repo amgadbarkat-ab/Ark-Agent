@@ -209,7 +209,11 @@ export function createHostAccessBroker(
       botId: string;
       botName: string;
       actorId: string;
-      action: "own_browser" | "own_browser_screen";
+      /** The account's email or name, as the person at this computer knows it. */
+      account: string;
+      via: "office network" | "relay";
+      /** How long the approval lasts, which the window says. */
+      minutes: number;
     }): Promise<void> {
       expireDesktopLeaseIfNeeded();
       if (desktopConnectedUntil === null || desktopConnectedUntil <= now())
@@ -224,7 +228,13 @@ export function createHostAccessBroker(
         botId: input.botId,
         botName: input.botName,
         actorId: input.actorId,
-        content: input.action,
+        // The desktop words the question itself; this names only what it asks about.
+        content: JSON.stringify({
+          action: "own_browser",
+          account: input.account,
+          via: input.via,
+          minutes: input.minutes,
+        }),
       }).then(() => undefined);
     },
 

@@ -60,7 +60,9 @@ describe("host access broker", () => {
         botId: "bot-a",
         botName: "Sales",
         actorId: "admin",
-        action: "own_browser",
+        account: "maria@shop.example",
+        via: "relay",
+        minutes: 10,
       }),
     ).rejects.toThrow(HostAccessRefusedError);
 
@@ -69,13 +71,21 @@ describe("host access broker", () => {
       botId: "bot-a",
       botName: "Sales",
       actorId: "admin",
-      action: "own_browser",
+      account: "maria@shop.example",
+      via: "relay",
+      minutes: 10,
     });
     const lease = broker.nextDesktopOperation();
     expect(lease?.operations[0]).toMatchObject({
       kind: "confirm_remote",
       botId: "bot-a",
-      content: "own_browser",
+    });
+    // The desktop words the question; it is told what, who, how and for how long.
+    expect(JSON.parse(String(lease?.operations[0]?.content))).toEqual({
+      action: "own_browser",
+      account: "maria@shop.example",
+      via: "relay",
+      minutes: 10,
     });
     broker.resolveDesktopOperation({
       operationId: lease!.operations[0]!.operationId,
@@ -87,7 +97,9 @@ describe("host access broker", () => {
       botId: "bot-a",
       botName: "Sales",
       actorId: "admin",
-      action: "own_browser_screen",
+      account: "maria@shop.example",
+      via: "office network",
+      minutes: 10,
     });
     const again = broker.nextDesktopOperation();
     broker.resolveDesktopOperation({

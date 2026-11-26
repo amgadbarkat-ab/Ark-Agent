@@ -82,8 +82,10 @@ $base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checki
  * `buy_requires_token` is false, and the webhook holds a purchase made under another payer's id.
  */
 $proven = ark_buy_token_ok($customer, $_GET['e'] ?? null, $_GET['t'] ?? null);
-if (!$proven && !isset($_GET['topup']) && ark_config('buy_requires_token', false)) {
-    page(403, 'ArkAgent', 'Αυτός ο σύνδεσμος αγοράς έληξε ή δεν προέρχεται από το ArkAgent. Ανοίξτε ξανά την «Αγορά άδειας» μέσα στο ArkAgent.', 'This buy link has run out or did not come from ArkAgent. Open "Buy a licence" in ArkAgent again.');
+// Only a real top-up is exempt: `topup` beside `support` or `server` is not one (F-E).
+$topupOnly = isset($_GET['topup']) && !isset($_GET['support']) && !isset($_GET['server']);
+if (!$proven && !$topupOnly && ark_config('buy_requires_token', true)) {
+    page(403, 'ArkAgent', 'Αυτός ο σύνδεσμος αγοράς έληξε ή δεν προέρχεται από το ArkAgent. Ενημερώστε το ArkAgent στην τελευταία έκδοση και ανοίξτε ξανά την «Αγορά άδειας» μέσα στο ArkAgent.', 'This buy link has run out or did not come from ArkAgent. Update ArkAgent to the latest version, then open "Buy a licence" in ArkAgent again.');
 }
 $signed = $proven ? '&e=' . rawurlencode((string) $_GET['e']) . '&t=' . rawurlencode((string) $_GET['t']) : '';
 

@@ -218,6 +218,16 @@ export function startBunRelay(options: {
     woke: (office: string) => states.get(`office:${office}`)?.woke ?? 0,
     /** Runs an office's alarm now, as Cloudflare does when its time comes (the clock is the test's). */
     alarm: (office: string) => object(`office:${office}`).alarm(),
+    /** Runs SQL in an office's storage before anything else, as a stored office from an older version. */
+    seed: (office: string, ...queries: [string, ...unknown[]][]) => {
+      let state = states.get(`office:${office}`);
+      if (!state) {
+        state = new StandInState(() => object(`office:${office}`));
+        states.set(`office:${office}`, state);
+      }
+      for (const [query, ...bindings] of queries)
+        state.storage.sql.exec(query, ...bindings);
+    },
     /** When the office's alarm is set for, or null. */
     alarmAt: (office: string) =>
       states.get(`office:${office}`)?.storage.getAlarm() ?? null,

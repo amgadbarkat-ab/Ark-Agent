@@ -327,9 +327,7 @@ function ark_request_allowed(PDO $db, string $kind, string $install, int $perIns
     $db->exec('CREATE TABLE IF NOT EXISTS request_log (kind TEXT NOT NULL, who TEXT NOT NULL, at INTEGER NOT NULL)');
     $db->exec('CREATE INDEX IF NOT EXISTS request_log_who ON request_log (kind, who, at)');
     $db->prepare('DELETE FROM request_log WHERE at < ?')->execute([time() - 3600]);
-    // The address is kept only as a keyed hash, and only for the hour the limit counts.
-    $key = (string) (ark_config('buy_link_secret', '') ?: ark_config('relay_secret', '') ?: ark_config('admin_password_hash', ''));
-    $address = 'ip:' . hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), $key);
+    $address = ark_address_key();
     $count = $db->prepare('SELECT COUNT(*) FROM request_log WHERE kind = ? AND who = ?');
     $count->execute([$kind, 'install:' . $install]);
     if ((int) $count->fetchColumn() >= $perInstall) {
@@ -342,6 +340,16 @@ function ark_request_allowed(PDO $db, string $kind, string $install, int $perIns
     $db->prepare('INSERT INTO request_log (kind, who, at) VALUES (?, ?, ?), (?, ?, ?)')
         ->execute([$kind, 'install:' . $install, time(), $kind, $address, time()]);
     return true;
+}
+
+/**
+ * The caller's internet address as it is kept for a limit (v0.1.57): a keyed hash, never the address
+ * itself, and only for as long as the limit counts.
+ */
+function ark_address_key(): string
+{
+    $key = (string) (ark_config('buy_link_secret', '') ?: ark_config('relay_secret', '') ?: ark_config('admin_password_hash', ''));
+    return 'ip:' . hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), $key);
 }
 
 /** The per-address half alone, for an endpoint that already limits each install its own way. */

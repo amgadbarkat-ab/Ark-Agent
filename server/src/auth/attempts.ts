@@ -155,28 +155,71 @@ export function attemptGuard(options: {
 }
 
 /**
- * Sign-in takes JSON only, with an email (security review of v0.1.56). Better Auth also reads a web
- * form, and the limiter cannot see a form's email, so a form attempt would share one count with
- * every other form attempt, which any right password then cleared. The app always sends JSON.
+ * The JSON body of a request whose content type is exactly `application/json` (a `charset=utf-8`
+ * parameter allowed), as an object, or null. Anything else is refused by the callers: a type such as
+ * `application/x-www-form-urlencoded, application/json` reads as JSON to a check that looks at the
+ * end and as a form to the sign-in library (the Security Engineer's review of v0.1.57, F-A).
+ */
+async function strictJsonObject(
+  context: Context,
+): Promise<Record<string, unknown> | null> {
+  const [media = "", ...parameters] = (
+    context.req.header("content-type") ?? ""
+  ).split(";");
+  if (media.trim().toLowerCase() !== "application/json") return null;
+  if (
+    !parameters.every((parameter) =>
+      /^\s*charset\s*=\s*"?utf-8"?\s*$/i.test(parameter),
+    )
+  )
+    return null;
+  const body = (await context.req.raw
+    .clone()
+    .json()
+    .catch(() => null)) as unknown;
+  return body && typeof body === "object" && !Array.isArray(body)
+    ? (body as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * The request passed on, rebuilt from the body this side read, with a plain JSON content type: what
+ * was counted or checked here is exactly what the sign-in library reads.
+ */
+function asCleanJson(context: Context, body: Record<string, unknown>) {
+  const headers = new Headers(context.req.raw.headers);
+  headers.set("content-type", "application/json");
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  headers.delete("transfer-encoding");
+  context.req.raw = new Request(context.req.raw.url, {
+    method: context.req.raw.method,
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Email sign-in takes only the app's own JSON request (security review of v0.1.56, finding 1; and of
+ * v0.1.57, F-A): the wrong-password lock counts by the email in that JSON, so a form, or a type that
+ * a form could hide behind, would let guesses go uncounted. The request is passed on rebuilt, so the
+ * library checks the very email that was counted.
  */
 export function jsonSignInOnly(): MiddlewareHandler {
   return async (context, next) => {
     if (context.req.method !== "POST") return next();
-    const type = (context.req.header("content-type") ?? "").toLowerCase();
-    if (!(type.split(";")[0] ?? "").trim().endsWith("/json"))
+    const body = await strictJsonObject(context);
+    if (!body)
       return context.json(
         { error: "Sign in from the ArkAgent app.", code: "json_only" },
         415,
       );
-    const body = (await context.req.raw
-      .clone()
-      .json()
-      .catch(() => null)) as { email?: unknown } | null;
-    if (typeof body?.email !== "string" || body.email.trim() === "")
+    if (typeof body.email !== "string" || body.email.trim() === "")
       return context.json(
         { error: "Write your email and password.", code: "email_required" },
         400,
       );
+    asCleanJson(context, body);
     return next();
   };
 }
@@ -191,14 +234,8 @@ export function jsonSignInOnly(): MiddlewareHandler {
 export function revokeOtherSessionsOnPasswordChange(): MiddlewareHandler {
   return async (context, next) => {
     if (context.req.method !== "POST") return next();
-    const type = (context.req.header("content-type") ?? "").toLowerCase();
-    const body = (type.split(";")[0] ?? "").trim().endsWith("/json")
-      ? ((await context.req.raw
-          .clone()
-          .json()
-          .catch(() => null)) as unknown)
-      : null;
-    if (!body || typeof body !== "object" || Array.isArray(body))
+    const body = await strictJsonObject(context);
+    if (!body)
       return context.json(
         {
           error: "Change your password from the ArkAgent app.",
@@ -206,13 +243,7 @@ export function revokeOtherSessionsOnPasswordChange(): MiddlewareHandler {
         },
         415,
       );
-    const headers = new Headers(context.req.raw.headers);
-    headers.delete("content-length");
-    context.req.raw = new Request(context.req.raw.url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ ...body, revokeOtherSessions: true }),
-    });
+    asCleanJson(context, { ...body, revokeOtherSessions: true });
     return next();
   };
 }

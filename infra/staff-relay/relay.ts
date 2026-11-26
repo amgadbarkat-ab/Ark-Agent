@@ -352,6 +352,27 @@ export class OfficeObject {
     state.setWebSocketAutoResponse(platform.autoResponse(PING, PONG));
   }
 
+  /**
+   * Offices registered before v0.1.57 have no `office` column (the Security Engineer's review,
+   * F-F): added once, so they keep working and their 30-day forget can name them. Nothing happens
+   * when there is no table or the column is there.
+   */
+  private upgraded = false;
+  private upgrade() {
+    if (this.upgraded) return;
+    this.upgraded = true;
+    try {
+      const columns = this.state.storage.sql
+        .exec<{ name: string }>("PRAGMA table_info(office)")
+        .toArray()
+        .map((row) => row.name);
+      if (columns.length > 0 && !columns.includes("office"))
+        this.state.storage.sql.exec(
+          "ALTER TABLE office ADD COLUMN office TEXT",
+        );
+    } catch {}
+  }
+
   private held():
     | {
         customer: string;
@@ -360,6 +381,7 @@ export class OfficeObject {
         office: string | null;
       }
     | undefined {
+    this.upgrade();
     try {
       return this.state.storage.sql
         .exec<{
@@ -593,7 +615,12 @@ export class OfficeObject {
           CLOSE.refused,
           "This office is held by another ArkAgent.",
         );
-      } else if (kept.access_hash !== accessHash) {
+      } else if (kept.access_hash !== accessHash || kept.office === null) {
+        if (kept.office === null)
+          this.state.storage.sql.exec(
+            "UPDATE office SET office = ? WHERE id = 1",
+            String(verified.office),
+          );
         // The company's computer made a new join code: the old one stops working.
         this.state.storage.sql.exec(
           "UPDATE office SET access_hash = ? WHERE id = 1",

@@ -210,6 +210,8 @@ describe("the model address check knows every range that is not the internet", (
     "[::ffff:192.168.0.1]",
     "::ffff:a00:5",
     "64:ff9b::a00:5",
+    "fec0::1",
+    "ff02::1",
   ])("%s is private", (address) => {
     expect(isPrivateAddress(address)).toBe(true);
   });

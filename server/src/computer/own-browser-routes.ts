@@ -15,6 +15,7 @@ import { type Context, Hono, type MiddlewareHandler } from "hono";
 import type { BotAccessCheck } from "../agents/profile-policy";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
+import type { RemoteGate, RemoteVia } from "../host-access/remote-gate";
 import { desktopAuthorized } from "../host-access/routes";
 import {
   closeOwnBrowserTab,
@@ -60,17 +61,10 @@ export function createOwnBrowserRoutes(options: {
    * allows it in a native dialog. Resolves when allowed; rejects with the reason otherwise.
    */
   remote?: {
-    cameFromAnotherComputer: (context: Context) => boolean;
-    confirm: (input: {
-      botId: string;
-      botName: string;
-      actorId: string;
-      action: "own_browser";
-    }) => Promise<void>;
-    botName?: (
-      botId: string,
-      actor: AppVariables["actor"],
-    ) => Promise<string | null>;
+    /** How the request reached this computer, or null when it came from this computer itself. */
+    cameFromAnotherComputer: (context: Context) => RemoteVia | null;
+    /** The approval gate every own-browser action passes (host-access/remote-gate.ts). */
+    gate: Pick<RemoteGate, "require" | "forget">;
   };
 }) {
   const routes = new Hono<{ Variables: AppVariables }>();
@@ -203,19 +197,13 @@ export function createOwnBrowserRoutes(options: {
       if (!own.available()) {
         return context.json({ error: SWITCH_IT_ON_FIRST }, 409);
       }
-      if (
-        !own.chosen(botId) &&
-        options.remote?.cameFromAnotherComputer(context)
-      ) {
+      const via = options.remote?.cameFromAnotherComputer(context) ?? null;
+      if (via && options.remote) {
         try {
-          await options.remote.confirm({
+          await options.remote.gate.require({
             botId,
-            botName:
-              (await options.remote
-                .botName?.(botId, actor)
-                .catch(() => null)) ?? botId,
             actorId: actor.id,
-            action: "own_browser",
+            via,
           });
         } catch (error) {
           await audit("own_browser_remote_refused", { actor, botId });
@@ -241,6 +229,7 @@ export function createOwnBrowserRoutes(options: {
       // Its tab goes with it: the person said this employee no longer works in their browser.
       await closeOwnBrowserTab(own, botId, callOptions);
       own.release(botId);
+      options.remote?.gate.forget(botId);
       await options.forgetSnapshot?.(botId).catch(() => undefined);
       await audit("own_browser_released", { actor, botId });
     }
@@ -261,6 +250,7 @@ export function createOwnBrowserRoutes(options: {
       if (!(await canUseBot(actor, choice.botId))) continue;
       await closeOwnBrowserTab(own, choice.botId, callOptions);
       own.release(choice.botId);
+      options.remote?.gate.forget(choice.botId);
       await options.forgetSnapshot?.(choice.botId).catch(() => undefined);
     }
     await audit("own_browser_stopped", { actor });

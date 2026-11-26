@@ -457,6 +457,34 @@ describe("what the relay keeps, and for how long", () => {
     await until(() => freshTexts.includes("welcome"));
   });
 
+  test("an office stored by the relay before v0.1.57 keeps working, can be forgotten, and expires", async () => {
+    let clock = Date.now();
+    relay = startBunRelay({ keys, now: () => clock });
+    // The v0.1.56 table, without the office column.
+    relay.seed(
+      office,
+      [
+        "CREATE TABLE office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0)",
+      ],
+      [
+        "INSERT INTO office (id, customer, host_hash, access_hash, last_seen) VALUES (1, ?, ?, ?, ?)",
+        "demo-shop",
+        await sha256Hex(hostKey),
+        await sha256Hex(accessKey),
+        clock,
+      ],
+    );
+    const hosting = await host();
+    await until(() => hosting.texts.includes("welcome"));
+    hosting.socket.close();
+    await until(() => relay.alarmAt(office) !== null);
+    clock += IDLE_OFFICE_MS + 1;
+    await relay.alarm(office);
+    // Forgotten: any host key may start it afresh.
+    const fresh = await host("a-fresh-host-key-0123456789abcdef");
+    await until(() => fresh.texts.includes("welcome"));
+  });
+
   test("a customer BlackArk cut off is refused, and its office closed", async () => {
     relay = startBunRelay({ keys, revoked: "someone-else, demo-shop" });
     const hosting = await host();

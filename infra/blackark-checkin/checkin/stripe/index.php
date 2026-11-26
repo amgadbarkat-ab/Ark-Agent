@@ -413,6 +413,15 @@ switch ($event['type']) {
             // The buyer's Stripe customer, for every buyer (v0.1.49): the phone usage meters need it.
             'stripe_customer' => preg_match('/^cus_[A-Za-z0-9]+$/', (string) ($object['customer'] ?? '')) === 1 ? (string) $object['customer'] : null,
         ]);
+        /*
+         * A licence bought through a buy link blackark.uk did not sign (v0.1.57; the Security
+         * Engineer's review, F-D): anybody who knows a customer id can make one, so no key is signed
+         * until BlackArk has checked it (admin page, "Held purchases"). Checkouts from before v0.1.57
+         * carry no `proven` and are not held for it; one BlackArk already released stays released.
+         */
+        if ((($object['metadata']['proven'] ?? null)) === '0') {
+            $db->prepare('UPDATE licenses SET held = 1 WHERE subscription_id = ? AND held = 0')->execute([$subscription]);
+        }
         issue($db, $subscription);
         reply(200);
     case 'invoice.paid':

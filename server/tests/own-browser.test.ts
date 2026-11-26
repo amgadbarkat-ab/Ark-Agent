@@ -26,6 +26,7 @@ import { DEFAULT_ACTION_POLICY } from "../src/computer/policy-store";
 import { type ComputerProvider, ProviderError } from "../src/computer/provider";
 import type { SnapshotResult } from "../src/computer/schema";
 import { createInMemorySnapshotStore } from "../src/computer/snapshot-store";
+import { createRemoteGate } from "../src/host-access/remote-gate";
 
 /**
  * The person's own browser as a computer (device control, phase 1; desk #27).
@@ -385,12 +386,15 @@ describe("the routes", () => {
         ...(options.remote
           ? {
               remote: {
-                cameFromAnotherComputer: () => options.remote?.from === true,
-                confirm: async ({ botId, action }) => {
-                  options.remote?.asked.push(`${action}:${botId}`);
-                  if (!options.remote?.allow)
-                    throw new Error("The local owner denied this operation.");
-                },
+                cameFromAnotherComputer: () =>
+                  options.remote?.from === true ? "relay" : null,
+                gate: createRemoteGate({
+                  confirm: async ({ botId, via, minutes }) => {
+                    options.remote?.asked.push(`${via}:${minutes}:${botId}`);
+                    if (!options.remote?.allow)
+                      throw new Error("The local owner denied this operation.");
+                  },
+                }),
               },
             }
           : {}),
@@ -422,14 +426,17 @@ describe("the routes", () => {
     expect(refused.status).toBe(403);
     expect((await refused.json()).code).toBe("remote_approval_refused");
     expect(one.own.chosen("ana")).toBe(false);
-    expect(denied.asked).toEqual(["own_browser:ana"]);
+    expect(denied.asked).toEqual(["relay:10:ana"]);
 
     const allowed = { from: true, allow: true, asked: [] as string[] };
     const two = app({ remote: allowed });
     await two.desktop(OWN);
     expect((await two.use("ana", true)).status).toBe(200);
     expect(two.own.chosen("ana")).toBe(true);
-    expect(allowed.asked).toEqual(["own_browser:ana"]);
+    expect(allowed.asked).toEqual(["relay:10:ana"]);
+    // Allowed for 10 minutes: choosing it again from there asks nothing more.
+    expect((await two.use("ana", true)).status).toBe(200);
+    expect(allowed.asked).toEqual(["relay:10:ana"]);
 
     // At this computer itself, nothing is asked.
     const here = { from: false, allow: false, asked: [] as string[] };

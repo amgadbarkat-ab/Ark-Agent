@@ -46,8 +46,8 @@ echo ark_page_open('ArkAgent licence key', 'el', $ready || $held || $gone ? '' :
   <p lang="en">Thank you. Copy this key into ArkAgent's Activate screen, or Settings, Plan, Activation. It renews by itself each month.</p>
 <?php elseif ($row && (int) $row['held'] === 1): ?>
   <h1>Η αγορά σας ελέγχεται</h1>
-  <p>Η πληρωμή ολοκληρώθηκε, αλλά ο κωδικός πελάτη του συνδέσμου ανήκει ήδη σε άλλο λογαριασμό. Η BlackArk το ελέγχει και επικοινωνεί μαζί σας, συνήθως την ίδια εργάσιμη μέρα. Αν δεν είναι δική σας η αγορά, θα επιστραφούν τα χρήματα.</p>
-  <p lang="en">Your payment went through, but the customer id in the link already belongs to another account. BlackArk checks it and contacts you, usually the same working day. If it is not yours, the payment is refunded.</p>
+  <p>Η πληρωμή ολοκληρώθηκε. Η BlackArk ελέγχει αυτή την αγορά πριν εκδοθεί το κλειδί, γιατί ο σύνδεσμος δεν επιβεβαιώθηκε από το ArkAgent ή ο κωδικός πελάτη ανήκει ήδη σε άλλο λογαριασμό. Επικοινωνεί μαζί σας, συνήθως την ίδια εργάσιμη μέρα. Αν δεν είναι δική σας η αγορά, θα επιστραφούν τα χρήματα.</p>
+  <p lang="en">Your payment went through. BlackArk checks this purchase before the key is issued, because the link was not confirmed by ArkAgent or the customer id in it already belongs to another account. BlackArk contacts you, usually the same working day. If it is not yours, the payment is refunded.</p>
 <?php else: ?>
   <h1>Το κλειδί σας ετοιμάζεται…</h1>
   <p>Η πληρωμή ολοκληρώθηκε. Η σελίδα ανανεώνεται μόνη της σε λίγα δευτερόλεπτα. Αν δεν εμφανιστεί κλειδί σε 5 λεπτά, επικοινωνήστε με την BlackArk.</p>

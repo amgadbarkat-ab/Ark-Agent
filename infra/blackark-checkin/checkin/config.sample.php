@@ -63,10 +63,10 @@ return [
     // characters, made on your own computer and never posted:
     //   php -r 'echo bin2hex(random_bytes(32)), "\n";'
     'buy_link_secret' => '',
-    // Refuse buy links without that signature. Leave false until v0.1.57 is the app customers have
-    // (older apps make unsigned links), then set true. Until then the webhook holds a purchase made
-    // under a customer id that another payer already holds.
-    'buy_requires_token' => false,
+    // Refuse buy links without that signature (the default). Older apps make unsigned links, so
+    // their customers update ArkAgent before buying. If this is ever set false, a licence bought
+    // through an unsigned link is held for BlackArk to check (admin page, "Held purchases").
+    'buy_requires_token' => true,
     // A RESTRICTED Stripe key (rk_live_…). It needs: Checkout Sessions write; for automatic top-up
     // also Invoices write and Customers read. Nothing else. Never post it.
     'stripe_api_key' => '',

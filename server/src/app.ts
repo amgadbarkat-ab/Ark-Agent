@@ -93,6 +93,7 @@ import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
 import type { HostAccessBroker } from "./host-access/broker";
+import { type RemoteGate, viaOf } from "./host-access/remote-gate";
 import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import {
@@ -489,7 +490,10 @@ export function createApp(
   ownBrowser?: Pick<
     Parameters<typeof createOwnBrowserRoutes>[0],
     "own" | "computerToken" | "forgetSnapshot"
-  >,
+  > & {
+    /** The approval gate for device control from another computer (v0.1.57). */
+    remoteGate?: RemoteGate;
+  },
   /**
    * The hand-off desk, for a person asking several colleagues in one message (desk #87). Appended
    * last, for the positional reason above. Absent, or `TEAM_FANOUT_ENABLED` off, leaves
@@ -569,6 +573,38 @@ export function createApp(
   );
   app.use("*", requestShape());
   app.use("/api/*", jsonBodyLimit());
+
+  /*
+   * Who is using ArkAgent from another computer (v0.1.57): a signed-in request the office listener
+   * took (office network or relay) marks that person, so their own browser on this computer asks
+   * before anything more happens in it (host-access/remote-gate.ts). The session is looked up at most
+   * every 30 seconds per cookie, and only for requests from another computer.
+   */
+  if (office && auth && ownBrowser?.remoteGate) {
+    const gate = ownBrowser.remoteGate;
+    const known = new Map<string, { userId: string | null; until: number }>();
+    app.use("*", async (context, next) => {
+      const server = (context.env as { server?: unknown } | undefined)?.server;
+      const cookie = context.req.header("cookie") ?? "";
+      if (office.servedBy(server) && cookie.includes("session_token")) {
+        let hit = known.get(cookie);
+        if (!hit || hit.until < Date.now()) {
+          const session = await auth.api
+            .getSession({ headers: context.req.raw.headers })
+            .catch(() => null);
+          hit = {
+            userId: session?.user?.id ?? null,
+            until: Date.now() + 30_000,
+          };
+          if (known.size >= 1_000) known.clear();
+          known.set(cookie, hit);
+        }
+        if (hit.userId)
+          gate.noteRemote(hit.userId, viaOf(server, context.req.raw));
+      }
+      await next();
+    });
+  }
   // Where the browser says what the policy would have blocked. Public, because the browser sends it
   // by itself; after the guards above like everything else, and small, limited and written to the log
   // field by field (csp.ts).
@@ -1815,22 +1851,19 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
-        // The administrator asking from another computer: allowed once on this one, natively.
-        ...(office && hostAccessBroker
+        // The administrator asking from another computer: allowed on this one, natively, for a time.
+        ...(office && ownBrowser.remoteGate
           ? {
               remote: {
-                cameFromAnotherComputer: (context) =>
-                  office.servedBy(
-                    (context.env as { server?: unknown } | undefined)?.server,
-                  ),
-                confirm: (input) => hostAccessBroker.confirmRemote(input),
-                ...(agentProfileStore
-                  ? {
-                      botName: async (botId, actor) =>
-                        (await agentProfileStore.get(actor, botId))?.name ??
-                        null,
-                    }
-                  : {}),
+                cameFromAnotherComputer: (context) => {
+                  const server = (
+                    context.env as { server?: unknown } | undefined
+                  )?.server;
+                  return office.servedBy(server)
+                    ? viaOf(server, context.req.raw)
+                    : null;
+                },
+                gate: ownBrowser.remoteGate,
               },
             }
           : {}),

@@ -153,26 +153,23 @@ pub trait HostApprovalUi: Send + Sync + 'static {
     }
 }
 
-/// What a request from another computer asks for. Only these, worded here, never by the server.
+/// What a request from another computer asks for. Only this, worded here, never by the server.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RemoteAction {
-    /// A digital employee to work in this computer's own Chrome or Edge.
+    /// A digital employee working in this computer's own Chrome or Edge, signed in as the
+    /// administrator: seeing it, acting in it, and showing its live screen (v0.1.57).
     OwnBrowser,
-    /// Watching, and typing into, that Chrome or Edge on the employee's live screen.
-    OwnBrowserScreen,
 }
 
-impl RemoteAction {
-    fn from_wire(value: Option<&str>) -> HostAccessResult<Self> {
-        match value {
-            Some("own_browser") => Ok(Self::OwnBrowser),
-            Some("own_browser_screen") => Ok(Self::OwnBrowserScreen),
-            _ => Err(HostAccessError::Denied(
-                "Unknown request from another computer.".into(),
-            )),
-        }
-    }
+/// How the person asking reaches this computer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RemoteVia {
+    OfficeNetwork,
+    Relay,
 }
+
+/// The longest an approval may be asked for; the server asks for 10 minutes.
+pub const REMOTE_APPROVAL_MAX_MINUTES: u32 = 60;
 
 #[derive(Clone, Debug)]
 pub struct RemotePrompt {
@@ -181,6 +178,44 @@ pub struct RemotePrompt {
     pub bot_name: Option<String>,
     pub actor_id: String,
     pub action: RemoteAction,
+    /// The account's email or name, as the person here knows it.
+    pub account: String,
+    pub via: RemoteVia,
+    /// How long the approval lasts, which the window says.
+    pub minutes: u32,
+}
+
+/// Reads `content`: `{"action":"own_browser","account":…,"via":"office network"|"relay","minutes":n}`.
+/// Anything else is refused, so the words shown are always this side's own.
+fn remote_from_wire(
+    value: Option<&str>,
+) -> HostAccessResult<(RemoteAction, String, RemoteVia, u32)> {
+    let unknown = || HostAccessError::Denied("Unknown request from another computer.".into());
+    let parsed: serde_json::Value =
+        serde_json::from_str(value.ok_or_else(unknown)?).map_err(|_| unknown())?;
+    let action = match parsed.get("action").and_then(|v| v.as_str()) {
+        Some("own_browser") => RemoteAction::OwnBrowser,
+        _ => return Err(unknown()),
+    };
+    let via = match parsed.get("via").and_then(|v| v.as_str()) {
+        Some("office network") => RemoteVia::OfficeNetwork,
+        Some("relay") => RemoteVia::Relay,
+        _ => return Err(unknown()),
+    };
+    let minutes = parsed
+        .get("minutes")
+        .and_then(|v| v.as_u64())
+        .filter(|m| (1..=u64::from(REMOTE_APPROVAL_MAX_MINUTES)).contains(m))
+        .ok_or_else(unknown)? as u32;
+    let account: String = parsed
+        .get("account")
+        .and_then(|v| v.as_str())
+        .ok_or_else(unknown)?
+        .chars()
+        .map(|ch| if ch.is_control() { ' ' } else { ch })
+        .take(200)
+        .collect();
+    Ok((action, account, via, minutes))
 }
 
 pub struct DenyAllApprovalUi;
@@ -674,14 +709,17 @@ impl Inner {
     }
 
     fn confirm_remote(&self, operation: &DesktopOperation) -> HostAccessResult<OperationSuccess> {
-        // The action travels in `content`, from a fixed list; the words shown are this side's own.
-        let action = RemoteAction::from_wire(operation.content.as_deref())?;
+        // The request travels in `content`, from a fixed shape; the words shown are this side's own.
+        let (action, account, via, minutes) = remote_from_wire(operation.content.as_deref())?;
         self.approval.confirm_remote(&RemotePrompt {
             operation_id: operation.operation_id.clone(),
             bot_id: operation.bot_id.clone(),
             bot_name: operation.bot_name.clone(),
             actor_id: operation.actor_id.clone(),
             action,
+            account,
+            via,
+            minutes,
         })?;
         Ok(OperationSuccess::empty())
     }
@@ -2241,6 +2279,34 @@ mod tests {
         }
     }
 
+    const OWN_BROWSER_REQUEST: &str =
+        r#"{"action":"own_browser","account":"maria@shop.example","via":"relay","minutes":10}"#;
+
+    #[test]
+    fn a_request_from_another_computer_names_who_how_and_for_how_long() {
+        let (action, account, via, minutes) = remote_from_wire(Some(OWN_BROWSER_REQUEST)).unwrap();
+        assert_eq!(action, RemoteAction::OwnBrowser);
+        assert_eq!(account, "maria@shop.example");
+        assert_eq!(via, RemoteVia::Relay);
+        assert_eq!(minutes, 10);
+        for bad in [
+            None,
+            Some("own_browser"),
+            Some(r#"{"action":"run_command","account":"a","via":"relay","minutes":10}"#),
+            Some(r#"{"action":"own_browser","account":"a","via":"internet","minutes":10}"#),
+            Some(r#"{"action":"own_browser","account":"a","via":"relay","minutes":0}"#),
+            Some(r#"{"action":"own_browser","account":"a","via":"relay","minutes":600}"#),
+            Some(r#"{"action":"own_browser","via":"relay","minutes":10}"#),
+        ] {
+            assert!(remote_from_wire(bad).is_err(), "{bad:?}");
+        }
+        let (_, account, _, _) = remote_from_wire(Some(
+            r#"{"action":"own_browser","account":"a\nb","via":"office network","minutes":10}"#,
+        ))
+        .unwrap();
+        assert_eq!(account, "a b");
+    }
+
     #[test]
     fn a_request_from_another_computer_is_asked_here_and_allowed_or_denied_once() {
         let allow = Arc::new(RemoteApprovalUi {
@@ -2249,7 +2315,7 @@ mod tests {
         });
         let inner = remote_inner(allow.clone());
         assert!(inner
-            .handle_operation(&remote_operation("op-1", Some("own_browser")))
+            .handle_operation(&remote_operation("op-1", Some(OWN_BROWSER_REQUEST)))
             .is_ok());
         assert_eq!(
             allow.asked.lock().unwrap().as_slice(),
@@ -2257,7 +2323,7 @@ mod tests {
         );
         // The same request delivered again is refused, never asked twice.
         assert!(inner
-            .handle_operation(&remote_operation("op-1", Some("own_browser")))
+            .handle_operation(&remote_operation("op-1", Some(OWN_BROWSER_REQUEST)))
             .is_err());
 
         let deny = Arc::new(RemoteApprovalUi {
@@ -2266,7 +2332,7 @@ mod tests {
         });
         let inner = remote_inner(deny);
         assert!(inner
-            .handle_operation(&remote_operation("op-2", Some("own_browser")))
+            .handle_operation(&remote_operation("op-2", Some(OWN_BROWSER_REQUEST)))
             .is_err());
         // Only actions this side words itself; anything else is refused without asking.
         let inner = remote_inner(Arc::new(RemoteApprovalUi {
@@ -2279,7 +2345,7 @@ mod tests {
         // Nobody wired a native dialog: refused.
         let inner = remote_inner(Arc::new(DenyAllApprovalUi));
         assert!(inner
-            .handle_operation(&remote_operation("op-4", Some("own_browser")))
+            .handle_operation(&remote_operation("op-4", Some(OWN_BROWSER_REQUEST)))
             .is_err());
     }
 

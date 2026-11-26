@@ -95,6 +95,11 @@ export function createOwnBrowser(
       return chosen.has(botId);
     },
 
+    /** Who put this employee in their browser, or undefined. */
+    chooser(botId: string): string | undefined {
+      return chosen.get(botId)?.actorId;
+    },
+
     choose(botId: string, actorId: string): OwnBrowserChoice {
       const existing = chosen.get(botId);
       if (existing) return existing;
@@ -210,7 +215,14 @@ export async function closeOwnBrowserTab(
 export function withOwnBrowser(
   base: ComputerProvider,
   own: OwnBrowser,
-  options: CallOptions = {},
+  options: CallOptions & {
+    /**
+     * Every action that reaches the person's browser passes here first (v0.1.57): while their
+     * account is used from another computer, it waits for their yes on this one
+     * (host-access/remote-gate.ts). Rejects with the sentence to show.
+     */
+    gate?: (input: { botId: string; actorId: string }) => Promise<void>;
+  } = {},
 ): ComputerProvider {
   const ownAddress = (botId: string): string => {
     const address = own.address();
@@ -224,7 +236,18 @@ export function withOwnBrowser(
     isolation: base.isolation,
 
     async locate(botId) {
-      return own.chosen(botId) ? ownAddress(botId) : base.locate(botId);
+      if (!own.chosen(botId)) return base.locate(botId);
+      const actorId = own.chooser(botId);
+      if (options.gate && actorId) {
+        try {
+          await options.gate({ botId, actorId });
+        } catch (error) {
+          throw new ProviderError(
+            error instanceof Error ? error.message : OWN_BROWSER_OFF,
+          );
+        }
+      }
+      return ownAddress(botId);
     },
 
     async sessionOf(botId) {

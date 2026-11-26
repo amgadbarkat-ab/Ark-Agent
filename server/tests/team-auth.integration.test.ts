@@ -4,7 +4,10 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createTeamService, type TeamAuthContext } from "../src/accounts/team";
 import { createAuth } from "../src/auth";
-import { revokeOtherSessionsOnPasswordChange } from "../src/auth/attempts";
+import {
+  jsonSignInOnly,
+  revokeOtherSessionsOnPasswordChange,
+} from "../src/auth/attempts";
 import { loadConfig } from "../src/config";
 import { createDatabase } from "../src/db/client";
 import {
@@ -294,4 +297,40 @@ test("a password change through Better Auth's own route signs out every other se
     auth.api.getSession({ headers: new Headers({ cookie }) });
   expect(await session(elsewhere)).toBeNull();
   expect((await signIn(admin, "another-long-password")).status).toBe(200);
+});
+
+test("a sign-in disguised as JSON and a form at once is refused before the library reads it (v0.1.57, F-A)", async () => {
+  const admin = email();
+  await team.setup({
+    name: "Maria",
+    email: admin,
+    password: "a-long-password",
+  });
+  const app = new Hono();
+  app.use("/api/auth/sign-in/email", jsonSignInOnly());
+  app.on(["GET", "POST"], "/api/auth/*", (context) =>
+    auth.handler(context.req.raw),
+  );
+  const send = (type: string, body: string) =>
+    app.request("http://localhost:3001/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": type, origin: "http://localhost:52110" },
+      body,
+    });
+  // The reviewer's request: valid JSON naming somebody else, a form naming the administrator.
+  const disguised = JSON.stringify({
+    email: "nobody@example.test",
+    x: `&email=${encodeURIComponent(admin)}&password=a-long-password`,
+  });
+  for (const type of [
+    "application/x-www-form-urlencoded, application/json",
+    "application/x-www-form-urlencoded; x=/json",
+    "multipart/form-data; boundary=x, application/json",
+    "text/plain+json",
+  ])
+    expect((await send(type, disguised)).status).toBe(415);
+  // The app's own request still signs in, with or without a charset.
+  const own = JSON.stringify({ email: admin, password: "a-long-password" });
+  expect((await send("application/json", own)).status).toBe(200);
+  expect((await send("application/json; charset=utf-8", own)).status).toBe(200);
 });

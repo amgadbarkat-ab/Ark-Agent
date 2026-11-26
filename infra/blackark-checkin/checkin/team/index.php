@@ -64,7 +64,7 @@ if ((int) $count->fetchColumn() >= (int) ark_config('servers_per_install_per_hou
  * Also per address (security review of v0.1.54, F7): the install id is whatever the caller says, so
  * a limit on it alone is no limit for somebody who makes up a new one each time.
  */
-$address = 'ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+$address = ark_address_key();
 $count->execute([$address]);
 if ((int) $count->fetchColumn() >= (int) ark_config('team_per_address_per_hour', 120)) {
     team_answer(429);

@@ -16,6 +16,8 @@ export type HubSocketData = {
   queued: (string | ArrayBuffer | Uint8Array)[];
   /** Whose join token opened it, and the check that they may still use ArkAgent. */
   userId?: string;
+  /** How it reached this computer: the office network or BlackArk's relay (v0.1.57). */
+  via?: "office network" | "relay";
   mayUse?: (userId: string) => Promise<boolean>;
   recheck?: ReturnType<typeof setInterval>;
 };

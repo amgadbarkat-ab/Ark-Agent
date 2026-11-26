@@ -270,7 +270,11 @@ export function modelConnectionRoutes(options: {
         429,
       );
     }
-    if (!allowPrivateHosts) {
+    // Nothing about the administrator's computer for a sub-profile (v0.1.57), which cannot use it.
+    const restricted = await (
+      options.publicOnly?.(context.var.actor) ?? Promise.resolve(false)
+    ).catch(() => true);
+    if (!allowPrivateHosts || restricted) {
       return context.json({ offline: null, servers: [] });
     }
     const ask = (

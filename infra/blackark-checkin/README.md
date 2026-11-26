@@ -44,9 +44,10 @@ So from v0.1.57 a buy link comes from blackark.uk, signed, only after it checked
 - the app asks `POST /checkin/buy/link/` with its install proof, and `servers/` and
   `support/priority/` answer with signed links too. A link works for 6 hours;
 - `buy_link_secret` in `config.php` signs them (make it as `config.sample.php` says);
-- `buy_requires_token`: while it is false, an unsigned link from an older app still works, and the
-  Stripe webhook holds a purchase made under a customer id another payer already has (admin page,
-  "Held purchases"). Set it to true once customers run v0.1.57. A top-up never needs a signed link;
+- `buy_requires_token` (true by default): an unsigned link, as older apps make, is refused, and the
+  page asks the customer to update ArkAgent. If it is ever set false, a licence bought through an
+  unsigned link, or under a customer id another payer already has, is held (admin page, "Held
+  purchases"). Only a real top-up never needs a signed link;
 - after the paid trial or licence has ended more than 30 days ago, a proof no longer opens Ark
   Private Server, 24/7 support or sub-profiles, unless the customer has an active licence here.
   Binding sub-profiles to an install the first time needs a proof that has not ended. A trial unlock
@@ -56,7 +57,8 @@ So from v0.1.57 a buy link comes from blackark.uk, signed, only after it checked
   keyed hash, for an hour).
 
 **To switch on (COO, after Amgad's yes):** add `buy_link_secret` to the live `config.php`, set
-`require_proof` to true there, upload `checkin/`, then check that
+`require_proof` to true there (an explicit false overrides the new default), leave
+`buy_requires_token` out or true, upload `checkin/`, then check that
 `curl -i -X POST https://blackark.uk/checkin/buy/link/ --data '{"customerId":"blackark-test","installId":"00000000-0000-4000-8000-000000000001"}'`
 answers 403 (no proof), not 503 (no secret).
 

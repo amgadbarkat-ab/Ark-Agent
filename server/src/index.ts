@@ -147,8 +147,14 @@ import {
   agentProfiles,
   intelligenceChannelMappings,
   pluginGrants,
+  users,
 } from "./db/schema";
 import { createHostAccessBroker } from "./host-access/broker";
+import {
+  createRemoteGate,
+  type RemoteGate,
+  viaOf,
+} from "./host-access/remote-gate";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
 import { LegalHelperAgent } from "./marketplace/legal-answer";
@@ -640,6 +646,8 @@ const office =
               hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
               ownNames: () => [hostname(), `${hostname()}.local`],
               mayUse: async (userId) => (await team.mayUse(userId)).ok,
+              // Read when a socket opens, after start-up: the gate is made further down.
+              remoteSeen: (userId, via) => remoteGate?.noteRemote(userId, via),
             }),
           }),
       })
@@ -691,10 +699,36 @@ const meteredProvider = config.computer
  * In front of the metering, not behind it: an employee in the person's own browser is on their
  * computer, not in Ark's cloud, so nothing it does there is a cloud computer to count.
  */
+/*
+ * While the administrator's account is used from another computer, every action on their own
+ * browser waits for their yes on this one, for 10 minutes at a time (v0.1.57; Amgad, 26 Nov 2026).
+ * The broker is made further down; it is only called once requests arrive.
+ */
+const remoteGate: RemoteGate | undefined =
+  ownBrowser && office
+    ? createRemoteGate({
+        confirm: (prompt) => hostAccessBroker.confirmRemote(prompt),
+        describe: async (actorId) => {
+          const [row] = await database
+            .select({ email: users.email, name: users.name })
+            .from(users)
+            .where(eq(users.id, actorId))
+            .limit(1);
+          return row?.email || row?.name || null;
+        },
+        botName: async (botId, actorId) =>
+          (
+            await agentProfileStore
+              .get({ id: actorId, role: "admin" }, botId)
+              .catch(() => null)
+          )?.name ?? null,
+      })
+    : undefined;
 const computerProvider =
   meteredProvider && ownBrowser
     ? withOwnBrowser(meteredProvider, ownBrowser, {
         ...(config.computer?.token ? { token: config.computer.token } : {}),
+        ...(remoteGate ? { gate: (input) => remoteGate.require(input) } : {}),
       })
     : meteredProvider;
 
@@ -2108,6 +2142,7 @@ const app = createApp(
         own: ownBrowser,
         computerToken: config.computer?.token,
         forgetSnapshot: (botId: string) => snapshotStore.clear(botId),
+        ...(remoteGate ? { remoteGate } : {}),
       }
     : undefined,
   // Asking several colleagues in one message (desk #87); only mounted when TEAM_FANOUT_ENABLED is on.
@@ -2351,14 +2386,12 @@ const serverOptions = {
        */
       if (ownBrowser?.chosen(streamBotId) && office?.servedBy(server)) {
         try {
-          const profile = await agentProfileStore
-            .get({ id: actor.id, role: actor.role }, streamBotId)
-            .catch(() => null);
-          await hostAccessBroker.confirmRemote({
+          if (!remoteGate)
+            throw new Error("Not allowed on the administrator's computer.");
+          await remoteGate.require({
             botId: streamBotId,
-            botName: profile?.name ?? streamBotId,
             actorId: actor.id,
-            action: "own_browser_screen",
+            via: viaOf(server, request),
           });
         } catch (error) {
           return new Response(

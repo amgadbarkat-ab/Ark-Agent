@@ -1,4 +1,5 @@
 import type { Server, WebSocketHandler } from "bun";
+import { type RemoteVia, viaOf } from "../host-access/remote-gate";
 import { hostAllowed } from "./hosts";
 import {
   HUB_PATH,
@@ -38,6 +39,12 @@ export function officeServeOptions<Data>(
      * not). The hub's socket is refused, and closed within seconds later, when they may not.
      */
     mayUse?: (userId: string) => Promise<boolean>;
+    /**
+     * Told when a person's conversation socket opens over this listener, and on each message they
+     * send through it (v0.1.57): they are using ArkAgent from another computer, so their own browser
+     * here asks before it is used (host-access/remote-gate.ts).
+     */
+    remoteSeen?: (userId: string, via: RemoteVia) => void;
   },
 ) {
   type Both = Data | HubSocketData;
@@ -63,12 +70,15 @@ export function officeServeOptions<Data>(
           return new Response("No longer allowed to use this ArkAgent.", {
             status: 403,
           });
+        const via = viaOf(server, request);
+        options.remoteSeen?.(userId, via);
         if (
           (server as unknown as Server<HubSocketData>).upgrade(request, {
             data: {
               hub: options.hub + url.search,
               queued: [],
               userId,
+              via,
               ...(options.mayUse ? { mayUse: options.mayUse } : {}),
             },
           })
@@ -94,8 +104,12 @@ export function officeServeOptions<Data>(
         else socket.open?.(ws);
       },
       message(ws, message) {
-        if (isHubSocket(ws.data)) hubSocket.message(ws as never, message);
-        else socket.message(ws, message);
+        if (isHubSocket(ws.data)) {
+          const data = ws.data as HubSocketData;
+          if (data.userId && data.via)
+            options.remoteSeen?.(data.userId, data.via);
+          hubSocket.message(ws as never, message);
+        } else socket.message(ws, message);
       },
       close(ws, code, reason) {
         if (isHubSocket(ws.data)) hubSocket.close(ws as never);
