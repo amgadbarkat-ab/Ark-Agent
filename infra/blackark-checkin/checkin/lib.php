@@ -12,6 +12,10 @@
 
 declare(strict_types=1);
 
+if (!headers_sent()) {
+    header_remove('X-Powered-By');
+}
+
 if (!defined('ARK_CHECKIN')) {
     http_response_code(404);
     exit;
@@ -72,6 +76,10 @@ function ark_db(): PDO
         }
     }
     $pdo->exec('CREATE TABLE IF NOT EXISTS login_failures (at INTEGER NOT NULL)');
+    // Per address (security assessment of 26 Nov 2026), so nobody can lock BlackArk out of its own page.
+    if (!in_array('address', array_column($pdo->query('PRAGMA table_info(login_failures)')->fetchAll(), 'name'), true)) {
+        $pdo->exec("ALTER TABLE login_failures ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+    }
     // Paid licence keys from Stripe (v0.1.44): one row per subscription, its latest signed key.
     $pdo->exec('CREATE TABLE IF NOT EXISTS licenses (
         subscription_id TEXT PRIMARY KEY,
@@ -104,7 +112,9 @@ function ark_db(): PDO
     // Ark Team's tier (v0.1.49), and the buyer's Stripe customer (cus_…) for the usage meters:
     // added to an existing file once, empty for older rows.
     $licenceColumns = array_column($pdo->query('PRAGMA table_info(licenses)')->fetchAll(), 'name');
-    foreach (['max_agents' => 'INTEGER', 'stripe_customer' => 'TEXT'] as $column => $type) {
+    // `held` (security assessment of 26 Nov 2026): 1 when a purchase names a customer id that another
+    // Stripe customer already pays for; no key is signed until BlackArk releases it (admin page).
+    foreach (['max_agents' => 'INTEGER', 'stripe_customer' => 'TEXT', 'held' => 'INTEGER NOT NULL DEFAULT 0'] as $column => $type) {
         if (!in_array($column, $licenceColumns, true)) {
             $pdo->exec("ALTER TABLE licenses ADD COLUMN $column $type");
         }
