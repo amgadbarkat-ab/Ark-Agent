@@ -17,13 +17,19 @@ import { encodeBase64Url } from "./shared/trial";
 import { publicKeyToBase64, signText } from "./shared/trial-sign";
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
 const other = generateKeyPairSync("ed25519").privateKey;
-const encode = (id: string) => encodeBase64Url(JSON.stringify({ v: 1, customer: { id, name: id } }));
+const encode = (id: string, endsAt = "2099-01-01T00:00:00Z") => encodeBase64Url(JSON.stringify({ v: 1, customer: { id, name: id }, endsAt }));
 const wine = encode("demo-shop");
+const ended = encode("demo-shop", "2020-01-01T00:00:00Z");
 console.log(JSON.stringify({
   publicKey: publicKeyToBase64(publicKey),
   good: { profile: wine, signature: signText(privateKey, wine) },
   otherCustomer: { profile: encode("demo-clinic"), signature: signText(privateKey, encode("demo-clinic")) },
   wrongKey: { profile: wine, signature: signText(other, wine) },
+  ended: { profile: ended, signature: signText(privateKey, ended) },
+  // Ended five days ago: still within the 30 days for paid features, but not enough to bind.
+  recentlyEnded: (() => { const p = encode("demo-lab", new Date(Date.now() - 5 * 86400000).toISOString()); return { profile: p, signature: signText(privateKey, p) }; })(),
+  // A trial unlock code: signed with the trial key, but a message to an install, not proof of one.
+  unlock: (() => { const p = encodeBase64Url(JSON.stringify({ v: 1, customer: "demo-shop", nonce: "unlock-nonce-1", action: "extend", until: "2099-01-01T00:00:00Z", issuedAt: "2026-11-26T00:00:00Z" })); return { kind: "code", payload: p, signature: signText(privateKey, p) }; })(),
 }));
 TS
 cp "$work/sign.ts" "$repo/.checkin-sign.ts"
@@ -58,6 +64,9 @@ return [
   'stripe_api_base' => 'http://127.0.0.1:18766/fakestripe',
   'stripe_buy' => ['tiers' => [5 => 'price_team', 10 => 'price_tier10', 20 => 'price_tier20'], 'phone' => 'price_phone', 'block' => 'price_block5h'],
   'relay_secret' => 'relay-secret-for-tests-0123456789abcdef',
+  'buy_link_secret' => 'buy-link-secret-for-tests-0123456789abcdef',
+  // Off for the older tests, which use unsigned links as apps before v0.1.57 do; on is the default.
+  'buy_requires_token' => false,
   'export_secret' => 'export-secret-for-tests-0123456789abcdef',
   'intake_url' => 'http://127.0.0.1:18767/intake/app',
   'intake_secret' => 'intake-secret-for-tests-0123456789abcdef',
@@ -201,7 +210,8 @@ php -S "127.0.0.1:18767" "$work/board/router.php" >/dev/null 2>&1 & board_pid=$!
 trap 'kill "${server:-0}" "${fake:-0}" "${board_pid:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 port=18765
-php -S "127.0.0.1:$port" -t "$work" >/dev/null 2>&1 & server=$!
+# The tests change config.php while it runs: opcache must see that at once.
+php -d opcache.revalidate_freq=0 -S "127.0.0.1:$port" -t "$work" >/dev/null 2>&1 & server=$!
 for _ in $(seq 1 50); do curl -s "http://127.0.0.1:$port/checkin/" -o /dev/null && break; sleep 0.1; done
 
 pass=0; fail=0
@@ -223,6 +233,7 @@ expect "not JSON is refused" 400 -X POST --data 'hello' "$url"
 good="$(json good)"; other="$(json otherCustomer)"; wrong="$(json wrongKey)"
 proofed() { echo "{\"customerId\":\"demo-shop\",\"installId\":\"$1\",\"version\":\"0.1.38\",\"status\":\"trial\",\"daysLeft\":28,\"proof\":$2}"; }
 expect "a signed profile for this customer is accepted" 204 -X POST -H 'content-type: application/json' --data "$(proofed 0a1b2c3d-0000-4000-8000-000000000001 "$good")" "$url"
+expect "a second signed install of the same customer is accepted" 204 -X POST -H 'content-type: application/json' --data "$(proofed 0a1b2c3d-0000-4000-8000-000000000004 "$good")" "$url"
 expect "a profile signed for another customer is refused" 403 -X POST -H 'content-type: application/json' --data "$(proofed 0a1b2c3d-0000-4000-8000-000000000002 "$other")" "$url"
 expect "a profile signed with another key is refused" 403 -X POST -H 'content-type: application/json' --data "$(proofed 0a1b2c3d-0000-4000-8000-000000000003 "$wrong")" "$url"
 expect "the config file is not served" 404 "http://127.0.0.1:$port/checkin/lib.php"
@@ -238,6 +249,12 @@ curl -s -c "$jar" -b "$jar" -o /dev/null --data "action=login&csrf=$csrf&passwor
 page="$(curl -s -c "$jar" -b "$jar" "http://127.0.0.1:$port/checkin/admin/")"
 grep -q '0.1.37' <<<"$page" && grep -q 'verified' <<<"$page" && { pass=$((pass+1)); echo "ok   signed in: installs listed, verified shown"; } || { fail=$((fail+1)); echo "FAIL listing"; }
 grep -q 'second install' <<<"$page" && { pass=$((pass+1)); echo "ok   a second install of demo-shop is flagged"; } || { fail=$((fail+1)); echo "FAIL second-install flag"; }
+# Only signed installs count (v0.1.57): the unsigned v0.1.37 row is not flagged, the signed ones are.
+rows="$(tr -d '\n' <<<"$page" | sed 's#</tr>#</tr>\n#g')"
+row37="$(grep '>6f1c2a3b' <<<"$rows" | head -1 || true)"
+row38="$(grep '>0a1b2c3d' <<<"$rows" | head -1 || true)"
+! grep -q 'second install' <<<"$row37" && grep -q 'second install' <<<"$row38" \
+  && { pass=$((pass+1)); echo "ok   an unsigned check-in is not counted as a second install"; } || { fail=$((fail+1)); echo "FAIL unsigned counted as second install"; }
 
 # Paid licence keys from Stripe (v0.1.44).
 stripe="http://127.0.0.1:$port/checkin/stripe/"
@@ -464,7 +481,7 @@ answer_sig="$(grep -i '^x-ark-signature:' "$work/export.h" | tr -d '\r' | awk '{
 [[ "$got" == 200 && "$answer_sig" == "$(php -r 'echo hash_hmac("sha256", $argv[1] . "." . $argv[2] . "." . file_get_contents($argv[3]), $argv[4]);' "$answered_at" "$n" "$work/export.b" "$export_secret")" ]] \
   && { pass=$((pass+1)); echo "ok   a signed request gets the export, and the answer is signed for its nonce"; } || { fail=$((fail+1)); echo "FAIL export good: $got $(head -c 300 "$work/export.b")"; }
 summary="$(php -r '$d = json_decode(file_get_contents($argv[1]), true); $b = []; foreach ($d["phone"] as $p) { $b[$p["customerId"]] = $p["balanceMils"] . "/" . $p["state"]; } $i = array_filter($d["installs"], fn($r) => $r["customerId"] === "demo-shop"); echo count($i), " ", $b["demo-phone"] ?? "-", " ", count($d["ledger"]) > 0 ? "ledger" : "none"; foreach ($d["licences"] as $l) { if ($l["customerId"] === "demo-shop") { echo " ", $l["status"], ":", $l["plan"], ":", implode("+", $l["addons"]); } }' "$work/export.b")"
-[[ "$summary" == "2 23400/ok ledger canceled:team:phone" ]] \
+[[ "$summary" == "3 23400/ok ledger canceled:team:phone" ]] \
   && { pass=$((pass+1)); echo "ok   the export carries installs, phone balances with their state, the ledger and licences"; } || { fail=$((fail+1)); echo "FAIL export content: $summary"; }
 ! grep -q -e 'owner@shop.example' -e 'owner@gulf.example' -e 'ARK1-' -e 'cus_' -e 'sub_' -e 'cs_test' -e '"CA0' -e '"GR"' -e '"AE"' -e '127.0.0.1' "$work/export.b" \
   && { pass=$((pass+1)); echo "ok   the export has no email, country, licence key, Stripe id, call id or IP"; } || { fail=$((fail+1)); echo "FAIL export leaks: $(grep -o -e 'owner@[a-z.]*' -e 'ARK1-.\{8\}' -e 'cus_[0-9]*' -e 'sub_[0-9]*' "$work/export.b" | head -3)"; }
@@ -767,7 +784,7 @@ list="$(curl -s -X POST --data "$(srv_body demo-shop "$(profile_proof "$good")")
 php -r '$d = json_decode($argv[1], true); $ids = array_column($d["tiers"], "id");
   exit($ids === ["small","medium","large","gpu_entry","gpu_high"] && $d["order"] === null
     && $d["tiers"][3]["monthlyCents"] === 35700 && $d["tiers"][3]["activationCents"] === 34800 && $d["tiers"][0]["storage"] === "100 GB"
-    && $d["buyUrl"] === "https://blackark.example/checkin/buy/?customer=demo-shop&server=" ? 0 : 1);' "$list" \
+    && preg_match("#^https://blackark\.example/checkin/buy/\?customer=demo-shop&e=[0-9]+&t=[A-Za-z0-9_-]{43}&server=$#", $d["buyUrl"]) === 1 ? 0 : 1);' "$list" \
   && { pass=$((pass+1)); echo "ok   the app gets the five tiers, with storage, model and prices, and no order yet"; } || { fail=$((fail+1)); echo "FAIL server list: $list"; }
 
 got="$(location "$buy?customer=demo-shop&server=gpu_entry")"
@@ -844,7 +861,7 @@ plan="$(curl -s -X POST --data "$(pri_body demo-shop "$(profile_proof "$good")")
 php -r '$d = json_decode($argv[1], true); exit($d["offer"]["monthlyCents"] === 10000 && $d["offer"]["vat"] === "excluded"
   && str_starts_with($d["offer"]["scope"]["en"], "24/7 support: response within 1 hour, around the clock, 7 days a week")
   && str_contains($d["offer"]["scope"]["el"], "1 ώρα") && $d["plan"] === null
-  && $d["buyUrl"] === "https://blackark.example/checkin/buy/?customer=demo-shop&support=247" ? 0 : 1);' "$plan" \
+  && preg_match("#^https://blackark\.example/checkin/buy/\?customer=demo-shop&e=[0-9]+&t=[A-Za-z0-9_-]{43}&support=247$#", $d["buyUrl"]) === 1 ? 0 : 1);' "$plan" \
   && { pass=$((pass+1)); echo "ok   the app gets the 24/7 offer (the offer's own words, EUR 100 excl. VAT), no plan yet, and the buy link"; } || { fail=$((fail+1)); echo "FAIL support plan offer: $plan"; }
 got="$(location "$buy?customer=demo-shop&support=247")"
 [[ "$got" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] && grep -q 'mode=subscription' <(last) \
@@ -944,6 +961,63 @@ got="$(curl -s -X POST --data "{\"customerId\":\"demo-phone\",\"installId\":\"$o
   && { pass=$((pass+1)); echo "ok   it can still read how many are paid"; } || { fail=$((fail+1)); echo "FAIL other install read: $got"; }
 expect "more than 5 more sub-profiles at once is refused" 400 -X POST --data "$(team_body demo-phone "$licence" ',"quantity":6')" "$team_url"
 branded "the sub-profile thank-you page" "$buy?done=team"
+
+# Signed buy links (v0.1.57; the independent assessment of 26 Nov, F1): only an install that proves it
+# is the customer gets a link that opens a checkout for that customer id.
+buy_link="http://127.0.0.1:$port/checkin/buy/link/"
+link_inst=8f9a0b1c-0000-4000-8000-0000000000f1
+link_body() { echo "{\"customerId\":\"$1\",\"installId\":\"$link_inst\",\"proof\":$2${3:-}}"; }
+ended="$(json ended)"; unlock="$(json unlock)"
+expect "the buy link refuses GET" 405 "$buy_link"
+expect "the buy link without proof is refused" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$link_inst\"}" "$buy_link"
+expect "the buy link with another customer's proof is refused" 403 -X POST --data "$(link_body demo-clinic "$(profile_proof "$good")")" "$buy_link"
+expect "a trial unlock code is not proof" 403 -X POST --data "$(link_body demo-shop "$unlock")" "$buy_link"
+link="$(curl -s -X POST --data "$(link_body demo-shop "$(profile_proof "$good")" ',"phone":true')" "$buy_link" | php -r 'echo json_decode(stream_get_contents(STDIN), true)["buyUrl"] ?? "";')"
+[[ "$link" =~ ^https://blackark\.example/checkin/buy/\?customer=demo-shop\&e=[0-9]+\&t=[A-Za-z0-9_-]{43}\&phone=1$ ]] \
+  && { pass=$((pass+1)); echo "ok   a proven install gets a signed buy link for its customer"; } || { fail=$((fail+1)); echo "FAIL signed link: $link"; }
+ended_link="$(curl -s -X POST --data "$(link_body demo-shop "$(profile_proof "$ended")")" "$buy_link" | php -r 'echo json_decode(stream_get_contents(STDIN), true)["buyUrl"] ?? "";')"
+[[ "$ended_link" == *"&t="* ]] && { pass=$((pass+1)); echo "ok   an ended trial still gets one: that is who buys"; } || { fail=$((fail+1)); echo "FAIL ended trial link: $ended_link"; }
+query="${link#*buy/}"
+# Turn the requirement on, as it is by default.
+sed -i "s/^  'buy_requires_token' => false,$/  'buy_requires_token' => true,/" "$work/checkin/config.php"
+expect "with the requirement on, an unsigned buy link is refused" 403 "$buy?customer=demo-shop&tier=5"
+expect "and a link signed for another customer is refused" 403 "$buy${query/customer=demo-shop/customer=demo-clinic}&tier=5"
+expect "and a link whose time was changed is refused" 403 "$buy$(sed -E 's/e=([0-9]+)/e=\19/' <<<"$query")&tier=5"
+expired_e=$(( $(date +%s) - 60 ))
+expired_t="$(php -r 'echo rtrim(strtr(base64_encode(hash_hmac("sha256", "buy|demo-shop|" . $argv[1], "buy-link-secret-for-tests-0123456789abcdef", true)), "+/", "-_"), "=");' "$expired_e")"
+expect "and a link that ran out is refused" 403 "$buy?customer=demo-shop&e=$expired_e&t=$expired_t&tier=5"
+first="$(location "$buy$query&tier=5")"
+[[ "$first" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] && grep -q 'client_reference_id=demo-shop' <(last) && grep -q 'proven%5D=1' <(last) \
+  && { pass=$((pass+1)); echo "ok   the signed link opens the checkout, marked proven"; } || { fail=$((fail+1)); echo "FAIL signed checkout ($first): $(last)"; }
+tiers="$(curl -s "$buy${query%&phone=1}")"
+grep -q "tier=10" <<<"$tiers" && ! grep -qE 'href="\?customer=demo-shop&amp;tier' <<<"$tiers" && grep -q '&amp;t=' <<<"$tiers" \
+  && { pass=$((pass+1)); echo "ok   the tier page's links keep the signature"; } || { fail=$((fail+1)); echo "FAIL tier links lost the signature"; }
+[[ "$(location "$buy?customer=demo-phone&topup=1")" == "303 https://checkout.stripe.com/c/pay/cs_test_fake" ]] \
+  && { pass=$((pass+1)); echo "ok   a top-up needs no signed link: the low-balance email's link keeps working"; } || { fail=$((fail+1)); echo "FAIL unsigned top-up"; }
+expect "a top-up beside a 24/7 support order is not a top-up: refused unsigned" 403 "$buy?customer=demo-shop&support=247&topup=1"
+expect "nor beside a private server order" 403 "$buy?customer=demo-shop&server=small&topup=1"
+sed -i "s/^  'buy_requires_token' => true,$/  'buy_requires_token' => false,/" "$work/checkin/config.php"
+
+# With the requirement off, a licence bought through an unsigned link is held, not signed (F-D).
+unproven='{"id":"evt_unproven1","type":"checkout.session.completed","data":{"object":{"id":"cs_test_unproven1","client_reference_id":"demo-lab","customer":"cus_9","subscription":"sub_unproven","metadata":{"kind":"subscription","proven":"0"}}}}'
+send_event "$unproven" >/dev/null
+send_event '{"id":"evt_unproven2","type":"invoice.paid","data":{"object":{"subscription":"sub_unproven","lines":{"data":[{"price":{"id":"price_team"},"quantity":1,"period":{"end":4102444800}}]}}}}' >/dev/null
+row="$(php -r '$db = new PDO("sqlite:" . $argv[1]); $r = $db->query("SELECT held, license_key FROM licenses WHERE subscription_id = \"sub_unproven\"")->fetch(PDO::FETCH_ASSOC); echo $r ? $r["held"] . ":" . ($r["license_key"] ? "key" : "none") : "missing";' "$work/checkin/data/checkins.sqlite")"
+[[ "$row" == "1:none" ]] && { pass=$((pass+1)); echo "ok   a licence bought through an unsigned link is held, and no key is signed"; } || { fail=$((fail+1)); echo "FAIL unproven not held: $row"; }
+
+# Proofs that ended (v0.1.57): they no longer open paid features, unless the customer pays.
+expect "an ended trial cannot list private servers" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$link_inst\",\"proof\":$(profile_proof "$ended")}" "$servers"
+expect "an ended trial cannot order 24/7 support" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$link_inst\",\"proof\":$(profile_proof "$ended")}" "$priority"
+expect "a trial unlock code cannot list private servers" 403 -X POST --data "{\"customerId\":\"demo-shop\",\"installId\":\"$link_inst\",\"proof\":$unlock}" "$servers"
+got="$(curl -s -X POST --data "{\"customerId\":\"demo-lab\",\"installId\":\"$link_inst\",\"proof\":$(profile_proof "$(json recentlyEnded)"),\"quantity\":1}" "$team_url")"
+[[ "$got" == *'"code":"proof_ended"'* ]] && { pass=$((pass+1)); echo "ok   a trial that ended cannot be the first to bind sub-profiles"; } || { fail=$((fail+1)); echo "FAIL bind with ended proof: $got"; }
+
+# The key page (v0.1.57): two days after payment it no longer shows the key.
+old_session="$(php -r '$db = new PDO("sqlite:" . $argv[1]); echo $db->query("SELECT session_id FROM licenses WHERE license_key IS NOT NULL AND session_id LIKE \"cs_%\" LIMIT 1")->fetchColumn();' "$work/checkin/data/checkins.sqlite")"
+php -r '$db = new PDO("sqlite:" . $argv[1]); $db->prepare("UPDATE licenses SET session_at = ? WHERE session_id = ?")->execute([time() - 3 * 86400, $argv[2]]);' "$work/checkin/data/checkins.sqlite" "$old_session"
+page="$(curl -s "http://127.0.0.1:$port/checkin/key/?session_id=$old_session")"
+grep -q 'έληξε' <<<"$page" && ! grep -q 'ARK1-' <<<"$page" \
+  && { pass=$((pass+1)); echo "ok   the key page no longer shows the key two days after payment"; } || { fail=$((fail+1)); echo "FAIL key page expiry ($old_session)"; }
 
 echo; echo "$pass passed, $fail failed"
 [[ $fail -eq 0 ]]

@@ -31,7 +31,12 @@ import {
   DEPLOYMENT_INITIATOR,
   recordAuditEvent,
 } from "./audit";
-import { attemptGuard, createAttemptLimiter } from "./auth/attempts";
+import {
+  attemptGuard,
+  createAttemptLimiter,
+  jsonSignInOnly,
+  revokeOtherSessionsOnPasswordChange,
+} from "./auth/attempts";
 import { createDevRequireUser } from "./auth/dev-actor";
 import {
   type AppVariables,
@@ -88,6 +93,7 @@ import { mountDesktopConnectionFailure } from "./desktop-connection-failure";
 import { createTranscriptionProvider } from "./dictation/provider";
 import { createDictationRoutes } from "./dictation/routes";
 import type { HostAccessBroker } from "./host-access/broker";
+import { type RemoteGate, viaOf } from "./host-access/remote-gate";
 import { createHostAccessRoutes } from "./host-access/routes";
 import { createIntelligenceClient } from "./intelligence-client";
 import {
@@ -100,6 +106,7 @@ import { createMemoryRoutes } from "./memories/routes";
 import type { MemoryStore } from "./memories/store";
 import { appleAppSiteAssociation, assetLinks } from "./mobile/links";
 import { modelGatewayRoutes } from "./models/gateway";
+import { modelFetchFor } from "./models/public-fetch";
 import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
 import { officeCertificateRoutes, officeRoutes } from "./office/routes";
@@ -483,7 +490,10 @@ export function createApp(
   ownBrowser?: Pick<
     Parameters<typeof createOwnBrowserRoutes>[0],
     "own" | "computerToken" | "forgetSnapshot"
-  >,
+  > & {
+    /** The approval gate for device control from another computer (v0.1.57). */
+    remoteGate?: RemoteGate;
+  },
   /**
    * The hand-off desk, for a person asking several colleagues in one message (desk #87). Appended
    * last, for the positional reason above. Absent, or `TEAM_FANOUT_ENABLED` off, leaves
@@ -563,6 +573,38 @@ export function createApp(
   );
   app.use("*", requestShape());
   app.use("/api/*", jsonBodyLimit());
+
+  /*
+   * Who is using ArkAgent from another computer (v0.1.57): a signed-in request the office listener
+   * took (office network or relay) marks that person, so their own browser on this computer asks
+   * before anything more happens in it (host-access/remote-gate.ts). The session is looked up at most
+   * every 30 seconds per cookie, and only for requests from another computer.
+   */
+  if (office && auth && ownBrowser?.remoteGate) {
+    const gate = ownBrowser.remoteGate;
+    const known = new Map<string, { userId: string | null; until: number }>();
+    app.use("*", async (context, next) => {
+      const server = (context.env as { server?: unknown } | undefined)?.server;
+      const cookie = context.req.header("cookie") ?? "";
+      if (office.servedBy(server) && cookie.includes("session_token")) {
+        let hit = known.get(cookie);
+        if (!hit || hit.until < Date.now()) {
+          const session = await auth.api
+            .getSession({ headers: context.req.raw.headers })
+            .catch(() => null);
+          hit = {
+            userId: session?.user?.id ?? null,
+            until: Date.now() + 30_000,
+          };
+          if (known.size >= 1_000) known.clear();
+          known.set(cookie, hit);
+        }
+        if (hit.userId)
+          gate.noteRemote(hit.userId, viaOf(server, context.req.raw));
+      }
+      await next();
+    });
+  }
   // Where the browser says what the policy would have blocked. Public, because the browser sends it
   // by itself; after the guards above like everything else, and small, limited and written to the log
   // field by field (csp.ts).
@@ -694,6 +736,12 @@ export function createApp(
       what: string,
     ): MiddlewareHandler =>
       attemptGuard({ limiter: attempts, keyOf, onFailure: onFailure(what) });
+    /*
+     * Sign-in takes JSON only (security review of v0.1.56): Better Auth also reads a web form, and
+     * a form's email was invisible here, so every form attempt shared one count that any right
+     * password cleared. The app always sends JSON; anything else is refused before it is checked.
+     */
+    app.use("/api/auth/sign-in/email", jsonSignInOnly());
     app.use(
       "/api/auth/sign-in/email",
       guard(async (context) => {
@@ -705,7 +753,8 @@ export function createApp(
           typeof body?.email === "string"
             ? body.email.trim().toLowerCase()
             : "";
-        return `sign-in:${scope(context)}:${email}`;
+        // Never one shared count: a request with no email is refused above and not counted here.
+        return email ? `sign-in:${scope(context)}:${email}` : null;
       }, "sign-in"),
     );
     // A password change is counted per signed-in person; without a session it is not counted at all.
@@ -721,6 +770,9 @@ export function createApp(
         }, "password change"),
       );
   }
+
+  // Every password change signs out the person's other sessions (v0.1.57).
+  app.use("/api/auth/change-password", revokeOtherSessionsOnPasswordChange());
 
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
     if (
@@ -1207,6 +1259,16 @@ export function createApp(
         encryptionKey,
         fetchImpl: routeOptions.fetchImpl,
         ...(routeOptions.starter ? { starter: routeOptions.starter } : {}),
+        // A sub-profile's calls go public and https only, checked at every call (v0.1.57).
+        ...(team && routeOptions.publicFetch
+          ? {
+              fetchFor: modelFetchFor({
+                standard: routeOptions.fetchImpl,
+                publicOnly: routeOptions.publicFetch,
+                isSubprofile: (id) => team.isSubprofile(id),
+              }),
+            }
+          : {}),
       }),
     );
   }
@@ -1789,6 +1851,22 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
+        // The administrator asking from another computer: allowed on this one, natively, for a time.
+        ...(office && ownBrowser.remoteGate
+          ? {
+              remote: {
+                cameFromAnotherComputer: (context) => {
+                  const server = (
+                    context.env as { server?: unknown } | undefined
+                  )?.server;
+                  return office.servedBy(server)
+                    ? viaOf(server, context.req.raw)
+                    : null;
+                },
+                gate: ownBrowser.remoteGate,
+              },
+            }
+          : {}),
         ...(team
           ? {
               refuse: async (actor, botId) =>

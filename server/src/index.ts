@@ -23,6 +23,7 @@ import { DICTATION_HTTP_IDLE_SECONDS } from "../../shared/dictation";
 import { createDrain } from "../../shared/drain";
 import { LICENSE_PUBLIC_KEYS } from "../../shared/license-public-key";
 import { listenHosts } from "../../shared/listen-hosts";
+import { peerAllowed } from "../../shared/local-hosts";
 import { createReadiness } from "../../shared/readiness";
 import { TERMS_VERSION } from "../../shared/terms-version";
 import { TRIAL_PUBLIC_KEYS } from "../../shared/trial-public-key";
@@ -146,8 +147,14 @@ import {
   agentProfiles,
   intelligenceChannelMappings,
   pluginGrants,
+  users,
 } from "./db/schema";
 import { createHostAccessBroker } from "./host-access/broker";
+import {
+  createRemoteGate,
+  type RemoteGate,
+  viaOf,
+} from "./host-access/remote-gate";
 import { hostAccessTools } from "./host-access/tools";
 import { observeIntelligenceAuthentication } from "./intelligence-client";
 import { LegalHelperAgent } from "./marketplace/legal-answer";
@@ -159,6 +166,7 @@ import {
   createModelForActor,
   createModelHeaderForActor,
 } from "./models/for-actor";
+import { createPublicModelFetch, modelFetchFor } from "./models/public-fetch";
 import { createStarterModel } from "./models/starter";
 import {
   registerBusinessMetrics,
@@ -166,8 +174,8 @@ import {
   serverMetrics,
 } from "./observability";
 import { hostAllowed } from "./office/hosts";
-import { peerAllowed } from "../../shared/local-hosts";
 import { hubClientUrl } from "./office/hub-socket";
+import { BLACKARK_STAFF_RELAY } from "./office/join-code";
 import { officeServeOptions } from "./office/listener";
 import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
 import { originAllowed, trustedOrigins } from "./origin-guard";
@@ -613,9 +621,7 @@ const office =
          * ArkAgent by its own BlackArk licence key or trial activation code.
          */
         relay: {
-          url:
-            process.env.ARK_STAFF_RELAY_URL?.trim() ||
-            "wss://blackark-staff.blackark.workers.dev",
+          url: process.env.ARK_STAFF_RELAY_URL?.trim() || BLACKARK_STAFF_RELAY,
           licence: async () => {
             const [held] = await database
               .select({
@@ -640,6 +646,8 @@ const office =
               hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
               ownNames: () => [hostname(), `${hostname()}.local`],
               mayUse: async (userId) => (await team.mayUse(userId)).ok,
+              // Read when a socket opens, after start-up: the gate is made further down.
+              remoteSeen: (userId, via) => remoteGate?.noteRemote(userId, via),
             }),
           }),
       })
@@ -691,10 +699,36 @@ const meteredProvider = config.computer
  * In front of the metering, not behind it: an employee in the person's own browser is on their
  * computer, not in Ark's cloud, so nothing it does there is a cloud computer to count.
  */
+/*
+ * While the administrator's account is used from another computer, every action on their own
+ * browser waits for their yes on this one, for 10 minutes at a time (v0.1.57; Amgad, 26 Nov 2026).
+ * The broker is made further down; it is only called once requests arrive.
+ */
+const remoteGate: RemoteGate | undefined =
+  ownBrowser && office
+    ? createRemoteGate({
+        confirm: (prompt) => hostAccessBroker.confirmRemote(prompt),
+        describe: async (actorId) => {
+          const [row] = await database
+            .select({ email: users.email, name: users.name })
+            .from(users)
+            .where(eq(users.id, actorId))
+            .limit(1);
+          return row?.email || row?.name || null;
+        },
+        botName: async (botId, actorId) =>
+          (
+            await agentProfileStore
+              .get({ id: actorId, role: "admin" }, botId)
+              .catch(() => null)
+          )?.name ?? null,
+      })
+    : undefined;
 const computerProvider =
   meteredProvider && ownBrowser
     ? withOwnBrowser(meteredProvider, ownBrowser, {
         ...(config.computer?.token ? { token: config.computer.token } : {}),
+        ...(remoteGate ? { gate: (input) => remoteGate.require(input) } : {}),
       })
     : meteredProvider;
 
@@ -1317,6 +1351,28 @@ const agentFetch = createAgentFetch({
 });
 
 /**
+ * A sub-profile's model calls (v0.1.57): public addresses and https only, checked on every call and
+ * every redirect, whatever this computer allows its administrator (models/public-fetch.ts).
+ */
+const publicModelFetch = createPublicModelFetch({
+  onRefusal: ({ address, reason }) => {
+    void recordAuditEvent(bootAuditStore, {
+      eventType: "agent.dial_refused",
+      targetType: "model_connection",
+      targetId: address,
+      payload: { address, reason, subprofile: true },
+    }).catch((error) => {
+      console.error("Could not record a refused model dial.", error);
+    });
+  },
+});
+const modelFetch = modelFetchFor({
+  standard: agentFetch,
+  publicOnly: publicModelFetch,
+  ...(team ? { isSubprofile: (id: string) => team.isSubprofile(id) } : {}),
+});
+
+/**
  * Who a routine acts as, resolved the way {@link resolveRequestActor} resolves it.
  *
  * THE ROLE IS READ, NOT ASSUMED. Which coworkers exist is decided per person and an administrator
@@ -1479,6 +1535,7 @@ const modelForActor = createModelForActor(
   modelConnectionStore,
   agentFetch,
   starterModel,
+  modelFetch,
 );
 
 const runSlots = createRunSlots(database);
@@ -1989,6 +2046,7 @@ const app = createApp(
     store: modelConnectionStore,
     encryptionKey: config.keyEncryptionKey,
     fetchImpl: agentFetch,
+    publicFetch: publicModelFetch,
     ...(starterModel ? { starter: starterModel } : {}),
     ...(config.offlineModel ? { offline: config.offlineModel } : {}),
     // The roster the person talks to is the roster they may choose a model for.
@@ -2084,6 +2142,7 @@ const app = createApp(
         own: ownBrowser,
         computerToken: config.computer?.token,
         forgetSnapshot: (botId: string) => snapshotStore.clear(botId),
+        ...(remoteGate ? { remoteGate } : {}),
       }
     : undefined,
   // Asking several colleagues in one message (desk #87); only mounted when TEAM_FANOUT_ENABLED is on.
@@ -2319,6 +2378,29 @@ const serverOptions = {
         return new Response("There is no such digital employee.", {
           status: 404,
         });
+      }
+      /*
+       * An employee working in the administrator's own Chrome shows that Chrome here, to watch and
+       * type into. Opened from another computer (the office network or BlackArk's relay), it goes
+       * ahead only once whoever is at this computer allows it in a native dialog (Amgad, 26 Nov 2026).
+       */
+      if (ownBrowser?.chosen(streamBotId) && office?.servedBy(server)) {
+        try {
+          if (!remoteGate)
+            throw new Error("Not allowed on the administrator's computer.");
+          await remoteGate.require({
+            botId: streamBotId,
+            actorId: actor.id,
+            via: viaOf(server, request),
+          });
+        } catch (error) {
+          return new Response(
+            error instanceof Error && error.message
+              ? error.message
+              : "Not allowed on the administrator's computer.",
+            { status: 403 },
+          );
+        }
       }
       /*
        * Through the gateway, not the provider.

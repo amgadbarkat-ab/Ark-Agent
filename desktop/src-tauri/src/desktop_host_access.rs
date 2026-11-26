@@ -1,10 +1,12 @@
 //! Owner approval is collected by native dialogs, never by an app/tool-provided answer.
 use openbot_desktop_lib::host_access::{
     ApprovedFolder, ChooseFolderPrompt, CommandPrompt, HostAccessError, HostAccessResult,
-    HostApprovalUi, WritePrompt,
+    HostApprovalUi, RemoteAction, RemotePrompt, RemoteVia, WritePrompt,
 };
 use tauri::Manager;
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_dialog::{
+    DialogExt, MessageDialogButtons, MessageDialogKind, MessageDialogResult,
+};
 
 pub struct NativeApproval<R: tauri::Runtime>(pub tauri::AppHandle<R>);
 
@@ -95,6 +97,58 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
             "Digital employee: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
             request.root.display(), request.relative_path, request.content
         ))
+    }
+
+    fn confirm_remote(&self, request: &RemotePrompt) -> HostAccessResult<()> {
+        let bot = bot_label(request.bot_name.as_deref(), &request.bot_id);
+        let what = match request.action {
+            RemoteAction::OwnBrowser => {
+                "use this computer's own Chrome or Edge, signed in as you: see it, act in it, and show it on the other computer"
+            }
+        };
+        let via = match request.via {
+            RemoteVia::OfficeNetwork => "the office network",
+            RemoteVia::Relay => "BlackArk's relay, from outside the office",
+        };
+        let account = bot_label(Some(request.account.as_str()), &request.actor_id);
+        let allow = format!("Allow for {} minutes", request.minutes);
+        let window = self
+            .0
+            .get_webview_window("main")
+            .ok_or_else(|| refused("The local ArkAgent window is closed."))?;
+        window.show().map_err(|error| refused(error.to_string()))?;
+        window
+            .set_focus()
+            .map_err(|error| refused(error.to_string()))?;
+        // Deny is the first button, the one Enter picks; Escape or closing is "Not now". Only a
+        // click on the allow button allows (the Security Engineer's review of v0.1.57, F-C).
+        let answer = self
+            .0
+            .dialog()
+            .message(format!(
+                "Someone signed in as {account} on ANOTHER computer, over {via}, asks for:\n\nDigital employee: {bot}\nTo: {what}\n\nIf you allow it, everything this employee does in your browser for the next {} minutes goes ahead without asking again.\n\nAllow it only if it is you or someone you trust. If you did not expect this, choose Deny and change the administrator's password.",
+                request.minutes
+            ))
+            .title("Allow a request from another computer?")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::YesNoCancelCustom(
+                "Deny".into(),
+                allow.clone(),
+                "Not now".into(),
+            ))
+            .parent(&window)
+            .blocking_show_with_result();
+        let allowed = match answer {
+            MessageDialogResult::Custom(label) => label == allow,
+            // Some platforms report the second button as No.
+            MessageDialogResult::No => true,
+            _ => false,
+        };
+        if allowed {
+            Ok(())
+        } else {
+            Err(refused("The local owner denied this operation."))
+        }
     }
 
     fn confirm_command(&self, request: &CommandPrompt) -> HostAccessResult<()> {

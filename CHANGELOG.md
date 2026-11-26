@@ -8,6 +8,24 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Security fixes from the full review of v0.1.56 and the independent assessment of blackark.uk (26 Nov).**
+  - **The wrong-password lock holds for web forms and disguised requests too.** Sign-in accepts only a request whose type is exactly the app's own JSON, and the sign-in library reads exactly what was counted.
+  - **Device control from another computer asks the administrator's own screen first (Amgad, 26 Nov).** While the administrator's account is used from another computer (the office network or the relay, in the last 15 minutes), anything that reaches their own Chrome or Edge on this computer asks first in a native window: a chat with an employee working there, a click, a screenshot, the live view. The window names the account, how it connects, and that a yes lasts 10 minutes. Deny is the default button. Questions are limited: none for 2 minutes after a Deny, and at most 5 in 10 minutes. If ArkAgent is not open on this computer, it is refused. Folders, edits and commands already asked there.
+  - **A password change signs out every other session,** through every route, including the sign-in library's own.
+  - **Staff models are checked when they are used, not only when they are saved.** A sub-profile's model must be reached over https, at a public address, on every call and every redirect. A name pointed at the office network after it was saved is refused, and so are the benchmarking, multicast, site-local and reserved ranges. A sub-profile no longer sees which local models run on the administrator's computer.
+  - **A join code names only BlackArk's relay.** A code that sends staff computers to any other relay is not accepted.
+  - **The buy button opens a link signed by blackark.uk** for this install's customer, only after blackark.uk has checked the install's licence key or trial. Until blackark.uk has the new pages, it opens the old link.
+  - **BlackArk's staff relay forgets an office by itself** 30 days after its computer last connected.
+- **blackark.uk (`infra/blackark-checkin`; COO uploads after Amgad's yes):**
+  - the buy page opens a checkout only with a signed link (`buy_requires_token`, on by default). Customers on older apps update ArkAgent before buying. If it is switched off, a licence bought through an unsigned link, or under a customer id another payer holds, is held for BlackArk to check;
+  - a licence key or trial that ended more than 30 days ago no longer opens Ark Private Server, 24/7 support or sub-profiles, unless the customer pays. Sub-profiles are bound to an install only with a current one. A trial unlock code is never proof;
+  - check-ins must carry the signed trial profile, and only signed installs count as a second install;
+  - renewals, private servers, 24/7 support and support replies are limited per internet address too. Every address kept for a limit (sub-profile changes and the admin sign-in included) is a keyed hash, for an hour at most;
+  - the licence key page stops showing the key two days after payment;
+  - its tests run in CI.
+- **Privacy notice:** the support board runs on Cloudflare Workers with a Cloudflare D1 database (not an EU server through a tunnel); what the relay keeps, and for how long; request limits on blackark.uk.
+- **The relay** upgrades offices it stored before this version, so they keep working and expire after 30 days too.
+
 ## 0.1.56
 
 - **Staff outside the office (Amgad, 25 Nov, #149).** Settings → Team → "Let my staff sign in from outside the office".

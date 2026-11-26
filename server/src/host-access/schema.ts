@@ -2,6 +2,8 @@ export const HOST_ACCESS_DESKTOP_LEASE_MS = 15_000;
 
 export type HostAccessOperationKind =
   | "choose_folder"
+  /** Device control asked for from another computer, allowed once on this one (Amgad, 26 Nov). */
+  | "confirm_remote"
   | "list_files"
   | "read_file"
   | "write_file"

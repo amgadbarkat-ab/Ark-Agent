@@ -30,11 +30,37 @@ in 2 days.
 - **From v0.1.38**, ArkAgent also sends the install's signed trial profile (`proof`). The receiver
   checks it with PHP's sodium extension against BlackArk's public key in `config.php`. It accepts a
   check-in only for the customer that the signature covers. These rows show as **verified**.
-- Once every install runs v0.1.38 or later, set `'require_proof' => true`. Check-ins without
-  proof are then refused.
+- `'require_proof' => true` (the default from v0.1.57): check-ins without proof are refused. Every
+  install has sent one since v0.1.38. Only signed installs count towards the "second install" flag.
 
 If one.com's PHP has no sodium extension, signed check-ins are still stored, but they show as
 unverified. You can check with a one-line `phpinfo()` file; delete it afterwards.
+
+## Signed buy links (v0.1.57)
+
+The buy page sends the customer id in its link to Stripe, and the licence key is signed for that id.
+So from v0.1.57 a buy link comes from blackark.uk, signed, only after it checked the install's proof:
+
+- the app asks `POST /checkin/buy/link/` with its install proof, and `servers/` and
+  `support/priority/` answer with signed links too. A link works for 6 hours;
+- `buy_link_secret` in `config.php` signs them (make it as `config.sample.php` says);
+- `buy_requires_token` (true by default): an unsigned link, as older apps make, is refused, and the
+  page asks the customer to update ArkAgent. If it is ever set false, a licence bought through an
+  unsigned link, or under a customer id another payer already has, is held (admin page, "Held
+  purchases"). Only a real top-up never needs a signed link;
+- after the paid trial or licence has ended more than 30 days ago, a proof no longer opens Ark
+  Private Server, 24/7 support or sub-profiles, unless the customer has an active licence here.
+  Binding sub-profiles to an install the first time needs a proof that has not ended. A trial unlock
+  code is never proof;
+- the key page shows the key for 2 days after payment;
+- renew, servers, 24/7 support and support replies are also limited per address (kept only as a
+  keyed hash, for an hour).
+
+**To switch on (COO, after Amgad's yes):** add `buy_link_secret` to the live `config.php`, set
+`require_proof` to true there (an explicit false overrides the new default), leave
+`buy_requires_token` out or true, upload `checkin/`, then check that
+`curl -i -X POST https://blackark.uk/checkin/buy/link/ --data '{"customerId":"blackark-test","installId":"00000000-0000-4000-8000-000000000001"}'`
+answers 403 (no proof), not 503 (no secret).
 
 ## Deploy (Site Admin packages, COO uploads only after Amgad's yes on this exact build)
 
@@ -59,7 +85,7 @@ unverified. You can check with a one-line `phpinfo()` file; delete it afterwards
    # Must answer 405 (only POST is allowed)
    curl -i https://blackark.uk/checkin/
 
-   # Must answer 204 (stored)
+   # Must answer 403 (a check-in without a signed profile is refused)
    curl -i -X POST https://blackark.uk/checkin/ \
      -H 'content-type: application/json' \
      --data '{"customerId":"blackark-test","installId":"00000000-0000-4000-8000-000000000001","version":"test","status":"trial","daysLeft":30,"employees":0}'

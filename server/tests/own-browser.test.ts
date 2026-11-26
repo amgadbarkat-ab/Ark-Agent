@@ -26,6 +26,7 @@ import { DEFAULT_ACTION_POLICY } from "../src/computer/policy-store";
 import { type ComputerProvider, ProviderError } from "../src/computer/provider";
 import type { SnapshotResult } from "../src/computer/schema";
 import { createInMemorySnapshotStore } from "../src/computer/snapshot-store";
+import { createRemoteGate } from "../src/host-access/remote-gate";
 
 /**
  * The person's own browser as a computer (device control, phase 1; desk #27).
@@ -352,6 +353,7 @@ describe("the routes", () => {
     options: {
       canUse?: (botId: string) => boolean;
       refuse?: (botId: string) => string | null;
+      remote?: { from: boolean; allow: boolean; asked: string[] };
     } = {},
   ) {
     const own = createOwnBrowser();
@@ -381,6 +383,21 @@ describe("the routes", () => {
         ...(options.refuse
           ? { refuse: async (_actor, botId) => options.refuse?.(botId) ?? null }
           : {}),
+        ...(options.remote
+          ? {
+              remote: {
+                cameFromAnotherComputer: () =>
+                  options.remote?.from === true ? "relay" : null,
+                gate: createRemoteGate({
+                  confirm: async ({ botId, via, minutes }) => {
+                    options.remote?.asked.push(`${via}:${minutes}:${botId}`);
+                    if (!options.remote?.allow)
+                      throw new Error("The local owner denied this operation.");
+                  },
+                }),
+              },
+            }
+          : {}),
       }),
     );
     const desktop = (url: string | null, token = "desktop-token") =>
@@ -400,6 +417,34 @@ describe("the routes", () => {
       });
     return { routes, own, audit, forgotten, reached, desktop, use };
   }
+
+  test("asked from another computer, it goes ahead only once allowed on this one", async () => {
+    const denied = { from: true, allow: false, asked: [] as string[] };
+    const one = app({ remote: denied });
+    await one.desktop(OWN);
+    const refused = await one.use("ana", true);
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).code).toBe("remote_approval_refused");
+    expect(one.own.chosen("ana")).toBe(false);
+    expect(denied.asked).toEqual(["relay:10:ana"]);
+
+    const allowed = { from: true, allow: true, asked: [] as string[] };
+    const two = app({ remote: allowed });
+    await two.desktop(OWN);
+    expect((await two.use("ana", true)).status).toBe(200);
+    expect(two.own.chosen("ana")).toBe(true);
+    expect(allowed.asked).toEqual(["relay:10:ana"]);
+    // Allowed for 10 minutes: choosing it again from there asks nothing more.
+    expect((await two.use("ana", true)).status).toBe(200);
+    expect(allowed.asked).toEqual(["relay:10:ana"]);
+
+    // At this computer itself, nothing is asked.
+    const here = { from: false, allow: false, asked: [] as string[] };
+    const three = app({ remote: here });
+    await three.desktop(OWN);
+    expect((await three.use("ana", true)).status).toBe(200);
+    expect(here.asked).toEqual([]);
+  });
 
   test("off by default: nobody can be pointed at a browser the desktop has not switched on", async () => {
     const { routes, use } = app();

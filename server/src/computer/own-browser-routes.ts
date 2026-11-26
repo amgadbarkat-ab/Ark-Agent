@@ -11,11 +11,11 @@
  * Nothing a person sends here can switch the browser on. That is the desktop's alone, in its own
  * native menu, so a page or a digital employee cannot talk its way into somebody's browser.
  */
-import type { MiddlewareHandler } from "hono";
-import { Hono } from "hono";
+import { type Context, Hono, type MiddlewareHandler } from "hono";
 import type { BotAccessCheck } from "../agents/profile-policy";
 import { type AuditStore, recordAuditEvent } from "../audit";
 import type { AppVariables } from "../auth/guards";
+import type { RemoteGate, RemoteVia } from "../host-access/remote-gate";
 import { desktopAuthorized } from "../host-access/routes";
 import {
   closeOwnBrowserTab,
@@ -55,6 +55,17 @@ export function createOwnBrowserRoutes(options: {
     actor: AppVariables["actor"],
     botId: string,
   ) => Promise<string | null>;
+  /**
+   * Device control asked for from another computer (Amgad, 26 Nov 2026): when the request came
+   * over the office network or BlackArk's relay, it goes ahead only once whoever is at this computer
+   * allows it in a native dialog. Resolves when allowed; rejects with the reason otherwise.
+   */
+  remote?: {
+    /** How the request reached this computer, or null when it came from this computer itself. */
+    cameFromAnotherComputer: (context: Context) => RemoteVia | null;
+    /** The approval gate every own-browser action passes (host-access/remote-gate.ts). */
+    gate: Pick<RemoteGate, "require" | "forget">;
+  };
 }) {
   const routes = new Hono<{ Variables: AppVariables }>();
   const { own, requireUser, canUseBot } = options;
@@ -186,6 +197,29 @@ export function createOwnBrowserRoutes(options: {
       if (!own.available()) {
         return context.json({ error: SWITCH_IT_ON_FIRST }, 409);
       }
+      const via = options.remote?.cameFromAnotherComputer(context) ?? null;
+      if (via && options.remote) {
+        try {
+          await options.remote.gate.require({
+            botId,
+            actorId: actor.id,
+            via,
+          });
+        } catch (error) {
+          await audit("own_browser_remote_refused", { actor, botId });
+          return context.json(
+            {
+              error:
+                error instanceof Error && error.message
+                  ? error.message
+                  : "Not allowed on the administrator's computer.",
+              code: "remote_approval_refused",
+            },
+            403,
+          );
+        }
+        await audit("own_browser_remote_allowed", { actor, botId });
+      }
       if (!own.chosen(botId)) {
         own.choose(botId, actor.id);
         await options.forgetSnapshot?.(botId).catch(() => undefined);
@@ -195,6 +229,7 @@ export function createOwnBrowserRoutes(options: {
       // Its tab goes with it: the person said this employee no longer works in their browser.
       await closeOwnBrowserTab(own, botId, callOptions);
       own.release(botId);
+      options.remote?.gate.forget(botId);
       await options.forgetSnapshot?.(botId).catch(() => undefined);
       await audit("own_browser_released", { actor, botId });
     }
@@ -215,6 +250,7 @@ export function createOwnBrowserRoutes(options: {
       if (!(await canUseBot(actor, choice.botId))) continue;
       await closeOwnBrowserTab(own, choice.botId, callOptions);
       own.release(choice.botId);
+      options.remote?.gate.forget(choice.botId);
       await options.forgetSnapshot?.(choice.botId).catch(() => undefined);
     }
     await audit("own_browser_stopped", { actor });

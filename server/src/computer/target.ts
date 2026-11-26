@@ -144,7 +144,9 @@ function isPrivateIpv6(hostname: string): boolean {
 
   const [first] = groups as [number, ...number[]];
   if (first >= 0xfe80 && first <= 0xfebf) return true; // fe80::/10
+  if (first >= 0xfec0 && first <= 0xfeff) return true; // fec0::/10, site-local (deprecated, still routed inside)
   if (first >= 0xfc00 && first <= 0xfdff) return true; // fc00::/7
+  if (first >= 0xff00) return true; // ff00::/8, multicast
   return false;
 }
 

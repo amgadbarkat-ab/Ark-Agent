@@ -145,6 +145,19 @@ async function balanceOnBlackArk(): Promise<number> {
   return ((await response.json()) as { balanceMils: number }).balanceMils;
 }
 
+/**
+ * A buy link as blackark.uk signs it for a proven install (buy/link/, v0.1.57): the customer id, when
+ * it runs out, and an HMAC of both with `buy_link_secret`.
+ */
+const BUY_LINK_SECRET = "buy-link-secret-for-tests-0123456789abcdef";
+function signedBuyQuery(customer: string): string {
+  const expires = Math.floor(Date.now() / 1000) + 3600;
+  const token = createHmac("sha256", BUY_LINK_SECRET)
+    .update(`buy|${customer}|${expires}`)
+    .digest("base64url");
+  return `customer=${encodeURIComponent(customer)}&e=${expires}&t=${token}`;
+}
+
 /** The buy page, as the customer's browser opens it: where it sends them. */
 async function openBuyPage(query: string): Promise<string> {
   const response = await fetch(`${checkin}/buy/?${query}`, {
@@ -282,6 +295,7 @@ return [
   'public_base_url' => '${checkin}',
   'buy_url' => 'https://blackark.example/checkin/buy/',
   'relay_secret' => '${RELAY_SECRET}',
+  'buy_link_secret' => '${BUY_LINK_SECRET}',
 ];
 `,
   );
@@ -339,7 +353,7 @@ describe.skipIf(!havePhp)("the phone add-on end to end (#109, v0.1.49)", () => {
     // 1. The customer buys the plan with the phone add-on: the buy page opens Stripe's checkout
     //    with the first 5-hour block, and Stripe's "paid" credits it: EUR 23.40.
     expect(
-      await openBuyPage(`customer=${CUSTOMER}&tier=5&phone=1`),
+      await openBuyPage(`${signedBuyQuery(CUSTOMER)}&tier=5&phone=1`),
     ).toStartWith("https://checkout.stripe.com/");
     expect(decodeURIComponent(checkouts.at(-1) ?? "")).toContain(
       "line_items[2][price]=price_block5h",

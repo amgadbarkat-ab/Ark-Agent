@@ -10,12 +10,14 @@ import {
 } from "../../../shared/model-providers";
 import { checkAgentEndpoint } from "../agents/endpoint";
 import type { AppVariables } from "../auth/guards";
+import { isInternalAddress } from "../computer/target";
 import { createLimiter } from "../rate-limit";
 import {
   type ModelConnectionStore,
   TooManyConnectionsError,
 } from "./connections";
 import { probeConnection } from "./probe";
+import { HTTPS_ONLY_FOR_SUBPROFILE } from "./public-fetch";
 import type { StarterModel } from "./starter";
 
 type GuardedFetch = (url: string, init?: RequestInit) => Promise<Response>;
@@ -78,33 +80,14 @@ const LOCAL_PROBE_MS = 2_500;
 const LOCAL_FOR_SUBPROFILE =
   "A sub-profile cannot use a model on the administrator's computer or the office network. Choose a hosted provider.";
 
-/** Loopback, private, link-local and unique-local addresses: this computer and its networks. */
+/**
+ * This computer, its networks, or anywhere else that is not the public internet: the same rule the
+ * guarded fetch applies to a resolved name (computer/target.ts), so the benchmarking range
+ * (198.18.0.0/15), multicast, reserved space and every IPv4-mapped spelling are caught too (v0.1.57).
+ */
 export function isPrivateAddress(address: string): boolean {
-  const plain = address
-    .toLowerCase()
-    .replace(/^\[|\]$/g, "")
-    .replace(/^::ffff:/, "");
-  if (isIP(plain) === 4) {
-    const [a = 0, b = 0] = plain.split(".").map(Number);
-    return (
-      a === 10 ||
-      a === 127 ||
-      a === 0 ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 169 && b === 254) ||
-      (a === 100 && b >= 64 && b <= 127)
-    );
-  }
-  if (isIP(plain) === 6)
-    return (
-      plain === "::1" ||
-      plain === "::" ||
-      plain.startsWith("fe80:") ||
-      plain.startsWith("fc") ||
-      plain.startsWith("fd")
-    );
-  return false;
+  const plain = address.toLowerCase().replace(/^\[|\]$/g, "");
+  return isIP(plain) !== 0 && isInternalAddress(plain);
 }
 
 async function defaultLookup(hostname: string): Promise<string[]> {
@@ -149,6 +132,11 @@ export function modelConnectionRoutes(options: {
   publicOnly?: (actor: { id: string; role: string }) => Promise<boolean>;
   /** Resolves a name to its addresses, for the check above. The tests give their own. */
   lookup?: (hostname: string) => Promise<string[]>;
+  /**
+   * The fetch a sub-profile's tests go through (v0.1.57, models/public-fetch.ts): public and https
+   * on every hop. Absent uses `fetchImpl`.
+   */
+  publicFetch?: GuardedFetch;
   /**
    * The model ArkAgent runs on this computer, when the person chose it. Only asked whether it is up;
    * the run uses the deployment's own model settings, which are the same address.
@@ -212,6 +200,8 @@ export function modelConnectionRoutes(options: {
         ok: false as const,
         message: restricted ? LOCAL_FOR_SUBPROFILE : verdict.reason,
       };
+    if (restricted && new URL(baseUrl).protocol !== "https:")
+      return { ok: false as const, message: HTTPS_ONLY_FOR_SUBPROFILE };
     if (restricted) {
       // A public name that points at this computer or its network is refused the same way.
       const lookup = options.lookup ?? defaultLookup;
@@ -225,7 +215,11 @@ export function modelConnectionRoutes(options: {
       )
         return { ok: false as const, message: LOCAL_FOR_SUBPROFILE };
     }
-    return { ok: true as const };
+    return {
+      ok: true as const,
+      // What the test then dials through: checked again at the moment of use.
+      fetch: restricted ? (options.publicFetch ?? fetchImpl) : fetchImpl,
+    };
   }
 
   // What the picker shows. Local providers are marked unusable on a hosted deployment, so the app
@@ -276,7 +270,11 @@ export function modelConnectionRoutes(options: {
         429,
       );
     }
-    if (!allowPrivateHosts) {
+    // Nothing about the administrator's computer for a sub-profile (v0.1.57), which cannot use it.
+    const restricted = await (
+      options.publicOnly?.(context.var.actor) ?? Promise.resolve(false)
+    ).catch(() => true);
+    if (!allowPrivateHosts || restricted) {
       return context.json({ offline: null, servers: [] });
     }
     const ask = (
@@ -601,7 +599,7 @@ export function modelConnectionRoutes(options: {
         provider,
         baseUrl: verdict.baseUrl,
         apiKey: input.apiKey?.trim() || null,
-        fetchImpl,
+        fetchImpl: target.fetch,
       }),
     );
   });
@@ -633,7 +631,7 @@ export function modelConnectionRoutes(options: {
         provider,
         baseUrl: opened.baseUrl,
         apiKey: opened.apiKey,
-        fetchImpl,
+        fetchImpl: target.fetch,
       }),
     );
   });
