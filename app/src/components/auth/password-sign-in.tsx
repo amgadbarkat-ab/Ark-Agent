@@ -48,7 +48,11 @@ export function PasswordSignIn() {
     if (result.error) {
       // Locked after wrong passwords, or a sub-profile that may not sign in yet: said as it is.
       if (result.error.status === 429)
-        setError(t("Too many wrong passwords. Try again in 15 minutes."));
+        setError(
+          result.error.message?.includes("still being checked")
+            ? sentenceNow(result.error.message)
+            : t("Too many wrong passwords. Try again in 15 minutes."),
+        );
       else if (result.error.status === 403 && result.error.message)
         setError(sentenceNow(result.error.message));
       else setError(t("That email and password do not match."));

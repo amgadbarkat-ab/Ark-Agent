@@ -142,6 +142,7 @@ import {
 } from "./credentials";
 import { createDatabase } from "./db/client";
 import {
+  activationState,
   agentProfiles,
   intelligenceChannelMappings,
   pluginGrants,
@@ -165,6 +166,7 @@ import {
   serverMetrics,
 } from "./observability";
 import { hostAllowed } from "./office/hosts";
+import { peerAllowed } from "../../shared/local-hosts";
 import { hubClientUrl } from "./office/hub-socket";
 import { officeServeOptions } from "./office/listener";
 import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
@@ -275,7 +277,7 @@ async function resolveRequestActor(request: Request): Promise<{
   }
   // A staff sub-profile waiting for payment, suspended or removed runs nothing, here as on every
   // other route (the runtime, threads, join tokens and the live screen all ask this function).
-  const standing = await team?.mayUse(user.id);
+  const standing = await team?.mayAct(user.id);
   if (standing && !standing.ok) {
     throw new Error(standing.reason);
   }
@@ -605,16 +607,39 @@ const office =
         port: officePort,
         hasAdministrator: async () => !(await team.setupNeeded()),
         hostname: () => hostname(),
-        listen: (tls) =>
+        /*
+         * Remote staff (v0.1.56): BlackArk's staff relay, which carries a staff computer's TLS
+         * connection to this listener without being able to read it. The relay admits this
+         * ArkAgent by its own BlackArk licence key or trial activation code.
+         */
+        relay: {
+          url:
+            process.env.ARK_STAFF_RELAY_URL?.trim() ||
+            "wss://blackark-staff.blackark.workers.dev",
+          licence: async () => {
+            const [held] = await database
+              .select({
+                payload: activationState.payload,
+                signature: activationState.signature,
+              })
+              .from(activationState)
+              .limit(1);
+            return held ? `ARK1-${held.payload}.${held.signature}` : null;
+          },
+          log: (line) => console.log(JSON.stringify({ type: "office", line })),
+        },
+        listen: (tls, where) =>
           serve({
             ...serverOptions,
-            hostname: "0.0.0.0",
+            // On every network only for the office network; loopback only for the relay alone.
+            hostname: where.everywhere ? "0.0.0.0" : "127.0.0.1",
             port: officePort,
             tls,
             ...officeServeOptions(serverOptions, {
               appOrigin: config.appUrl ?? config.auth?.trustedOrigins[0] ?? "",
               hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
               ownNames: () => [hostname(), `${hostname()}.local`],
+              mayUse: async (userId) => (await team.mayUse(userId)).ok,
             }),
           }),
       })
@@ -1310,7 +1335,7 @@ const actorFor = async (ownerUserId: string): Promise<AgentActor> => {
     throw new Error("A routine requires an authorized owner.");
   }
   // A staff sub-profile's routines stop while it waits for payment, is suspended or was removed.
-  const standing = await team?.mayUse(ownerUserId);
+  const standing = await team?.mayAct(ownerUserId);
   if (standing && !standing.ok) {
     throw new Error(standing.reason);
   }
@@ -2424,6 +2449,22 @@ const listenerOptions =
             return new Response("This address is not this ArkAgent.", {
               status: 421,
             });
+          /*
+           * Listening on every interface (when the desktop could not confirm that its containers
+           * reach loopback; security review of v0.1.55, R5): only what the containers call is
+           * answered to anybody but this computer. Everything else is refused over plain HTTP.
+           */
+          if (
+            hosts.length === 0 &&
+            !peerAllowed(
+              server.requestIP(request)?.address,
+              new URL(request.url).pathname,
+            )
+          )
+            return new Response(
+              "ArkAgent answers staff over HTTPS on the office network, not here.",
+              { status: 403 },
+            );
           return serverOptions.fetch.call(server, request, server);
         },
       }

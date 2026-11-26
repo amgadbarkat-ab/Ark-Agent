@@ -46,10 +46,19 @@ pub fn saved(config: &Path) -> Option<String> {
     looks_like_code(&code).then_some(code)
 }
 
+/// Kept readable by this computer's user alone (security review of v0.1.56): with remote staff the
+/// code gets through BlackArk's relay to the company's sign-in page from anywhere.
 pub fn save(config: &Path, code: &str) -> std::io::Result<()> {
     std::fs::create_dir_all(config)?;
     let body = serde_json::json!({ "code": tidy(code) }).to_string();
-    std::fs::write(config.join(FILE), body)
+    let path = config.join(FILE);
+    std::fs::write(&path, body)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
 }
 
 /// This computer no longer joins the company's ArkAgent; the next start offers setup again.
@@ -168,6 +177,15 @@ mod tests {
         assert_eq!(saved(&config), None);
         save(&config, &format!("  {CODE}\n")).unwrap();
         assert_eq!(saved(&config).as_deref(), Some(CODE));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(config.join(FILE))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
         forget(&config).unwrap();
         assert_eq!(saved(&config), None);
         // Leaving twice is not an error.

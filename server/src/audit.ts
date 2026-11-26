@@ -358,6 +358,20 @@ export const auditEventTypes = [
    */
   "session.signed_in",
   "session.refused",
+  /*
+   * A customer's team and how staff reach it (security review of v0.1.54, F6): the administrator
+   * made at set-up, sub-profiles added, removed or given other employees, a password changed, the
+   * paid count asked of BlackArk, and the office network or remote staff switched or its join code
+   * replaced. Who did it is the row's actor; what changed is in the payload, never a password.
+   */
+  "team.administrator_made",
+  "team.member_added",
+  "team.member_removed",
+  "team.member_agents_changed",
+  "team.password_changed",
+  "team.billing_synced",
+  "office.settings_changed",
+  "office.join_code_renewed",
   "person.admin_by_configuration",
   /**
    * An address named in `INITIAL_ADMIN_EMAILS` signed in through something that cannot vouch for it

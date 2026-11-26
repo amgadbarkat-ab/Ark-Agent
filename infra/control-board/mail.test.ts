@@ -172,6 +172,13 @@ describe("General@ through Microsoft Graph, filtered on support@", () => {
   test("takes only messages sent to support@ (To or Cc), read or not; everything else is never fetched in full or marked read", async () => {
     const t = await testBoard();
     current = t;
+    // The board knows demo-shop's administrator, who is the sender here (F8).
+    await t.sql.run(
+      "INSERT INTO customer_teams (customer_id, members, updated_at) VALUES (?, ?, ?)",
+      "demo-shop",
+      JSON.stringify([{ email: "customer@example.com", role: "admin" }]),
+      "2026-11-18T09:00:00.000Z",
+    );
     const inbox = [
       mail({
         to: ["support@blackark.uk"],

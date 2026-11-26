@@ -98,6 +98,7 @@ test("requests reach the company's ArkAgent as its own, with the sign-in cookie 
   const { local } = await proxy(code);
   expect(await (await fetch(`${local}/__ark_join/health`)).json()).toEqual({
     connected: true,
+    via: "office",
   });
 
   const signIn = await fetch(`${local}/api/auth/sign-in/email`, {
@@ -157,6 +158,7 @@ test("a computer with another certificate is never trusted, whatever it says", a
   const { local } = await proxy({ ...code, fingerprint: impostor.fingerprint });
   expect(await (await fetch(`${local}/__ark_join/health`)).json()).toEqual({
     connected: false,
+    via: null,
   });
   const api = await fetch(`${local}/api/team/me`);
   expect(api.status).toBe(503);

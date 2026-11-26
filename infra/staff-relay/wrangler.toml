@@ -1,0 +1,31 @@
+# BlackArk staff relay on Cloudflare Workers + Durable Objects (Amgad, 25 Nov 2026: remote staff).
+# Deploy steps: README.md. NOT DEPLOYED until Workers Paid is switched on (Amgad's yes, 25 Nov);
+# COO deploys.
+#
+# Written by hand: wrangler is not a dependency of this repository. COO runs it pinned, from this
+# directory:  npx --yes wrangler@4.20.0 deploy
+# No secrets: the relay checks BlackArk's PUBLIC licence keys (shared/license-public-key.ts) and
+# keeps only SHA-256 hashes of the keys installs give it.
+
+name = "blackark-staff"
+main = "main.ts"
+compatibility_date = "2025-09-01"
+# The address installs use: https://blackark-staff.blackark.workers.dev
+workers_dev = true
+
+[vars]
+# Customer ids BlackArk has cut off from the relay (a refund, a leaked key), comma-separated.
+REVOKED_CUSTOMERS = ""
+
+[[durable_objects.bindings]]
+name = "OFFICE"
+class_name = "StaffOffice"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StaffOffice"]
+
+[observability]
+# Request logs would carry office ids and the addresses staff connect from; off. The relay's own
+# log lines say only that a host connected or disconnected.
+enabled = false

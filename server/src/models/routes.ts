@@ -1,3 +1,5 @@
+import { lookup as lookupAll } from "node:dns/promises";
+import { isIP } from "node:net";
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import {
@@ -73,6 +75,45 @@ const probeBody = z.strictObject({
 /** Long enough for a program on this computer to answer, short enough that a page never waits on one. */
 const LOCAL_PROBE_MS = 2_500;
 
+const LOCAL_FOR_SUBPROFILE =
+  "A sub-profile cannot use a model on the administrator's computer or the office network. Choose a hosted provider.";
+
+/** Loopback, private, link-local and unique-local addresses: this computer and its networks. */
+export function isPrivateAddress(address: string): boolean {
+  const plain = address
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/^::ffff:/, "");
+  if (isIP(plain) === 4) {
+    const [a = 0, b = 0] = plain.split(".").map(Number);
+    return (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  if (isIP(plain) === 6)
+    return (
+      plain === "::1" ||
+      plain === "::" ||
+      plain.startsWith("fe80:") ||
+      plain.startsWith("fc") ||
+      plain.startsWith("fd")
+    );
+  return false;
+}
+
+async function defaultLookup(hostname: string): Promise<string[]> {
+  const bare = hostname.replace(/^\[|\]$/g, "");
+  if (isIP(bare)) return [bare];
+  const found = await lookupAll(bare, { all: true });
+  return found.map((one) => one.address);
+}
+
 const LOCAL_ON_HOSTED =
   "This server cannot reach models on your own computer. Use the Ark desktop app for local models, or choose a hosted provider.";
 
@@ -99,6 +140,15 @@ export function modelConnectionRoutes(options: {
   audit?: (event: ModelAuditEvent) => Promise<void>;
   /** The deployment's free starter model, when it has one. Only described here; it is used elsewhere. */
   starter?: StarterModel;
+  /**
+   * Whether this person is held to public model addresses although the deployment may reach its own
+   * computer and network (security review of v0.1.54, F4): a sub-profile works from another
+   * computer, so "localhost" or an office address would be the administrator's computer and network.
+   * The bundled model on this computer stays theirs to use through the deployment's own settings.
+   */
+  publicOnly?: (actor: { id: string; role: string }) => Promise<boolean>;
+  /** Resolves a name to its addresses, for the check above. The tests give their own. */
+  lookup?: (hostname: string) => Promise<string[]>;
   /**
    * The model ArkAgent runs on this computer, when the person chose it. Only asked whether it is up;
    * the run uses the deployment's own model settings, which are the same address.
@@ -135,18 +185,47 @@ export function modelConnectionRoutes(options: {
    * unreachable address, because "localhost" there is the datacentre and the person would
    * otherwise be told only that nothing answered.
    */
-  function checkTarget(providerId: string, baseUrl: string) {
+  async function checkTarget(
+    providerId: string,
+    baseUrl: string,
+    actor: { id: string; role: string },
+  ) {
+    const restricted =
+      allowPrivateHosts &&
+      (await (options.publicOnly?.(actor) ?? Promise.resolve(false)).catch(
+        () => true,
+      ));
+    const privateOk = allowPrivateHosts && !restricted;
     const provider = providerById(providerId);
-    if (provider?.local && !allowPrivateHosts) {
-      return { ok: false as const, message: LOCAL_ON_HOSTED };
+    if (provider?.local && !privateOk) {
+      return {
+        ok: false as const,
+        message: restricted ? LOCAL_FOR_SUBPROFILE : LOCAL_ON_HOSTED,
+      };
     }
     const verdict = checkAgentEndpoint(baseUrl, {
-      allowPrivateHosts,
+      allowPrivateHosts: privateOk,
       ...(allowedHosts ? { allowedHosts } : {}),
     });
-    return verdict.allowed
-      ? { ok: true as const }
-      : { ok: false as const, message: verdict.reason };
+    if (!verdict.allowed)
+      return {
+        ok: false as const,
+        message: restricted ? LOCAL_FOR_SUBPROFILE : verdict.reason,
+      };
+    if (restricted) {
+      // A public name that points at this computer or its network is refused the same way.
+      const lookup = options.lookup ?? defaultLookup;
+      // A name that does not resolve now could be pointed here later: refused, not waved through.
+      const addresses = await lookup(new URL(baseUrl).hostname).catch(
+        () => [] as string[],
+      );
+      if (
+        addresses.length === 0 ||
+        addresses.some((address) => isPrivateAddress(address))
+      )
+        return { ok: false as const, message: LOCAL_FOR_SUBPROFILE };
+    }
+    return { ok: true as const };
   }
 
   // What the picker shows. Local providers are marked unusable on a hosted deployment, so the app
@@ -263,7 +342,11 @@ export function modelConnectionRoutes(options: {
     const input = parsed.data;
     const verdict = checkConnectionInput(input);
     if (!verdict.ok) return context.json({ error: verdict.message }, 400);
-    const target = checkTarget(input.providerId, verdict.baseUrl);
+    const target = await checkTarget(
+      input.providerId,
+      verdict.baseUrl,
+      context.var.actor,
+    );
     if (!target.ok) return context.json({ error: target.message }, 400);
 
     const provider = providerById(input.providerId);
@@ -333,7 +416,11 @@ export function modelConnectionRoutes(options: {
         apiKey: "present",
       });
       if (!verdict.ok) return context.json({ error: verdict.message }, 400);
-      const target = checkTarget(current.providerId, verdict.baseUrl);
+      const target = await checkTarget(
+        current.providerId,
+        verdict.baseUrl,
+        context.var.actor,
+      );
       if (!target.ok) return context.json({ error: target.message }, 400);
       baseUrl = verdict.baseUrl;
     }
@@ -501,7 +588,11 @@ export function modelConnectionRoutes(options: {
     const input = parsed.data;
     const verdict = checkConnectionInput(input);
     if (!verdict.ok) return context.json({ error: verdict.message }, 400);
-    const target = checkTarget(input.providerId, verdict.baseUrl);
+    const target = await checkTarget(
+      input.providerId,
+      verdict.baseUrl,
+      context.var.actor,
+    );
     if (!target.ok) return context.json({ error: target.message }, 400);
     const provider = providerById(input.providerId);
     if (!provider) return context.json({ error: "Unknown provider." }, 400);
@@ -531,7 +622,11 @@ export function modelConnectionRoutes(options: {
     if (!opened) return context.json({ error: "No such connection." }, 404);
     const provider = providerById(opened.providerId);
     if (!provider) return context.json({ error: "Unknown provider." }, 400);
-    const target = checkTarget(opened.providerId, opened.baseUrl);
+    const target = await checkTarget(
+      opened.providerId,
+      opened.baseUrl,
+      context.var.actor,
+    );
     if (!target.ok) return context.json({ error: target.message }, 400);
     return context.json(
       await probeConnection({

@@ -7,6 +7,7 @@ import { withAccountProvisioning } from "./accounts/provisioning";
 import { accountRoutes, adminAccountRoutes } from "./accounts/routes";
 import type { AccountStore } from "./accounts/store";
 import type { TeamService } from "./accounts/team";
+import { teamAudit } from "./accounts/team-audit";
 import { teamRoutes, teamSetupRoutes } from "./accounts/team-routes";
 import {
   authoriseAgentCall,
@@ -826,6 +827,7 @@ export function createApp(
           auth,
           roleRepository,
           team ? (userId) => team.mayUse(userId) : undefined,
+          team ? (userId) => team.mayAct(userId) : undefined,
         )
       : authenticationUnavailable;
   // Every signed-in person belongs to an account before anything runs for them. See provisioning.ts.
@@ -1024,7 +1026,13 @@ export function createApp(
     };
     app.route(
       "/api/account",
-      privacyRoutes({ requireUser, dependencies: privacy, audit }),
+      privacyRoutes({
+        requireUser,
+        dependencies: team
+          ? { ...privacy, isSubprofile: team.isSubprofile }
+          : privacy,
+        audit,
+      }),
     );
     app.route(
       "/api/admin/people",
@@ -1176,6 +1184,7 @@ export function createApp(
       modelConnectionRoutes({
         requireUser,
         ...routeOptions,
+        ...(team ? { publicOnly: (actor) => team.isSubprofile(actor.id) } : {}),
         // A change to what a person's coworkers think with is on the trail beside everything else
         // that changes configuration.
         audit: async (event) => {
@@ -1897,7 +1906,13 @@ export function createApp(
   if (channelStore) {
     app.route(
       "/api/channels",
-      createChannelRoutes(channelStore, requireUser, channelEvents, auditStore),
+      createChannelRoutes(
+        channelStore,
+        requireUser,
+        channelEvents,
+        auditStore,
+        team ? async (userId) => (await team.mayUse(userId)).ok : undefined,
+      ),
     );
   }
 
@@ -1925,12 +1940,23 @@ export function createApp(
     );
   }
 
+  if (team && auditStore) {
+    const audit = teamAudit({
+      auditStore,
+      actorOf: async (context) =>
+        (await auth?.api.getSession({ headers: context.req.raw.headers }))?.user
+          ?.id ?? null,
+    });
+    app.use("/api/team/*", audit);
+    app.use("/api/auth/change-password", audit);
+  }
   if (team) {
     // Set-up first: it is what a deployment with nobody on it yet can answer.
     app.route(
       "/api/team",
       teamSetupRoutes(team, {
         setupToken: process.env.ARK_SETUP_TOKEN?.trim() || undefined,
+        tokenRequired: config.auth?.passwordSignIn === true,
       }),
     );
     if (office) {

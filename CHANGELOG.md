@@ -8,6 +8,40 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
+- **Staff outside the office (Amgad, 25 Nov, #149).** Settings → Team → "Let my staff sign in from outside the office".
+  - Off until switched on. Staff working from home or on the road reach the company's ArkAgent through BlackArk's staff relay on Cloudflare, with the same join code.
+  - **The relay cannot read what it carries.** Each staff connection is TLS from the staff computer to the administrator's computer. The staff computer checks the administrator's certificate by the fingerprint in the join code, as on the office network. Passwords, chats and files never leave that connection.
+  - **Who gets through the relay:**
+    - only an ArkAgent with a valid BlackArk licence key or trial activation code can offer its office there, at most 10 offices per licence (an office is one company computer, not a person: any number of staff join it);
+    - only a staff computer with that office's join code can reach it;
+    - the join code names the relay only once the relay has accepted this computer's office;
+    - "Make a new join code" starts a new office with new keys, so the old code stops working outside the office. Do this when someone leaves.
+  - **What the relay keeps:** the customer id and scrambled forms of the office's keys, and only while remote staff is on. Switching it off deletes them.
+  - **Limits:** 96 connections at once per office, at most 4 GB or 12 hours per connection, and a limit per internet address. BlackArk can cut a customer off at once.
+  - On the office network, staff computers still connect directly; the relay is used only when the administrator's computer cannot be found on the network.
+  - With only remote staff switched on, the administrator's computer answers on its own loopback alone, for the relay. It no longer answers on the office network.
+  - **Needs BlackArk's staff relay deployed** (`infra/staff-relay`, Workers Paid). Until then the switch says the relay cannot be reached, and the office network works as before.
+- **Security follow-ups from the reviews of v0.1.54 and v0.1.55.**
+  - **Suspended or removed staff are cut off within 10 seconds** on every connection they still hold, live conversations and updates included. Before, a live conversation could keep reconnecting for up to 24 hours.
+  - **Linux:** when the desktop cannot confirm that its containers reach this computer, and so listens on every network interface, it answers only the containers' own calls from other computers. Sign-in, set-up and the app are answered only on this computer.
+  - **A sub-profile's first password,** which the administrator chose, works only to see who they are, accept the terms, finish onboarding and choose their own. Changing a password signs out every other session of that person.
+  - **Staff cannot point a model at the administrator's computer or the office network,** whether by its address or by a name for it. A name that does not resolve is refused too.
+  - **A staff computer's join code** is stored readable by its own user only.
+  - **The audit trail records team and office changes:** the administrator made, sub-profiles added or removed or given other employees, password changes, the paid count asked, and the office network, remote staff and join code changed.
+  - **blackark.uk:** only the ArkAgent the sub-profiles were bought on can change how many are paid. At most 5 more can be added at a time and 20 changes made a day, and requests are limited per internet address too.
+  - **The support board marks mail from an address it does not know for that customer,** and no longer believes a `[customer:…]` tag from it.
+  - **Smaller fixes:**
+    - set-up is closed where password sign-in has no set-up secret;
+    - the app's own web server checks the Host on the desktop;
+    - the set-up secret reaches only the server;
+    - a server error is no longer counted as a wrong password;
+    - a second click while a sign-in is still checked is told to wait;
+    - only the administrator asks BlackArk again about 24/7 support;
+    - a sub-profile's own data download leaves out the company's billing.
+  - **Privacy notice:**
+    - payments are with Stripe (not Paddle);
+    - it covers 24/7 Priority Support orders and remote staff through Cloudflare, how long the board keeps team lists and orders, and the weekly summary's cleanup of conversations.
+
 ## 0.1.55
 
 - **Security fixes from the review of v0.1.54 (25 Nov, #149).** v0.1.54 is not offered to customers; this release replaces it.

@@ -1014,6 +1014,8 @@ function ark_board_flush(PDO $db, int $limit = 10): int
 const ARK_SUBPROFILE_LOOKUP = 'arkagent_subprofile_monthly_eur';
 const ARK_SUBPROFILE_CENTS = 1500;
 const ARK_SUBPROFILE_MAX = 50;
+/** At most this many more sub-profiles in one change (security review of v0.1.54, F7). */
+const ARK_SUBPROFILE_STEP = 5;
 
 function ark_subprofile_price(): ?string
 {

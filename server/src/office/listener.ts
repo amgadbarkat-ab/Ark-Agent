@@ -5,6 +5,7 @@ import {
   type HubSocketData,
   hubSocket,
   isHubSocket,
+  joinTokenUser,
   withHubAddress,
   withSocketAllowed,
 } from "./hub-socket";
@@ -32,6 +33,11 @@ export function officeServeOptions<Data>(
     hub: string;
     /** Names this computer answers to on the office network, beside its addresses. */
     ownNames?: () => readonly string[];
+    /**
+     * Whether this person may still use ArkAgent (an unpaid, suspended or removed sub-profile may
+     * not). The hub's socket is refused, and closed within seconds later, when they may not.
+     */
+    mayUse?: (userId: string) => Promise<boolean>;
   },
 ) {
   type Both = Data | HubSocketData;
@@ -48,9 +54,23 @@ export function officeServeOptions<Data>(
         url.pathname === HUB_PATH &&
         request.headers.get("upgrade")?.toLowerCase() === "websocket"
       ) {
+        const userId = joinTokenUser(url.search);
+        if (!userId) return new Response("Sign in first.", { status: 401 });
+        if (
+          options.mayUse &&
+          !(await options.mayUse(userId).catch(() => false))
+        )
+          return new Response("No longer allowed to use this ArkAgent.", {
+            status: 403,
+          });
         if (
           (server as unknown as Server<HubSocketData>).upgrade(request, {
-            data: { hub: options.hub + url.search, queued: [] },
+            data: {
+              hub: options.hub + url.search,
+              queued: [],
+              userId,
+              ...(options.mayUse ? { mayUse: options.mayUse } : {}),
+            },
           })
         )
           return undefined as unknown as Response;

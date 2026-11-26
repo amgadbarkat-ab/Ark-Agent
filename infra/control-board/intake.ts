@@ -21,6 +21,7 @@ import {
   findBySource,
   getCase,
   openCase,
+  reachOf,
   setReach,
   UNVERIFIED_CUSTOMER,
 } from "./cases";
@@ -377,6 +378,40 @@ export function senderAddress(from: string): string | null {
 }
 
 const CASE_TAG = /\[(?:Case|Υπόθεση) #(\d{1,9})\]/i;
+
+/**
+ * The addresses this board knows for a customer (security review of v0.1.54, F8): the one their
+ * 24/7 support order was bought with, and the administrator's in the team their app last sent.
+ */
+export async function knownAddresses(
+  db: Sql,
+  customerId: string,
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  const orders = await db.all<{ email: string | null }>(
+    "SELECT email FROM support_orders WHERE customer_id = ?",
+    customerId,
+  );
+  for (const row of orders)
+    if (row.email) found.add(row.email.trim().toLowerCase());
+  const team = await db.first<{ members: string }>(
+    "SELECT members FROM customer_teams WHERE customer_id = ?",
+    customerId,
+  );
+  try {
+    for (const member of JSON.parse(team?.members ?? "[]") as {
+      email?: unknown;
+      role?: unknown;
+    }[])
+      if (member.role === "admin" && typeof member.email === "string")
+        found.add(member.email.trim().toLowerCase());
+  } catch {}
+  return found;
+}
+
+/** What staff see first on a note or case whose sender the board could not match. */
+export const UNCONFIRMED_SENDER =
+  "UNCONFIRMED SENDER: this address is not one the board knows for this customer. Check who it is before replying with any customer details.";
 const CUSTOMER_TAG = /\[customer:([A-Za-z0-9][A-Za-z0-9_-]{1,79})\]/;
 
 /**
@@ -411,8 +446,20 @@ export async function pollMailbox(
       : null;
     const existing =
       repliedTo ?? (tagged ? await getCase(db, Number(tagged[1])) : null);
+    const sender = senderAddress(message.from)?.toLowerCase() ?? null;
     if (existing) {
-      await addNote(db, existing.number, "intake:mail", body, now);
+      // A reply to the board's own mail is threaded by Message-ID; a subject tag anybody can write.
+      const reach = await reachOf(db, existing.number);
+      const known = await knownAddresses(db, existing.customer_id);
+      if (reach?.email) known.add(reach.email.toLowerCase());
+      const confirmed = sender !== null && known.has(sender);
+      await addNote(
+        db,
+        existing.number,
+        "intake:mail",
+        confirmed ? body : `${UNCONFIRMED_SENDER}\n\n${body}`.slice(0, 8000),
+        now,
+      );
       await appendAudit(
         db,
         {
@@ -420,13 +467,19 @@ export async function pollMailbox(
           action: "case.note",
           target: `case:${existing.number}`,
           outcome: "ok",
+          ...(confirmed ? {} : { detail: "sender not confirmed" }),
         },
         now,
       );
       touched.push(existing.number);
     } else {
-      const customerId =
-        message.subject.match(CUSTOMER_TAG)?.[1] ?? "unmatched";
+      // A customer tag is believed only from an address the board knows for that customer.
+      const named = message.subject.match(CUSTOMER_TAG)?.[1] ?? null;
+      const trusted =
+        named !== null &&
+        sender !== null &&
+        (await knownAddresses(db, named)).has(sender);
+      const customerId = trusted ? (named as string) : "unmatched";
       const made = await openCase(
         db,
         {
@@ -439,7 +492,13 @@ export async function pollMailbox(
           // Mail carries no signed plan; a person changes the urgency if the customer pays.
           plan: "trial",
           subject: message.subject.slice(0, 200) || "(no subject)",
-          note: body,
+          note:
+            named !== null && !trusted
+              ? `${UNCONFIRMED_SENDER} It names customer ${named}.\n\n${body}`.slice(
+                  0,
+                  8000,
+                )
+              : body,
           sourceRef: ref,
         },
         "intake:mail",

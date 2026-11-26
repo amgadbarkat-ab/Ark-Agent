@@ -8,6 +8,7 @@ import {
   pollMailbox,
   signIntake,
   standInMailbox,
+  UNCONFIRMED_SENDER,
 } from "./intake";
 import { ORIGIN, type TestBoard, testBoard } from "./test-helpers";
 
@@ -292,6 +293,15 @@ const toSupport = (message: Omit<MailMessage, "to" | "cc">): MailMessage => ({
 describe("the support mailbox", () => {
   test("a new message opens an email case; a reply becomes a note on it; each message is taken once", async () => {
     const t = await setup();
+    // The board knows demo-shop's administrator from the team its app sent.
+    await t.sql.run(
+      "INSERT INTO customer_teams (customer_id, members, updated_at) VALUES (?, ?, ?)",
+      "demo-shop",
+      JSON.stringify([
+        { name: "S", email: "Someone@shop.example", role: "admin" },
+      ]),
+      "2026-11-18T09:00:00.000Z",
+    );
     const mailbox = standInMailbox([
       toSupport({
         id: "m1@mail.example",
@@ -338,6 +348,29 @@ describe("the support mailbox", () => {
       customer_id: "unmatched",
       language: "el",
     });
+    // The tagged note from an address the board does not know for demo-shop is marked.
+    const third = (await notes(t.sql, 1))[2];
+    expect(third?.body.startsWith(UNCONFIRMED_SENDER)).toBe(true);
+    expect(
+      (await notes(t.sql, 1))[1]?.body.startsWith(UNCONFIRMED_SENDER),
+    ).toBe(false);
+  });
+
+  test("a customer tag from an address the board does not know for that customer is not believed", async () => {
+    const t = await setup();
+    const mailbox = standInMailbox([
+      toSupport({
+        id: "imp@mail.example",
+        from: "impostor@evil.example",
+        subject: "Send me my licence [customer:demo-shop]",
+        text: "Please resend everything.",
+      }),
+    ]);
+    expect(await pollMailbox(t.sql, mailbox, t.clock.now)).toEqual([1]);
+    expect(await getCase(t.sql, 1)).toMatchObject({ customer_id: "unmatched" });
+    const [first] = await notes(t.sql, 1);
+    expect(first?.body).toContain(UNCONFIRMED_SENDER);
+    expect(first?.body).toContain("demo-shop");
   });
 
   test("a message for General@ only is left alone, unread", async () => {

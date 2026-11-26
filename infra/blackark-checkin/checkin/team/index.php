@@ -60,7 +60,16 @@ $count->execute([$install]);
 if ((int) $count->fetchColumn() >= (int) ark_config('servers_per_install_per_hour', 60)) {
     team_answer(429);
 }
-$db->prepare('INSERT INTO team_requests (install_id, at) VALUES (?, ?)')->execute([$install, time()]);
+/*
+ * Also per address (security review of v0.1.54, F7): the install id is whatever the caller says, so
+ * a limit on it alone is no limit for somebody who makes up a new one each time.
+ */
+$address = 'ip:' . (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+$count->execute([$address]);
+if ((int) $count->fetchColumn() >= (int) ark_config('team_per_address_per_hour', 120)) {
+    team_answer(429);
+}
+$db->prepare('INSERT INTO team_requests (install_id, at) VALUES (?, ?), (?, ?)')->execute([$install, time(), $address, time()]);
 
 $ok = ark_install_proof_ok($body['proof'] ?? null, $customer);
 if ($ok === null) {
@@ -75,6 +84,35 @@ ark_subprofile_table($db);
 $before = ark_subprofile_paid($db, $customer);
 $checkoutUrl = null;
 if ($quantity !== null && $quantity !== $before['paid']) {
+    /*
+     * Changing what the customer pays (security review of v0.1.54, F7). A licence key or activation
+     * code proves only that the caller holds one, and an old email can hold one. So:
+     * - the paid number is changed only by the install it was first changed on (its id, kept here),
+     *   and BlackArk moves it on request (`DELETE FROM team_bindings WHERE customer_id = ?`);
+     * - it goes up by at most ARK_SUBPROFILE_STEP at a time, and at most 20 changes a day;
+     * - each change goes to the board as an order (below), and Stripe sends the customer the invoice.
+     */
+    $db->exec('CREATE TABLE IF NOT EXISTS team_bindings (customer_id TEXT PRIMARY KEY, install_id TEXT NOT NULL, at INTEGER NOT NULL)');
+    $db->exec('CREATE TABLE IF NOT EXISTS team_changes (customer_id TEXT NOT NULL, at INTEGER NOT NULL)');
+    $bound = $db->prepare('SELECT install_id FROM team_bindings WHERE customer_id = ?');
+    $bound->execute([$customer]);
+    $holder = $bound->fetchColumn();
+    if ($holder !== false && (string) $holder !== $install) {
+        team_answer(403, ['error' => "Only the ArkAgent your sub-profiles were bought on can change them. Ask BlackArk to move them to this one.", 'code' => 'other_install']);
+    }
+    if ($quantity > $before['paid'] + ARK_SUBPROFILE_STEP) {
+        team_answer(400, ['error' => 'Add at most ' . ARK_SUBPROFILE_STEP . ' sub-profiles at a time.', 'code' => 'too_many_at_once']);
+    }
+    $db->prepare('DELETE FROM team_changes WHERE at < ?')->execute([time() - 86400]);
+    $changes = $db->prepare('SELECT COUNT(*) FROM team_changes WHERE customer_id = ?');
+    $changes->execute([$customer]);
+    if ((int) $changes->fetchColumn() >= 20) {
+        team_answer(429, ['error' => 'Too many changes to sub-profiles today. Try again tomorrow, or ask BlackArk.']);
+    }
+    $db->prepare('INSERT INTO team_changes (customer_id, at) VALUES (?, ?)')->execute([$customer, time()]);
+    if ($holder === false) {
+        $db->prepare('INSERT INTO team_bindings (customer_id, install_id, at) VALUES (?, ?, ?)')->execute([$customer, $install, time()]);
+    }
     $price = ark_subprofile_price();
     if ($price === null) {
         team_answer(503, ['error' => 'Sub-profiles cannot be bought yet.']);

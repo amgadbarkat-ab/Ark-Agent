@@ -925,6 +925,12 @@ rm -f "$work/fake/sub_past_due"
 got="$(ask_team "$(team_body demo-phone "$licence" ',"quantity":0')")"
 [[ "$got" == '{"paid":0,"status":"active","checkoutUrl":null}' ]] && grep -q 'quantity=0' <(grep "^/fakestripe/v1/subscription_items/si_" "$work/fake/sent.log" | tail -1) \
   && { pass=$((pass+1)); echo "ok   removing the last sub-profile takes the quantity to 0 (prorated)"; } || { fail=$((fail+1)); echo "FAIL team to zero: $got"; }
+other_inst=7e8f9012-0000-4000-8000-0000000000e2
+expect "another install with the same licence key cannot change what is paid" 403 -X POST --data "{\"customerId\":\"demo-phone\",\"installId\":\"$other_inst\",\"proof\":$licence,\"quantity\":2}" "$team_url"
+got="$(curl -s -X POST --data "{\"customerId\":\"demo-phone\",\"installId\":\"$other_inst\",\"proof\":$licence}" "$team_url")"
+[[ "$got" == '{"paid":0,"status":"active","checkoutUrl":null}' ]] \
+  && { pass=$((pass+1)); echo "ok   it can still read how many are paid"; } || { fail=$((fail+1)); echo "FAIL other install read: $got"; }
+expect "more than 5 more sub-profiles at once is refused" 400 -X POST --data "$(team_body demo-phone "$licence" ',"quantity":6')" "$team_url"
 branded "the sub-profile thank-you page" "$buy?done=team"
 
 echo; echo "$pass passed, $fail failed"

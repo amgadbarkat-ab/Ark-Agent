@@ -15,6 +15,17 @@ export const officeNetwork = pgTable("office_network", {
   certificate: text("certificate").notNull(),
   sealedKey: text("sealed_key").notNull(),
   fingerprint: text("fingerprint").notNull(),
+  /**
+   * Remote staff (v0.1.56): staff away from the office reach this ArkAgent through BlackArk's staff
+   * relay. Off until the administrator switches it on. `relayOffice` is this office's random id at
+   * the relay; `sealedRelay` holds its host key and the staff access key, as JSON, sealed with
+   * KEY_ENCRYPTION_KEY (rekey.ts).
+   */
+  remoteEnabled: boolean("remote_enabled").notNull().default(false),
+  relayOffice: text("relay_office"),
+  sealedRelay: text("sealed_relay"),
+  /** Whether the relay has welcomed this office as this computer's: only then does a code name it. */
+  relayRegistered: boolean("relay_registered").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

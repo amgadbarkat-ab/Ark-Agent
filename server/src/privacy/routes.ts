@@ -29,7 +29,10 @@ const STATUS: Record<ErasureRefused["code"], 403 | 404 | 409 | 503> = {
 
 const confirmBody = z.strictObject({ confirmEmail: z.string().max(320) });
 
-type Dependencies = ErasureDependencies & { database: Database };
+type Dependencies = ErasureDependencies & {
+  database: Database;
+  isSubprofile?: (userId: string) => Promise<boolean>;
+};
 
 /** The text of an export, as a download that is sent as it is made and never held whole. */
 function download(chunks: AsyncGenerator<string, void, undefined>): Response {

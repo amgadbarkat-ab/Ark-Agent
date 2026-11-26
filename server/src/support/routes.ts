@@ -52,12 +52,13 @@ export function supportRoutes(
   });
 
   app.get("/priority", async (context) => {
-    const view = await service.priority(context.req.query("fresh") === "1");
-    return context.json(
-      (await isSubprofile?.(context.var.actor.id))
-        ? { ...view, buyUrl: null }
-        : view,
+    // Only the administrator asks BlackArk again (F9): a sub-profile cannot use up the install's
+    // hourly allowance at blackark.uk.
+    const sub = (await isSubprofile?.(context.var.actor.id)) === true;
+    const view = await service.priority(
+      !sub && context.req.query("fresh") === "1",
     );
+    return context.json(sub ? { ...view, buyUrl: null } : view);
   });
 
   const read = async (raw: unknown) => body.safeParse(raw);

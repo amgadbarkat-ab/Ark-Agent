@@ -14,12 +14,19 @@
  * passwords and chats. Requests and sockets now go, as plain HTTP on this computer's loopback, to
  * a bridge that makes that checked connection.
  *
+ * AWAY FROM THE OFFICE (remote staff, v0.1.56): when the company's computer cannot be found on
+ * this network and the join code names BlackArk's staff relay, the same checked TLS connection is
+ * made through the relay instead. A loopback tunnel here hands each connection's bytes to a
+ * WebSocket to the relay, which passes them to the company's computer's office listener. The relay
+ * only ever holds encrypted bytes; the certificate is checked here, by the same fingerprint, before
+ * anything is sent, exactly as on the office network.
+ *
  * No dependencies beyond Bun and node: it runs from the installed files as they are.
  */
 import net from "node:net";
 import tls from "node:tls";
 import { withHubAddress, withSocketAllowed } from "./hub-socket";
-import { type JoinCode, parseJoinCode } from "./join-code";
+import { type JoinCode, parseJoinCode, type RelayPart } from "./join-code";
 
 export type Upstream = {
   /** The company's computer as the page knows it: `https://<address>:<port>`. */
@@ -28,6 +35,8 @@ export type Upstream = {
   host: string;
   address: string;
   port: number;
+  /** Whether the bytes go through BlackArk's staff relay rather than the office network. */
+  viaRelay?: boolean;
 };
 
 type SocketData = {
@@ -39,6 +48,8 @@ type SocketData = {
 };
 
 const TIMEOUT_MS = 4000;
+/** Through the relay a connection is made twice over the internet before TLS begins. */
+const RELAY_TIMEOUT_MS = 12_000;
 /** Hop-by-hop headers, and the ones the connection to the company's computer sets for itself. */
 const DROP_REQUEST = [
   "host",
@@ -72,6 +83,7 @@ export function checkedConnection(
   address: string,
   port: number,
   fingerprint: string,
+  timeoutMs = TIMEOUT_MS,
 ): Promise<tls.TLSSocket | null> {
   return new Promise((resolve) => {
     let settled = false;
@@ -89,7 +101,7 @@ export function checkedConnection(
     const timer = setTimeout(() => {
       socket.destroy();
       done(null);
-    }, TIMEOUT_MS);
+    }, timeoutMs);
     socket.once("secureConnect", () => {
       if (fingerprintOf(socket) === fingerprint) done(socket);
       else {
@@ -104,20 +116,102 @@ export function checkedConnection(
   });
 }
 
-/** Finds the company's computer at one of its addresses, by the certificate the join code names. */
-export async function findUpstream(code: JoinCode): Promise<Upstream | null> {
-  for (const address of code.addresses) {
-    const socket = await checkedConnection(
-      address,
-      code.port,
-      code.fingerprint,
-    );
-    if (!socket) continue;
-    socket.destroy();
-    const host = `${address.includes(":") ? `[${address}]` : address}:${code.port}`;
-    return { origin: `https://${host}`, host, address, port: code.port };
-  }
-  return null;
+/**
+ * A loopback tunnel to BlackArk's staff relay: each TCP connection made to it becomes one WebSocket
+ * to the relay, and nothing is sent until the relay says the company's computer has taken it up.
+ * The TLS connection made over it is checked by `checkedConnection` like any other.
+ */
+export function startRelayTunnel(
+  relay: RelayPart,
+): Promise<{ port: number; close: () => void }> {
+  const target = `${relay.url}/v1/connect?office=${encodeURIComponent(relay.office)}`;
+  const server = net.createServer((client) => {
+    const out = new WebSocket(target, {
+      headers: { authorization: `Bearer ${relay.key}` },
+    } as never);
+    out.binaryType = "arraybuffer";
+    const held: Buffer[] = [];
+    let ready = false;
+    const end = () => {
+      client.destroy();
+      try {
+        out.close();
+      } catch {}
+    };
+    client.on("data", (chunk: Buffer) => {
+      if (ready) out.send(chunk);
+      else held.push(chunk);
+    });
+    client.on("error", end);
+    client.on("close", end);
+    out.onmessage = (event) => {
+      if (typeof event.data === "string") {
+        if (event.data !== "ready" || ready) return end();
+        ready = true;
+        for (const chunk of held.splice(0)) out.send(chunk);
+        return;
+      }
+      client.write(Buffer.from(event.data as ArrayBuffer));
+    };
+    out.onclose = end;
+    out.onerror = end;
+  });
+  return new Promise((resolve) =>
+    server.listen(0, "127.0.0.1", () =>
+      resolve({
+        port: (server.address() as net.AddressInfo).port,
+        close: () => server.close(),
+      }),
+    ),
+  );
+}
+
+/**
+ * Finds the company's computer by the certificate the join code names: at one of its addresses on
+ * this network first (all tried at once), then, if the code names it, through BlackArk's relay.
+ */
+export async function findUpstream(
+  code: JoinCode,
+  tunnelPort?: number,
+): Promise<Upstream | null> {
+  const direct = await new Promise<Upstream | null>((resolve) => {
+    let left = code.addresses.length;
+    if (left === 0) resolve(null);
+    for (const address of code.addresses)
+      void checkedConnection(address, code.port, code.fingerprint).then(
+        (socket) => {
+          left -= 1;
+          if (socket) {
+            socket.destroy();
+            const host = `${address.includes(":") ? `[${address}]` : address}:${code.port}`;
+            resolve({
+              origin: `https://${host}`,
+              host,
+              address,
+              port: code.port,
+            });
+          } else if (left === 0) resolve(null);
+        },
+      );
+  });
+  if (direct || tunnelPort === undefined) return direct;
+  const socket = await checkedConnection(
+    "127.0.0.1",
+    tunnelPort,
+    code.fingerprint,
+    RELAY_TIMEOUT_MS,
+  );
+  if (!socket) return null;
+  socket.destroy();
+  // The company's listener, as it sees itself from its own loopback, where the relay reaches it.
+  const host = `127.0.0.1:${code.port}`;
+  return {
+    origin: `https://${host}`,
+    host,
+    address: "127.0.0.1",
+    port: tunnelPort,
+    viaRelay: true,
+  };
 }
 
 /**
@@ -143,21 +237,24 @@ function startBridge(
     });
     client.on("error", () => up?.destroy());
     client.on("close", () => up?.destroy());
-    void checkedConnection(to.address, to.port, code.fingerprint).then(
-      (socket) => {
-        if (!socket || client.destroyed) {
-          socket?.destroy();
-          if (!socket) lost();
-          client.destroy();
-          return;
-        }
-        up = socket;
-        for (const chunk of held.splice(0)) socket.write(chunk);
-        socket.on("data", (chunk: Buffer) => client.write(chunk));
-        socket.on("error", () => client.destroy());
-        socket.on("close", () => client.destroy());
-      },
-    );
+    void checkedConnection(
+      to.address,
+      to.port,
+      code.fingerprint,
+      to.viaRelay ? RELAY_TIMEOUT_MS : TIMEOUT_MS,
+    ).then((socket) => {
+      if (!socket || client.destroyed) {
+        socket?.destroy();
+        if (!socket) lost();
+        client.destroy();
+        return;
+      }
+      up = socket;
+      for (const chunk of held.splice(0)) socket.write(chunk);
+      socket.on("data", (chunk: Buffer) => client.write(chunk));
+      socket.on("error", () => client.destroy());
+      socket.on("close", () => client.destroy());
+    });
   });
   return new Promise((resolve) =>
     server.listen(0, "127.0.0.1", () =>
@@ -169,15 +266,24 @@ function startBridge(
   );
 }
 
-function unreachable(request: Request, language: string): Response {
+function unreachable(
+  request: Request,
+  language: string,
+  anywhere = false,
+): Response {
   const wantsPage = (request.headers.get("accept") ?? "").includes("text/html");
+  // With remote staff, the company's computer is reachable from anywhere, so the network is not why.
   const english = {
     title: "Your company's ArkAgent is not reachable",
-    body: "The administrator's computer is off, asleep or not on this network. Ask them to open ArkAgent, then try again.",
+    body: anywhere
+      ? "The administrator's computer is off or asleep, or ArkAgent is not open on it. Ask them to open ArkAgent, then try again."
+      : "The administrator's computer is off, asleep or not on this network. Ask them to open ArkAgent, then try again.",
   };
   const greek = {
     title: "Το ArkAgent της εταιρείας σας δεν είναι διαθέσιμο",
-    body: "Ο υπολογιστής του διαχειριστή είναι κλειστός, σε αναστολή ή εκτός αυτού του δικτύου. Ζητήστε του να ανοίξει το ArkAgent και δοκιμάστε ξανά.",
+    body: anywhere
+      ? "Ο υπολογιστής του διαχειριστή είναι κλειστός ή σε αναστολή, ή το ArkAgent δεν είναι ανοιχτό σε αυτόν. Ζητήστε του να ανοίξει το ArkAgent και δοκιμάστε ξανά."
+      : "Ο υπολογιστής του διαχειριστή είναι κλειστός, σε αναστολή ή εκτός αυτού του δικτύου. Ζητήστε του να ανοίξει το ArkAgent και δοκιμάστε ξανά.",
   };
   if (!wantsPage)
     return Response.json(
@@ -211,10 +317,13 @@ export async function startJoinProxy(options: {
   const language = options.language ?? "en";
   let upstream: Upstream | null = null;
   let finding: Promise<Upstream | null> | null = null;
+  const tunnel = options.code.relay
+    ? await startRelayTunnel(options.code.relay)
+    : null;
 
   async function current(): Promise<Upstream | null> {
     if (upstream) return upstream;
-    finding ??= findUpstream(options.code).finally(() => {
+    finding ??= findUpstream(options.code, tunnel?.port).finally(() => {
       finding = null;
     });
     upstream = await finding;
@@ -268,10 +377,14 @@ export async function startJoinProxy(options: {
       const local = url.origin;
       if (url.pathname === "/__ark_join/health") {
         const to = await current();
-        return Response.json({ connected: to !== null });
+        return Response.json({
+          connected: to !== null,
+          via: to ? (to.viaRelay ? "relay" : "office") : null,
+        });
       }
       const to = await current();
-      if (!to) return unreachable(request, language);
+      if (!to)
+        return unreachable(request, language, Boolean(options.code.relay));
       const target = `http://${viaBridge}${url.pathname}${url.search}`;
 
       if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
@@ -342,7 +455,7 @@ export async function startJoinProxy(options: {
       } catch {
         // The company's computer went away, or changed address: look for it again next time.
         upstream = null;
-        return unreachable(request, language);
+        return unreachable(request, language, Boolean(options.code.relay));
       }
     },
     websocket: {
@@ -382,6 +495,7 @@ export async function startJoinProxy(options: {
     stop: () => {
       server.stop(true);
       bridge.close();
+      tunnel?.close();
     },
     /** Whether the company's computer was found, for the desktop's own check. */
     connected: async () => (await current()) !== null,

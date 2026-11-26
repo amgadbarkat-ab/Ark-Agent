@@ -64,9 +64,32 @@ function sameSecret(offered: string, expected: string): boolean {
  * on a web page knows it, so an upgraded install waiting for its administrator cannot be claimed
  * first by somebody else.
  */
+/** The session a request came with (Better Auth's cookie: `<token>.<signature>`), or undefined. */
+export function sessionToken(cookie: string): string | undefined {
+  for (const part of cookie.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (
+      name !== "better-auth.session_token" &&
+      name !== "__Secure-better-auth.session_token"
+    )
+      continue;
+    const value = decodeURIComponent(rest.join("="));
+    return value.split(".")[0] || undefined;
+  }
+  return undefined;
+}
+
 export function teamSetupRoutes(
   service: TeamService,
-  options: { setupToken?: string } = {},
+  options: {
+    setupToken?: string;
+    /**
+     * Refuse set-up when there is no secret at all (security review of v0.1.55, R6): with password
+     * sign-in, set-up open to whoever comes first is the takeover F1 closed. The desktop always
+     * makes the secret; any other deployment sets ARK_SETUP_TOKEN and opens `/#ark-setup=<it>`.
+     */
+    tokenRequired?: boolean;
+  } = {},
 ) {
   const app = new Hono();
   app.get("/setup", async (context) =>
@@ -74,6 +97,15 @@ export function teamSetupRoutes(
   );
   app.post("/setup", async (context) => {
     const expected = options.setupToken?.trim();
+    if (!expected && options.tokenRequired)
+      return context.json(
+        {
+          error:
+            "Set-up is closed: this ArkAgent has no set-up secret. Set ARK_SETUP_TOKEN, then open ArkAgent with it.",
+          code: "setup_secret_missing",
+        },
+        403,
+      );
     if (
       expected &&
       !sameSecret(context.req.header(SETUP_TOKEN_HEADER) ?? "", expected)
@@ -145,6 +177,7 @@ export function teamRoutes(requireUser: Middleware, service: TeamService) {
         context.var.actor.id,
         parsed.data.current,
         parsed.data.next,
+        sessionToken(context.req.header("cookie") ?? ""),
       ),
     );
   });

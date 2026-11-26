@@ -119,8 +119,10 @@ test("the chat's live connection reaches the hub through the staff computer, at 
   expect(info.headers.get("content-security-policy")).toContain(
     local.replace("http", "ws"),
   );
-  expect(await talk(`${wsUrl}?token=join-1`, "phx_join")).toBe(
-    "hub?token=join-1 phx_join",
+  // A join token as the hub signs it: the person in it may use ArkAgent, so the socket is carried.
+  const token = `${Buffer.from(JSON.stringify({ s: { kind: "meta", userId: "u-1" }, exp: 9e9 })).toString("base64url")}.sig`;
+  expect(await talk(`${wsUrl}?join_token=${token}`, "phx_join")).toBe(
+    `hub?join_token=${token} phx_join`,
   );
 });
 
