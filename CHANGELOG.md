@@ -8,12 +8,14 @@ Newest first. `Unreleased` is what is on `main` and not yet tagged.
 
 ## Unreleased
 
-- **ArkAgent updates itself (Amgad, 26 Nov).** Every installed app checks the company site for a new release about a minute after it starts, then every 4 hours.
+- **ArkAgent updates itself (Amgad, 26 Nov).** Every installed app checks the company site for a new release 10 seconds after it starts, then every 4 hours. The check starts before anything else, so a release that fails later in start-up can still fetch its fix.
   - This covers administrator and staff computers alike.
   - When a new release is there, the app downloads it, installs it and restarts at once. The app's server and digital employees then follow the new version, as after a manual install.
   - An update is installed only if it is signed with BlackArk's update key, and only if the signature names the version it was signed for, so an older build cannot be passed off as new.
   - Each release writes `update.json` and the signed update files beside its installers. They work once uploaded with the release to the downloads site.
-  - Windows, Apple Silicon Macs and the Linux AppImage update themselves. The Linux .deb and .rpm are updated by installing the new package.
+  - The update key never reaches a build. A separate release job signs the finished files, with the key held in a GitHub environment that only `main` can use and that a person approves for each release.
+  - A bad release is replaced by publishing a newer, fixed one. Taking `update.json` off the site pauses updates.
+  - Windows, Apple Silicon Macs and all Linux installs update themselves. On Linux, a .deb or .rpm install asks for the computer's password to install the new package; the AppImage does not.
   - **This is the first release that can update itself.** Computers on an earlier version need one manual install from blackark.uk.
 
 - **Free 7-day trial from the app, with nothing to wait for (Amgad, 26 Nov).** On a new computer, the Activate screen offers "Start a free 7-day trial".

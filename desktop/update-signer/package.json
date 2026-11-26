@@ -1,0 +1,8 @@
+{
+  "name": "arkagent-update-signer",
+  "private": true,
+  "description": "The Tauri signer alone, for the release's sign-updates job (publish-release.yml). Kept apart from the app's build so that job installs nothing else.",
+  "dependencies": {
+    "@tauri-apps/cli": "2.12.6"
+  }
+}

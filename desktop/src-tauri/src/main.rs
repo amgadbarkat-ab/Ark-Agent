@@ -4339,6 +4339,9 @@ fn main() {
             _ => {}
         })
         .setup(|app| {
+            // Every installed app gets each release by itself (Amgad, 26 Nov 2026). Before anything
+            // else here, so a release that fails below still finds and installs its fix.
+            openbot_desktop_lib::auto_update::start(app.handle().clone());
             // First, so everything below finds the window where Tauri used to have built it.
             build_main_window(app.handle())?;
             if let Some(root) = app
@@ -4356,8 +4359,6 @@ fn main() {
             )));
 
             remember_setup_url(app.handle())?;
-            // Every installed app gets each release by itself (Amgad, 26 Nov 2026).
-            openbot_desktop_lib::auto_update::start(app.handle().clone());
 
             // The status menu lets somebody open the window, stop the stack, or quit the app.
             use openbot_desktop_lib::language::pick;

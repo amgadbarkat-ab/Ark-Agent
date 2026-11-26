@@ -7,7 +7,10 @@
 //! - Trust: an update is installed only if it is signed with BlackArk's update key, whose public half
 //!   is [`UPDATE_PUBLIC_KEY`]; the private half signs in the release build only. The signature must
 //!   also name the version it was signed for, so an old genuine build cannot be passed off as new.
-//! - When: about a minute after start, then every [`CHECK_EVERY`].
+//! - When: [`FIRST_CHECK_AFTER`] after start, then every [`CHECK_EVERY`]. Started before anything
+//!   else the app does at start-up, so a release that breaks later in start-up still finds its fix.
+//! - Recall: a bad release is replaced by publishing a newer, fixed one; installed apps follow
+//!   whatever `update.json` on the site names. Taking `update.json` off the site pauses updates.
 //! - Then: download, install, and restart at once (Amgad's decision), even while an employee works.
 //!   The app's own deployment then follows the new app version, as it does after a manual install.
 //!
@@ -24,8 +27,9 @@ use crate::deployment;
 /// Empty until BlackArk makes the key (#149); then every release from that one on updates itself.
 pub const UPDATE_PUBLIC_KEY: &str = "";
 
-/// How long after start the first check waits, so start-up is not slowed.
-pub const FIRST_CHECK_AFTER: Duration = Duration::from_secs(90);
+/// How long after start the first check waits: short, so a release that fails soon after start-up
+/// still updates to the fix (security review U3), and on its own thread, so start-up is not slowed.
+pub const FIRST_CHECK_AFTER: Duration = Duration::from_secs(10);
 
 /// How often the app looks for a new release while it runs.
 pub const CHECK_EVERY: Duration = Duration::from_secs(4 * 60 * 60);
@@ -116,5 +120,11 @@ mod tests {
         assert!(!enabled("   ", Some(url)));
         assert!(!enabled("dW50cnVzdGVkIGNvbW1lbnQ=", None));
         assert!(enabled("dW50cnVzdGVkIGNvbW1lbnQ=", Some(url)));
+    }
+
+    #[test]
+    fn the_first_check_comes_early_enough_to_rescue_a_release_that_fails_soon_after_start() {
+        assert!(FIRST_CHECK_AFTER <= Duration::from_secs(15));
+        assert!(CHECK_EVERY <= Duration::from_secs(4 * 60 * 60));
     }
 }
