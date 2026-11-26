@@ -199,6 +199,35 @@ export function createHostAccessBroker(
       });
     },
 
+    /**
+     * Asks whoever is at this computer, in a native dialog, to allow once what the administrator
+     * asked for from another computer (the office network or BlackArk's relay). Resolves when it
+     * is allowed; rejects when it is denied, nobody answers, or this computer's desktop is not
+     * running. The desktop words the question itself, from `action`.
+     */
+    confirmRemote(input: {
+      botId: string;
+      botName: string;
+      actorId: string;
+      action: "own_browser" | "own_browser_screen";
+    }): Promise<void> {
+      expireDesktopLeaseIfNeeded();
+      if (desktopConnectedUntil === null || desktopConnectedUntil <= now())
+        return Promise.reject(
+          new HostAccessRefusedError(
+            "Nobody can approve this on the administrator's computer right now: ArkAgent is not open there.",
+          ),
+        );
+      return enqueue<unknown>({
+        operationId: randomUUID(),
+        kind: "confirm_remote",
+        botId: input.botId,
+        botName: input.botName,
+        actorId: input.actorId,
+        content: input.action,
+      }).then(() => undefined);
+    },
+
     rememberGrant(grant: HostAccessGrant) {
       expireDesktopLeaseIfNeeded();
       grants.set(grant.id, publicGrant(grant));

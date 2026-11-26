@@ -153,3 +153,30 @@ export function attemptGuard(options: {
     }
   };
 }
+
+/**
+ * Sign-in takes JSON only, with an email (security review of v0.1.56). Better Auth also reads a web
+ * form, and the limiter cannot see a form's email, so a form attempt would share one count with
+ * every other form attempt, which any right password then cleared. The app always sends JSON.
+ */
+export function jsonSignInOnly(): MiddlewareHandler {
+  return async (context, next) => {
+    if (context.req.method !== "POST") return next();
+    const type = (context.req.header("content-type") ?? "").toLowerCase();
+    if (!(type.split(";")[0] ?? "").trim().endsWith("/json"))
+      return context.json(
+        { error: "Sign in from the ArkAgent app.", code: "json_only" },
+        415,
+      );
+    const body = (await context.req.raw
+      .clone()
+      .json()
+      .catch(() => null)) as { email?: unknown } | null;
+    if (typeof body?.email !== "string" || body.email.trim() === "")
+      return context.json(
+        { error: "Write your email and password.", code: "email_required" },
+        400,
+      );
+    return next();
+  };
+}

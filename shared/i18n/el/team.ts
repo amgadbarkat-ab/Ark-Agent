@@ -85,6 +85,9 @@ export const EL_TEAM: Record<string, string> = {
   "No longer allowed to use this ArkAgent.":
     "Δεν επιτρέπεται πλέον η χρήση αυτού του ArkAgent.",
 
+  "Sign in from the ArkAgent app.": "Συνδεθείτε από την εφαρμογή ArkAgent.",
+  "Write your email and password.": "Γράψτε το email και τον κωδικό σας.",
+
   // Remote staff through BlackArk's staff relay (v0.1.56).
   "Let my staff sign in from outside the office":
     "Οι υπάλληλοί μου να συνδέονται εκτός γραφείου",

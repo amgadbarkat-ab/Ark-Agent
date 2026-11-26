@@ -31,7 +31,11 @@ import {
   DEPLOYMENT_INITIATOR,
   recordAuditEvent,
 } from "./audit";
-import { attemptGuard, createAttemptLimiter } from "./auth/attempts";
+import {
+  attemptGuard,
+  createAttemptLimiter,
+  jsonSignInOnly,
+} from "./auth/attempts";
 import { createDevRequireUser } from "./auth/dev-actor";
 import {
   type AppVariables,
@@ -694,6 +698,12 @@ export function createApp(
       what: string,
     ): MiddlewareHandler =>
       attemptGuard({ limiter: attempts, keyOf, onFailure: onFailure(what) });
+    /*
+     * Sign-in takes JSON only (security review of v0.1.56): Better Auth also reads a web form, and
+     * a form's email was invisible here, so every form attempt shared one count that any right
+     * password cleared. The app always sends JSON; anything else is refused before it is checked.
+     */
+    app.use("/api/auth/sign-in/email", jsonSignInOnly());
     app.use(
       "/api/auth/sign-in/email",
       guard(async (context) => {
@@ -705,7 +715,8 @@ export function createApp(
           typeof body?.email === "string"
             ? body.email.trim().toLowerCase()
             : "";
-        return `sign-in:${scope(context)}:${email}`;
+        // Never one shared count: a request with no email is refused above and not counted here.
+        return email ? `sign-in:${scope(context)}:${email}` : null;
       }, "sign-in"),
     );
     // A password change is counted per signed-in person; without a session it is not counted at all.
@@ -1789,6 +1800,25 @@ export function createApp(
         requireUser,
         canUseBot,
         auditStore,
+        // The administrator asking from another computer: allowed once on this one, natively.
+        ...(office && hostAccessBroker
+          ? {
+              remote: {
+                cameFromAnotherComputer: (context) =>
+                  office.servedBy(
+                    (context.env as { server?: unknown } | undefined)?.server,
+                  ),
+                confirm: (input) => hostAccessBroker.confirmRemote(input),
+                ...(agentProfileStore
+                  ? {
+                      botName: async (botId, actor) =>
+                        (await agentProfileStore.get(actor, botId))?.name ??
+                        null,
+                    }
+                  : {}),
+              },
+            }
+          : {}),
         ...(team
           ? {
               refuse: async (actor, botId) =>

@@ -2321,6 +2321,31 @@ const serverOptions = {
         });
       }
       /*
+       * An employee working in the administrator's own Chrome shows that Chrome here, to watch and
+       * type into. Opened from another computer (the office network or BlackArk's relay), it goes
+       * ahead only once whoever is at this computer allows it in a native dialog (Amgad, 26 Nov 2026).
+       */
+      if (ownBrowser?.chosen(streamBotId) && office?.servedBy(server)) {
+        try {
+          const profile = await agentProfileStore
+            .get({ id: actor.id, role: actor.role }, streamBotId)
+            .catch(() => null);
+          await hostAccessBroker.confirmRemote({
+            botId: streamBotId,
+            botName: profile?.name ?? streamBotId,
+            actorId: actor.id,
+            action: "own_browser_screen",
+          });
+        } catch (error) {
+          return new Response(
+            error instanceof Error && error.message
+              ? error.message
+              : "Not allowed on the administrator's computer.",
+            { status: 403 },
+          );
+        }
+      }
+      /*
        * Through the gateway, not the provider.
        *
        * `gateway.locate` runs checkComputerAddress; `provider.locate` does not, and the URL built

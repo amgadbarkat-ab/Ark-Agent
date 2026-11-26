@@ -52,6 +52,54 @@ describe("host access broker", () => {
     ]);
   });
 
+  test("a request from another computer is asked natively here, and refused when nobody can be asked", async () => {
+    const broker = createHostAccessBroker();
+    // The desktop has not polled: nobody is at this computer to ask.
+    await expect(
+      broker.confirmRemote({
+        botId: "bot-a",
+        botName: "Sales",
+        actorId: "admin",
+        action: "own_browser",
+      }),
+    ).rejects.toThrow(HostAccessRefusedError);
+
+    expect(broker.nextDesktopOperation()).toBeNull();
+    const allowed = broker.confirmRemote({
+      botId: "bot-a",
+      botName: "Sales",
+      actorId: "admin",
+      action: "own_browser",
+    });
+    const lease = broker.nextDesktopOperation();
+    expect(lease?.operations[0]).toMatchObject({
+      kind: "confirm_remote",
+      botId: "bot-a",
+      content: "own_browser",
+    });
+    broker.resolveDesktopOperation({
+      operationId: lease!.operations[0]!.operationId,
+      ok: true,
+    });
+    await expect(allowed).resolves.toBeUndefined();
+
+    const denied = broker.confirmRemote({
+      botId: "bot-a",
+      botName: "Sales",
+      actorId: "admin",
+      action: "own_browser_screen",
+    });
+    const again = broker.nextDesktopOperation();
+    broker.resolveDesktopOperation({
+      operationId: again!.operations[0]!.operationId,
+      ok: false,
+      error: "The local owner denied this operation.",
+    });
+    await expect(denied).rejects.toThrow(
+      "The local owner denied this operation.",
+    );
+  });
+
   test("host operations are tied to the selected Bot and actor", async () => {
     const broker = createHostAccessBroker();
     broker.rememberGrant({

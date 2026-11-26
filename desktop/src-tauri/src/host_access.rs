@@ -143,6 +143,44 @@ pub trait HostApprovalUi: Send + Sync + 'static {
     fn choose_folder(&self, request: &ChooseFolderPrompt) -> HostAccessResult<ApprovedFolder>;
     fn confirm_write(&self, request: &WritePrompt) -> HostAccessResult<()>;
     fn confirm_command(&self, request: &CommandPrompt) -> HostAccessResult<()>;
+    /// The administrator, signed in on another computer (the office network or BlackArk's relay),
+    /// asked for device control on this one (Amgad, 26 Nov 2026): whoever is at this computer
+    /// allows it once, or not. Refused unless a native dialog is wired.
+    fn confirm_remote(&self, _request: &RemotePrompt) -> HostAccessResult<()> {
+        Err(HostAccessError::Denied(
+            "Native approval for a request from another computer is not wired.".into(),
+        ))
+    }
+}
+
+/// What a request from another computer asks for. Only these, worded here, never by the server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RemoteAction {
+    /// A digital employee to work in this computer's own Chrome or Edge.
+    OwnBrowser,
+    /// Watching, and typing into, that Chrome or Edge on the employee's live screen.
+    OwnBrowserScreen,
+}
+
+impl RemoteAction {
+    fn from_wire(value: Option<&str>) -> HostAccessResult<Self> {
+        match value {
+            Some("own_browser") => Ok(Self::OwnBrowser),
+            Some("own_browser_screen") => Ok(Self::OwnBrowserScreen),
+            _ => Err(HostAccessError::Denied(
+                "Unknown request from another computer.".into(),
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RemotePrompt {
+    pub operation_id: String,
+    pub bot_id: String,
+    pub bot_name: Option<String>,
+    pub actor_id: String,
+    pub action: RemoteAction,
 }
 
 pub struct DenyAllApprovalUi;
@@ -226,6 +264,7 @@ struct DesktopOperation {
 #[serde(rename_all = "snake_case")]
 enum HostOperationKind {
     ChooseFolder,
+    ConfirmRemote,
     ListFiles,
     ReadFile,
     WriteFile,
@@ -625,12 +664,26 @@ impl Inner {
         }
         match operation.kind {
             HostOperationKind::ChooseFolder => self.choose_folder(operation),
+            HostOperationKind::ConfirmRemote => self.confirm_remote(operation),
             HostOperationKind::ListFiles => self.list_files(operation),
             HostOperationKind::ReadFile => self.read_file(operation),
             HostOperationKind::WriteFile => self.write_file(operation),
             HostOperationKind::RunCommand => self.run_command(operation),
             HostOperationKind::Cancel | HostOperationKind::Stop => unreachable!(),
         }
+    }
+
+    fn confirm_remote(&self, operation: &DesktopOperation) -> HostAccessResult<OperationSuccess> {
+        // The action travels in `content`, from a fixed list; the words shown are this side's own.
+        let action = RemoteAction::from_wire(operation.content.as_deref())?;
+        self.approval.confirm_remote(&RemotePrompt {
+            operation_id: operation.operation_id.clone(),
+            bot_id: operation.bot_id.clone(),
+            bot_name: operation.bot_name.clone(),
+            actor_id: operation.actor_id.clone(),
+            action,
+        })?;
+        Ok(OperationSuccess::empty())
     }
 
     fn choose_folder(&self, operation: &DesktopOperation) -> HostAccessResult<OperationSuccess> {
@@ -2113,6 +2166,121 @@ mod tests {
         assert_eq!(posted["ok"], true);
         assert!(posted["grant"].is_object());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    struct RemoteApprovalUi {
+        allow: bool,
+        asked: Mutex<Vec<(String, RemoteAction)>>,
+    }
+
+    impl HostApprovalUi for RemoteApprovalUi {
+        fn choose_folder(&self, _: &ChooseFolderPrompt) -> HostAccessResult<ApprovedFolder> {
+            unreachable!("a request from another computer is not a folder choice")
+        }
+        fn confirm_write(&self, _: &WritePrompt) -> HostAccessResult<()> {
+            unreachable!()
+        }
+        fn confirm_command(&self, _: &CommandPrompt) -> HostAccessResult<()> {
+            unreachable!()
+        }
+        fn confirm_remote(&self, request: &RemotePrompt) -> HostAccessResult<()> {
+            self.asked
+                .lock()
+                .unwrap()
+                .push((request.bot_id.clone(), request.action));
+            if self.allow {
+                Ok(())
+            } else {
+                Err(HostAccessError::Denied(
+                    "The local owner denied this operation.".into(),
+                ))
+            }
+        }
+    }
+
+    fn remote_inner(approval: Arc<dyn HostApprovalUi>) -> Inner {
+        Inner {
+            config: HostAccessConfig::new(
+                "http://127.0.0.1:9",
+                "token",
+                Address::new(Engine::Docker, None),
+                DEFAULT_IMAGE,
+                vec![],
+            ),
+            approval,
+            instance_label: "test-instance".into(),
+            effect_lock: Mutex::new(()),
+            state: Mutex::new(State {
+                stopped: false,
+                thread: None,
+                grants: HashMap::new(),
+                running: HashMap::new(),
+                completed: HashSet::new(),
+                canceled_operations: HashSet::new(),
+                active_by_operation: HashSet::new(),
+                active_by_bot: HashSet::new(),
+            }),
+        }
+    }
+
+    fn remote_operation(id: &str, content: Option<&str>) -> DesktopOperation {
+        DesktopOperation {
+            operation_id: id.into(),
+            kind: HostOperationKind::ConfirmRemote,
+            bot_id: "bot-sales".into(),
+            actor_id: "admin-1".into(),
+            bot_name: Some("Sales".into()),
+            grant_id: None,
+            target_operation_id: None,
+            relative_path: None,
+            content: content.map(Into::into),
+            command: None,
+            writable: None,
+            expires_at: None,
+            received_at_ms: now_millis(),
+        }
+    }
+
+    #[test]
+    fn a_request_from_another_computer_is_asked_here_and_allowed_or_denied_once() {
+        let allow = Arc::new(RemoteApprovalUi {
+            allow: true,
+            asked: Mutex::new(Vec::new()),
+        });
+        let inner = remote_inner(allow.clone());
+        assert!(inner
+            .handle_operation(&remote_operation("op-1", Some("own_browser")))
+            .is_ok());
+        assert_eq!(
+            allow.asked.lock().unwrap().as_slice(),
+            &[("bot-sales".to_string(), RemoteAction::OwnBrowser)]
+        );
+        // The same request delivered again is refused, never asked twice.
+        assert!(inner
+            .handle_operation(&remote_operation("op-1", Some("own_browser")))
+            .is_err());
+
+        let deny = Arc::new(RemoteApprovalUi {
+            allow: false,
+            asked: Mutex::new(Vec::new()),
+        });
+        let inner = remote_inner(deny);
+        assert!(inner
+            .handle_operation(&remote_operation("op-2", Some("own_browser")))
+            .is_err());
+        // Only actions this side words itself; anything else is refused without asking.
+        let inner = remote_inner(Arc::new(RemoteApprovalUi {
+            allow: true,
+            asked: Mutex::new(Vec::new()),
+        }));
+        assert!(inner
+            .handle_operation(&remote_operation("op-3", Some("format_disk")))
+            .is_err());
+        // Nobody wired a native dialog: refused.
+        let inner = remote_inner(Arc::new(DenyAllApprovalUi));
+        assert!(inner
+            .handle_operation(&remote_operation("op-4", Some("own_browser")))
+            .is_err());
     }
 
     #[test]

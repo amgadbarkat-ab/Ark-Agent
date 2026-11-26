@@ -1,7 +1,7 @@
 //! Owner approval is collected by native dialogs, never by an app/tool-provided answer.
 use openbot_desktop_lib::host_access::{
     ApprovedFolder, ChooseFolderPrompt, CommandPrompt, HostAccessError, HostAccessResult,
-    HostApprovalUi, WritePrompt,
+    HostApprovalUi, RemoteAction, RemotePrompt, WritePrompt,
 };
 use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -95,6 +95,25 @@ impl<R: tauri::Runtime> HostApprovalUi for NativeApproval<R> {
             "Digital employee: {bot}\nFolder: {}\nFile: {}\n\nNew content:\n{}\n\nAllow this exact change once? ArkAgent keeps the previous contents when replacing a file.",
             request.root.display(), request.relative_path, request.content
         ))
+    }
+
+    fn confirm_remote(&self, request: &RemotePrompt) -> HostAccessResult<()> {
+        let bot = bot_label(request.bot_name.as_deref(), &request.bot_id);
+        let what = match request.action {
+            RemoteAction::OwnBrowser => {
+                "work in this computer's own Chrome or Edge, signed in as you"
+            }
+            RemoteAction::OwnBrowserScreen => {
+                "show this computer's own Chrome or Edge on another computer, where it can be watched and typed into"
+            }
+        };
+        self.confirm(
+            "Allow a request from another computer?",
+            format!(
+                "Someone signed in as the administrator on ANOTHER computer (the office network or BlackArk's relay) asks for:\n\nDigital employee: {bot}\nTo: {what}\nAccount: {}\n\nAllow this once only if it is you or someone you trust. If you did not expect this, choose Deny and change the administrator's password.",
+                request.actor_id
+            ),
+        )
     }
 
     fn confirm_command(&self, request: &CommandPrompt) -> HostAccessResult<()> {
