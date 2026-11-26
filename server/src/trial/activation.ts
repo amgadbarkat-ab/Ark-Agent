@@ -25,7 +25,7 @@
  * exactly as BlackArk issued it; install-proof.ts). Nothing else: no conversation, name or file. A
  * key that comes back is applied exactly as a typed key is, so a payment unlocks the app by itself.
  */
-import { type KeyObject, randomUUID } from "node:crypto";
+import type { KeyObject } from "node:crypto";
 import { eq } from "drizzle-orm";
 import {
   type ActivationCode,
@@ -48,7 +48,7 @@ import { signedByAny } from "../../../shared/trial-sign";
 import type { Entitlement } from "../accounts/store";
 import type { Database } from "../db/client";
 import { activationState } from "../db/schema";
-import { installIdentity } from "./install-proof";
+import { installIdentity, preActivationInstallId } from "./install-proof";
 import {
   TrialRefusedError,
   type TrialService,
@@ -468,6 +468,8 @@ export function createActivationService(
     signature: string,
     code: ActivationCode,
     quiet = false,
+    /** Only from `confirmTrial` (v0.1.58 review, M2): a self-serve code is not typed in. */
+    allowSelfServe = false,
   ): Promise<boolean> {
     const isLicense = code.action === "license";
     const what = isLicense ? "licence key" : "trial activation code";
@@ -478,7 +480,7 @@ export function createActivationService(
       signedByAny(options.selfServeKeys ?? [], payload, signature);
     if (selfServe) {
       // A self-serve trial: only ever a short Ark Team trial (v0.1.58).
-      if (!selfServeTrialShapeOk(code))
+      if (!allowSelfServe || !selfServeTrialShapeOk(code, now().getTime()))
         throw new TrialRefusedError(`This ${what} is not signed by BlackArk.`);
     } else {
       checkSigned(
@@ -789,11 +791,9 @@ export function createActivationService(
           "This computer already has a trial or a licence.",
         );
       const email = input.email.trim().toLowerCase();
-      const installId =
-        selfServePending?.email === email &&
-        now().getTime() - selfServePending.at < 15 * MINUTE
-          ? selfServePending.installId
-          : randomUUID();
+      // The same id each time for this computer (the review of v0.1.58, M2), and the one its
+      // activation will keep.
+      const installId = await preActivationInstallId(database);
       const answer = await askTrial({
         action: "start",
         name: input.name,
@@ -832,7 +832,13 @@ export function createActivationService(
       const read = readActivationCode(answer.code);
       if (read.code.action !== "trial")
         throw new TrialRefusedError("BlackArk did not send a trial code.");
-      const changed = await activate(read.payload, read.signature, read.code);
+      const changed = await activate(
+        read.payload,
+        read.signature,
+        read.code,
+        false,
+        true,
+      );
       selfServePending = null;
       return { kind: "trial", changed, activation: await current() };
     },

@@ -4,16 +4,21 @@
  * must be automated"; any email, verified; 7 days of Ark Team 5).
  *
  * POST {"action":"start", name, company, email, installId, language?}
- *   Emails a 6-digit code to that address, good for 15 minutes. 202 {"sent":true}.
- *   409 {"code":"trial_used"} when this email, this computer, or this company's own email domain
- *   already had a self-serve trial. 429 when asked too often.
+ *   Always 202 {"sent":true} for a well-formed request, so nobody learns from here whether an
+ *   address or a company already had a trial (the Security Engineer's review of v0.1.58, L2). The
+ *   email says which: a 6-digit code good for 15 minutes, or that a trial was already used.
+ *   At most TRIAL_CODES_PER_DAY codes to one address a day. 429 when asked too often.
  * POST {"action":"confirm", email, installId, code}
- *   With the right code (5 tries), signs a trial activation code for a new customer id and answers
- *   {"code":"ARK1-…","customerId":…,"until":…}. The app applies it at once.
+ *   With the right code (TRIAL_CODE_TRIES a day for that address, however many codes were sent),
+ *   signs a trial activation code for a new customer id and answers {"code":"ARK1-…",…}. The same
+ *   email from the same computer gets the same code again while it lasts, so a trial that could not
+ *   be applied is not lost (L3).
  *
- * A free-mail domain (gmail.com and the like) is not a company: the one-per-domain rule skips it.
- * Stored: the email, name, company, domain, the install id and the customer id of each trial, for
- * BlackArk's admin page and the one-trial rule; a pending code only as a keyed hash, for 15 minutes.
+ * One per email (compared without +tags, and without dots for Gmail), per computer and per company
+ * email domain; a free-mail domain (gmail.com and the like) is not a company.
+ * Stored: the email, name, company, domain, install id, customer id and code of each trial, for
+ * BlackArk's admin page and the one-trial rule, deleted TRIAL_KEEP_DAYS after the trial ends; a
+ * pending code only as a keyed hash, for a day at most (the privacy notice).
  * 503 until `selfserve_trial_secret_key` is set in config.php.
  */
 
@@ -28,12 +33,31 @@ header('X-Robots-Tag: noindex, nofollow');
 const TRIAL_CODE_SECONDS = 900;
 const TRIAL_CODE_TRIES = 5;
 const TRIAL_RESEND_SECONDS = 60;
+const TRIAL_CODES_PER_DAY = 5;
+const TRIAL_KEEP_DAYS = 730;
 const FREE_MAIL = [
     'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'hotmail.gr', 'live.com', 'msn.com',
     'yahoo.com', 'yahoo.gr', 'ymail.com', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'gmx.com',
     'gmx.de', 'gmx.net', 'mail.com', 'proton.me', 'protonmail.com', 'pm.me', 'zoho.com',
     'yandex.com', 'yandex.ru', 'otenet.gr', 'hol.gr', 'windowslive.com', 'tutanota.com', 'web.de',
+    'freemail.gr', 'in.gr', 'forthnet.gr', 'forthnetgroup.gr', 'cosmotemail.gr', 'vodafone.gr',
+    'yahoo.co.uk', 'hotmail.co.uk', 'live.co.uk', 'outlook.co.uk', 'btinternet.com', 'sky.com',
+    'yahoo.de', 'yahoo.fr', 'yahoo.it', 'yahoo.es', 'hotmail.fr', 'hotmail.it', 'hotmail.de',
+    'libero.it', 'orange.fr', 'free.fr', 't-online.de', 'mail.ru', 'qq.com', '163.com', 'fastmail.com',
+    'hey.com', 'duck.com', 'mailbox.org', 'posteo.de', 'skynet.be', 'telenet.be', 'cyta.com.cy',
 ];
+
+/** The address as the one-trial rule compares it: without a +tag, and without dots for Gmail. */
+function trial_email_key(string $email): string
+{
+    [$local, $domain] = explode('@', $email, 2);
+    $local = explode('+', $local, 2)[0];
+    if ($domain === 'gmail.com' || $domain === 'googlemail.com') {
+        $local = str_replace('.', '', $local);
+        $domain = 'gmail.com';
+    }
+    return $local . '@' . $domain;
+}
 
 function trial_answer(int $status, array $body = []): void
 {
@@ -100,31 +124,34 @@ $email = strtolower(trim((string) ($body['email'] ?? '')));
 if (strlen($email) > 200 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     trial_answer(400, ['error' => 'Write a valid email address.', 'code' => 'email']);
 }
-$domain = substr($email, strrpos($email, '@') + 1);
+$emailKey = trial_email_key($email);
+$domain = substr($emailKey, strrpos($emailKey, '@') + 1);
 $company = in_array($domain, FREE_MAIL, true) ? null : $domain;
 if (ark_selfserve_secret() === null) {
     trial_answer(503, ['error' => 'Free trials cannot be started here yet. Contact BlackArk.']);
 }
 
 $db = ark_db();
-$db->exec('CREATE TABLE IF NOT EXISTS selfserve_trials (
-    email TEXT PRIMARY KEY, install_id TEXT NOT NULL, domain TEXT, customer_id TEXT NOT NULL,
-    name TEXT NOT NULL, company TEXT NOT NULL, issued_at INTEGER NOT NULL, until INTEGER NOT NULL)');
-$db->exec('CREATE INDEX IF NOT EXISTS selfserve_trials_install ON selfserve_trials (install_id)');
-$db->exec('CREATE INDEX IF NOT EXISTS selfserve_trials_domain ON selfserve_trials (domain)');
-$db->exec('CREATE TABLE IF NOT EXISTS selfserve_pending (
-    email TEXT PRIMARY KEY, install_id TEXT NOT NULL, name TEXT NOT NULL, company TEXT NOT NULL,
-    code_hash TEXT NOT NULL, tries INTEGER NOT NULL DEFAULT 0, sent_at INTEGER NOT NULL)');
-$db->prepare('DELETE FROM selfserve_pending WHERE sent_at < ?')->execute([time() - TRIAL_CODE_SECONDS]);
+ark_selfserve_tables($db);
+// Kept as long as the one-trial rule needs them (the privacy notice), pending codes for a day.
+$db->prepare('DELETE FROM selfserve_trials WHERE until < ?')->execute([time() - TRIAL_KEEP_DAYS * 86400]);
+$db->prepare('DELETE FROM selfserve_pending WHERE day_from < ?')->execute([time() - 86400]);
 
-/** Whether this email, this computer or this company already had one. */
-$used = function () use ($db, $email, $install, $company): bool {
-    $find = $db->prepare('SELECT 1 FROM selfserve_trials WHERE email = ? OR install_id = ?'
+/** This address's own trial from this computer, still running: it may be fetched again (L3). */
+$mine = function () use ($db, $emailKey, $install) {
+    $find = $db->prepare('SELECT * FROM selfserve_trials WHERE email_key = ? AND install_id = ? AND until > ?');
+    $find->execute([$emailKey, $install, time()]);
+    return $find->fetch() ?: null;
+};
+/** Whether this email, this computer or this company already had one (other than `mine`). */
+$used = function () use ($db, $emailKey, $install, $company): bool {
+    $find = $db->prepare('SELECT 1 FROM selfserve_trials WHERE email_key = ? OR install_id = ?'
         . ($company !== null ? ' OR domain = ?' : '') . ' LIMIT 1');
-    $find->execute($company !== null ? [$email, $install, $company] : [$email, $install]);
+    $find->execute($company !== null ? [$emailKey, $install, $company] : [$emailKey, $install]);
     return (bool) $find->fetchColumn();
 };
-$codeHash = fn (string $code): string => hash_hmac('sha256', $email . '|' . $code, (string) ark_config('selfserve_trial_secret_key', ''));
+$codeHash = fn (string $code): string => hash_hmac('sha256', $emailKey . '|' . $code, (string) ark_config('selfserve_trial_secret_key', ''));
+$greek = ($body['language'] ?? 'el') !== 'en';
 
 $action = (string) ($body['action'] ?? '');
 if ($action === 'start') {
@@ -136,22 +163,33 @@ if ($action === 'start') {
     if ($name === null || $companyName === null) {
         trial_answer(400, ['error' => 'Write your name and your company.', 'code' => 'name']);
     }
-    if ($used()) {
-        trial_answer(409, [
-            'error' => 'A free trial was already used with this email, on this computer, or for this company. To continue, buy a licence or contact BlackArk.',
-            'code' => 'trial_used',
-        ]);
-    }
-    $pending = $db->prepare('SELECT sent_at FROM selfserve_pending WHERE email = ?');
-    $pending->execute([$email]);
-    $sent = $pending->fetchColumn();
-    if ($sent !== false && time() - (int) $sent < TRIAL_RESEND_SECONDS) {
+    $find = $db->prepare('SELECT * FROM selfserve_pending WHERE email_key = ?');
+    $find->execute([$emailKey]);
+    $pending = $find->fetch() ?: null;
+    if ($pending && time() - (int) $pending['sent_at'] < TRIAL_RESEND_SECONDS) {
         trial_answer(429, ['error' => 'A code was just sent. Wait a minute before asking for another.']);
     }
+    if ($pending && (int) $pending['codes'] >= TRIAL_CODES_PER_DAY) {
+        trial_answer(429, ['error' => 'Too many codes for this address today. Try again tomorrow.']);
+    }
+    if ($used() && !$mine()) {
+        // The same answer as a sent code (L2); the email itself says the trial was already used.
+        $db->prepare('INSERT INTO selfserve_pending (email_key, install_id, name, company, code_hash, sent_at, tries, codes, day_from)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(email_key) DO UPDATE SET sent_at = excluded.sent_at, codes = codes + 1')
+            ->execute([$emailKey, $install, $name, $companyName, '-', time(), TRIAL_CODE_TRIES, time()]);
+        $text = "Ζητήσατε δωρεάν δοκιμή ArkAgent, αλλά έχει ήδη χρησιμοποιηθεί δοκιμή με αυτό το email, σε αυτόν τον υπολογιστή ή για την εταιρεία σας. Για να συνεχίσετε, αγοράστε άδεια μέσα από το ArkAgent ή επικοινωνήστε με την BlackArk.\n\n---\n\n"
+            . "You asked for a free ArkAgent trial, but a trial was already used with this email, on this computer, or for your company. To continue, buy a licence in ArkAgent or contact BlackArk.";
+        ark_send_mail($email, $greek ? 'Δοκιμή ArkAgent' : 'Your ArkAgent trial', $text, $greek ? 'el' : 'en', 'trial-' . $install);
+        trial_answer(202, ['sent' => true]);
+    }
     $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    $db->prepare('INSERT OR REPLACE INTO selfserve_pending (email, install_id, name, company, code_hash, tries, sent_at)
-        VALUES (?, ?, ?, ?, ?, 0, ?)')->execute([$email, $install, $name, $companyName, $codeHash($code), time()]);
-    $greek = ($body['language'] ?? 'el') !== 'en';
+    // A new code keeps the day's wrong tries (L1): asking again does not buy more guesses.
+    $db->prepare('INSERT INTO selfserve_pending (email_key, install_id, name, company, code_hash, sent_at, tries, codes, day_from)
+        VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?)
+        ON CONFLICT(email_key) DO UPDATE SET install_id = excluded.install_id, name = excluded.name, company = excluded.company,
+            code_hash = excluded.code_hash, sent_at = excluded.sent_at, codes = codes + 1')
+        ->execute([$emailKey, $install, $name, $companyName, $codeHash($code), time(), time()]);
     $text = "Ο κωδικός σας για τη δωρεάν δοκιμή ArkAgent είναι: $code\n\n"
         . "Πληκτρολογήστε τον στο ArkAgent μέσα σε 15 λεπτά. Αν δεν ζητήσατε δοκιμή, αγνοήστε αυτό το μήνυμα.\n\n---\n\n"
         . "Your ArkAgent free trial code is: $code\n\n"
@@ -165,33 +203,37 @@ if ($action === 'confirm') {
         trial_answer(429, ['error' => 'Too many tries. Wait an hour and try again.']);
     }
     $typed = preg_replace('/\D+/', '', (string) ($body['code'] ?? ''));
-    $find = $db->prepare('SELECT * FROM selfserve_pending WHERE email = ? AND install_id = ?');
-    $find->execute([$email, $install]);
+    $find = $db->prepare('SELECT * FROM selfserve_pending WHERE email_key = ? AND install_id = ?');
+    $find->execute([$emailKey, $install]);
     $row = $find->fetch();
-    if (!$row) {
+    if (!$row || time() - (int) $row['sent_at'] > TRIAL_CODE_SECONDS || $row['code_hash'] === '-') {
         trial_answer(400, ['error' => 'This code has run out. Ask for a new one.', 'code' => 'expired']);
     }
     if ((int) $row['tries'] >= TRIAL_CODE_TRIES) {
-        $db->prepare('DELETE FROM selfserve_pending WHERE email = ?')->execute([$email]);
-        trial_answer(400, ['error' => 'Too many wrong codes. Ask for a new one.', 'code' => 'expired']);
+        trial_answer(400, ['error' => 'Too many wrong codes. Try again tomorrow.', 'code' => 'expired']);
     }
     if (strlen($typed) !== 6 || !hash_equals((string) $row['code_hash'], $codeHash($typed))) {
-        $db->prepare('UPDATE selfserve_pending SET tries = tries + 1 WHERE email = ?')->execute([$email]);
+        $db->prepare('UPDATE selfserve_pending SET tries = tries + 1 WHERE email_key = ?')->execute([$emailKey]);
         trial_answer(400, ['error' => 'That code is not right. Check the email and try again.', 'code' => 'wrong']);
     }
+    $db->prepare("UPDATE selfserve_pending SET code_hash = '-' WHERE email_key = ?")->execute([$emailKey]);
+    $again = $mine();
+    if ($again) {
+        // The same trial again, for the same address and computer (L3): never a second one.
+        trial_answer(200, ['code' => $again['code'], 'customerId' => $again['customer_id'], 'until' => gmdate('c', (int) $again['until'])]);
+    }
     if ($used()) {
-        trial_answer(409, ['error' => 'A free trial was already used with this email, on this computer, or for this company.', 'code' => 'trial_used']);
+        trial_answer(409, ['error' => 'A free trial was already used with this email, on this computer, or for this company. To continue, buy a licence or contact BlackArk.', 'code' => 'trial_used']);
     }
     $customer = trial_customer_id($db, (string) $row['company']);
     $signed = ark_sign_selfserve_trial($customer);
     if ($signed === null) {
         trial_answer(503, ['error' => 'Free trials cannot be started here yet. Contact BlackArk.']);
     }
-    $db->prepare('INSERT INTO selfserve_trials (email, install_id, domain, customer_id, name, company, issued_at, until)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)')->execute([
-        $email, $install, $company, $customer, $row['name'], $row['company'], time(), strtotime($signed['until']),
+    $db->prepare('INSERT INTO selfserve_trials (email_key, email, install_id, domain, customer_id, name, company, code, issued_at, until)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
+        $emailKey, $email, $install, $company, $customer, $row['name'], $row['company'], $signed['code'], time(), strtotime($signed['until']),
     ]);
-    $db->prepare('DELETE FROM selfserve_pending WHERE email = ?')->execute([$email]);
     trial_answer(200, ['code' => $signed['code'], 'customerId' => $customer, 'until' => $signed['until']]);
 }
 

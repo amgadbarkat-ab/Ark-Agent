@@ -278,16 +278,37 @@ function ark_selfserve_public(): ?string
         : sodium_crypto_sign_publickey_from_secretkey($secret);
 }
 
-/** Whether a trial code is what a self-serve key may sign: team, no add-ons, at most 7 days (+1 day). */
-function ark_selfserve_shape_ok(array $code): bool
+/**
+ * Whether a trial code is what a self-serve key may sign: team, no add-ons, at most 7 days (+1 day),
+ * and dated now (the Security Engineer's review of v0.1.58, M1): issued no later than 5 minutes from
+ * now and ending no later than 8 days from now, so a leaked key cannot sign a trial for years ahead.
+ */
+function ark_selfserve_shape_ok(array $code, ?int $now = null): bool
 {
+    $at = $now ?? time();
     $issued = is_string($code['issuedAt'] ?? null) ? strtotime($code['issuedAt']) : false;
     $until = is_string($code['until'] ?? null) ? strtotime($code['until']) : false;
+    $limit = (ARK_SELFSERVE_DAYS + 1) * 86400;
     return ($code['action'] ?? '') === 'trial'
         && ($code['plan'] ?? '') === 'team'
         && empty($code['addons'])
         && $issued !== false && $until !== false
-        && $until > $issued && $until - $issued <= (ARK_SELFSERVE_DAYS + 1) * 86400;
+        && $until > $issued && $until - $issued <= $limit
+        && $issued <= $at + 300 && $until <= $at + $limit;
+}
+
+/** The self-serve trial tables (v0.1.58), for trial/ and the admin page. */
+function ark_selfserve_tables(PDO $db): void
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS selfserve_trials (
+        email_key TEXT PRIMARY KEY, email TEXT NOT NULL, install_id TEXT NOT NULL, domain TEXT, customer_id TEXT NOT NULL,
+        name TEXT NOT NULL, company TEXT NOT NULL, code TEXT NOT NULL, issued_at INTEGER NOT NULL, until INTEGER NOT NULL)');
+    $db->exec('CREATE INDEX IF NOT EXISTS selfserve_trials_install ON selfserve_trials (install_id)');
+    $db->exec('CREATE INDEX IF NOT EXISTS selfserve_trials_domain ON selfserve_trials (domain)');
+    $db->exec('CREATE TABLE IF NOT EXISTS selfserve_pending (
+        email_key TEXT PRIMARY KEY, install_id TEXT NOT NULL, name TEXT NOT NULL, company TEXT NOT NULL,
+        code_hash TEXT NOT NULL, sent_at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
+        codes INTEGER NOT NULL DEFAULT 0, day_from INTEGER NOT NULL)');
 }
 
 /** A self-serve trial activation code for this customer, as the app reads it: `ARK1-<payload>.<sig>`. */

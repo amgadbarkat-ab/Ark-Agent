@@ -9,6 +9,8 @@
  *
  * Needs php 8 with pdo_sqlite and sodium (as infra/blackark-checkin/test.sh); skipped without it.
  */
+
+import { Database } from "bun:sqlite";
 import {
   afterAll,
   beforeAll,
@@ -26,6 +28,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -43,6 +46,7 @@ import type { AppVariables } from "../src/auth/guards";
 import { createDatabase } from "../src/db/client";
 import {
   activationState,
+  supportInstall,
   trialCheckIns,
   trialCodes,
   trialRoster,
@@ -117,6 +121,8 @@ function sodiumSecret(key: { privateKey: KeyObject; publicKey: KeyObject }) {
 }
 
 async function clear() {
+  // A new computer each test: its own install id too (blackark.uk counts one trial per computer).
+  await database.delete(supportInstall);
   await database.delete(activationState);
   await database.delete(trialState);
   await database.delete(trialRoster);
@@ -339,18 +345,25 @@ async function until(check: () => Promise<boolean>, ms = 5_000) {
   return false;
 }
 
-/** The 6-digit code blackark.uk emailed (written to the test outbox instead of being sent). */
-function mailedCode(): string {
+/** The text of the email blackark.uk sent last (written to the test outbox instead of being sent). */
+function lastMail(): string {
   const dir = join(work, "outbox");
-  const file = readdirSync(dir).find((name) => name.startsWith("trial-"));
+  const file = readdirSync(dir)
+    .filter((name) => name.startsWith("trial-"))
+    .map((name) => ({ name, at: statSync(join(dir, name)).mtimeMs }))
+    .sort((a, b) => b.at - a.at)[0]?.name;
   if (!file) return "";
   const message = readFileSync(join(dir, file), "utf8");
   const plain = message.split(/text\/plain[^\n]*\n[^\n]*\n\r?\n/)[1] ?? "";
-  const text = Buffer.from(
+  return Buffer.from(
     plain.split("--ark-")[0]?.replace(/\s+/g, "") ?? "",
     "base64",
   ).toString("utf8");
-  return text.match(/\b\d{6}\b/)?.[0] ?? "";
+}
+
+/** The 6-digit code in the email blackark.uk sent last. */
+function mailedCode(): string {
+  return lastMail().match(/\b\d{6}\b/)?.[0] ?? "";
 }
 
 describe.skipIf(!havePhp)(
@@ -414,17 +427,40 @@ describe.skipIf(!havePhp)(
       });
     });
 
-    test("one free trial per email: a second computer with the same address is refused", async () => {
+    test("one free trial per email: a second computer with the same address gets no code", async () => {
       const install = desktop("2026-11-26T12:00:00Z");
+      // A minute later, as blackark.uk waits that long between two codes to one address.
+      const data = new Database(join(work, "checkin/data/checkins.sqlite"));
+      data.run("UPDATE selfserve_pending SET sent_at = sent_at - 120");
+      data.close();
       const again = await install.startTrial({
         name: "Maria",
         company: "Lambrou",
         email: "maria@lambrou.example",
         language: "en",
       });
-      expect(again.status).toBe(400);
-      expect(((await again.json()) as { error: string }).error).toContain(
-        "already used",
+      // The same answer as for a new trial, so nobody learns from it who had one; the email says.
+      expect(again.status).toBe(202);
+      expect(lastMail()).toContain("already used");
+      expect(mailedCode()).toBe("");
+    });
+
+    test("a self-serve code cannot be typed into the code box: only the trial's own steps apply it", async () => {
+      const install = desktop(new Date().toISOString());
+      const payload = encodeBase64Url(
+        JSON.stringify({
+          v: 1,
+          action: "trial",
+          customer: "demo-typed",
+          nonce: "nonce-typed-1",
+          issuedAt: new Date().toISOString(),
+          until: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+          plan: "team",
+        }),
+      );
+      const typed = `ARK1-${payload}.${signText(selfServeKey.privateKey, payload)}`;
+      await expect(install.activation.apply(typed)).rejects.toThrow(
+        "not signed by BlackArk",
       );
     });
 

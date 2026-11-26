@@ -76,11 +76,23 @@ offers **Start a free 7-day trial**:
    by the app, sub-profiles and add-ons.
 
 The rules:
-- **One trial per email, per computer, and per company email domain.** A free-mail domain such as
-  gmail.com is not a company.
-- **Limits:** 5 starts an hour per computer and 20 per internet address.
-- **Kept here:** each trial's email, name, company, domain, install id and customer id, listed on the
-  admin page under "Self-serve trials". A pending code is kept only as a keyed hash, for 15 minutes.
+- **One trial per email, per computer, and per company email domain.**
+  - An email is compared without its +tag, and Gmail addresses also without dots.
+  - A free-mail domain such as gmail.com is not a company.
+  - The same email from the same computer gets the same trial back while it lasts, so a trial that
+    could not be applied is not lost.
+- **The answer to `start` is always "sent".** Nobody learns from it whether someone had a trial;
+  the email says so instead.
+- **Limits:**
+  - 5 starts an hour per computer, and 20 per internet address;
+  - 5 codes a day per email;
+  - 5 wrong codes a day per email, however many codes were asked for.
+- **Kept here:** each trial's email, name, company, domain, install id, customer id and code, listed
+  on the admin page under "Self-serve trials", and deleted 2 years after the trial ends. A pending
+  code is kept only as a keyed hash, for a day at most. All of this is in the privacy notice.
+- **Self-serve codes are checked against today's date.** One dated in the future, or lasting past 8
+  days from now, is refused everywhere. The app accepts one only through the trial's own steps,
+  never typed into the code box.
 - **The key is separate from BlackArk's own trial key** and is trusted, by the app, the relay and
   this server, only for a 7-day Ark Team trial without add-ons. A leak can start short trials and
   nothing more: no unlock codes, no setup files, no licences.

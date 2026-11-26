@@ -291,9 +291,7 @@ $signedIn = !empty($_SESSION['signed_in']);
   </table>
   </div>
 <?php
-    $db->exec('CREATE TABLE IF NOT EXISTS selfserve_trials (
-        email TEXT PRIMARY KEY, install_id TEXT NOT NULL, domain TEXT, customer_id TEXT NOT NULL,
-        name TEXT NOT NULL, company TEXT NOT NULL, issued_at INTEGER NOT NULL, until INTEGER NOT NULL)');
+    ark_selfserve_tables($db);
     $trials = $db->query('SELECT * FROM selfserve_trials ORDER BY issued_at DESC LIMIT 200')->fetchAll();
 ?>
   <h2>Self-serve trials</h2>

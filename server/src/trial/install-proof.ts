@@ -5,7 +5,21 @@
  * (`ark_install_proof_ok` in infra/blackark-checkin/checkin/lib.php). Null when there is none.
  */
 import type { Database } from "../db/client";
-import { activationState, trialState } from "../db/schema";
+import { activationState, supportInstall, trialState } from "../db/schema";
+
+/**
+ * This install's own random id before it is activated, made once and kept (v0.1.53 for Help &
+ * support; v0.1.58 for the self-serve trial, so blackark.uk's one-trial-per-computer rule sees the
+ * same computer each time). Once activated, the activation's own id is used instead.
+ */
+export async function preActivationInstallId(
+  database: Database,
+): Promise<string> {
+  await database.insert(supportInstall).values({}).onConflictDoNothing();
+  const [row] = await database.select().from(supportInstall).limit(1);
+  if (!row) throw new Error("The install id could not be kept.");
+  return row.installId;
+}
 
 export type InstallProof =
   | { kind: "profile"; profile: string; signature: string }

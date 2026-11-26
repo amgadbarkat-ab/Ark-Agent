@@ -213,15 +213,18 @@ export async function checkLicence(
     const selfServe =
       !isLicence &&
       (keys.selfServe?.length ?? 0) > 0 &&
-      selfServeTrialShapeOk({
-        action: String(raw.action),
-        plan: String(raw.plan ?? ""),
-        issuedAt: String(raw.issuedAt ?? ""),
-        until: String(raw.until ?? ""),
-        ...(Array.isArray(raw.addons)
-          ? { addons: raw.addons.map(String) }
-          : {}),
-      }) &&
+      selfServeTrialShapeOk(
+        {
+          action: String(raw.action),
+          plan: String(raw.plan ?? ""),
+          issuedAt: String(raw.issuedAt ?? ""),
+          until: String(raw.until ?? ""),
+          ...(Array.isArray(raw.addons)
+            ? { addons: raw.addons.map(String) }
+            : {}),
+        },
+        now,
+      ) &&
       (await signedBy(keys.selfServe ?? [], payload, signature));
     if (!selfServe) return null;
   }

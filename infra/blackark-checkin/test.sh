@@ -986,15 +986,50 @@ expect "the right code from another computer is refused" 400 -X POST --data "{\"
          && preg_match("/^oinopoieio-lamprou-[a-z0-9]+$/", $d["customer"]) ? 0 : 1);' "$trial_code" "$selfserve_public" \
   && { pass=$((pass+1)); echo "ok   the right code gets a signed 7-day Ark Team trial for a new customer id named after the company"; } || { fail=$((fail+1)); echo "FAIL trial confirm: $(cat "$work/trial.out")"; }
 trial_customer="$(php -r '$p = explode(".", substr($argv[1], 5))[0]; echo json_decode(base64_decode(strtr($p, "-_", "+/")), true)["customer"];' "$trial_code")"
-expect "the same email cannot start a second trial" 409 -X POST --data "$(start_body Other maria@lambrou.example 9a0b1c2d-0000-4000-8000-000000000002)" "$trial_url"
-expect "nor the same computer with another email" 409 -X POST --data "$(start_body Other nikos@other.example "$t1")" "$trial_url"
-expect "nor someone else at the same company domain" 409 -X POST --data "$(start_body Lambrou nikos@lambrou.example 9a0b1c2d-0000-4000-8000-000000000003)" "$trial_url"
-expect "but a free-mail address is not a company: another gmail user may" 202 -X POST --data "$(start_body Shop1 one@gmail.com 9a0b1c2d-0000-4000-8000-000000000004)" "$trial_url"
-expect "and so may a second one" 202 -X POST --data "$(start_body Shop2 two@gmail.com 9a0b1c2d-0000-4000-8000-000000000005)" "$trial_url"
+# A used trial gets the same answer as a new one (review of v0.1.58, L2); only the email says it.
+age_pending() { php -r '$db = new PDO("sqlite:" . $argv[1]); $db->exec("UPDATE selfserve_pending SET sent_at = sent_at - 120");' "$work/checkin/data/checkins.sqlite"; }
+used_mail() { decoded "$work/outbox/trial-$1.eml" | grep -q 'already used' && [[ -z "$(mailed_code "$1")" ]]; }
+age_pending
+[[ "$(ask_trial "$(start_body Other maria@lambrou.example 9a0b1c2d-0000-4000-8000-000000000002)")" == 202 ]] && used_mail 9a0b1c2d-0000-4000-8000-000000000002 \
+  && { pass=$((pass+1)); echo "ok   the same email cannot start a second trial, and the answer does not say so; the email does"; } || { fail=$((fail+1)); echo "FAIL second trial same email"; }
+[[ "$(ask_trial "$(start_body Other nikos@other.example 9a0b1c2d-0000-4000-8000-0000000000a1)")" == 202 ]] && rm -f "$work/outbox/trial-$t1.eml" \
+  && [[ "$(ask_trial "$(start_body Other2 nikos2@other2.example "$t1")")" == 202 ]] && used_mail "$t1" \
+  && { pass=$((pass+1)); echo "ok   nor the same computer with another email"; } || { fail=$((fail+1)); echo "FAIL same computer"; }
+[[ "$(ask_trial "$(start_body Lambrou nikos@lambrou.example 9a0b1c2d-0000-4000-8000-000000000003)")" == 202 ]] && used_mail 9a0b1c2d-0000-4000-8000-000000000003 \
+  && { pass=$((pass+1)); echo "ok   nor someone else at the same company domain"; } || { fail=$((fail+1)); echo "FAIL same domain"; }
+expect "a free-mail address is not a company: a gmail user may" 202 -X POST --data "$(start_body Shop1 one@gmail.com 9a0b1c2d-0000-4000-8000-000000000004)" "$trial_url"
+[[ -n "$(mailed_code 9a0b1c2d-0000-4000-8000-000000000004)" ]] && { pass=$((pass+1)); echo "ok   and gets a code"; } || { fail=$((fail+1)); echo "FAIL gmail code"; }
+g4="$(mailed_code 9a0b1c2d-0000-4000-8000-000000000004)"
+expect "and starts a trial" 200 -X POST --data "{\"action\":\"confirm\",\"email\":\"one@gmail.com\",\"installId\":\"9a0b1c2d-0000-4000-8000-000000000004\",\"code\":\"$g4\"}" "$trial_url"
+age_pending
+[[ "$(ask_trial "$(start_body Shop1b o.n.e+again@gmail.com 9a0b1c2d-0000-4000-8000-000000000006)")" == 202 ]] && used_mail 9a0b1c2d-0000-4000-8000-000000000006 \
+  && { pass=$((pass+1)); echo "ok   but the same Gmail with dots and a +tag is the same address"; } || { fail=$((fail+1)); echo "FAIL gmail normalisation"; }
+expect "a second, different gmail user may" 202 -X POST --data "$(start_body Shop2 two@gmail.com 9a0b1c2d-0000-4000-8000-000000000005)" "$trial_url"
+# The same address from the same computer gets its own trial again while it lasts (L3), never a second one.
+rm -f "$work/outbox/trial-$t1.eml"
+php -r '$db = new PDO("sqlite:" . $argv[1]); $db->exec("DELETE FROM selfserve_pending WHERE email_key = \"maria@lambrou.example\"");' "$work/checkin/data/checkins.sqlite"
+[[ "$(ask_trial "$(start_body Lambrou maria@lambrou.example "$t1")")" == 202 ]] && again_code="$(mailed_code "$t1")" && [[ -n "$again_code" ]] \
+  && [[ "$(ask_trial "{\"action\":\"confirm\",\"email\":\"maria@lambrou.example\",\"installId\":\"$t1\",\"code\":\"$again_code\"}")" == 200 ]] \
+  && [[ "$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["code"] ?? "";' "$work/trial.out")" == "$trial_code" ]] \
+  && { pass=$((pass+1)); echo "ok   the same address on the same computer gets the same trial again, not a new one"; } || { fail=$((fail+1)); echo "FAIL same trial again: $(cat "$work/trial.out")"; }
+# Wrong guesses are counted for the day, whatever new codes are asked for (L1); and codes are capped.
+bomb=9a0b1c2d-0000-4000-8000-0000000000b1
+ask_trial "$(start_body Bomb victim@bomb.example "$bomb")" >/dev/null
+for _ in 1 2 3 4 5; do ask_trial "{\"action\":\"confirm\",\"email\":\"victim@bomb.example\",\"installId\":\"$bomb\",\"code\":\"999999\"}" >/dev/null; done
+php -r '$db = new PDO("sqlite:" . $argv[1]); $db->exec("UPDATE selfserve_pending SET sent_at = sent_at - 120 WHERE email_key = \"victim@bomb.example\"");' "$work/checkin/data/checkins.sqlite"
+ask_trial "$(start_body Bomb victim@bomb.example "$bomb")" >/dev/null
+fresh="$(mailed_code "$bomb")"
+[[ "$(ask_trial "{\"action\":\"confirm\",\"email\":\"victim@bomb.example\",\"installId\":\"$bomb\",\"code\":\"$fresh\"}")" == 400 ]] && grep -q 'Too many wrong codes' "$work/trial.out" \
+  && { pass=$((pass+1)); echo "ok   five wrong codes end the day's tries, even with a new code"; } || { fail=$((fail+1)); echo "FAIL tries reset: $(cat "$work/trial.out")"; }
+php -r '$db = new PDO("sqlite:" . $argv[1]); $db->exec("UPDATE selfserve_pending SET codes = 5, sent_at = sent_at - 120 WHERE email_key = \"victim@bomb.example\"");' "$work/checkin/data/checkins.sqlite"
+expect "and an address gets at most 5 codes a day" 429 -X POST --data "$(start_body Bomb victim@bomb.example "$bomb")" "$trial_url"
 expect "the self-serve trial is proof for a signed buy link" 200 -X POST --data "{\"customerId\":\"$trial_customer\",\"installId\":\"$t1\",\"proof\":$(key_proof "$trial_code")}" "$buy_link"
 # The self-serve key signs short Ark Team trials and nothing more: a longer one is not proof.
 long_code="$(php -r '$secret = base64_decode($argv[1]); $p = rtrim(strtr(base64_encode(json_encode(["v" => 1, "action" => "trial", "customer" => "demo-long", "nonce" => "nonce-long-1", "issuedAt" => gmdate("c"), "until" => gmdate("c", time() + 90 * 86400), "plan" => "team"])), "+/", "-_"), "=");
   echo "ARK1-", $p, ".", rtrim(strtr(base64_encode(sodium_crypto_sign_detached($p, $secret)), "+/", "-_"), "=");' "$selfserve_secret")"
+future_code="$(php -r '$secret = base64_decode($argv[1]); $p = rtrim(strtr(base64_encode(json_encode(["v" => 1, "action" => "trial", "customer" => "demo-future", "nonce" => "nonce-future", "issuedAt" => "2035-01-01T00:00:00Z", "until" => "2035-01-08T00:00:00Z", "plan" => "team"])), "+/", "-_"), "=");
+  echo "ARK1-", $p, ".", rtrim(strtr(base64_encode(sodium_crypto_sign_detached($p, $secret)), "+/", "-_"), "=");' "$selfserve_secret")"
+expect "a 7-day trial dated years ahead, signed with the self-serve key, is not proof (M1)" 403 -X POST --data "{\"customerId\":\"demo-future\",\"installId\":\"$t1\",\"proof\":$(key_proof "$future_code")}" "$buy_link"
 expect "a 90-day trial signed with the self-serve key is not proof" 403 -X POST --data "{\"customerId\":\"demo-long\",\"installId\":\"$t1\",\"proof\":$(key_proof "$long_code")}" "$buy_link"
 page="$(curl -s -c "$jar" -b "$jar" "http://127.0.0.1:$port/checkin/admin/")"
 grep -q 'Self-serve trials' <<<"$page" && grep -q "$trial_customer" <<<"$page" \

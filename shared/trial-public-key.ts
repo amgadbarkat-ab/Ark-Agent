@@ -23,22 +23,32 @@ export const SELF_SERVE_TRIAL_PUBLIC_KEYS: readonly string[] = [];
 
 export const SELF_SERVE_TRIAL_DAYS = 7;
 
-/** Whether a trial code is one a self-serve key may sign: team, no add-ons, at most 7 days (+1). */
-export function selfServeTrialShapeOk(code: {
-  action: string;
-  plan: string;
-  issuedAt: string;
-  until?: string;
-  addons?: readonly string[];
-}): boolean {
+/**
+ * Whether a trial code is one a self-serve key may sign: team, no add-ons, at most 7 days (+1), and
+ * dated now (the Security Engineer's review of v0.1.58, M1): issued no later than 5 minutes from
+ * `now` and ending no later than 8 days from it, so a leaked key cannot sign a trial for years ahead.
+ */
+export function selfServeTrialShapeOk(
+  code: {
+    action: string;
+    plan: string;
+    issuedAt: string;
+    until?: string;
+    addons?: readonly string[];
+  },
+  now: number,
+): boolean {
   if (code.action !== "trial" || code.plan !== "team") return false;
   if (code.addons && code.addons.length > 0) return false;
   const issued = Date.parse(code.issuedAt);
   const until = Date.parse(code.until ?? "");
+  const limit = (SELF_SERVE_TRIAL_DAYS + 1) * 86_400_000;
   return (
     Number.isFinite(issued) &&
     Number.isFinite(until) &&
     until > issued &&
-    until - issued <= (SELF_SERVE_TRIAL_DAYS + 1) * 86_400_000
+    until - issued <= limit &&
+    issued <= now + 5 * 60_000 &&
+    until <= now + limit
   );
 }
