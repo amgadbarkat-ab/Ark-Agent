@@ -23,7 +23,9 @@
  *   ?done=support            where a 24/7 support order returns after paying
  *
  * The customer id is the ArkAgent one (lower-case letters, digits, hyphens), carried to Stripe as
- * client_reference_id so the webhook knows whose key and balance it is. Stripe's restricted key and
+ * client_reference_id so the webhook knows whose key and balance it is. From v0.1.57 every link but a
+ * top-up also carries `&e=<expiry>&t=<token>`, signed by blackark.uk after it checked the install's
+ * proof (buy/link/); with `buy_requires_token` on, a link without them is refused. Stripe's restricted key and
  * the price ids are in config.php. Nothing is stored here: the webhook does that once Stripe says paid.
  */
 
@@ -73,12 +75,24 @@ if (preg_match('/^[a-z0-9][a-z0-9-]{1,63}$/', $customer) !== 1) {
 }
 $base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checkin'), '/');
 
+/*
+ * Whose checkout this is (v0.1.57, F1). The licence key is made for the customer id in the link, so
+ * the link must come from blackark.uk after it checked that install's proof (buy/link/, servers/,
+ * support/priority/). Links from ArkAgent v0.1.56 and earlier carry no token: they work only while
+ * `buy_requires_token` is false, and the webhook holds a purchase made under another payer's id.
+ */
+$proven = ark_buy_token_ok($customer, $_GET['e'] ?? null, $_GET['t'] ?? null);
+if (!$proven && !isset($_GET['topup']) && ark_config('buy_requires_token', false)) {
+    page(403, 'ArkAgent', 'Αυτός ο σύνδεσμος αγοράς έληξε ή δεν προέρχεται από το ArkAgent. Ανοίξτε ξανά την «Αγορά άδειας» μέσα στο ArkAgent.', 'This buy link has run out or did not come from ArkAgent. Open "Buy a licence" in ArkAgent again.');
+}
+$signed = $proven ? '&e=' . rawurlencode((string) $_GET['e']) . '&t=' . rawurlencode((string) $_GET['t']) : '';
+
 if (($_GET['support'] ?? '') === '247') {
     $price = ark_support_247_price();
     if ($price === null) {
         page(503, 'ArkAgent', 'Οι αγορές δεν είναι ακόμη διαθέσιμες.', 'Buying is not available yet.');
     }
-    $meta = ['kind' => 'support_247', 'customer_id' => $customer];
+    $meta = ['kind' => 'support_247', 'customer_id' => $customer, 'proven' => $proven ? '1' : '0'];
     $form = [
         'mode' => 'subscription',
         'client_reference_id' => $customer,
@@ -119,7 +133,7 @@ if (isset($_GET['server'])) {
     if ($ids === null) {
         page(503, 'ArkAgent', 'Οι αγορές δεν είναι ακόμη διαθέσιμες.', 'Buying is not available yet.');
     }
-    $meta = ['kind' => 'private_server', 'server_tier' => $serverTier, 'customer_id' => $customer];
+    $meta = ['kind' => 'private_server', 'server_tier' => $serverTier, 'customer_id' => $customer, 'proven' => $proven ? '1' : '0'];
     $form = [
         'mode' => 'subscription',
         'client_reference_id' => $customer,
@@ -171,7 +185,7 @@ if (!$topup) {
     if (!isset($_GET['tier'])) {
         $links = '';
         foreach ($tiers as $agents => $cents) {
-            $href = '?customer=' . rawurlencode($customer) . '&tier=' . $agents . ($phone ? '&phone=1' : '');
+            $href = '?customer=' . rawurlencode($customer) . $signed . '&tier=' . $agents . ($phone ? '&phone=1' : '');
             $euro = '€' . intdiv($cents, 100);
             $links .= '<li><a href="' . h($href) . '"><strong>' . $agents . ' ψηφιακοί υπάλληλοι ανά άτομο</strong>'
                 . '<span class="price">' . h($euro) . '</span> ανά άτομο τον μήνα'
@@ -214,7 +228,7 @@ $form = [
     'success_url' => $topup ? $base . '/buy/?done=1' : $base . '/key/?session_id={CHECKOUT_SESSION_ID}',
     'cancel_url' => (string) ark_config('buy_cancel_url', 'https://blackark.uk/'),
     'locale' => 'el',
-    'metadata' => ['kind' => $topup ? 'phone_topup' : 'subscription', 'phone_blocks' => $phone ? '1' : '0'],
+    'metadata' => ['kind' => $topup ? 'phone_topup' : 'subscription', 'phone_blocks' => $phone ? '1' : '0', 'proven' => $proven ? '1' : '0'],
 ];
 foreach (array_values($items) as $index => $price) {
     $form['line_items'][$index] = ['price' => $price, 'quantity' => 1];

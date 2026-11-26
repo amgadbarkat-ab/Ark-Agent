@@ -80,6 +80,11 @@ export function modelGatewayRoutes(options: {
   fetchImpl: GuardedFetch;
   /** The deployment's free starter model, when it has one. Answers grants that name it. */
   starter?: StarterModel;
+  /**
+   * The fetch for one person's calls (v0.1.57): a sub-profile's go public and https only, checked on
+   * every call (models/public-fetch.ts). Absent uses `fetchImpl` for everyone.
+   */
+  fetchFor?: (actorId: string) => Promise<GuardedFetch>;
 }) {
   const { store, encryptionKey, fetchImpl, starter } = options;
   const app = new Hono();
@@ -157,7 +162,9 @@ export function modelGatewayRoutes(options: {
       baseUrl = opened.baseUrl;
       apiKey = opened.apiKey;
       providerName = provider.name;
-      send = fetchImpl;
+      send = options.fetchFor
+        ? await options.fetchFor(grant.actorId)
+        : fetchImpl;
     }
 
     const length = Number(request.headers.get("content-length") ?? 0);

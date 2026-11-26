@@ -5,6 +5,13 @@ import {
   createAttemptLimiter,
   jsonSignInOnly,
 } from "../src/auth/attempts";
+import { isPrivateAddress } from "../src/models/routes";
+import {
+  createPublicModelFetch,
+  type GuardedFetch,
+  HTTPS_ONLY_FOR_SUBPROFILE,
+  modelFetchFor,
+} from "../src/models/public-fetch";
 
 /**
  * The fixes from the Security Engineer's full review of v0.1.56 (26 Nov 2026) that need no
@@ -110,4 +117,101 @@ describe("the wrong-password lock cannot be got round with a web form (finding 1
     });
     expect(real.status).toBe(200);
   });
+});
+
+describe("a sub-profile's model is checked when it is used, not only when it is saved", () => {
+  const answered: string[] = [];
+  const upstream = (async (input: string | URL | Request) => {
+    const url = String(input instanceof Request ? input.url : input);
+    answered.push(url);
+    if (url === "https://moves.example/v1/models")
+      return new Response(null, {
+        status: 307,
+        headers: { location: "http://moves.example/v1/models" },
+      });
+    if (url === "https://wanders.example/v1/models")
+      return new Response(null, {
+        status: 307,
+        headers: { location: "https://inside.example/v1/models" },
+      });
+    return Response.json({ data: [] });
+  }) as typeof fetch;
+  const names: Record<string, string[]> = {
+    "api.example": ["93.184.216.34"],
+    "moves.example": ["93.184.216.34"],
+    "wanders.example": ["93.184.216.34"],
+    // A public name pointed at the office network after it was saved.
+    "repointed.example": ["192.168.1.20"],
+    "inside.example": ["10.0.0.5"],
+  };
+  const send = createPublicModelFetch({
+    fetchImpl: upstream,
+    resolve: async (host) => names[host] ?? [],
+  });
+
+  test("a public https address is reached", async () => {
+    expect((await send("https://api.example/v1/models")).status).toBe(200);
+  });
+  test("a name that now points at the office network is refused at the call", async () => {
+    await expect(send("https://repointed.example/v1/models")).rejects.toThrow(
+      /inside the deployment's own network/,
+    );
+  });
+  test("http is refused, so a re-pointed name cannot get past the certificate", async () => {
+    await expect(send("http://api.example/v1/models")).rejects.toThrow(
+      HTTPS_ONLY_FOR_SUBPROFILE,
+    );
+  });
+  test("a redirect to http, or to a private name, is refused too", async () => {
+    await expect(send("https://moves.example/v1/models")).rejects.toThrow(
+      HTTPS_ONLY_FOR_SUBPROFILE,
+    );
+    await expect(send("https://wanders.example/v1/models")).rejects.toThrow(
+      /inside the deployment's own network/,
+    );
+    expect(answered).not.toContain("https://inside.example/v1/models");
+  });
+  test("private addresses typed as numbers are refused", async () => {
+    for (const address of ["https://127.0.0.1/v1", "https://[::1]/v1", "https://192.168.1.2/v1"])
+      await expect(send(address)).rejects.toThrow();
+  });
+  test("only a sub-profile gets the public fetch; failing to tell counts as one", async () => {
+    const standard = (async () => new Response("standard")) as GuardedFetch;
+    const publicOnly = (async () => new Response("public")) as GuardedFetch;
+    const pick = modelFetchFor({
+      standard,
+      publicOnly,
+      isSubprofile: async (id) => {
+        if (id === "broken") throw new Error("no database");
+        return id === "staff";
+      },
+    });
+    expect(await pick("owner")).toBe(standard);
+    expect(await pick("staff")).toBe(publicOnly);
+    expect(await pick("broken")).toBe(publicOnly);
+  });
+});
+
+describe("the model address check knows every range that is not the internet", () => {
+  test.each([
+    "198.18.0.1",
+    "198.19.255.254",
+    "224.0.0.1",
+    "239.255.255.250",
+    "240.0.0.1",
+    "255.255.255.255",
+    "::ffff:127.0.0.1",
+    "::ffff:7f00:1",
+    "[::ffff:192.168.0.1]",
+    "::ffff:a00:5",
+    "64:ff9b::a00:5",
+  ])("%s is private", (address) => {
+    expect(isPrivateAddress(address)).toBe(true);
+  });
+  test.each(["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"])(
+    "%s is public",
+    (address) => {
+      expect(isPrivateAddress(address)).toBe(false);
+    },
+  );
 });

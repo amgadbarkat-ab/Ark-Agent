@@ -66,6 +66,10 @@ if ((int) $count->fetchColumn() >= (int) ark_config('renew_per_install_per_hour'
     renew_answer(429);
 }
 $db->prepare('INSERT INTO renew_requests (install_id, at) VALUES (?, ?)')->execute([$install, time()]);
+// And per address (v0.1.57): the install id is whatever the caller says.
+if (!ark_address_allowed($db, 'renew', (int) ark_config('renew_per_address_per_hour', 600))) {
+    renew_answer(429);
+}
 
 $proof = $body['proof'] ?? null;
 if ($proof === null && is_string($body['nonce'] ?? null)) {

@@ -4,7 +4,7 @@
  *
  * POST {customerId, installId, proof}, the same install proof as renew/ and support/ (lib.php,
  * ark_install_proof_ok). Answers:
- *   {"tiers": [...], "order": null | {...}, "buyUrl": "https://blackark.uk/checkin/buy/?customer=…&server="}
+ *   {"tiers": [...], "order": null | {...}, "buyUrl": "https://blackark.uk/checkin/buy/?customer=…&e=…&t=…&server="}
  * `tiers` is servers-catalogue.php as the app shows it. `order` is this customer's latest order:
  * its tier and status (setting_up, ready, stopped, cancelled), when it was ordered and paid to, and,
  * once BlackArk has set it up, the address, the model and the key to reach it. Only to the install
@@ -54,8 +54,12 @@ if ((int) $count->fetchColumn() >= (int) ark_config('servers_per_install_per_hou
     servers_answer(429);
 }
 $db->prepare('INSERT INTO servers_requests (install_id, at) VALUES (?, ?)')->execute([$install, time()]);
+// And per address (v0.1.57): the install id is whatever the caller says.
+if (!ark_address_allowed($db, 'servers', (int) ark_config('servers_per_address_per_hour', 240))) {
+    servers_answer(429);
+}
 
-$ok = ark_install_proof_ok($body['proof'] ?? null, $customer);
+$ok = ark_paid_or_recent($db, $body['proof'] ?? null, $customer);
 if ($ok === null) {
     servers_answer(503);
 }
@@ -97,9 +101,9 @@ if ($row) {
         'apiKey' => $ready ? $row['api_key'] : null,
     ];
 }
-$base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checkin'), '/');
 servers_answer(200, [
     'tiers' => $tiers,
     'order' => $order,
-    'buyUrl' => $base . '/buy/?customer=' . rawurlencode($customer) . '&server=',
+    // Signed for this customer (v0.1.57, F1): the app adds the tier at the end.
+    'buyUrl' => ark_buy_url($customer, '&server='),
 ]);

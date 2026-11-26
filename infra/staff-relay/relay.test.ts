@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { startBunRelay } from "./bun-runtime";
-import { CLOSE, checkLicence, MAX_OFFICES, sha256Hex } from "./relay";
+import {
+  CLOSE,
+  checkLicence,
+  IDLE_OFFICE_MS,
+  MAX_OFFICES,
+  sha256Hex,
+} from "./relay";
 
 const licenceKeys = generateKeyPairSync("ed25519");
 const trialKeys = generateKeyPairSync("ed25519");
@@ -409,6 +415,46 @@ describe("what the relay keeps, and for how long", () => {
     clock += 31 * 86_400_000;
     const later = await register(ids[MAX_OFFICES] as string);
     await until(() => later.texts.includes("welcome"));
+  });
+
+  test("an office whose computer has not been back for 30 days is forgotten by itself", async () => {
+    let clock = Date.now();
+    relay = startBunRelay({ keys, now: () => clock });
+    const socket = new WebSocket(`${relay.url}/v1/host?office=${office}`, {
+      headers: {
+        authorization: `Bearer ${hostKey}`,
+        "x-ark-licence": licence,
+        "x-ark-access": await sha256Hex(accessKey),
+      },
+    } as never);
+    sockets.push(socket);
+    const texts: string[] = [];
+    socket.onmessage = (event) => texts.push(String(event.data));
+    await until(() => texts.includes("welcome"));
+    expect(relay.offices("demo-shop")).toEqual([office]);
+    socket.close();
+    await until(() => relay.alarmAt(office) !== null);
+    expect(relay.alarmAt(office)).toBe(clock + IDLE_OFFICE_MS);
+    // Before the 30 days the alarm keeps the office, and sets itself again.
+    clock += IDLE_OFFICE_MS - 60_000;
+    await relay.alarm(office);
+    expect(relay.offices("demo-shop")).toEqual([office]);
+    expect(relay.alarmAt(office)).not.toBeNull();
+    // After them: forgotten, here and in the customer's list. Any host key may start it afresh.
+    clock += 120_000;
+    await relay.alarm(office);
+    expect(relay.offices("demo-shop")).toEqual([]);
+    const fresh = new WebSocket(`${relay.url}/v1/host?office=${office}`, {
+      headers: {
+        authorization: "Bearer another-host-key-0123456789abcdefgh",
+        "x-ark-licence": licence,
+        "x-ark-access": await sha256Hex(accessKey),
+      },
+    } as never);
+    sockets.push(fresh);
+    const freshTexts: string[] = [];
+    fresh.onmessage = (event) => freshTexts.push(String(event.data));
+    await until(() => freshTexts.includes("welcome"));
   });
 
   test("a customer BlackArk cut off is refused, and its office closed", async () => {

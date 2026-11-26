@@ -83,7 +83,8 @@ class StandInState implements DurableObjectState {
           this.alarmAt = null;
           void this.object().alarm();
         },
-        Math.max(0, at - Date.now()),
+        // setTimeout fires at once beyond about 24.8 days; the tests run far alarms by hand.
+        Math.min(2_147_483_647, Math.max(0, at - Date.now())),
       );
     },
     getAlarm: () => this.alarmAt,
@@ -215,6 +216,20 @@ export function startBunRelay(options: {
     /** Drops every office object from memory, as hibernation does; sockets and storage stay. */
     hibernate: () => objects.clear(),
     woke: (office: string) => states.get(`office:${office}`)?.woke ?? 0,
+    /** Runs an office's alarm now, as Cloudflare does when its time comes (the clock is the test's). */
+    alarm: (office: string) => object(`office:${office}`).alarm(),
+    /** When the office's alarm is set for, or null. */
+    alarmAt: (office: string) =>
+      states.get(`office:${office}`)?.storage.getAlarm() ?? null,
+    /** The offices the customer's object counts. */
+    offices: (customer: string) =>
+      states.has(`customer:${customer}`)
+        ? (states
+            .get(`customer:${customer}`)
+            ?.storage.sql.exec<{ office: string }>("SELECT office FROM offices")
+            .toArray()
+            .map((row) => row.office) ?? [])
+        : [],
     stop: () => {
       for (const state of states.values()) state.stopAlarm();
       server.stop(true);

@@ -346,6 +346,47 @@ export function createActivationService(
     return { view, row, profile };
   }
 
+  /**
+   * The buy link signed by blackark.uk for this install (v0.1.57; the independent assessment of 26
+   * Nov, F1): the buy page carries the customer id to Stripe and the licence key is made for it, so
+   * blackark.uk signs a link only after checking this install's proof (buy/link/). Null when it
+   * cannot, as before blackark.uk has the new pages: the unsigned link is then used, which blackark.uk
+   * accepts until `buy_requires_token` is on.
+   */
+  async function signedBuyUrl(
+    customerId: string,
+    unsigned: string,
+  ): Promise<string | null> {
+    const who = await installIdentity(database);
+    if (!who || who.customerId !== customerId) return null;
+    try {
+      const response = await send(new URL("link/", buyUrl), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          customerId: who.customerId,
+          installId: who.installId,
+          proof: who.proof,
+          ...(unsigned.includes("&phone=1") ? { phone: true } : {}),
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) return null;
+      const body = (await response.json().catch(() => ({}))) as {
+        buyUrl?: unknown;
+      };
+      // Only this customer's buy page, nowhere else.
+      const prefix = `${buyUrl}?customer=${encodeURIComponent(customerId)}&`;
+      return typeof body.buyUrl === "string" &&
+        body.buyUrl.length <= 400 &&
+        body.buyUrl.startsWith(prefix)
+        ? body.buyUrl
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function current(): Promise<ActivationView> {
     return (await resolve()).view;
   }
@@ -665,7 +706,9 @@ export function createActivationService(
      */
     async expectPayment(): Promise<{ buyUrl: string | null }> {
       fetching.fastUntil = new Date(now().getTime() + FAST_FOR);
-      return { buyUrl: (await current()).buyUrl };
+      const view = await current();
+      if (!view.buyUrl || !view.customerId) return { buyUrl: view.buyUrl };
+      return { buyUrl: (await signedBuyUrl(view.customerId, view.buyUrl)) ?? view.buyUrl };
     },
 
     /**

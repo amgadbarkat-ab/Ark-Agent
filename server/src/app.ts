@@ -104,6 +104,7 @@ import { createMemoryRoutes } from "./memories/routes";
 import type { MemoryStore } from "./memories/store";
 import { appleAppSiteAssociation, assetLinks } from "./mobile/links";
 import { modelGatewayRoutes } from "./models/gateway";
+import { modelFetchFor } from "./models/public-fetch";
 import { modelConnectionRoutes } from "./models/routes";
 import { requestObservability, unhandledError } from "./observability";
 import { officeCertificateRoutes, officeRoutes } from "./office/routes";
@@ -1218,6 +1219,16 @@ export function createApp(
         encryptionKey,
         fetchImpl: routeOptions.fetchImpl,
         ...(routeOptions.starter ? { starter: routeOptions.starter } : {}),
+        // A sub-profile's calls go public and https only, checked at every call (v0.1.57).
+        ...(team && routeOptions.publicFetch
+          ? {
+              fetchFor: modelFetchFor({
+                standard: routeOptions.fetchImpl,
+                publicOnly: routeOptions.publicFetch,
+                isSubprofile: (id) => team.isSubprofile(id),
+              }),
+            }
+          : {}),
       }),
     );
   }

@@ -316,7 +316,7 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
     const forgotten: { office: string; hostKey: string }[] = [];
     let welcome = true;
     const relay = {
-      url: "wss://blackark-staff.example.workers.dev",
+      url: "wss://blackark-staff.blackark.workers.dev",
       licence: async () => "ARK1-licence.signature",
       forget: async (_url: string, office: string, hostKey: string) => {
         forgotten.push({ office, hostKey });
@@ -375,7 +375,7 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
     const code = parseJoinCode(status.joinCode ?? "");
     expect(code?.addresses).toEqual([]);
     expect(code?.relay).toEqual({
-      url: "wss://blackark-staff.example.workers.dev",
+      url: "wss://blackark-staff.blackark.workers.dev",
       office: started[0]?.office,
       key: started[0]?.accessKey,
     });

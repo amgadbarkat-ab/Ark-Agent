@@ -52,8 +52,12 @@ if ((int) $count->fetchColumn() >= (int) ark_config('servers_per_install_per_hou
     priority_answer(429);
 }
 $db->prepare('INSERT INTO priority_requests (install_id, at) VALUES (?, ?)')->execute([$install, time()]);
+// And per address (v0.1.57): the install id is whatever the caller says.
+if (!ark_address_allowed($db, 'priority', (int) ark_config('servers_per_address_per_hour', 240))) {
+    priority_answer(429);
+}
 
-$ok = ark_install_proof_ok($body['proof'] ?? null, $customer);
+$ok = ark_paid_or_recent($db, $body['proof'] ?? null, $customer);
 if ($ok === null) {
     priority_answer(503);
 }
@@ -62,9 +66,8 @@ if ($ok !== true) {
 }
 
 ark_board_flush($db, 5);
-$base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checkin'), '/');
 priority_answer(200, [
     'offer' => ark_support_247_offer(),
     'plan' => ark_support_plan_view($db, $customer),
-    'buyUrl' => $base . '/buy/?customer=' . rawurlencode($customer) . '&support=247',
+    'buyUrl' => ark_buy_url($customer, '&support=247'),
 ]);

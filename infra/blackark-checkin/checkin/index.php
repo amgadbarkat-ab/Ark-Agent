@@ -102,7 +102,7 @@ if (array_key_exists('proof', $body)) {
         ark_refuse(403, 'The proof is not a BlackArk trial profile for this customer.');
     }
     $verified = $ok === true ? 1 : 0;
-} elseif (ark_config('require_proof', false)) {
+} elseif (ark_config('require_proof', true)) {
     ark_refuse(403, 'A signed trial profile is required.');
 }
 

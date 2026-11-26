@@ -17,8 +17,8 @@ return [
         '+sUZUOflN+rBn01lZ1gTFr/Q2hL/OqhJqJ1XizQ9+9o=',
     ],
 
-    // Refuse check-ins that carry no signed profile. Turn on once every install runs v0.1.38+.
-    'require_proof' => false,
+    // Refuse check-ins that carry no signed profile. On (v0.1.57): every install sends one since v0.1.38.
+    'require_proof' => true,
 
     // The shortest gap between two check-ins of one install, in seconds.
     'rate_limit_seconds' => 300,
@@ -58,6 +58,15 @@ return [
     'public_base_url' => 'https://blackark.uk/checkin',
     'buy_url' => 'https://blackark.uk/checkin/buy/',
     'buy_cancel_url' => 'https://blackark.uk/',
+    // Signs buy links (v0.1.57): the buy page opens a checkout for a customer id only with a link
+    // that blackark.uk made after checking that install's proof (buy/link/). At least 32 random
+    // characters, made on your own computer and never posted:
+    //   php -r 'echo bin2hex(random_bytes(32)), "\n";'
+    'buy_link_secret' => '',
+    // Refuse buy links without that signature. Leave false until v0.1.57 is the app customers have
+    // (older apps make unsigned links), then set true. Until then the webhook holds a purchase made
+    // under a customer id that another payer already holds.
+    'buy_requires_token' => false,
     // A RESTRICTED Stripe key (rk_live_…). It needs: Checkout Sessions write; for automatic top-up
     // also Invoices write and Customers read. Nothing else. Never post it.
     'stripe_api_key' => '',

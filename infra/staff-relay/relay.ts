@@ -353,12 +353,22 @@ export class OfficeObject {
   }
 
   private held():
-    | { customer: string; host_hash: string; access_hash: string }
+    | {
+        customer: string;
+        host_hash: string;
+        access_hash: string;
+        office: string | null;
+      }
     | undefined {
     try {
       return this.state.storage.sql
-        .exec<{ customer: string; host_hash: string; access_hash: string }>(
-          "SELECT customer, host_hash, access_hash FROM office WHERE id = 1",
+        .exec<{
+          customer: string;
+          host_hash: string;
+          access_hash: string;
+          office: string | null;
+        }>(
+          "SELECT customer, host_hash, access_hash, office FROM office WHERE id = 1",
         )
         .toArray()[0];
     } catch {
@@ -569,13 +579,14 @@ export class OfficeObject {
             `This licence already has ${MAX_OFFICES} offices at the relay. Ask BlackArk.`,
           );
         this.state.storage.sql.exec(
-          "CREATE TABLE IF NOT EXISTS office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0)",
+          "CREATE TABLE IF NOT EXISTS office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0, office TEXT)",
         );
         this.state.storage.sql.exec(
-          "INSERT INTO office (id, customer, host_hash, access_hash) VALUES (1, ?, ?, ?)",
+          "INSERT INTO office (id, customer, host_hash, access_hash, office) VALUES (1, ?, ?, ?, ?)",
           customer,
           keyHash,
           accessHash,
+          String(verified.office),
         );
       } else if (kept.host_hash !== keyHash || kept.customer !== customer) {
         return this.refuse(
@@ -652,8 +663,7 @@ export class OfficeObject {
       at: this.now(),
     });
     host.send(JSON.stringify({ open: stream }));
-    if (!(await this.state.storage.getAlarm()))
-      await this.state.storage.setAlarm(this.now() + this.pairingMs);
+    await this.alarmBy(this.now() + this.pairingMs);
     return response;
   }
 
@@ -695,6 +705,9 @@ export class OfficeObject {
     if (attachment?.kind === "host") {
       this.seen();
       this.platform.log("host disconnected");
+      // The closing socket may still be listed here, so the alarm is set whatever `host()` says;
+      // the alarm itself checks whether the computer came back.
+      if (this.held()) void this.alarmBy(this.now() + IDLE_OFFICE_MS);
       return;
     }
     const safe = code >= 1000 && code < 5000 && code !== 1005 && code !== 1006;
@@ -705,7 +718,26 @@ export class OfficeObject {
     this.webSocketClose(socket, 1011, "");
   }
 
-  /** Staff connections the company's computer never took up are closed. */
+  /** The one alarm, moved earlier when `at` is sooner than the one already set. */
+  private async alarmBy(at: number) {
+    const set = await this.state.storage.getAlarm();
+    if (set === null || set === undefined || set > at)
+      await this.state.storage.setAlarm(at);
+  }
+
+  /**
+   * While an office's computer is away, an alarm for IDLE_OFFICE_MS after it was last seen: then the
+   * office is forgotten, its customer id and keys' hashes deleted (v0.1.57; the privacy notice).
+   */
+  private async armIdle() {
+    if (!this.held() || this.host()) return;
+    await this.alarmBy(this.lastSeen() + IDLE_OFFICE_MS);
+  }
+
+  /**
+   * Staff connections the company's computer never took up are closed, and an office whose
+   * computer has not been back for IDLE_OFFICE_MS is forgotten.
+   */
   async alarm() {
     const now = this.now();
     let waiting = false;
@@ -717,5 +749,13 @@ export class OfficeObject {
       else waiting = true;
     }
     if (waiting) await this.state.storage.setAlarm(now + this.pairingMs);
+    const kept = this.held();
+    if (kept && !this.host() && now - this.lastSeen() >= IDLE_OFFICE_MS) {
+      if (kept.office) await this.customer(kept.customer, kept.office, false);
+      this.forgetAll();
+      this.platform.log("idle office forgotten");
+      return;
+    }
+    await this.armIdle();
   }
 }

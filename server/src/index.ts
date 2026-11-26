@@ -159,6 +159,10 @@ import {
   createModelForActor,
   createModelHeaderForActor,
 } from "./models/for-actor";
+import {
+  createPublicModelFetch,
+  modelFetchFor,
+} from "./models/public-fetch";
 import { createStarterModel } from "./models/starter";
 import {
   registerBusinessMetrics,
@@ -167,6 +171,7 @@ import {
 } from "./observability";
 import { hostAllowed } from "./office/hosts";
 import { peerAllowed } from "../../shared/local-hosts";
+import { BLACKARK_STAFF_RELAY } from "./office/join-code";
 import { hubClientUrl } from "./office/hub-socket";
 import { officeServeOptions } from "./office/listener";
 import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
@@ -614,8 +619,7 @@ const office =
          */
         relay: {
           url:
-            process.env.ARK_STAFF_RELAY_URL?.trim() ||
-            "wss://blackark-staff.blackark.workers.dev",
+            process.env.ARK_STAFF_RELAY_URL?.trim() || BLACKARK_STAFF_RELAY,
           licence: async () => {
             const [held] = await database
               .select({
@@ -1317,6 +1321,28 @@ const agentFetch = createAgentFetch({
 });
 
 /**
+ * A sub-profile's model calls (v0.1.57): public addresses and https only, checked on every call and
+ * every redirect, whatever this computer allows its administrator (models/public-fetch.ts).
+ */
+const publicModelFetch = createPublicModelFetch({
+  onRefusal: ({ address, reason }) => {
+    void recordAuditEvent(bootAuditStore, {
+      eventType: "agent.dial_refused",
+      targetType: "model_connection",
+      targetId: address,
+      payload: { address, reason, subprofile: true },
+    }).catch((error) => {
+      console.error("Could not record a refused model dial.", error);
+    });
+  },
+});
+const modelFetch = modelFetchFor({
+  standard: agentFetch,
+  publicOnly: publicModelFetch,
+  ...(team ? { isSubprofile: (id: string) => team.isSubprofile(id) } : {}),
+});
+
+/**
  * Who a routine acts as, resolved the way {@link resolveRequestActor} resolves it.
  *
  * THE ROLE IS READ, NOT ASSUMED. Which coworkers exist is decided per person and an administrator
@@ -1479,6 +1505,7 @@ const modelForActor = createModelForActor(
   modelConnectionStore,
   agentFetch,
   starterModel,
+  modelFetch,
 );
 
 const runSlots = createRunSlots(database);
@@ -1989,6 +2016,7 @@ const app = createApp(
     store: modelConnectionStore,
     encryptionKey: config.keyEncryptionKey,
     fetchImpl: agentFetch,
+    publicFetch: publicModelFetch,
     ...(starterModel ? { starter: starterModel } : {}),
     ...(config.offlineModel ? { offline: config.offlineModel } : {}),
     // The roster the person talks to is the roster they may choose a model for.

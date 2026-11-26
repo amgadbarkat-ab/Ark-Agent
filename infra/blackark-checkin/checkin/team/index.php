@@ -71,7 +71,7 @@ if ((int) $count->fetchColumn() >= (int) ark_config('team_per_address_per_hour',
 }
 $db->prepare('INSERT INTO team_requests (install_id, at) VALUES (?, ?), (?, ?)')->execute([$install, time(), $address, time()]);
 
-$ok = ark_install_proof_ok($body['proof'] ?? null, $customer);
+$ok = ark_paid_or_recent($db, $body['proof'] ?? null, $customer);
 if ($ok === null) {
     team_answer(503);
 }
@@ -99,6 +99,11 @@ if ($quantity !== null && $quantity !== $before['paid']) {
     $holder = $bound->fetchColumn();
     if ($holder !== false && (string) $holder !== $install) {
         team_answer(403, ['error' => "Only the ArkAgent your sub-profiles were bought on can change them. Ask BlackArk to move them to this one.", 'code' => 'other_install']);
+    }
+    if ($holder === false && ark_install_proof_ok($body['proof'] ?? null, $customer, 0) !== true) {
+        // The first change binds the sub-profiles to this install, so it takes a proof that has not
+        // ended (v0.1.57): an old trial code someone kept must not claim them before the customer.
+        team_answer(403, ['error' => 'Activate this ArkAgent with its current licence key first.', 'code' => 'proof_ended']);
     }
     if ($quantity > $before['paid'] + ARK_SUBPROFILE_STEP) {
         team_answer(400, ['error' => 'Add at most ' . ARK_SUBPROFILE_STEP . ' sub-profiles at a time.', 'code' => 'too_many_at_once']);

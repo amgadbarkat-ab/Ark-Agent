@@ -22,6 +22,8 @@ export function createModelForActor(
   store: ModelConnectionStore,
   fetchImpl: GuardedFetch,
   starter?: StarterModel,
+  /** The fetch for one person's calls (v0.1.57): a sub-profile's are public and https only. */
+  fetchFor?: (actorId: string) => Promise<GuardedFetch>,
 ): ModelForActor {
   const build = async (actorId: string, connectionId?: string) => {
     let opened: Awaited<ReturnType<ModelConnectionStore["open"]>>;
@@ -48,7 +50,7 @@ export function createModelForActor(
         apiKey: opened.apiKey,
         model: opened.model,
       },
-      fetchImpl,
+      fetchFor ? await fetchFor(actorId) : fetchImpl,
     );
   };
 

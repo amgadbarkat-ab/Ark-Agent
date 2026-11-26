@@ -11,7 +11,7 @@
  * install's own cases and the replies to them, and passes back only those.
  *
  * Each install may ask 60 times an hour. Nothing is stored here but the install id and the time, for
- * that limit, for an hour; never the internet address. The replies pass through; they are never
+ * that limit, for an hour; the internet address only as a keyed hash, for an hour, for a limit per address. The replies pass through; they are never
  * kept.
  */
 
@@ -59,6 +59,11 @@ if (
     preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $install) !== 1
 ) {
     replies_answer(400, ['error' => 'Not a replies request.']);
+}
+// Per address first (v0.1.57), before any signature is checked: the install id is whatever the
+// caller says. The address is kept only as a keyed hash, for an hour.
+if (!ark_address_allowed(ark_db(), 'replies', (int) ark_config('replies_per_address_per_hour', 240))) {
+    replies_answer(429, ['error' => 'Too many requests.']);
 }
 if (!$unverified) {
     $ok = ark_install_proof_ok($in['proof'] ?? null, $customer);

@@ -139,6 +139,8 @@ return [
   'license_grace_days' => 7,
   'stripe_webhook_secret' => '${WEBHOOK_SECRET}',
   'stripe_prices' => ['price_team' => ['plan' => 'team', 'seats' => 1]],
+  'public_base_url' => '${base}',
+  'buy_link_secret' => 'buy-link-secret-for-tests-0123456789abcdef',
 ];
 `,
   );
@@ -250,6 +252,7 @@ function desktop(
   start: string,
   trustedTrialKey: KeyObject = trialKey.publicKey,
   renewPath = "renew",
+  buyPath = "buy",
 ) {
   let clock = new Date(start);
   const now = () => clock;
@@ -269,7 +272,7 @@ function desktop(
     version: "0.1.49",
     now,
     licenseUrl: `${base}/${renewPath}/`,
-    buyUrl: `${base}/buy/`,
+    buyUrl: `${base}/${buyPath}/`,
     tickMs: 25,
   });
   const signedIn: MiddlewareHandler<{ Variables: AppVariables }> = async (
@@ -324,9 +327,17 @@ describe.skipIf(!havePhp)(
         false,
       );
 
-      // The buy button: the page for this customer, and the app starts asking often.
+      // The buy button: the page for this customer, signed by blackark.uk after it checked this
+      // install's proof (v0.1.57), and the app starts asking often.
       const opened = await install.openBuyPage();
-      expect(opened.buyUrl).toBe(`${base}/buy/?customer=demo-shop`);
+      expect(opened.buyUrl).toMatch(
+        new RegExp(
+          `^${base.replace(/[.]/g, "\\.")}/buy/\\?customer=demo-shop&e=\\d+&t=[A-Za-z0-9_-]{43}$`,
+        ),
+      );
+      // And blackark.uk opens a checkout with it (no Stripe key here, so it stops before Stripe).
+      const page = await fetch(String(opened.buyUrl), { redirect: "manual" });
+      expect(page.status).not.toBe(403);
       const stop = install.activation.startKeyFetch();
       try {
         // Asked at once; nothing paid yet.
@@ -392,6 +403,29 @@ describe.skipIf(!havePhp)(
       });
       expect(await install.activation.renew()).toBe("renewed");
       expect((await install.view()).until).toBe("2027-01-27T00:00:00.000Z");
+    });
+
+    test("the buy button falls back to the unsigned link while blackark.uk has no buy/link/ page", async () => {
+      const install = desktop(
+        "2026-12-16T00:00:01Z",
+        trialKey.publicKey,
+        "renew",
+        "buy-before-0157",
+      );
+      await install.trial.importProfile(profileFile("demo-shop"));
+      expect((await install.openBuyPage()).buyUrl).toBe(
+        `${base}/buy-before-0157/?customer=demo-shop`,
+      );
+    });
+
+    test("an install whose proof blackark.uk does not trust gets no signed buy link", async () => {
+      const install = desktop("2026-12-16T00:00:01Z", stranger.publicKey);
+      await install.trial.importProfile(
+        profileFile("demo-shop", stranger.privateKey),
+      );
+      expect((await install.openBuyPage()).buyUrl).toBe(
+        `${base}/buy/?customer=demo-shop`,
+      );
     });
 
     test("a proof blackark.uk does not trust is refused, and nothing unlocks", async () => {

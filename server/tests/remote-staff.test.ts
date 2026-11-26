@@ -287,6 +287,25 @@ test("the join code carries the relay, and anything but a TLS relay address is r
     relay: { url: "ws://relay.example", office, key: accessKey },
   });
   expect(parseJoinCode(insecure)).toBeNull();
+  // v0.1.57: a TLS relay that is not BlackArk's is not a join code either.
+  const elsewhere = encodeJoinCode({
+    addresses: [],
+    port: 52443,
+    fingerprint,
+    relay: { url: "wss://relay.attacker.example", office, key: accessKey },
+  });
+  expect(parseJoinCode(elsewhere)).toBeNull();
+  const lookalike = encodeJoinCode({
+    addresses: [],
+    port: 52443,
+    fingerprint,
+    relay: {
+      url: "wss://blackark-staff.blackark.workers.dev.attacker.example",
+      office,
+      key: accessKey,
+    },
+  });
+  expect(parseJoinCode(lookalike)).toBeNull();
   const noWay = encodeJoinCode({ addresses: [], port: 52443, fingerprint });
   expect(parseJoinCode(noWay)).toBeNull();
 });

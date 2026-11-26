@@ -2,7 +2,8 @@
 /**
  * https://blackark.uk/checkin/key/?session_id=cs_… — where Stripe sends a customer after paying
  * (#109, v0.1.44). Shows their ArkAgent licence key to copy, once the webhook has signed it. The
- * checkout session id, which only the paying browser has, is what finds it.
+ * checkout session id, which only the paying browser has, is what finds it. For two days after
+ * payment (v0.1.57): the link stays in the browser's history.
  */
 
 declare(strict_types=1);
@@ -17,7 +18,7 @@ header('Referrer-Policy: no-referrer');
 $session = (string) ($_GET['session_id'] ?? '');
 $row = null;
 if (preg_match('/^cs_[A-Za-z0-9_]{10,200}$/', $session) === 1) {
-    $find = ark_db()->prepare('SELECT license_key, valid_until, plan, held FROM licenses WHERE session_id = ?');
+    $find = ark_db()->prepare('SELECT license_key, valid_until, plan, held, session_at FROM licenses WHERE session_id = ?');
     $find->execute([$session]);
     $row = $find->fetch() ?: null;
 }
@@ -25,11 +26,18 @@ function h($text): string
 {
     return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
-$ready = $row && $row['license_key'];
+// The link is in the browser's history, so it shows the key for two days only (v0.1.57). After
+// that ArkAgent has fetched the key by itself, and a person who still needs it asks BlackArk.
+$gone = $row && (int) ($row['session_at'] ?? 0) + ARK_KEY_PAGE_SECONDS < time();
+$ready = $row && !$gone && $row['license_key'];
 $held = $row && !$ready && (int) $row['held'] === 1;
-echo ark_page_open('ArkAgent licence key', 'el', $ready || $held ? '' : '<meta http-equiv="refresh" content="10">');
+echo ark_page_open('ArkAgent licence key', 'el', $ready || $held || $gone ? '' : '<meta http-equiv="refresh" content="10">');
 ?>
-<?php if ($ready): ?>
+<?php if ($gone): ?>
+  <h1>Αυτή η σελίδα έληξε</h1>
+  <p>Το ArkAgent παίρνει μόνο του το κλειδί άδειας μετά την πληρωμή. Αν χρειάζεστε το κλειδί, επικοινωνήστε με την BlackArk από τη Βοήθεια και υποστήριξη του ArkAgent.</p>
+  <p lang="en">This page has expired. ArkAgent fetches its licence key by itself after payment. If you need the key, contact BlackArk from ArkAgent's Help &amp; support.</p>
+<?php elseif ($ready): ?>
   <h1>Ευχαριστούμε! Το κλειδί άδειας ArkAgent</h1>
   <p>Αντιγράψτε το παρακάτω κλειδί και επικολλήστε το στο ArkAgent, στην οθόνη «Ενεργοποίηση ArkAgent» ή στις Ρυθμίσεις, Πρόγραμμα, Ενεργοποίηση.</p>
   <textarea class="key" readonly aria-label="Licence key"><?= h($row['license_key']) ?></textarea>

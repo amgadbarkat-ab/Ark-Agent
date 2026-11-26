@@ -114,7 +114,9 @@ function ark_db(): PDO
     $licenceColumns = array_column($pdo->query('PRAGMA table_info(licenses)')->fetchAll(), 'name');
     // `held` (security assessment of 26 Nov 2026): 1 when a purchase names a customer id that another
     // Stripe customer already pays for; no key is signed until BlackArk releases it (admin page).
-    foreach (['max_agents' => 'INTEGER', 'stripe_customer' => 'TEXT', 'held' => 'INTEGER NOT NULL DEFAULT 0'] as $column => $type) {
+    // `session_at` (v0.1.57): when Stripe said the checkout was paid, so the key page stops showing
+    // the key after ARK_KEY_PAGE_SECONDS; the app fetches its key itself.
+    foreach (['max_agents' => 'INTEGER', 'stripe_customer' => 'TEXT', 'held' => 'INTEGER NOT NULL DEFAULT 0', 'session_at' => 'INTEGER'] as $column => $type) {
         if (!in_array($column, $licenceColumns, true)) {
             $pdo->exec("ALTER TABLE licenses ADD COLUMN $column $type");
         }
@@ -231,7 +233,13 @@ function ark_code_ok($proof, string $customerId): ?bool
     if ($signature === false || strlen($signature) !== 64) {
         return false;
     }
-    $keys = ($code['action'] ?? '') === 'license'
+    // Only an activation code or a licence key is proof. A trial unlock code is signed with the same
+    // key, but it is a one-off message to an install, not who the install is (v0.1.57).
+    $action = $code['action'] ?? '';
+    if ($action !== 'license' && $action !== 'trial') {
+        return false;
+    }
+    $keys = $action === 'license'
         ? [(string) ark_config('license_public_key', '')]
         : (array) ark_config('trial_public_keys', []);
     foreach ($keys as $encoded) {
@@ -249,13 +257,151 @@ function ark_code_ok($proof, string $customerId): ?bool
  * `{"kind":"code", payload, signature}`, its signed activation code or licence key. True, false, or
  * null when this server cannot check signatures.
  */
-function ark_install_proof_ok($proof, string $customerId): ?bool
+function ark_install_proof_ok($proof, string $customerId, ?int $endedDays = null): ?bool
 {
     $kind = is_array($proof) ? ($proof['kind'] ?? '') : '';
     if ($kind === 'profile') {
-        return ark_proof_ok($proof, $customerId);
+        $ok = ark_proof_ok($proof, $customerId);
+    } else {
+        $ok = $kind === 'code' ? ark_code_ok($proof, $customerId) : false;
     }
-    return $kind === 'code' ? ark_code_ok($proof, $customerId) : false;
+    if ($ok !== true || $endedDays === null) {
+        return $ok;
+    }
+    $end = ark_proof_end($proof);
+    return $end !== null && $end + $endedDays * 86400 >= time();
+}
+
+/**
+ * How many days after its end a proof still opens what costs money or changes it (v0.1.57; the
+ * independent assessment): Ark Private Server, 24/7 support and sub-profiles. A customer who pays
+ * is let in by their licence row instead (`ark_paid_or_recent`).
+ */
+const ARK_PROOF_ENDED_DAYS = 30;
+
+/**
+ * When a proof (already checked) stops: a licence key's validUntil, a trial code's until, a trial
+ * profile's endsAt. Null when it names none.
+ */
+function ark_proof_end($proof): ?int
+{
+    $kind = is_array($proof) ? ($proof['kind'] ?? '') : '';
+    $json = ark_base64url_decode((string) ($kind === 'profile' ? ($proof['profile'] ?? '') : ($proof['payload'] ?? '')));
+    $data = $json === false ? null : json_decode($json, true);
+    if (!is_array($data)) {
+        return null;
+    }
+    $when = $kind === 'profile'
+        ? ($data['endsAt'] ?? null)
+        : (($data['action'] ?? '') === 'license' ? ($data['validUntil'] ?? null) : ($data['until'] ?? null));
+    $at = is_string($when) ? strtotime($when) : false;
+    return $at === false ? null : $at;
+}
+
+/**
+ * The install's proof for something that costs money or changes it: signed for this customer, and
+ * either not ended more than ARK_PROOF_ENDED_DAYS ago or the customer has an active licence here.
+ * True, false, or null when this server cannot check signatures.
+ */
+function ark_paid_or_recent(PDO $db, $proof, string $customerId): ?bool
+{
+    $ok = ark_install_proof_ok($proof, $customerId);
+    if ($ok !== true) {
+        return $ok;
+    }
+    if (ark_install_proof_ok($proof, $customerId, ARK_PROOF_ENDED_DAYS) === true) {
+        return true;
+    }
+    $paid = $db->prepare("SELECT 1 FROM licenses WHERE customer_id = ? AND status = 'active' AND held IN (0, 2) AND (valid_until IS NULL OR valid_until > ?) LIMIT 1");
+    $paid->execute([$customerId, ark_now()]);
+    return (bool) $paid->fetchColumn();
+}
+
+/**
+ * A per-hour limit on one kind of request, by install id and by address (v0.1.57; the independent
+ * assessment's per-address finding): the install id is whatever the caller says, so a limit on it
+ * alone is no limit for somebody who makes up a new one each time. Records the request when allowed.
+ */
+function ark_request_allowed(PDO $db, string $kind, string $install, int $perInstall, int $perAddress): bool
+{
+    $db->exec('CREATE TABLE IF NOT EXISTS request_log (kind TEXT NOT NULL, who TEXT NOT NULL, at INTEGER NOT NULL)');
+    $db->exec('CREATE INDEX IF NOT EXISTS request_log_who ON request_log (kind, who, at)');
+    $db->prepare('DELETE FROM request_log WHERE at < ?')->execute([time() - 3600]);
+    // The address is kept only as a keyed hash, and only for the hour the limit counts.
+    $key = (string) (ark_config('buy_link_secret', '') ?: ark_config('relay_secret', '') ?: ark_config('admin_password_hash', ''));
+    $address = 'ip:' . hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), $key);
+    $count = $db->prepare('SELECT COUNT(*) FROM request_log WHERE kind = ? AND who = ?');
+    $count->execute([$kind, 'install:' . $install]);
+    if ((int) $count->fetchColumn() >= $perInstall) {
+        return false;
+    }
+    $count->execute([$kind, $address]);
+    if ((int) $count->fetchColumn() >= $perAddress) {
+        return false;
+    }
+    $db->prepare('INSERT INTO request_log (kind, who, at) VALUES (?, ?, ?), (?, ?, ?)')
+        ->execute([$kind, 'install:' . $install, time(), $kind, $address, time()]);
+    return true;
+}
+
+/** The per-address half alone, for an endpoint that already limits each install its own way. */
+function ark_address_allowed(PDO $db, string $kind, int $perAddress): bool
+{
+    return ark_request_allowed($db, $kind, '-', PHP_INT_MAX, $perAddress);
+}
+
+/**
+ * A buy link that blackark.uk signs only after it has checked an install's proof (v0.1.57; the
+ * independent assessment of 26 Nov, F1). The buy page carries the customer id to Stripe as
+ * client_reference_id, and the licence key is made for that id; so only an install that proves it is
+ * that customer may open a checkout for it. `e` is when the link stops working, `t` an HMAC-SHA256
+ * of "buy|<customer>|<e>" with `buy_link_secret` (config.php only). Null when no secret is set.
+ */
+const ARK_BUY_LINK_SECONDS = 6 * 3600;
+
+/** How long the key page shows a paid checkout's key (v0.1.57): two days. */
+const ARK_KEY_PAGE_SECONDS = 2 * 86400;
+
+function ark_buy_link_secret(): ?string
+{
+    $secret = (string) ark_config('buy_link_secret', '');
+    return strlen($secret) >= 32 ? $secret : null;
+}
+
+function ark_buy_token(string $customerId, int $expires): ?string
+{
+    $secret = ark_buy_link_secret();
+    return $secret === null ? null : ark_base64url(hash_hmac('sha256', 'buy|' . $customerId . '|' . $expires, $secret, true));
+}
+
+/** The query that proves a buy link: "customer=…&e=…&t=…", or "customer=…" when no secret is set. */
+function ark_buy_query(string $customerId, ?int $now = null): string
+{
+    $expires = ($now ?? time()) + ARK_BUY_LINK_SECONDS;
+    $token = ark_buy_token($customerId, $expires);
+    $query = 'customer=' . rawurlencode($customerId);
+    return $token === null ? $query : $query . '&e=' . $expires . '&t=' . $token;
+}
+
+/** The buy page for this customer, signed, with `extra` (already encoded) after it. */
+function ark_buy_url(string $customerId, string $extra = ''): string
+{
+    $base = rtrim((string) ark_config('public_base_url', 'https://blackark.uk/checkin'), '/');
+    return $base . '/buy/?' . ark_buy_query($customerId) . $extra;
+}
+
+/** Whether `e` and `t` are a signed buy link for this customer that has not run out. */
+function ark_buy_token_ok(string $customerId, $expires, $token): bool
+{
+    if (!is_string($expires) || !is_string($token) || preg_match('/^[0-9]{1,12}$/', $expires) !== 1) {
+        return false;
+    }
+    $at = (int) $expires;
+    if ($at < time() || $at > time() + ARK_BUY_LINK_SECONDS + 300) {
+        return false;
+    }
+    $want = ark_buy_token($customerId, $at);
+    return $want !== null && hash_equals($want, $token);
 }
 
 /**
@@ -477,6 +623,8 @@ function ark_phone_credit_blocks(PDO $db, string $customerId, string $ref, int $
 function ark_phone_topup_url(string $customerId): string
 {
     $base = rtrim((string) ark_config('buy_url', 'https://blackark.uk/checkin/buy/'), '/') . '/';
+    // A top-up only adds to the balance of a customer who has the phone add-on, so it needs no
+    // signed link, and the low-balance email's link keeps working.
     return $base . '?topup=1&customer=' . rawurlencode($customerId);
 }
 

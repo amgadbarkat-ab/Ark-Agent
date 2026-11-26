@@ -41,6 +41,27 @@ export function encodeJoinCode(code: JoinCode): string {
   return PREFIX + Buffer.from(body, "utf8").toString("base64url");
 }
 
+/** BlackArk's staff relay, as the administrator's computer names it (index.ts). */
+export const BLACKARK_STAFF_RELAY = "wss://blackark-staff.blackark.workers.dev";
+
+/**
+ * The relay hosts a join code may name: BlackArk's own, and the one this computer was started with
+ * (`ARK_STAFF_RELAY_URL`), which only this computer's own settings can set. A code from anyone
+ * else's relay is not a join code (v0.1.57; the security review of v0.1.56).
+ */
+function relayHosts(): Set<string> {
+  const hosts = new Set([new URL(BLACKARK_STAFF_RELAY).hostname]);
+  const own = process.env.ARK_STAFF_RELAY_URL?.trim();
+  if (own) {
+    try {
+      hosts.add(new URL(own).hostname.toLowerCase());
+    } catch {
+      // Not an address: BlackArk's relay only.
+    }
+  }
+  return hosts;
+}
+
 function relayPart(raw: unknown): RelayPart | null {
   if (!raw || typeof raw !== "object") return null;
   const { u, o, k } = raw as { u?: unknown; o?: unknown; k?: unknown };
@@ -52,10 +73,12 @@ function relayPart(raw: unknown): RelayPart | null {
   } catch {
     return null;
   }
-  // Only BlackArk's relay over TLS; plain ws:// only to this computer, which the tests use.
+  // Only BlackArk's relay over TLS (v0.1.57: by name, not any wss:// host); plain ws:// only to
+  // this computer, which the tests use.
   const local = url.hostname === "127.0.0.1" || url.hostname === "localhost";
   if (url.protocol !== "wss:" && !(url.protocol === "ws:" && local))
     return null;
+  if (!local && !relayHosts().has(url.hostname.toLowerCase())) return null;
   if (url.username || url.password || url.search || url.hash) return null;
   if (!ID.test(o) || !ID.test(k)) return null;
   return { url: u.replace(/\/+$/, ""), office: o, key: k };

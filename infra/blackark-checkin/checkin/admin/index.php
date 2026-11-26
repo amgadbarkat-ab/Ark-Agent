@@ -210,7 +210,8 @@ $signedIn = !empty($_SESSION['signed_in']);
     $recent = gmdate('Y-m-d\TH:i:s\Z', time() - 7 * 86400);
     $perCustomer = [];
     foreach ($rows as $row) {
-        if ($row['last_seen'] >= $recent) {
+        // Only installs that proved who they are (v0.1.57): anybody can make up an unsigned check-in.
+        if ($row['last_seen'] >= $recent && (int) $row['verified'] === 1) {
             $perCustomer[$row['customer_id']] = ($perCustomer[$row['customer_id']] ?? 0) + 1;
         }
     }
@@ -237,7 +238,7 @@ $signedIn = !empty($_SESSION['signed_in']);
       <tr><td colspan="11" class="muted">No install has checked in yet.</td></tr>
     <?php endif; ?>
     <?php foreach ($rows as $row):
-        $second = ($perCustomer[$row['customer_id']] ?? 0) > 1;
+        $second = (int) $row['verified'] === 1 && ($perCustomer[$row['customer_id']] ?? 0) > 1;
         $stale = $row['last_seen'] < gmdate('Y-m-d\TH:i:s\Z', time() - 2 * 86400);
     ?>
       <tr>

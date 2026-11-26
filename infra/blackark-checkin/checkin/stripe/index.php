@@ -409,6 +409,7 @@ switch ($event['type']) {
         upsert($db, $subscription, [
             'customer_id' => customer_id_from($object['client_reference_id'] ?? null, $object['customer'] ?? ''),
             'session_id' => (string) ($object['id'] ?? ''),
+            'session_at' => time(),
             // The buyer's Stripe customer, for every buyer (v0.1.49): the phone usage meters need it.
             'stripe_customer' => preg_match('/^cus_[A-Za-z0-9]+$/', (string) ($object['customer'] ?? '')) === 1 ? (string) $object['customer'] : null,
         ]);
