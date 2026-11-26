@@ -232,3 +232,52 @@ describe("a password change keeps the session it came from (F9)", () => {
 });
 
 afterEach(() => {});
+
+describe("a sub-profile on its first password (F9, C3 of the v0.1.56 review)", () => {
+  test("reaches only who it is and the first sign-in's steps, until it chooses its own", async () => {
+    const { createRequireUser } = await import("../src/auth/guards");
+    let first = true;
+    const guard = createRequireUser(
+      {
+        api: {
+          getSession: async () => ({
+            user: {
+              id: "u-1",
+              email: "n@shop.example",
+              name: "N",
+              role: "user",
+            },
+          }),
+        },
+      } as never,
+      { rolesForUser: async () => ["user"] } as never,
+      async () => ({ ok: true }),
+      async () =>
+        first
+          ? { ok: false, reason: "Choose your own password first." }
+          : { ok: true },
+    );
+    const app = new Hono();
+    app.use("/api/*", guard);
+    app.all("/api/*", (context) => context.text("ok"));
+    for (const open of [
+      "/api/me",
+      "/api/team/me",
+      "/api/team/me/password",
+      "/api/me/terms",
+    ])
+      expect((await app.request(open)).status).toBe(200);
+    for (const closed of [
+      "/api/agents",
+      "/api/channels",
+      "/api/models/connections",
+      "/api/me/x",
+    ]) {
+      const answer = await app.request(closed);
+      expect(answer.status).toBe(403);
+      expect((await answer.json()).code).toBe("password_change_required");
+    }
+    first = false;
+    expect((await app.request("/api/agents")).status).toBe(200);
+  });
+});

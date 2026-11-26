@@ -1,5 +1,5 @@
 {
-  "id": "92bc8877-4b3f-4524-9a73-d08c98399872",
+  "id": "9cb31476-7e30-494b-907d-0452d1d04109",
   "prevId": "11e92015-b767-43fa-917d-f86c9c640c5a",
   "version": "7",
   "dialect": "postgresql",
@@ -7141,6 +7141,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "relay_registered": {
+          "name": "relay_registered",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",

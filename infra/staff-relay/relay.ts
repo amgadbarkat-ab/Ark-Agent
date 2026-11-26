@@ -36,6 +36,11 @@ import type {
 
 export type Env = {
   OFFICE: DurableObjectNamespace;
+  /**
+   * Customer ids BlackArk has cut off (a refund, a leaked key), comma-separated. Not a secret: set in
+   * `wrangler.toml` and deployed. Their offices are refused at once, whatever their licence says.
+   */
+  REVOKED_CUSTOMERS?: string;
 };
 
 /** What differs between the Workers runtime and the one the tests run on. */
@@ -54,6 +59,15 @@ export type RelayPlatform = {
 export const PING = "ping";
 export const PONG = "pong";
 export const READY = "ready";
+/** Sent to a host once the relay has accepted it as its office's own. */
+export const WELCOME = "welcome";
+/** At most this many offices per customer (one company's computer, a spare, a replacement). */
+export const MAX_OFFICES = 3;
+/** A carried connection is closed after this many bytes either way, or this long. */
+export const MAX_STREAM_BYTES = 4 * 1024 * 1024 * 1024;
+export const MAX_STREAM_MS = 12 * 60 * 60 * 1000;
+/** Requests per minute from one internet address, per relay instance. */
+export const PER_ADDRESS_PER_MINUTE = 240;
 /** At most this many staff connections open at once per office. */
 export const MAX_STREAMS = 96;
 /** A staff connection the company's computer has not taken up by then is closed. */
@@ -82,6 +96,10 @@ export const CLOSE = {
   busy: 4429,
   /** The company's computer did not take the connection up in time. */
   timeout: 4408,
+  /** BlackArk cut this customer off. */
+  revoked: 4410,
+  /** A connection carried its most bytes or ran its longest. */
+  spent: 4413,
   /** Something sent that this relay does not carry. */
   protocol: 4400,
 } as const;
@@ -191,21 +209,52 @@ function refuse(
   return platform.upgraded(client);
 }
 
+export function revoked(env: Env, customer: string): boolean {
+  return (env.REVOKED_CUSTOMERS ?? "")
+    .split(",")
+    .map((one) => one.trim())
+    .includes(customer);
+}
+
 export function createWorker(platform: RelayPlatform) {
   const now = platform.now ?? (() => Date.now());
+  /*
+   * Per internet address, in this instance's memory: a rough limit, not an exact one (Cloudflare
+   * runs many instances), but it turns a flood from one address into refusals before any office's
+   * object is reached and billed.
+   */
+  const seen = new Map<string, { minute: number; count: number }>();
+  function tooMany(address: string): boolean {
+    const minute = Math.floor(now() / 60_000);
+    const entry = seen.get(address);
+    if (!entry || entry.minute !== minute) {
+      if (seen.size > 50_000) seen.clear();
+      seen.set(address, { minute, count: 1 });
+      return false;
+    }
+    entry.count += 1;
+    return entry.count > PER_ADDRESS_PER_MINUTE;
+  }
   return {
     async fetch(request: Request, env: Env): Promise<Response> {
       const url = new URL(request.url);
       const path = url.pathname;
       if (path === "/health") return new Response("ok");
-      const route = /^\/v1\/(host|stream|connect)$/.exec(path)?.[1];
+      const route = /^\/v1\/(host|stream|connect|forget)$/.exec(path)?.[1];
       if (!route) return new Response("Not found", { status: 404 });
-      if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
+      if (tooMany(request.headers.get("cf-connecting-ip") ?? "unknown"))
+        return new Response("Too many requests.", { status: 429 });
+      if (route === "forget") {
+        if (request.method !== "POST")
+          return new Response("Not found", { status: 404 });
+      } else if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
         return new Response("Expected a WebSocket.", { status: 426 });
       const office = url.searchParams.get("office") ?? "";
       const key = bearer(request);
       if (!OFFICE_ID.test(office) || !KEY.test(key))
-        return refuse(platform, CLOSE.refused, "Not a known office.");
+        return route === "forget"
+          ? new Response("Not a known office.", { status: 403 })
+          : refuse(platform, CLOSE.refused, "Not a known office.");
 
       const verified: Record<string, unknown> = {
         route,
@@ -223,6 +272,8 @@ export function createWorker(platform: RelayPlatform) {
             CLOSE.licence,
             "This ArkAgent has no BlackArk licence that is still valid.",
           );
+        if (revoked(env, licence.customer))
+          return refuse(platform, CLOSE.revoked, "Cut off by BlackArk.");
         const access = (
           request.headers.get("x-ark-access") ?? ""
         ).toLowerCase();
@@ -236,11 +287,13 @@ export function createWorker(platform: RelayPlatform) {
           return refuse(platform, CLOSE.protocol, "Not a known connection.");
         verified.stream = stream;
       }
+      verified.office = office;
       // Only what was checked above reaches the object: never a header from outside.
-      return env.OFFICE.get(env.OFFICE.idFromName(office)).fetch(
+      return env.OFFICE.get(env.OFFICE.idFromName(`office:${office}`)).fetch(
         new Request(`https://office/${route}`, {
+          ...(route === "forget" ? { method: "POST" } : {}),
           headers: {
-            upgrade: "websocket",
+            ...(route === "forget" ? {} : { upgrade: "websocket" }),
             [VERIFIED]: JSON.stringify(verified),
           },
         }),
@@ -255,8 +308,14 @@ type ClientAttachment = {
   stream: string;
   paired: boolean;
   at: number;
+  bytes?: number;
 };
-type StreamAttachment = { kind: "stream"; stream: string };
+type StreamAttachment = {
+  kind: "stream";
+  stream: string;
+  at?: number;
+  bytes?: number;
+};
 type Attachment = HostAttachment | ClientAttachment | StreamAttachment;
 
 function randomId(): string {
@@ -274,25 +333,69 @@ export class OfficeObject {
 
   constructor(
     private readonly state: DurableObjectState,
-    _env: unknown,
+    private readonly env: Partial<Env>,
     private readonly platform: RelayPlatform,
   ) {
     this.now = platform.now ?? (() => Date.now());
     this.pairingMs = platform.pairingMs ?? PAIRING_MS;
-    state.storage.sql.exec(
-      "CREATE TABLE IF NOT EXISTS office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL)",
-    );
+    // Nothing is stored until a licensed host registers: a request for an office nobody holds
+    // leaves no trace and costs no storage.
     state.setWebSocketAutoResponse(platform.autoResponse(PING, PONG));
   }
 
   private held():
     | { customer: string; host_hash: string; access_hash: string }
     | undefined {
-    return this.state.storage.sql
-      .exec<{ customer: string; host_hash: string; access_hash: string }>(
-        "SELECT customer, host_hash, access_hash FROM office WHERE id = 1",
-      )
-      .toArray()[0];
+    try {
+      return this.state.storage.sql
+        .exec<{ customer: string; host_hash: string; access_hash: string }>(
+          "SELECT customer, host_hash, access_hash FROM office WHERE id = 1",
+        )
+        .toArray()[0];
+    } catch {
+      return undefined; // No table: nobody registered this office.
+    }
+  }
+
+  /** The customer's list of offices, kept in that customer's own object. */
+  private customerOffices(): string[] {
+    try {
+      return this.state.storage.sql
+        .exec<{ office: string }>("SELECT office FROM offices")
+        .toArray()
+        .map((row) => row.office);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Asks the customer's object to count this office in, or out. */
+  private async customer(
+    customer: string,
+    office: string,
+    add: boolean,
+  ): Promise<boolean> {
+    const namespace = this.env.OFFICE;
+    if (!namespace) return true;
+    const answer = await namespace
+      .get(namespace.idFromName(`customer:${customer}`))
+      .fetch(
+        new Request("https://office/offices", {
+          method: "POST",
+          headers: {
+            [VERIFIED]: JSON.stringify({ route: "offices", office, add }),
+          },
+        }),
+      );
+    return answer.ok;
+  }
+
+  private forgetAll() {
+    for (const socket of this.state.getWebSockets())
+      socket.close(1000, "This office was closed by its ArkAgent.");
+    try {
+      this.state.storage.sql.exec("DROP TABLE IF EXISTS office");
+    } catch {}
   }
 
   private accept(tags: string[], attachment: Attachment): Response {
@@ -317,13 +420,58 @@ export class OfficeObject {
     } catch {
       return new Response("Not found", { status: 404 });
     }
+    // A customer's own object: which offices are theirs, at most MAX_OFFICES.
+    if (verified.route === "offices") {
+      this.state.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS offices (office TEXT PRIMARY KEY)",
+      );
+      const office = String(verified.office);
+      const held = this.customerOffices();
+      if (!verified.add) {
+        this.state.storage.sql.exec(
+          "DELETE FROM offices WHERE office = ?",
+          office,
+        );
+        return new Response("ok");
+      }
+      if (!held.includes(office) && held.length >= MAX_OFFICES)
+        return new Response("Too many offices.", { status: 409 });
+      this.state.storage.sql.exec(
+        "INSERT OR IGNORE INTO offices (office) VALUES (?)",
+        office,
+      );
+      return new Response("ok");
+    }
+
     const keyHash = String(verified.keyHash ?? "");
     const kept = this.held();
+
+    if (verified.route === "forget") {
+      if (!kept || kept.host_hash !== keyHash)
+        return new Response("Not this office's ArkAgent.", { status: 403 });
+      await this.customer(kept.customer, String(verified.office), false);
+      this.forgetAll();
+      this.platform.log("office forgotten");
+      return new Response("ok");
+    }
+
+    if (kept && revoked(this.env as Env, kept.customer)) {
+      this.forgetAll();
+      return this.refuse(CLOSE.revoked, "Cut off by BlackArk.");
+    }
 
     if (verified.route === "host") {
       const customer = String(verified.customer);
       const accessHash = String(verified.accessHash);
       if (!kept) {
+        if (!(await this.customer(customer, String(verified.office), true)))
+          return this.refuse(
+            CLOSE.busy,
+            `This licence already has ${MAX_OFFICES} offices at the relay. Ask BlackArk.`,
+          );
+        this.state.storage.sql.exec(
+          "CREATE TABLE IF NOT EXISTS office (id INTEGER PRIMARY KEY CHECK (id = 1), customer TEXT NOT NULL, host_hash TEXT NOT NULL, access_hash TEXT NOT NULL)",
+        );
         this.state.storage.sql.exec(
           "INSERT INTO office (id, customer, host_hash, access_hash) VALUES (1, ?, ?, ?)",
           customer,
@@ -346,10 +494,14 @@ export class OfficeObject {
       for (const older of this.state.getWebSockets("host"))
         older.close(1000, "Replaced by a newer connection.");
       this.platform.log("host connected");
-      return this.accept(["host"], {
+      const response = this.accept(["host"], {
         kind: "host",
         validUntil: Number(verified.validUntil),
       });
+      // Said only now, once this host is the office's own: the app gives out a join code that
+      // names the relay only after hearing it.
+      this.host()?.send(WELCOME);
+      return response;
     }
 
     if (!kept) return this.refuse(CLOSE.refused, "Not a known office.");
@@ -367,6 +519,7 @@ export class OfficeObject {
       const response = this.accept(["stream", `s:${stream}`], {
         kind: "stream",
         stream,
+        at: this.now(),
       });
       client.serializeAttachment({ ...waiting, paired: true });
       client.send(READY);
@@ -424,6 +577,16 @@ export class OfficeObject {
       partner?.close(CLOSE.protocol, "Not carried.");
       return;
     }
+    // Each connection carries at most so many bytes, for at most so long: a licence is not a
+    // free tunnel for anything else.
+    const sent = (attachment?.bytes ?? 0) + size;
+    const started = attachment?.at ?? this.now();
+    if (sent > MAX_STREAM_BYTES || this.now() - started > MAX_STREAM_MS) {
+      socket.close(CLOSE.spent, "Connection closed; open a new one.");
+      partner.close(CLOSE.spent, "Connection closed; open a new one.");
+      return;
+    }
+    socket.serializeAttachment({ ...attachment, bytes: sent });
     partner.send(raw);
   }
 

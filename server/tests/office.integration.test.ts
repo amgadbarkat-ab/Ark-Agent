@@ -313,9 +313,15 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
       port: number | null;
     }[] = [];
     let stopped = 0;
+    const forgotten: { office: string; hostKey: string }[] = [];
+    let welcome = true;
     const relay = {
       url: "wss://blackark-staff.example.workers.dev",
       licence: async () => "ARK1-licence.signature",
+      forget: async (_url: string, office: string, hostKey: string) => {
+        forgotten.push({ office, hostKey });
+        return true;
+      },
       start: ((options: Parameters<typeof startRemoteHost>[0]) => {
         started.push({
           office: options.office,
@@ -323,6 +329,7 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
           accessKey: options.accessKey,
           port: options.listenerPort(),
         });
+        if (welcome) options.onWelcome?.();
         return {
           status: () => ({ connected: true, error: null }),
           stop: () => {
@@ -331,13 +338,32 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
         };
       }) as typeof startRemoteHost,
     };
-    return { relay, started, stopped: () => stopped };
+    return {
+      relay,
+      started,
+      forgotten,
+      stopped: () => stopped,
+      noWelcome: () => {
+        welcome = false;
+      },
+    };
   }
+
+  test("until the relay has welcomed this office, the join code does not name it", async () => {
+    const { relay, noWelcome } = relayed();
+    noWelcome();
+    const { service } = office(0, async () => true, relay);
+    const status = await service.setRemote(true);
+    expect(status.remote.enabled).toBe(true);
+    expect(status.joinCode).toBeNull();
+  });
 
   test("on alone, the listener answers on this computer only, and the code carries only the relay", async () => {
     const { relay, started } = relayed();
     const { service, where } = office(0, async () => true, relay);
-    const status = await service.setRemote(true);
+    await service.setRemote(true);
+    await Bun.sleep(20);
+    const status = await service.status();
     expect(where).toEqual([false]);
     expect(status.remote).toEqual({
       available: true,
@@ -363,6 +389,7 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
     const { relay } = relayed();
     const { service, where } = office(0, async () => true, relay);
     await service.setRemote(true);
+    await Bun.sleep(20);
     const status = await service.setEnabled(true);
     expect(where).toEqual([false, true]);
     const code = parseJoinCode(status.joinCode ?? "");
@@ -374,16 +401,40 @@ describe("remote staff through BlackArk's staff relay (v0.1.56)", () => {
     expect(parseJoinCode(after.joinCode ?? "")?.addresses).toEqual([]);
   });
 
-  test("a new join code replaces the access key, keeps the office and its host key", async () => {
-    const { relay, started, stopped } = relayed();
+  test("a new join code starts a new office with new keys, and the relay forgets the old one", async () => {
+    const { relay, started, forgotten } = relayed();
     const { service } = office(0, async () => true, relay);
-    const first = parseJoinCode((await service.setRemote(true)).joinCode ?? "");
-    const second = parseJoinCode((await service.newJoinCode()).joinCode ?? "");
-    expect(second?.relay?.office).toBe(first?.relay?.office as string);
+    await service.setRemote(true);
+    await Bun.sleep(20);
+    const first = parseJoinCode((await service.status()).joinCode ?? "");
+    await service.newJoinCode();
+    await Bun.sleep(20);
+    const second = parseJoinCode((await service.status()).joinCode ?? "");
+    expect(forgotten).toEqual([
+      {
+        office: started[0]?.office as string,
+        hostKey: started[0]?.hostKey as string,
+      },
+    ]);
+    expect(second?.relay?.office).not.toBe(first?.relay?.office as string);
     expect(second?.relay?.key).not.toBe(first?.relay?.key as string);
-    expect(stopped()).toBe(1);
-    expect(started[1]?.hostKey).toBe(started[0]?.hostKey as string);
-    expect(started[1]?.accessKey).toBe(second?.relay?.key as string);
+    expect(started[1]?.hostKey).not.toBe(started[0]?.hostKey as string);
+  });
+
+  test("switching remote staff off makes the relay forget the office, and keeps no keys here", async () => {
+    const { relay, started, forgotten } = relayed();
+    const { service } = office(0, async () => true, relay);
+    await service.setRemote(true);
+    await service.setRemote(false);
+    expect(forgotten.map((one) => one.office)).toEqual([
+      started[0]?.office as string,
+    ]);
+    const [kept] = await database.select().from(officeNetwork);
+    expect(kept).toMatchObject({
+      relayOffice: null,
+      sealedRelay: null,
+      relayRegistered: false,
+    });
   });
 
   test("never before an administrator exists, and off stops the relay and the listener", async () => {

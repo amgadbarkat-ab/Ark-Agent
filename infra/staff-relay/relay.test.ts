@@ -95,12 +95,22 @@ async function host(key = hostKey, typed = licence, access = accessKey) {
 const staff = (key = accessKey) =>
   open("connect", { authorization: `Bearer ${key}` });
 
+const opens = (hosting: Opened) =>
+  hosting.texts.flatMap((text) => {
+    try {
+      const open = JSON.parse(text).open;
+      return typeof open === "string" ? [open] : [];
+    } catch {
+      return [];
+    }
+  });
+
 /** A staff connection carried to the host: returns both ends once the relay says ready. */
 async function carried(hosting: Opened) {
-  const before = hosting.texts.length;
+  const before = opens(hosting).length;
   const person = staff();
-  await until(() => hosting.texts.length > before);
-  const { open: stream } = JSON.parse(hosting.texts.at(-1) as string);
+  await until(() => opens(hosting).length > before);
+  const stream = opens(hosting).at(-1) as string;
   const taken = open(
     "stream",
     { authorization: `Bearer ${hostKey}` },
@@ -210,8 +220,8 @@ describe("who the staff relay lets in", () => {
     expect((await other.closed).code).toBe(CLOSE.refused);
     // Nor can it take up staff streams.
     const person = staff();
-    await until(() => first.texts.length === 1);
-    const { open: stream } = JSON.parse(first.texts[0] as string);
+    await until(() => opens(first).length === 1);
+    const stream = opens(first)[0] as string;
     const stolen = open(
       "stream",
       { authorization: "Bearer another-host-key-0123456789abcdef" },
@@ -296,4 +306,67 @@ test("checkLicence reads the same codes as the app, and nothing else", async () 
       keys,
     ),
   ).toBeNull();
+});
+
+describe("what the relay keeps, and for how long", () => {
+  test("the host is welcomed only once it holds its office", async () => {
+    relay = startBunRelay({ keys });
+    const hosting = await host();
+    await until(() => hosting.texts.includes("welcome"));
+    const other = await host("another-host-key-0123456789abcdef");
+    expect((await other.closed).code).toBe(CLOSE.refused);
+    expect(other.texts).not.toContain("welcome");
+  });
+
+  test("a host can make the relay forget its office; then anyone may start it afresh", async () => {
+    relay = startBunRelay({ keys });
+    const hosting = await host();
+    await until(() => hosting.texts.includes("welcome"));
+    const forget = (key: string) =>
+      fetch(`${relay.url.replace("ws", "http")}/v1/forget?office=${office}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${key}` },
+      });
+    expect((await forget("not-the-host-key-0123456789abcdef")).status).toBe(
+      403,
+    );
+    expect((await forget(hostKey)).status).toBe(200);
+    expect((await hosting.closed).code).toBe(1000);
+    const early = staff();
+    expect((await early.closed).code).toBe(CLOSE.refused);
+    const fresh = await host("a-fresh-host-key-0123456789abcdef");
+    await until(() => fresh.texts.includes("welcome"));
+  });
+
+  test("one licence holds at most three offices", async () => {
+    relay = startBunRelay({ keys });
+    const offices = ["a", "b", "c", "d"].map((x) => `${x}${office.slice(1)}`);
+    const hosts: { texts: string[]; closed: Promise<number> }[] = [];
+    for (const id of offices) {
+      const socket = new WebSocket(`${relay.url}/v1/host?office=${id}`, {
+        headers: {
+          authorization: `Bearer ${hostKey}`,
+          "x-ark-licence": licence,
+          "x-ark-access": await sha256Hex(accessKey),
+        },
+      } as never);
+      sockets.push(socket);
+      const texts: string[] = [];
+      socket.onmessage = (event) => texts.push(String(event.data));
+      const closed = new Promise<number>((resolve) => {
+        socket.onclose = (event) => resolve(event.code);
+      });
+      hosts.push({ texts, closed });
+    }
+    await until(() =>
+      hosts.slice(0, 3).every((one) => one.texts.includes("welcome")),
+    );
+    expect(await hosts[3]?.closed).toBe(CLOSE.busy);
+  });
+
+  test("a customer BlackArk cut off is refused, and its office closed", async () => {
+    relay = startBunRelay({ keys, revoked: "someone-else, demo-shop" });
+    const hosting = await host();
+    expect((await hosting.closed).code).toBe(CLOSE.revoked);
+  });
 });

@@ -24,6 +24,8 @@ export const officeNetwork = pgTable("office_network", {
   remoteEnabled: boolean("remote_enabled").notNull().default(false),
   relayOffice: text("relay_office"),
   sealedRelay: text("sealed_relay"),
+  /** Whether the relay has welcomed this office as this computer's: only then does a code name it. */
+  relayRegistered: boolean("relay_registered").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

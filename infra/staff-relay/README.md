@@ -19,12 +19,21 @@ ArkAgent through this Cloudflare Worker.
   - **An office id** belongs to the first host key that registers it, and the relay refuses any
     other host key afterwards.
   - **A staff computer** needs the access key, which only the join code carries. "Make a new join
-    code" replaces it.
+    code" starts a new office with new keys.
 - **What it keeps:** per office, the customer id and the SHA-256 of the host key and of the access
   key, in the office's Durable Object (SQLite). Nothing else. Logs are off (`observability`), and
   its own log lines say only "host connected" or "host disconnected".
-- **Limits:** 96 staff connections at once per office. A connection the host doesn't take up within
-  15 seconds is closed.
+- **Limits:**
+  - 96 staff connections at once per office;
+  - a connection the host doesn't take up within 15 seconds is closed;
+  - at most 4 GB, or 12 hours, per connection;
+  - 240 requests a minute per internet address, per relay instance;
+  - at most 3 offices per licence.
+- **What it keeps, and when it forgets:** nothing is stored for an office until a licensed host
+  registers it. Switching remote staff off, or making a new join code, tells the relay to forget the
+  office (`POST /v1/forget` with the host key).
+- **Cutting a customer off** (a refund, a leaked key): add their customer id to `REVOKED_CUSTOMERS`
+  in `wrangler.toml` and deploy. Their offices are refused and closed at once.
 
 ## Cost
 
@@ -35,9 +44,13 @@ nothing: the host's keep-alive ping is answered by Cloudflare without waking the
 
 ## Deploy (COO)
 
-1. Switch the Cloudflare account to **Workers Paid**.
-2. From this directory, run `npx --yes wrangler@4.20.0 deploy`. There are no secrets to set.
-3. Check that `https://blackark-staff.blackark.workers.dev/health` answers `ok`.
+1. **Check the address first.** The app connects to `blackark-staff.blackark.workers.dev`. Confirm
+   that `blackark.workers.dev` is this Cloudflare account's own workers.dev subdomain: it is the
+   one the phone relay (`blackark-phone.blackark.workers.dev`) runs on. If it is not, do not
+   deploy: tell PE, and the address will move to one BlackArk owns.
+2. Switch the Cloudflare account to **Workers Paid**.
+3. From this directory, run `npx --yes wrangler@4.20.0 deploy`. There are no secrets to set.
+4. Check that `https://blackark-staff.blackark.workers.dev/health` answers `ok`.
 
 The app uses `wss://blackark-staff.blackark.workers.dev` unless `ARK_STAFF_RELAY_URL` says
 otherwise. Until the relay is deployed, the switch in Settings shows "BlackArk's relay cannot be

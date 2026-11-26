@@ -6,7 +6,7 @@ import type { Database } from "../db/client";
 import { officeNetwork } from "../db/schema";
 import { makeOfficeCertificate } from "./certificate";
 import { encodeJoinCode } from "./join-code";
-import { type RemoteHost, startRemoteHost } from "./remote-host";
+import { forgetOffice, type RemoteHost, startRemoteHost } from "./remote-host";
 
 /**
  * The office network (Amgad, 24 Nov 2026, option A): the administrator's computer is the company's
@@ -80,6 +80,8 @@ export function createOfficeService(dependencies: {
     licence: () => Promise<string | null>;
     log?: (line: string) => void;
     start?: typeof startRemoteHost;
+    /** How the relay is told to forget an office. The tests give their own. */
+    forget?: typeof forgetOffice;
   };
   addresses?: () => string[];
   hostname?: () => string;
@@ -218,8 +220,45 @@ export function createOfficeService(dependencies: {
       accessKey: keys.access,
       licence: relay.licence,
       listenerPort: () => listener?.port ?? null,
+      // Only once the relay has accepted this computer does the join code name it (security review
+      // of v0.1.56): a code never points staff at an office somebody else could still claim.
+      onWelcome: () => {
+        void database
+          .update(officeNetwork)
+          .set({ relayRegistered: true, updatedAt: now() })
+          .where(eq(officeNetwork.id, OFFICE_ROW))
+          .catch(() => undefined);
+      },
       ...(relay.log ? { log: relay.log } : {}),
     });
+  }
+
+  /**
+   * The relay forgets this office and this computer starts a new one next time: new office id, new
+   * host key, new access key. Switching remote staff off, and every new join code, do this, so the
+   * relay keeps nothing for an office that is not in use, and an office somebody else claimed is
+   * left behind rather than fought over.
+   */
+  async function dropRelayOffice() {
+    stopRemote();
+    const kept = await row();
+    if (kept?.relayOffice && kept.sealedRelay && dependencies.relay) {
+      const { keys } = await relayKeys();
+      await (dependencies.relay.forget ?? forgetOffice)(
+        dependencies.relay.url,
+        kept.relayOffice,
+        keys.host,
+      );
+    }
+    await database
+      .update(officeNetwork)
+      .set({
+        relayOffice: null,
+        sealedRelay: null,
+        relayRegistered: false,
+        updatedAt: now(),
+      })
+      .where(eq(officeNetwork.id, OFFICE_ROW));
   }
 
   function close() {
@@ -235,7 +274,11 @@ export function createOfficeService(dependencies: {
     const here = addresses();
     const held = listener?.port ?? port;
     const relay =
-      remoteEnabled && listener && kept?.relayOffice && dependencies.relay
+      remoteEnabled &&
+      listener &&
+      kept?.relayOffice &&
+      kept.relayRegistered &&
+      dependencies.relay
         ? await relayKeys()
         : null;
     const direct = enabled && here.length > 0 ? here : [];
@@ -311,6 +354,7 @@ export function createOfficeService(dependencies: {
       if (on && !dependencies.relay)
         throw new Error("This ArkAgent does not know BlackArk's staff relay.");
       await certificate();
+      if (!on) await dropRelayOffice();
       await database
         .update(officeNetwork)
         .set({ remoteEnabled: on, updatedAt: now() })
@@ -320,25 +364,16 @@ export function createOfficeService(dependencies: {
     },
 
     /**
-     * A new join code: the relay's access key is replaced, so the code given out before no longer
-     * gets through the relay. (On the office network the code only says where to look and which
-     * certificate to trust; it never admitted anybody there.)
+     * A new join code: the relay forgets the old office and a new one is started, with new keys, so
+     * the code given out before no longer gets through the relay (a removed staff member's copy
+     * among them). The new code names the relay once the relay has welcomed the new office. (On the
+     * office network the code only says where to look and which certificate to trust; it never
+     * admitted anybody there.)
      */
     async newJoinCode(): Promise<OfficeStatus> {
       const kept = await certificate();
-      if (kept.relayOffice && kept.sealedRelay) {
-        const { keys } = await relayKeys();
-        await database
-          .update(officeNetwork)
-          .set({
-            sealedRelay: await encryptSecret(
-              dependencies.encryptionKey,
-              JSON.stringify({ host: keys.host, access: key() }),
-            ),
-            updatedAt: now(),
-          })
-          .where(eq(officeNetwork.id, OFFICE_ROW));
-        stopRemote();
+      if (kept.relayOffice) {
+        await dropRelayOffice();
         await sync();
       }
       return status();

@@ -215,10 +215,14 @@ export function modelConnectionRoutes(options: {
     if (restricted) {
       // A public name that points at this computer or its network is refused the same way.
       const lookup = options.lookup ?? defaultLookup;
+      // A name that does not resolve now could be pointed here later: refused, not waved through.
       const addresses = await lookup(new URL(baseUrl).hostname).catch(
         () => [] as string[],
       );
-      if (addresses.some((address) => isPrivateAddress(address)))
+      if (
+        addresses.length === 0 ||
+        addresses.some((address) => isPrivateAddress(address))
+      )
         return { ok: false as const, message: LOCAL_FOR_SUBPROFILE };
     }
     return { ok: true as const };

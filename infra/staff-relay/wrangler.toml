@@ -13,6 +13,10 @@ compatibility_date = "2025-09-01"
 # The address installs use: https://blackark-staff.blackark.workers.dev
 workers_dev = true
 
+[vars]
+# Customer ids BlackArk has cut off from the relay (a refund, a leaked key), comma-separated.
+REVOKED_CUSTOMERS = ""
+
 [[durable_objects.bindings]]
 name = "OFFICE"
 class_name = "StaffOffice"

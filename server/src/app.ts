@@ -827,6 +827,7 @@ export function createApp(
           auth,
           roleRepository,
           team ? (userId) => team.mayUse(userId) : undefined,
+          team ? (userId) => team.mayAct(userId) : undefined,
         )
       : authenticationUnavailable;
   // Every signed-in person belongs to an account before anything runs for them. See provisioning.ts.

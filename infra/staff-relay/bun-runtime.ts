@@ -121,6 +121,7 @@ export function startBunRelay(options: {
   now?: () => number;
   log?: (line: string) => void;
   pairingMs?: number;
+  revoked?: string;
 }) {
   const handed = new WeakMap<Response, BunSocket>();
   const platform: RelayPlatform = {
@@ -149,12 +150,13 @@ export function startBunRelay(options: {
         state = new StandInState(() => object(name));
         states.set(name, state);
       }
-      found = new OfficeObject(state, {}, platform);
+      found = new OfficeObject(state, env, platform);
       objects.set(name, found);
     }
     return found;
   };
   const env: Env = {
+    ...(options.revoked ? { REVOKED_CUSTOMERS: options.revoked } : {}),
     OFFICE: {
       idFromName: (name: string) => name,
       get: (id: unknown) => ({
@@ -212,7 +214,7 @@ export function startBunRelay(options: {
     url: `ws://127.0.0.1:${server.port}`,
     /** Drops every office object from memory, as hibernation does; sockets and storage stay. */
     hibernate: () => objects.clear(),
-    woke: (office: string) => states.get(office)?.woke ?? 0,
+    woke: (office: string) => states.get(`office:${office}`)?.woke ?? 0,
     stop: () => {
       for (const state of states.values()) state.stopAlarm();
       server.stop(true);

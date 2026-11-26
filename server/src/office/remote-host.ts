@@ -20,6 +20,40 @@ export type RemoteHostStatus = {
   error: string | null;
 };
 
+/** At most this many relayed connections are opened at once, whatever the relay asks. */
+export const MAX_CARRIED = 128;
+
+/** The relay's own address for plain requests, from its WebSocket address. */
+export function relayHttpUrl(relayUrl: string): string {
+  return relayUrl.replace(/\/+$/, "").replace(/^ws(s?):/, "http$1:");
+}
+
+/**
+ * Tells the relay to forget this office: its keys' hashes and its customer id. Done when remote
+ * staff is switched off and before a new join code starts a new office. Never fatal: the relay may
+ * be unreachable, and then it keeps no more than it already had.
+ */
+export async function forgetOffice(
+  relayUrl: string,
+  office: string,
+  hostKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const answer = await fetchImpl(
+      `${relayHttpUrl(relayUrl)}/v1/forget?office=${encodeURIComponent(office)}`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${hostKey}` },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    return answer.ok;
+  } catch {
+    return false;
+  }
+}
+
 type Socketish = WebSocket;
 type MakeSocket = (url: string, headers: Record<string, string>) => Socketish;
 
@@ -49,6 +83,8 @@ export function startRemoteHost(options: {
   licence: () => Promise<string | null>;
   /** The office listener's port on loopback, or null while it is closed. */
   listenerPort: () => number | null;
+  /** Called once the relay has accepted this computer as its office's own. */
+  onWelcome?: () => void;
   makeSocket?: MakeSocket;
   log?: (line: string) => void;
 }) {
@@ -72,7 +108,7 @@ export function startRemoteHost(options: {
 
   function carry(stream: string) {
     const port = options.listenerPort();
-    if (port === null) return;
+    if (port === null || streams.size >= MAX_CARRIED) return;
     const up = makeSocket(
       `${base}/v1/stream?${query}&stream=${encodeURIComponent(stream)}`,
       { authorization: `Bearer ${options.hostKey}` },
@@ -144,6 +180,11 @@ export function startRemoteHost(options: {
       if (control !== socket || typeof event.data !== "string") return;
       if (event.data === "pong") {
         error = null;
+        return;
+      }
+      if (event.data === "welcome") {
+        error = null;
+        options.onWelcome?.();
         return;
       }
       try {

@@ -41,7 +41,7 @@ your apps, and running tasks on a schedule. To do that, we hold what you tell th
 | **Ark Private Server**, only if you order one from the app: which server you ordered, when you paid and until when, its status, and the address, model name and key BlackArk gives your server. Your payment is taken by Stripe; we never see your card number. | To set up and run the server you ordered, and to connect your app to it | Contract |
 | **Staff sub-profiles**, only if your administrator adds them. If you add staff sub-profiles, their names, email addresses and status are sent to BlackArk to manage your subscription and support. In detail: each person's name, email address, role (administrator or sub-profile), status (waiting for payment, active, suspended or removed), the date it was made and how many digital employees it has, and the sub-profile subscription's id, quantity and status. Never a password, a conversation or anything anyone wrote. | To bill the sub-profiles you add, and to support your team | Contract |
 | **24/7 Priority Support**, only if you order it from the app: your name, company, email address and licence, the Stripe subscription, when it started and its status, sent to BlackArk's support board, where your support cases are marked as 24/7 while it is active | To answer your cases around the clock, as you ordered | Contract |
-| **Remote staff**, only if your administrator switches on "Let my staff sign in from outside the office": each staff connection to your company's ArkAgent passes through BlackArk's staff relay on Cloudflare. It is encrypted from the staff member's computer to the administrator's, and BlackArk cannot read it: not passwords, conversations or files. The relay keeps your customer id and scrambled forms (hashes) of the relay's keys, and sees the internet addresses of the computers that connect, when, and how much they send. | To let your staff reach your company's ArkAgent from outside the office | Contract |
+| **Remote staff**, only if your administrator switches on "Let my staff sign in from outside the office": each staff connection to your company's ArkAgent passes through BlackArk's staff relay on Cloudflare. It is encrypted from the staff member's computer to the administrator's, and BlackArk cannot read it: not passwords, conversations or files. To let your company's computer in, the relay checks its BlackArk licence key or trial activation code. While remote staff is switched on, it keeps your customer id and scrambled forms (hashes) of the relay's keys; switching remote staff off, or making a new join code, deletes them. It sees the internet addresses of the computers that connect, when, and how much they send, and keeps no record of them. | To let your staff reach your company's ArkAgent from outside the office | Contract |
 | **Email to support@blackark.uk**: the message, its sender and the other addresses on it | To answer it as a support request | Contract, or legitimate interests (answering people who write to us) |
 
 We do not collect more than this, we do not sell your data, we do not use it for advertising, and **we
@@ -90,8 +90,10 @@ maintain. [Lawyer to confirm the wording per provider.]
   for 6 days, then deleted.
 - **Staff sub-profiles and 24/7 Priority Support orders on the support board:** while the subscription
   runs, [and for N months after it ends]. The team list is replaced each time the app sends it.
-- **Remote staff:** the relay keeps its keys' hashes while remote staff is switched on; it keeps no
-  record of connections.
+- **Remote staff:** the relay keeps your customer id and its keys' hashes while remote staff is
+  switched on, and deletes them when it is switched off or a new join code is made. If the relay
+  cannot be reached at that moment, they stay there until the next time. It keeps no record of
+  connections.
 - **Payment and tax records:** held by Stripe, and by BlackArk as the seller, for as long as the law
   requires. [Lawyer to confirm.]
 

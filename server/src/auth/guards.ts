@@ -54,6 +54,16 @@ export function createRoleRepository(database: Database): RoleRepository {
   };
 }
 
+/** What a person on their first password may still reach: who they are, and the steps to start. */
+export const FIRST_SIGN_IN_PATHS: ReadonlySet<string> = new Set([
+  "/api/me",
+  "/api/me/terms",
+  "/api/me/onboarding",
+  "/api/team/me",
+  "/api/team/me/password",
+  "/api/activation",
+]);
+
 export function createRequireUser(
   auth: AuthService,
   roleRepository: RoleRepository,
@@ -62,6 +72,14 @@ export function createRequireUser(
    * while it is paid for. Absent: everybody signed in with a role may, as before.
    */
   mayUse?: (
+    userId: string,
+  ) => Promise<{ ok: true } | { ok: false; reason: string }>,
+  /**
+   * The stricter check for everything but the first sign-in's own steps (F9, security review of
+   * v0.1.56): a sub-profile still on the first password its administrator chose may read who they
+   * are, accept the terms, finish onboarding and choose their own password, and nothing else.
+   */
+  mayAct?: (
     userId: string,
   ) => Promise<{ ok: true } | { ok: false; reason: string }>,
 ): MiddlewareHandler<{ Variables: AppVariables }> {
@@ -92,6 +110,14 @@ export function createRequireUser(
       if (!standing.ok)
         return context.json(
           { error: standing.reason, code: "subprofile_inactive" },
+          403,
+        );
+    }
+    if (mayAct && !FIRST_SIGN_IN_PATHS.has(context.req.path)) {
+      const standing = await mayAct(session.user.id);
+      if (!standing.ok)
+        return context.json(
+          { error: standing.reason, code: "password_change_required" },
           403,
         );
     }
