@@ -2,10 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  addLocalizedInfoPlist,
+  BUNDLE_ID,
   capacitorConfigFor,
+  errorPageFor,
   iconProblem,
+  infoPlistStrings,
   iosConfigFrom,
   patchInfoPlist,
+  stringsLine,
   USER_AGENT_TOKEN,
   versionSettings,
 } from "../scripts/ios-config";
@@ -13,60 +18,75 @@ import {
 /**
  * The names an iOS build is given, and the two edits made to the project Capacitor generates.
  *
- * What is protected: nothing about a deployment is ever defaulted; a name that would break the
- * project's files is refused; the app's user agent and return address agree with the web app's and
- * the server's, which are written in other files; and an icon the App Store would refuse is refused
- * here, before a build, instead of after an upload.
+ * What is protected: the app is the product's own (one bundle identifier, for every customer) and
+ * opens the Ark Link host, never a deployment's site; nothing a build must be given is defaulted; a
+ * name that would break the project's files is refused; the app's user agent and return address
+ * agree with the web app's and the server's, which are written in other files; and an icon the App
+ * Store would refuse is refused here, before a build, instead of after an upload.
  */
 
 const root = join(import.meta.dir, "..", "..");
 const source = (...parts: string[]) =>
   readFileSync(join(root, ...parts), "utf8");
 
+/** What every build must be given. The team and the return scheme are optional (below). */
 const environment = {
-  ARK_IOS_APP_ID: "ABCDE12345.com.example.ark",
-  ARK_APP_URL: "https://ark.example",
+  ARK_LINK_URL: "https://link.example",
   ARK_APP_NAME: "Ark",
-  ARK_IOS_URL_SCHEME: "arkapp",
   ARK_IOS_BUILD_NUMBER: "4",
 };
 const build = (extra: Record<string, string | undefined> = {}) =>
   iosConfigFrom({ ...environment, ...extra }, "0.0.15");
 
 describe("the configuration", () => {
-  test("is read from the environment, with the team and the bundle identifier taken from the one name", () => {
+  test("is read from the environment, and the app is always the product's own", () => {
     expect(build()).toEqual({
-      teamId: "ABCDE12345",
-      bundleId: "com.example.ark",
+      bundleId: "blackark.arkagent",
+      teamId: null,
       appName: "Ark",
-      siteUrl: "https://ark.example",
-      siteHost: "ark.example",
-      urlScheme: "arkapp",
+      linkUrl: "https://link.example",
+      linkHost: "link.example",
+      urlScheme: null,
       versionName: "0.0.15",
       buildNumber: 4,
     });
+    expect(BUNDLE_ID).toBe("blackark.arkagent");
     expect(build({ ARK_IOS_VERSION_NAME: "1.4" }).versionName).toBe("1.4");
   });
 
-  test("every name the deployment must give is required, and says which is missing", () => {
+  test("every name a build must be given is required, and says which is missing", () => {
     for (const name of Object.keys(environment)) {
       expect(() => build({ [name]: undefined })).toThrow(`${name} is not set.`);
     }
   });
 
-  test("the identifier is the one the server publishes", () => {
+  test("the start address is the Ark Link host, and nothing else", () => {
+    expect(build({ ARK_LINK_URL: "https://LINK.blackark.uk" })).toMatchObject({
+      linkUrl: "https://link.blackark.uk",
+      linkHost: "link.blackark.uk",
+    });
     for (const bad of [
-      "com.example.ark",
-      "abcde12345.com.example.ark",
-      "ABCDE12345.ark",
+      "http://link.example",
+      "https://link.example/pair",
+      "https://link.example:8443",
+      "https://user@link.example",
+      "https://127.0.0.1",
+      "https://localhost",
+      "link.example",
     ]) {
-      expect(() => build({ ARK_IOS_APP_ID: bad })).toThrow(
-        /not an iOS app identifier/,
-      );
+      expect(() => build({ ARK_LINK_URL: bad })).toThrow(/ARK_LINK_URL/);
     }
   });
 
-  test("the scheme is an app's own, never one a browser or the system uses", () => {
+  test("the team is only needed to sign, and is checked when it is given", () => {
+    expect(build({ ARK_IOS_TEAM_ID: "ABCDE12345" }).teamId).toBe("ABCDE12345");
+    for (const bad of ["abcde12345", "ABCDE1234", "ABCDE12345.blackark"]) {
+      expect(() => build({ ARK_IOS_TEAM_ID: bad })).toThrow(/ARK_IOS_TEAM_ID/);
+    }
+  });
+
+  test("the return scheme is optional, and when given is an app's own, never one a browser or the system uses", () => {
+    expect(build({ ARK_IOS_URL_SCHEME: "arkapp" }).urlScheme).toBe("arkapp");
     for (const bad of ["https", "javascript", "Ark", "ab", "ark app"]) {
       expect(() => build({ ARK_IOS_URL_SCHEME: bad })).toThrow(
         /not an app's own address scheme/,
@@ -83,16 +103,6 @@ describe("the configuration", () => {
       "A".repeat(31),
     ]) {
       expect(() => build({ ARK_APP_NAME: name })).toThrow(/ARK_APP_NAME/);
-    }
-  });
-
-  test("the site is the same kind of address the Android app takes", () => {
-    for (const bad of [
-      "http://ark.example",
-      "https://ark.example/app",
-      "https://localhost",
-    ]) {
-      expect(() => build({ ARK_APP_URL: bad })).toThrow(/ARK_APP_URL/);
     }
   });
 
@@ -120,16 +130,35 @@ describe("the configuration", () => {
 describe("what Capacitor is told", () => {
   const config = capacitorConfigFor(build());
 
-  test("the app is a window onto the site, kept on it, with nothing of the web app bundled", () => {
+  test("the app opens the Ark Link host, stays on it, and has nothing of the web app bundled", () => {
     expect(config).toMatchObject({
-      appId: "com.example.ark",
+      appId: "blackark.arkagent",
       appName: "Ark",
       server: {
-        url: "https://ark.example",
+        url: "https://link.example",
         cleartext: false,
-        allowNavigation: ["ark.example"],
+        allowNavigation: ["link.example"],
       },
     });
+  });
+
+  test("a host that cannot be reached shows the app's own page instead of a blank window", () => {
+    expect(config.server.errorPath).toBe("index.html");
+    const page = source("mobile", "ios", "www", "index.html");
+    // In both languages the app is offered in, with a way to try again at the same host.
+    expect(page).toContain('lang="el"');
+    expect(page).toContain('lang="en"');
+    expect(page).toContain("location.replace");
+  });
+
+  test("the page's way to try again is told the host, once, and nothing else changes", () => {
+    const page = source("mobile", "ios", "www", "index.html");
+    const told = errorPageFor(page, build());
+    expect(told).toContain('<html lang="en" data-link="https://link.example">');
+    expect(
+      told.replace(' data-link="https://link.example"', ' data-link=""'),
+    ).toBe(page);
+    expect(() => errorPageFor(told, build())).toThrow(/data-link/);
   });
 
   test("the user agent token is the one the web app looks for", () => {
@@ -166,10 +195,43 @@ describe("the Info.plist", () => {
 </plist>
 `;
 
-  test("gets the address scheme and the export-compliance answer, and stays one valid plist", () => {
+  test("gets the export-compliance answer, and no address scheme unless one is given", () => {
     const patched = patchInfoPlist(template, build());
+    expect(patched).toContain(
+      "<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>",
+    );
+    expect(patched).not.toContain("CFBundleURLTypes");
+    expect(patched.endsWith("</dict>\n</plist>\n")).toBe(true);
+  });
+
+  test("says why it asks for the microphone and the camera, which the app's pages use", () => {
+    // Without these iOS ends the app the moment a page asks: dictation and voice ask for the
+    // microphone, and a file picker offers to take a photo.
+    const patched = patchInfoPlist(template, build());
+    expect(patched).toMatch(
+      /<key>NSMicrophoneUsageDescription<\/key>\n\t<string>[^<]*dictate[^<]*<\/string>/,
+    );
+    expect(patched).toMatch(
+      /<key>NSCameraUsageDescription<\/key>\n\t<string>[^<]*photo[^<]*<\/string>/,
+    );
+    expect(() =>
+      patchInfoPlist(
+        template.replace(
+          "</dict>",
+          "\t<key>NSCameraUsageDescription</key>\n\t<string>x</string>\n</dict>",
+        ),
+        build(),
+      ),
+    ).toThrow(/already has NSCameraUsageDescription/);
+  });
+
+  test("gets the address scheme when one is given, and stays one valid plist", () => {
+    const patched = patchInfoPlist(
+      template,
+      build({ ARK_IOS_URL_SCHEME: "arkapp" }),
+    );
     expect(patched).toContain("<string>arkapp</string>");
-    expect(patched).toContain("<string>com.example.ark</string>");
+    expect(patched).toContain("<string>blackark.arkagent</string>");
     expect(patched).toContain(
       "<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>",
     );
@@ -180,11 +242,89 @@ describe("the Info.plist", () => {
   });
 
   test("is not edited twice, and a file of an unexpected shape is not edited at all", () => {
-    const once = patchInfoPlist(template, build());
+    const withScheme = build({ ARK_IOS_URL_SCHEME: "arkapp" });
+    const once = patchInfoPlist(template, withScheme);
+    expect(() => patchInfoPlist(once, withScheme)).toThrow(/already has/);
     expect(() => patchInfoPlist(once, build())).toThrow(/already has/);
     expect(() => patchInfoPlist("<plist><dict>", build())).toThrow(
       /not in the shape expected/,
     );
+  });
+});
+
+describe("the usage reasons in Greek", () => {
+  /** The project Capacitor 8.5.3 generates, as `prepare-ios.ts` receives it. */
+  const project = source(
+    "mobile",
+    "tests",
+    "fixtures",
+    "capacitor-8.5.3-App.pbxproj",
+  );
+
+  test("a Greek iPhone is told in Greek, and an English one in English", () => {
+    const greek = infoPlistStrings("el");
+    expect(greek).toContain(
+      '"NSMicrophoneUsageDescription" = "Το ArkAgent χρησιμοποιεί το μικρόφωνο',
+    );
+    expect(greek).toContain('"NSCameraUsageDescription" = "Το ArkAgent');
+    expect(greek).not.toMatch(/[A-Za-z]{4,} (the|when|you)\b/);
+    const english = infoPlistStrings("en");
+    expect(english).toContain(
+      '"NSMicrophoneUsageDescription" = "ArkAgent uses the microphone',
+    );
+    // The English file and Info.plist itself say the same thing.
+    const plist = patchInfoPlist(
+      "<plist>\n<dict>\n</dict>\n</plist>\n",
+      build(),
+    );
+    for (const line of english.trim().split("\n")) {
+      const [, key, value] = /^"(\w+)" = "(.*)";$/.exec(line) ?? [];
+      expect(plist).toContain(`<key>${key}</key>\n\t<string>${value}</string>`);
+    }
+  });
+
+  test("a quote or backslash in a reason cannot end the string early", () => {
+    expect(stringsLine("K", 'say "hi" \\ bye')).toBe(
+      '"K" = "say \\"hi\\" \\\\ bye";',
+    );
+  });
+
+  test("the project carries both files as one localized resource, and knows Greek", () => {
+    const edited = addLocalizedInfoPlist(project);
+    expect(edited).toMatch(/knownRegions = \(\s*en,\s*Base,\s*el,\s*\);/);
+    expect(edited).toContain(
+      'path = en.lproj/InfoPlist.strings; sourceTree = "<group>";',
+    );
+    expect(edited).toContain(
+      'path = el.lproj/InfoPlist.strings; sourceTree = "<group>";',
+    );
+    // One variant group, in the App group, copied by the Resources phase.
+    expect(edited.match(/isa = PBXVariantGroup;/g)).toHaveLength(3);
+    const resources = /isa = PBXResourcesBuildPhase;[\s\S]*?\);/.exec(edited);
+    expect(resources?.[0]).toContain("/* InfoPlist.strings in Resources */,");
+    const appGroup = /\/\* App \*\/ = \{\s*isa = PBXGroup;[\s\S]*?\);/.exec(
+      edited,
+    );
+    expect(appGroup?.[0]).toContain("/* InfoPlist.strings */,");
+    // Every object it names is defined once, and nothing that was there is lost.
+    for (const id of new Set(edited.match(/\b0A4C1E55[0-9A-F]{16}\b/g))) {
+      expect(
+        edited.match(new RegExp(`\\t${id} /\\*[^*]*\\*/ = \\{`, "g")),
+      ).toHaveLength(1);
+    }
+    for (const line of project.split("\n")) {
+      if (!line.includes("knownRegions")) expect(edited).toContain(line);
+    }
+  });
+
+  test("is not added twice, and a project of an unexpected shape is not edited", () => {
+    const once = addLocalizedInfoPlist(project);
+    expect(() => addLocalizedInfoPlist(once)).toThrow(/already/);
+    expect(() =>
+      addLocalizedInfoPlist(
+        project.replace("isa = PBXResourcesBuildPhase;", ""),
+      ),
+    ).toThrow(/not in the shape expected/);
   });
 });
 
@@ -254,5 +394,17 @@ describe("the project", () => {
       );
     }
     expect(shell.dependencies["@capacitor/ios"]).toBeTruthy();
+  });
+
+  test("the workflow builds every push to an iOS branch for the simulator, unsigned and with no secret", () => {
+    const workflow = source(".github", "workflows", "mobile-ios.yml");
+    const check = workflow.slice(
+      workflow.indexOf("  check:"),
+      workflow.indexOf("  release:"),
+    );
+    expect(workflow).toMatch(/branches: \[main, "claude\/ios-\*\*"\]/);
+    expect(check).toContain("CODE_SIGNING_ALLOWED=NO");
+    expect(check).toContain("-sdk iphonesimulator");
+    expect(check).not.toMatch(/secrets\.|vars\./);
   });
 });

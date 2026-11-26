@@ -167,9 +167,9 @@ page; developers publishing through Play go through the Console's own verificati
    base64 -w0 AuthKey_XXXXXXXXXX.p8
    ```
 8. In the `mobile-release` environment add the secrets `ARK_IOS_ASC_KEY_BASE64` (the base64 text),
-   `ARK_IOS_ASC_KEY_ID`, `ARK_IOS_ASC_ISSUER_ID`, and the variables `ARK_IOS_APP_ID` (the Team ID, a dot, then
-   the bundle identifier, for example `ABCDE12345.blackark.arkagent`) and `ARK_IOS_URL_SCHEME` (a short
-   lower-case word such as `arkagent`).
+   `ARK_IOS_ASC_KEY_ID`, `ARK_IOS_ASC_ISSUER_ID`, and the variables `ARK_IOS_TEAM_ID` (the Team ID, ten
+   characters such as `ABCDE12345`; the bundle identifier is fixed as `blackark.arkagent`), `ARK_LINK_URL`
+   (the Ark Link host the app opens, such as `https://link.blackark.uk`) and `ARK_APP_NAME` (#149).
 9. The listing needs: description, keywords, a support address, a **privacy policy address**, the **App
    Privacy** answers, the age rating, export-compliance answers, screenshots for the required iPhone sizes,
    the **1024 by 1024 icon** (`mobile/ios/brand/AppIcon-1024.png`, already made), and **App Review
@@ -277,7 +277,7 @@ HSM; many do not, which is why A is simpler.
 
 | GitHub environment | Name | Kind | Where it comes from |
 | --- | --- | --- | --- |
-| `mobile-release` | `ARK_ANDROID_APP_ID`, `ARK_APP_URL`, `ARK_APP_NAME`, `ARK_IOS_APP_ID`, `ARK_IOS_URL_SCHEME` | variables | the identifiers above |
+| `mobile-release` | `ARK_ANDROID_APP_ID`, `ARK_APP_URL`, `ARK_APP_NAME`, `ARK_IOS_TEAM_ID`, `ARK_LINK_URL` | variables | the identifiers above |
 |  | `ARK_ANDROID_KEYSTORE_BASE64`, `ARK_ANDROID_KEYSTORE_PASSWORD`, `ARK_ANDROID_KEY_ALIAS`, `ARK_ANDROID_KEY_PASSWORD` | secrets | the upload key (section 2) |
 |  | `ARK_IOS_ASC_KEY_BASE64`, `ARK_IOS_ASC_KEY_ID`, `ARK_IOS_ASC_ISSUER_ID` | secrets | the App Store Connect key (section 3) |
 | `macos-signing` | `APPLE_SIGNING_IDENTITY` | variable | the certificate |

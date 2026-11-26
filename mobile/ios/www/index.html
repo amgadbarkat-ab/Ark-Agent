@@ -1,11 +1,57 @@
 <!doctype html>
-<html lang="en">
+<!--
+  Shown by the app when the Ark Link host cannot be reached (capacitor.config.json, server.errorPath).
+  It is the only page the app carries. `prepare-ios.ts` writes the host into data-link on the copy
+  inside the project; "Try again" goes back there.
+-->
+<html lang="en" data-link="">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Unavailable</title>
+    <title>ArkAgent</title>
+    <style>
+      :root { color-scheme: light dark; font-family: -apple-system, system-ui, sans-serif; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        box-sizing: border-box;
+        text-align: center;
+      }
+      main { max-width: 22rem; display: grid; gap: 1.5rem; }
+      p { margin: 0.25rem 0; line-height: 1.4; }
+      button {
+        font: inherit;
+        font-size: 1rem;
+        min-height: 44px;
+        padding: 0.6rem 1.4rem;
+        border-radius: 0.6rem;
+        border: 1px solid currentColor;
+        background: transparent;
+        color: inherit;
+      }
+    </style>
   </head>
   <body>
-    <p>This app could not reach its service. Check your connection and open it again.</p>
+    <main>
+      <section lang="el">
+        <p><strong>Δεν υπάρχει σύνδεση με το ArkAgent.</strong></p>
+        <p>Ελέγξτε τη σύνδεσή σας και ότι ο υπολογιστής σας είναι ανοιχτός.</p>
+      </section>
+      <section lang="en">
+        <p><strong>ArkAgent cannot be reached.</strong></p>
+        <p>Check your connection, and that your computer is switched on.</p>
+      </section>
+      <button id="again" type="button">Δοκιμάστε ξανά · Try again</button>
+    </main>
+    <script>
+      document.getElementById("again").addEventListener("click", () => {
+        const link = document.documentElement.dataset.link;
+        if (link) location.replace(link);
+        else location.reload();
+      });
+    </script>
   </body>
 </html>
