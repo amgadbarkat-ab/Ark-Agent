@@ -31,7 +31,14 @@ const config = loadConfig(
     TRUSTED_ORIGINS: "http://localhost:52110",
   }),
 );
-const auth = createAuth(config, database);
+const auth = createAuth(
+  config,
+  database,
+  undefined,
+  undefined,
+  // As the server wires it: a sub-profile that may not use the deployment gets no session.
+  (userId) => team.mayUse(userId),
+);
 let soleUser: string | null = null;
 const team = createTeamService({
   database,
@@ -188,4 +195,55 @@ test("an install's one person becomes the administrator, signing in with the new
   } finally {
     soleUser = null;
   }
+});
+
+test("a sub-profile waiting for payment or suspended gets no session; removed, its password is gone", async () => {
+  const { userId: adminId } = await team.setup({
+    name: "Maria",
+    email: email(),
+    password: "a-long-password",
+  });
+  const context = await (
+    auth as unknown as { $context: Promise<TeamAuthContext> }
+  ).$context;
+  const staff = email();
+  const { id } = await context.internalAdapter.createUser({
+    name: "Nikos",
+    email: staff,
+    emailVerified: true,
+  });
+  await context.internalAdapter.linkAccount({
+    userId: id,
+    providerId: "credential",
+    accountId: id,
+    password: await context.password.hash("first-password-1"),
+  });
+  await database.insert(teamMembers).values({
+    userId: id,
+    kind: "subprofile",
+    status: "pending_payment",
+    createdBy: adminId,
+  });
+  // The right password, and still no session: not paid yet.
+  const pending = await signIn(staff, "first-password-1");
+  expect(pending.status).toBe(403);
+  expect(pending.headers.get("set-cookie") ?? "").not.toContain(
+    "session_token=",
+  );
+
+  await database
+    .update(teamMembers)
+    .set({ status: "suspended" })
+    .where(eq(teamMembers.userId, id));
+  expect((await signIn(staff, "first-password-1")).status).toBe(403);
+
+  await database
+    .update(teamMembers)
+    .set({ status: "active" })
+    .where(eq(teamMembers.userId, id));
+  expect((await signIn(staff, "first-password-1")).status).toBe(200);
+
+  await team.remove(adminId, id);
+  // Removed: the password no longer works at all.
+  expect((await signIn(staff, "first-password-1")).status).toBe(401);
 });

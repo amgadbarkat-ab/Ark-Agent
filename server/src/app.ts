@@ -1,4 +1,4 @@
-import type { Hono as HonoApp, MiddlewareHandler } from "hono";
+import type { Context, Hono as HonoApp, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { serveStatic } from "hono/bun";
@@ -30,6 +30,7 @@ import {
   DEPLOYMENT_INITIATOR,
   recordAuditEvent,
 } from "./audit";
+import { attemptGuard, createAttemptLimiter } from "./auth/attempts";
 import { createDevRequireUser } from "./auth/dev-actor";
 import {
   type AppVariables,
@@ -657,6 +658,68 @@ export function createApp(
     "/api/auth/sso/register": "identity_provider.registered",
     "/api/auth/sso/delete-provider": "identity_provider.removed",
   };
+
+  /*
+   * Wrong passwords (security review of v0.1.54): five for one account within fifteen minutes lock it
+   * for fifteen, and each is written down. Attempts that came over the office network are counted
+   * apart from this computer's own window, so nobody on the network can lock the administrator out
+   * of their own computer.
+   */
+  if (config.auth?.passwordSignIn) {
+    const attempts = createAttemptLimiter();
+    // Which listener took the request: the office network's, or this computer's own.
+    const scope = (context: Context) =>
+      office?.servedBy(
+        (context.env as { server?: unknown } | undefined)?.server,
+      )
+        ? "office"
+        : "local";
+    const onFailure =
+      (what: string) => async (context: Context, locked: boolean) => {
+        if (!auditStore) return;
+        await recordAuditEvent(auditStore, {
+          eventType: "session.refused",
+          targetType: "person",
+          payload: {
+            reason: locked
+              ? `${what}: wrong password, locked for 15 minutes`
+              : `${what}: wrong password`,
+            via: scope(context),
+          },
+        });
+      };
+    const guard = (
+      keyOf: (context: Context) => Promise<string | null>,
+      what: string,
+    ): MiddlewareHandler =>
+      attemptGuard({ limiter: attempts, keyOf, onFailure: onFailure(what) });
+    app.use(
+      "/api/auth/sign-in/email",
+      guard(async (context) => {
+        const body = (await context.req.raw
+          .clone()
+          .json()
+          .catch(() => null)) as { email?: unknown } | null;
+        const email =
+          typeof body?.email === "string"
+            ? body.email.trim().toLowerCase()
+            : "";
+        return `sign-in:${scope(context)}:${email}`;
+      }, "sign-in"),
+    );
+    // A password change is counted per signed-in person; without a session it is not counted at all.
+    for (const path of ["/api/auth/change-password", "/api/team/me/password"])
+      app.use(
+        path,
+        guard(async (context) => {
+          const session = await auth?.api
+            .getSession({ headers: context.req.raw.headers })
+            .catch(() => null);
+          const userId = session?.user?.id;
+          return userId ? `password:${scope(context)}:${userId}` : null;
+        }, "password change"),
+      );
+  }
 
   app.on(["GET", "POST"], "/api/auth/*", async (context) => {
     if (
@@ -1864,7 +1927,12 @@ export function createApp(
 
   if (team) {
     // Set-up first: it is what a deployment with nobody on it yet can answer.
-    app.route("/api/team", teamSetupRoutes(team));
+    app.route(
+      "/api/team",
+      teamSetupRoutes(team, {
+        setupToken: process.env.ARK_SETUP_TOKEN?.trim() || undefined,
+      }),
+    );
     if (office) {
       app.route("/api/team/office", officeRoutes(requireUser, office));
       app.route("/api/office/certificate", officeCertificateRoutes(office));

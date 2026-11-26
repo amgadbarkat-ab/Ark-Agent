@@ -1,4 +1,5 @@
 import type { Server, WebSocketHandler } from "bun";
+import { hostAllowed } from "./hosts";
 import {
   HUB_PATH,
   type HubSocketData,
@@ -26,7 +27,12 @@ export function officeServeOptions<Data>(
     ) => Response | undefined | Promise<Response | undefined>;
     websocket: WebSocketHandler<Data>;
   },
-  options: { appOrigin: string; hub: string },
+  options: {
+    appOrigin: string;
+    hub: string;
+    /** Names this computer answers to on the office network, beside its addresses. */
+    ownNames?: () => readonly string[];
+  },
 ) {
   type Both = Data | HubSocketData;
   const socket = base.websocket as unknown as WebSocketHandler<Both>;
@@ -34,6 +40,10 @@ export function officeServeOptions<Data>(
     async fetch(request: Request, server: Server<Both>) {
       const url = new URL(request.url);
       const host = request.headers.get("host") ?? url.host;
+      if (!hostAllowed(request.headers.get("host"), options.ownNames?.() ?? []))
+        return new Response("This address is not this ArkAgent.", {
+          status: 421,
+        });
       if (
         url.pathname === HUB_PATH &&
         request.headers.get("upgrade")?.toLowerCase() === "websocket"

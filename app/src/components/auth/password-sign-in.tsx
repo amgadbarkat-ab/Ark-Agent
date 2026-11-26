@@ -6,6 +6,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 import { authKeys, takeSignInNotice } from "@/lib/auth/queries";
+import { setupSecretHeaders } from "@/lib/auth/setup-secret";
 import { tryClient } from "@/lib/client";
 import { sentenceNow, useT } from "@/lib/i18n";
 import { queryClient } from "@/query-client";
@@ -45,7 +46,12 @@ export function PasswordSignIn() {
       return;
     }
     if (result.error) {
-      setError(t("That email and password do not match."));
+      // Locked after wrong passwords, or a sub-profile that may not sign in yet: said as it is.
+      if (result.error.status === 429)
+        setError(t("Too many wrong passwords. Try again in 15 minutes."));
+      else if (result.error.status === 403 && result.error.message)
+        setError(sentenceNow(result.error.message));
+      else setError(t("That email and password do not match."));
       return;
     }
     await queryClient.invalidateQueries({ queryKey: authKeys.currentUser() });
@@ -65,6 +71,7 @@ export function PasswordSignIn() {
         const response = await tryClient("/api/team/setup", {
           method: "POST",
           body: { name, email, password },
+          headers: setupSecretHeaders(),
         });
         if (response.status !== 201) {
           const body = (await response.json().catch(() => null)) as {

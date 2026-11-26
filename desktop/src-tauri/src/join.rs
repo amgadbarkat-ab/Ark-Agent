@@ -90,6 +90,15 @@ pub fn spawn(
         .env("ARK_JOIN_CODE", tidy(code))
         .env("ARK_JOIN_PORT", port.to_string())
         .env("ARK_LANGUAGE", language.unwrap_or("en"))
+        // Never through a proxy set on this computer: the relay's bridge is plain HTTP on loopback.
+        .env("NO_PROXY", "127.0.0.1,localhost,::1")
+        .env("no_proxy", "127.0.0.1,localhost,::1")
+        .env_remove("HTTP_PROXY")
+        .env_remove("http_proxy")
+        .env_remove("HTTPS_PROXY")
+        .env_remove("https_proxy")
+        .env_remove("ALL_PROXY")
+        .env_remove("all_proxy")
         .stdin(Stdio::null())
         .stdout(out)
         .stderr(err);

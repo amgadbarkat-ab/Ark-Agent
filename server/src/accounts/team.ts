@@ -18,6 +18,7 @@ import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { setRole } from "../auth/roles";
 import type { Database } from "../db/client";
 import {
+  accounts,
   agentProfiles,
   agents,
   sessions,
@@ -403,14 +404,9 @@ export function createTeamService(dependencies: {
       const auth = await dependencies.authContext();
       const kept = await soleUser();
       let userId: string;
-      if (kept) {
-        userId = kept;
-        await auth.internalAdapter.updateUser(userId, {
-          name: person.name,
-          email: person.email,
-          emailVerified: true,
-        });
-      } else {
+      let made = false;
+      if (kept) userId = kept;
+      else {
         if (await auth.internalAdapter.findUserByEmail(person.email))
           throw new TeamError("That email address is already used here.", 409);
         userId = (
@@ -420,7 +416,31 @@ export function createTeamService(dependencies: {
             emailVerified: true,
           })
         ).id;
+        made = true;
       }
+      /*
+       * The one administrator's place is claimed FIRST, and the database holds exactly one
+       * (team_members_one_administrator). Two set-ups at the same moment: one gets it, the other is
+       * refused here, before it has changed anybody's email or password (security review, 25 Nov).
+       */
+      const claimed = await database
+        .insert(teamMembers)
+        .values({ userId, kind: "admin", status: "active", activatedAt: now() })
+        .onConflictDoNothing()
+        .returning({ userId: teamMembers.userId });
+      if (claimed.length === 0) {
+        if (made) await database.delete(users).where(eq(users.id, userId));
+        throw new TeamError(
+          "This ArkAgent already has its administrator.",
+          409,
+        );
+      }
+      if (kept)
+        await auth.internalAdapter.updateUser(userId, {
+          name: person.name,
+          email: person.email,
+          emailVerified: true,
+        });
       const hashed = await auth.password.hash(person.password);
       // The person kept may already have a password here (a set-up begun before, then retried):
       // theirs is replaced, never added beside, which the sign-in tables refuse.
@@ -435,10 +455,6 @@ export function createTeamService(dependencies: {
           accountId: userId,
           password: hashed,
         });
-      await database
-        .insert(teamMembers)
-        .values({ userId, kind: "admin", status: "active", activatedAt: now() })
-        .onConflictDoNothing();
       await setRole(database, userId, "admin");
       return { userId, email: person.email };
     },
@@ -593,6 +609,15 @@ export function createTeamService(dependencies: {
         .delete(subprofileAgents)
         .where(eq(subprofileAgents.userId, userId));
       await database.delete(sessions).where(eq(sessions.userId, userId));
+      // And their password: a removed person cannot sign in again, and keeps nothing that works.
+      await database
+        .delete(accounts)
+        .where(
+          and(
+            eq(accounts.userId, userId),
+            eq(accounts.providerId, "credential"),
+          ),
+        );
       return askBilling(await subprofileCount());
     },
 

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "team_members_one_administrator" ON "team_members" USING btree ("kind") WHERE "team_members"."kind" = 'admin';

@@ -39,12 +39,13 @@ afterAll(async () => {
   await database.$client.close();
 });
 
-function office(port = 0) {
+function office(port = 0, hasAdministrator = async () => true) {
   let opened = 0;
   const service = createOfficeService({
     database,
     encryptionKey: KEY,
     port,
+    hasAdministrator,
     addresses: () => ["192.168.1.20"],
     listen: (tls) => {
       opened += 1;
@@ -264,4 +265,26 @@ test("a page served on the office network calls as the app itself; another site 
     },
   });
   expect(asOwnOrigin(handshake, "http://localhost:52110")).toBe(handshake);
+});
+
+test("never opens on the network before the administrator exists, whatever was saved", async () => {
+  const first = office(0);
+  await first.service.setEnabled(true);
+  first.service.stop();
+  // A restart on an install with no administrator (upgraded, not set up yet): it stays shut.
+  const upgraded = office(0, async () => false);
+  await upgraded.service.start();
+  expect(upgraded.opened()).toBe(0);
+  expect((await upgraded.service.status()).listening).toBe(false);
+});
+
+test("a request is known to have come over the office network by the listener that took it, not by a header", async () => {
+  const { service } = office(0);
+  await service.setEnabled(true);
+  const listener = servers[0];
+  expect(service.servedBy(listener)).toBe(true);
+  expect(service.servedBy({})).toBe(false);
+  expect(service.servedBy(undefined)).toBe(false);
+  await service.setEnabled(false);
+  expect(service.servedBy(listener)).toBe(false);
 });

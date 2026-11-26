@@ -34,6 +34,7 @@ import {
   createTeamService,
   type TeamAuthContext,
   type TeamBilling,
+  type TeamService,
 } from "./accounts/team";
 import { blackarkTeamBilling } from "./accounts/team-billing";
 import { mintRunAssertion, readRunAssertion } from "./agents/callback-token";
@@ -163,6 +164,7 @@ import {
   serveMetrics,
   serverMetrics,
 } from "./observability";
+import { hostAllowed } from "./office/hosts";
 import { hubClientUrl } from "./office/hub-socket";
 import { officeServeOptions } from "./office/listener";
 import { createOfficeService, DEFAULT_OFFICE_PORT } from "./office/service";
@@ -270,6 +272,12 @@ async function resolveRequestActor(request: Request): Promise<{
     : await roleRepository.rolesForUser(user.id);
   if (!roles.includes("admin") && !roles.includes("user")) {
     throw new Error("A CopilotKit run requires an authorized user.");
+  }
+  // A staff sub-profile waiting for payment, suspended or removed runs nothing, here as on every
+  // other route (the runtime, threads, join tokens and the live screen all ask this function).
+  const standing = await team?.mayUse(user.id);
+  if (standing && !standing.ok) {
+    throw new Error(standing.reason);
   }
   return {
     id: user.id,
@@ -548,6 +556,11 @@ const auth: AuthService | undefined = config.organizationAuthUrl
         database,
         (email) => peopleStore.isRevoked(email),
         signInAuditStore,
+        // Bound late: the team is made just below, from this sign-in.
+        async (
+          userId: string,
+        ): Promise<{ ok: true } | { ok: false; reason: string }> =>
+          team ? team.mayUse(userId) : { ok: true },
       )
     : undefined;
 /*
@@ -555,7 +568,7 @@ const auth: AuthService | undefined = config.organizationAuthUrl
  * start and the staff sub-profiles they add, each signing in as themselves. Billing for sub-profiles
  * goes through BlackArk (`teamBilling`, once this install is activated).
  */
-const team =
+const team: TeamService | undefined =
   auth && config.auth?.passwordSignIn
     ? createTeamService({
         database,
@@ -590,6 +603,7 @@ const office =
         database,
         encryptionKey: config.keyEncryptionKey,
         port: officePort,
+        hasAdministrator: async () => !(await team.setupNeeded()),
         hostname: () => hostname(),
         listen: (tls) =>
           serve({
@@ -600,6 +614,7 @@ const office =
             ...officeServeOptions(serverOptions, {
               appOrigin: config.appUrl ?? config.auth?.trustedOrigins[0] ?? "",
               hub: hubClientUrl(config.runtime.intelligence.gatewayWsUrl),
+              ownNames: () => [hostname(), `${hostname()}.local`],
             }),
           }),
       })
@@ -1293,6 +1308,11 @@ const actorFor = async (ownerUserId: string): Promise<AgentActor> => {
   const roles = await roleRepository.rolesForUser(ownerUserId);
   if (!roles.includes("admin") && !roles.includes("user")) {
     throw new Error("A routine requires an authorized owner.");
+  }
+  // A staff sub-profile's routines stop while it waits for payment, is suspended or was removed.
+  const standing = await team?.mayUse(ownerUserId);
+  if (standing && !standing.ok) {
+    throw new Error(standing.reason);
   }
   return {
     id: ownerUserId,
@@ -2190,7 +2210,13 @@ const streamPathBotId = (pathname: string): string | null => {
 };
 
 /** What each proxied socket carries: where to connect inward, and the socket once opened. */
-type StreamData = { upstream: string; inward?: WebSocket };
+type StreamData = {
+  upstream: string;
+  inward?: WebSocket;
+  /** Who opened it and for which employee, asked again while it stays open. */
+  viewer?: { id: string; role: OpenBotRole; botId: string };
+  recheck?: ReturnType<typeof setInterval>;
+};
 
 /**
  * Bun takes exactly one WebSocket handler for the server, and two features need one: the app proxies
@@ -2298,7 +2324,14 @@ const serverOptions = {
           { status: 502 },
         );
       }
-      if (server.upgrade(request, { data: { upstream } })) {
+      if (
+        server.upgrade(request, {
+          data: {
+            upstream,
+            viewer: { id: actor.id, role: actor.role, botId: streamBotId },
+          },
+        })
+      ) {
         return undefined as unknown as Response;
       }
       return new Response("Expected a WebSocket upgrade.", { status: 400 });
@@ -2324,6 +2357,25 @@ const serverOptions = {
       };
       inward.onclose = () => ws.close();
       inward.onerror = () => ws.close();
+      /*
+       * Asked again every ten seconds while it stays open (security review of v0.1.55): a sub-profile
+       * suspended or removed, or an employee given to somebody else, closes the screen it was
+       * watching and driving, rather than leaving it open until the tab is closed.
+       */
+      const viewer = ws.data.viewer;
+      if (viewer)
+        ws.data.recheck = setInterval(async () => {
+          const standing = await team?.mayUse(viewer.id).catch(() => null);
+          const still =
+            (standing === undefined || standing?.ok === true) &&
+            (await agentProfileStore
+              .get({ id: viewer.id, role: viewer.role }, viewer.botId)
+              .catch(() => null)) !== null;
+          if (!still) {
+            inward.close();
+            ws.close(4403, "No longer yours to watch.");
+          }
+        }, 10_000);
     },
     message(ws, raw) {
       if (!isProxiedStream(ws.data)) {
@@ -2337,6 +2389,7 @@ const serverOptions = {
         channelSocket.close(asChannelSocket(ws), code, reason);
         return;
       }
+      clearInterval(ws.data.recheck);
       ws.data.inward?.close();
     },
   },
@@ -2355,10 +2408,30 @@ const hosts = listenHosts(process.env.LISTEN_HOSTS);
  * an address that cannot be bound is skipped, as long as one other address could be.
  */
 const servers: ReturnType<typeof serve<SocketData>>[] = [];
-if (hosts.length === 0) servers.push(serve<SocketData>(serverOptions));
+/*
+ * On the desktop, the server answers only requests that name this computer (security review of
+ * v0.1.54): a web page that rebinds its own domain to 127.0.0.1 is refused before anything runs.
+ */
+const listenerOptions =
+  process.env.ARK_LOOPBACK_HOST_ONLY?.trim() === "true"
+    ? {
+        ...serverOptions,
+        fetch(
+          request: Request,
+          server: Parameters<typeof serverOptions.fetch>[1],
+        ) {
+          if (!hostAllowed(request.headers.get("host")))
+            return new Response("This address is not this ArkAgent.", {
+              status: 421,
+            });
+          return serverOptions.fetch.call(server, request, server);
+        },
+      }
+    : serverOptions;
+if (hosts.length === 0) servers.push(serve<SocketData>(listenerOptions));
 for (const hostname of hosts) {
   try {
-    servers.push(serve<SocketData>({ ...serverOptions, hostname }));
+    servers.push(serve<SocketData>({ ...listenerOptions, hostname }));
   } catch (error) {
     if (hostname !== "::1" || hosts.length === 1) throw error;
     console.warn(

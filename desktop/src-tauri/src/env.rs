@@ -824,6 +824,9 @@ pub fn compose(
     // here and nowhere else; off until the administrator switches it on in Settings, then Team. The
     // server serves the built app there itself, so a staff computer needs nothing but the address.
     env.insert("ARK_OFFICE_NETWORK".into(), "available".into());
+    // Only requests that name this computer (security review of v0.1.54): a web page that points
+    // its own domain at 127.0.0.1 is refused by the server before anything runs.
+    env.insert("ARK_LOOPBACK_HOST_ONLY".into(), "true".into());
     env.insert("ARK_OFFICE_PORT".into(), OFFICE_PORT.to_string());
     env.insert("APP_DIST_DIR".into(), "../app/dist".into());
 
@@ -971,8 +974,11 @@ pub const NO_KEY_NEEDED: &str = "no-key-needed";
 const BANNER: &str = "# Written by ArkAgent Desktop. Anything else in this file is left alone.";
 
 /// The secrets this deployment mints for itself, once.
-pub const MINTED: [&str; 9] = [
+pub const MINTED: [&str; 10] = [
     "AGENT_TOOL_TOKEN",
+    // The secret only this install's own window is given, without which nobody can make the
+    // administrator (security review of v0.1.54, 25 Nov 2026).
+    "ARK_SETUP_TOKEN",
     // What sign-in sessions are signed with (sign-in per person, 24 Nov 2026).
     "BETTER_AUTH_SECRET",
     "COMPUTER_TOKEN",
@@ -1587,6 +1593,9 @@ HTTPS_PROXY=http://proxy:8080
         let get = |key: &str| env.get(key).map(String::as_str);
         // The office network is offered; the server switches it on only when the administrator does.
         assert_eq!(get("ARK_OFFICE_NETWORK"), Some("available"));
+        assert_eq!(get("ARK_LOOPBACK_HOST_ONLY"), Some("true"));
+        // The window's set-up secret is minted like the other secrets, and differs per install.
+        assert!(get("ARK_SETUP_TOKEN").unwrap_or_default().len() >= 32);
         assert_eq!(get("ARK_OFFICE_PORT"), Some("52443"));
         assert_eq!(get("APP_DIST_DIR"), Some("../app/dist"));
         assert_eq!(get("OPENBOT_SINGLE_USER"), Some("false"));

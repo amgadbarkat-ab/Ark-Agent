@@ -1,0 +1,133 @@
+/**
+ * How many wrong passwords in a row (security review of v0.1.54, 25 Nov 2026).
+ *
+ * Password sign-in had no limit on desktop installs: Better Auth limits attempts only in production,
+ * and a desktop server never runs as production. With the office network on, anybody on that
+ * network could guess the administrator's password without end. Now five wrong passwords for one
+ * account within fifteen minutes lock it for fifteen minutes, and every wrong one is written down.
+ *
+ * Kept in memory: a desktop ArkAgent is one server process, and password sign-in is only offered
+ * there. A restart forgets it, which at worst gives a guesser five more tries after a restart they
+ * cannot cause.
+ */
+import type { Context, MiddlewareHandler } from "hono";
+
+export const MAX_FAILURES = 5;
+export const WINDOW_MS = 15 * 60_000;
+export const LOCK_MS = 15 * 60_000;
+
+export type AttemptLimiter = ReturnType<typeof createAttemptLimiter>;
+
+export function createAttemptLimiter(
+  options: {
+    maxFailures?: number;
+    windowMs?: number;
+    lockMs?: number;
+    now?: () => number;
+  } = {},
+) {
+  const maxFailures = options.maxFailures ?? MAX_FAILURES;
+  const windowMs = options.windowMs ?? WINDOW_MS;
+  const lockMs = options.lockMs ?? LOCK_MS;
+  const now = options.now ?? Date.now;
+  const failures = new Map<string, number[]>();
+  const lockedUntil = new Map<string, number>();
+  const inFlight = new Set<string>();
+
+  /** Old entries go, so a flood of made-up keys cannot fill the memory. */
+  function prune(at: number) {
+    if (failures.size + lockedUntil.size < 10_000) return;
+    for (const [key, times] of failures)
+      if (times.every((when) => at - when >= windowMs)) failures.delete(key);
+    for (const [key, until] of lockedUntil)
+      if (until <= at) lockedUntil.delete(key);
+  }
+
+  return {
+    /**
+     * One attempt at a time per key (security review of v0.1.55): an attempt starts only when no
+     * other for the same account is still being checked, so a burst sent at once is answered one
+     * by one, each counted before the next. False when one is already running.
+     */
+    begin(key: string): boolean {
+      if (inFlight.has(key)) return false;
+      inFlight.add(key);
+      return true;
+    },
+
+    end(key: string) {
+      inFlight.delete(key);
+    },
+
+    /** How long this key stays locked, in milliseconds; 0 when it is not. */
+    lockedFor(key: string): number {
+      const until = lockedUntil.get(key) ?? 0;
+      const left = until - now();
+      if (left > 0) return left;
+      lockedUntil.delete(key);
+      return 0;
+    },
+
+    /** A wrong one. True when this one locked the key. */
+    fail(key: string): boolean {
+      const at = now();
+      prune(at);
+      const recent = (failures.get(key) ?? []).filter(
+        (when) => at - when < windowMs,
+      );
+      recent.push(at);
+      if (recent.length >= maxFailures) {
+        failures.delete(key);
+        lockedUntil.set(key, at + lockMs);
+        return true;
+      }
+      failures.set(key, recent);
+      return false;
+    },
+
+    /** A right one: the count starts again. */
+    succeed(key: string) {
+      failures.delete(key);
+    },
+  };
+}
+
+/**
+ * The route guard: refused while the key is locked, or while another attempt for it is still being
+ * checked; after the route answers, a wrong password (400, 401 or 403) counts, and a right one starts
+ * the count again. An attempt that throws counts as wrong. A key of null is not counted at all (a
+ * password change from somebody with no session, which the route refuses anyway).
+ */
+export function attemptGuard(options: {
+  limiter: AttemptLimiter;
+  keyOf: (context: Context) => Promise<string | null>;
+  onFailure?: (context: Context, locked: boolean) => Promise<void>;
+}): MiddlewareHandler {
+  const tooMany = (context: Context, minutes: number) =>
+    context.json(
+      {
+        error: `Too many wrong passwords. Try again in ${minutes} minutes.`,
+        code: "too_many_attempts",
+      },
+      429,
+    );
+  return async (context, next) => {
+    if (context.req.method !== "POST") return next();
+    const key = await options.keyOf(context);
+    if (key === null) return next();
+    const left = options.limiter.lockedFor(key);
+    if (left > 0) return tooMany(context, Math.ceil(left / 60_000));
+    if (!options.limiter.begin(key)) return tooMany(context, 1);
+    let status = 500;
+    try {
+      await next();
+      status = context.res.status;
+    } finally {
+      options.limiter.end(key);
+      if (status === 400 || status === 401 || status === 403 || status >= 500) {
+        const locked = options.limiter.fail(key);
+        await options.onFailure?.(context, locked).catch(() => undefined);
+      } else if (status < 300) options.limiter.succeed(key);
+    }
+  };
+}

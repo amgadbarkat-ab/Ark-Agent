@@ -142,6 +142,14 @@ export function createAuth(
    * write below is guarded and its failure is logged rather than raised.
    */
   auditStore?: AuditStore,
+  /**
+   * Whether this person may use the deployment now (Amgad, 24 Nov 2026): a staff sub-profile that is
+   * waiting for payment, suspended or removed gets no session at all, so no way in (the app, the
+   * runtime, a socket) can be used without one. Asked when a session is made, beside the revoked list.
+   */
+  mayUse?: (
+    userId: string,
+  ) => Promise<{ ok: true } | { ok: false; reason: string }>,
 ) {
   const authConfig = config.auth;
   if (!authConfig) {
@@ -391,6 +399,17 @@ export function createAuth(
               throw new APIError("FORBIDDEN", {
                 message: "Your access to this deployment has been removed.",
               });
+            }
+            const standing = await mayUse?.(session.userId);
+            if (standing && !standing.ok) {
+              await record(auditStore, {
+                eventType: "session.refused",
+                targetType: "person",
+                targetId: session.userId,
+                actorUserId: session.userId,
+                payload: { reason: standing.reason },
+              });
+              throw new APIError("FORBIDDEN", { message: standing.reason });
             }
             return { data: session };
           },

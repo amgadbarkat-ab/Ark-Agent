@@ -87,15 +87,15 @@ function company(
   return { server, seen, code, cert };
 }
 
-function proxy(code: JoinCode, language = "en") {
-  const started = startJoinProxy({ code, port: 0, language });
+async function proxy(code: JoinCode, language = "en") {
+  const started = await startJoinProxy({ code, port: 0, language });
   stops.push(started.stop);
   return { ...started, local: `http://127.0.0.1:${started.port}` };
 }
 
 test("requests reach the company's ArkAgent as its own, with the sign-in cookie both ways", async () => {
   const { code, seen, server } = company();
-  const { local } = proxy(code);
+  const { local } = await proxy(code);
   expect(await (await fetch(`${local}/__ark_join/health`)).json()).toEqual({
     connected: true,
   });
@@ -126,7 +126,7 @@ test("requests reach the company's ArkAgent as its own, with the sign-in cookie 
 
 test("a run's live answer streams through as it is written", async () => {
   const { code } = company();
-  const { local } = proxy(code);
+  const { local } = await proxy(code);
   const response = await fetch(`${local}/api/stream`);
   expect(response.headers.get("content-type")).toBe("text/event-stream");
   expect(await response.text()).toBe("data: one\n\ndata: two\n\n");
@@ -134,7 +134,7 @@ test("a run's live answer streams through as it is written", async () => {
 
 test("live sockets go through, carrying the cookie, as the company's own page", async () => {
   const { code, server } = company();
-  const { local } = proxy(code);
+  const { local } = await proxy(code);
   const socket = new WebSocket(`${local.replace("http", "ws")}/api/socket`, {
     headers: { cookie: "better-auth.session_token=abc", origin: local },
   } as never);
@@ -154,7 +154,7 @@ test("live sockets go through, carrying the cookie, as the company's own page", 
 test("a computer with another certificate is never trusted, whatever it says", async () => {
   const { code } = company();
   const impostor = makeOfficeCertificate({ addresses: [], hostnames: [] });
-  const { local } = proxy({ ...code, fingerprint: impostor.fingerprint });
+  const { local } = await proxy({ ...code, fingerprint: impostor.fingerprint });
   expect(await (await fetch(`${local}/__ark_join/health`)).json()).toEqual({
     connected: false,
   });
@@ -165,7 +165,7 @@ test("a computer with another certificate is never trusted, whatever it says", a
 
 test("when the company's computer is off, the page says so, in the customer's language first", async () => {
   const { code, server } = company();
-  const { local } = proxy(code, "el");
+  const { local } = await proxy(code, "el");
   expect((await fetch(`${local}/`)).status).toBe(200);
   server.stop(true);
   const page = await fetch(`${local}/channels`, {
@@ -177,4 +177,65 @@ test("when the company's computer is off, the page says so, in the customer's la
   expect(html.indexOf("Το ArkAgent της εταιρείας σας")).toBeLessThan(
     html.indexOf("Your company's ArkAgent is not reachable"),
   );
+});
+
+test("a computer on the network with a certificate the system trusts, but not the company's, gets nothing", async () => {
+  // The company's real computer is found first, then something else answers at its address.
+  const { code, server } = company();
+  const { local } = await proxy(code);
+  expect((await fetch(`${local}/api/x`)).status).toBe(200);
+  const port = server.port as number;
+  server.stop(true);
+  // An impostor on the same address and port, with a certificate of its own. Which authority signed
+  // it does not matter: only the join code's fingerprint is trusted.
+  const impostor = makeOfficeCertificate({
+    addresses: ["127.0.0.1"],
+    hostnames: [],
+  });
+  const seen: string[] = [];
+  const stand = Bun.serve({
+    hostname: "127.0.0.1",
+    port,
+    tls: { cert: impostor.certificate, key: impostor.key },
+    fetch(request, srv) {
+      seen.push(
+        `${request.method} ${new URL(request.url).pathname} ${request.headers.get("cookie") ?? ""}`,
+      );
+      if (srv.upgrade(request)) return undefined as unknown as Response;
+      return new Response("impostor");
+    },
+    websocket: { message() {} },
+  });
+  stops.push(() => stand.stop(true));
+  const answer = await fetch(`${local}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { origin: local, cookie: "better-auth.session_token=abc" },
+    body: JSON.stringify({ email: "maria@shop.example", password: "secret-1" }),
+  });
+  expect(await answer.text()).not.toContain("impostor");
+  const socket = new WebSocket(`${local.replace("http", "ws")}/api/socket`, {
+    headers: { cookie: "better-auth.session_token=abc" },
+  } as never);
+  await new Promise((resolve) => {
+    socket.onclose = resolve;
+    socket.onerror = resolve;
+    setTimeout(resolve, 3000);
+  });
+  // Not one request, password or cookie reached it.
+  expect(seen).toEqual([]);
+});
+
+test("a web page that renames itself to this computer is refused: only loopback, by name too", async () => {
+  const { code } = company();
+  const { local, port } = await proxy(code);
+  const rebound = await fetch(`${local}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: {
+      host: `attacker.example:${port}`,
+      origin: `http://attacker.example:${port}`,
+    },
+    body: "{}",
+  });
+  expect(rebound.status).toBe(421);
+  expect((await fetch(`http://localhost:${port}/api/x`)).status).toBe(200);
 });

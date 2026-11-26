@@ -3,20 +3,32 @@
  *
  * The desktop app on a staff computer runs this instead of a whole ArkAgent of its own. It answers
  * on this computer's loopback only, and passes every request and every live socket to the
- * administrator's computer over HTTPS. The administrator's certificate is made by that computer
- * for itself, so no browser would trust it; this does, and only that exact one: the certificate is
- * fetched once and kept only if its SHA-256 matches the fingerprint in the join code. From then on
- * it is the only certificate trusted, so nobody on the network can stand in for the company's
- * ArkAgent even though the first fetch could not yet check who answered. Nothing is kept on this
- * computer, and each person still signs in with their own sub-profile.
+ * administrator's computer over TLS that it checks itself.
  *
- * No dependencies beyond Bun and node:crypto: it runs from the installed files as they are.
+ * THE CERTIFICATE IS CHECKED ON EVERY CONNECTION (security review of v0.1.54, 25 Nov 2026). The
+ * administrator's computer makes its own certificate, and the join code carries its SHA-256. Each
+ * connection to the company's computer is made here with node:tls, and nothing is sent on it until
+ * the certificate it presents has exactly that fingerprint. Before, the certificate was handed to
+ * Bun as a trusted authority, and Bun ADDS that to the computer's own list: anybody on the network
+ * with any publicly trusted certificate could stand in for the company's ArkAgent and read
+ * passwords and chats. Requests and sockets now go, as plain HTTP on this computer's loopback, to
+ * a bridge that makes that checked connection.
+ *
+ * No dependencies beyond Bun and node: it runs from the installed files as they are.
  */
-import { fingerprintOf } from "./certificate";
+import net from "node:net";
+import tls from "node:tls";
 import { withHubAddress, withSocketAllowed } from "./hub-socket";
 import { type JoinCode, parseJoinCode } from "./join-code";
 
-export type Upstream = { origin: string; ca: string };
+export type Upstream = {
+  /** The company's computer as the page knows it: `https://<address>:<port>`. */
+  origin: string;
+  /** Its `Host`: `<address>:<port>`. */
+  host: string;
+  address: string;
+  port: number;
+};
 
 type SocketData = {
   path: string;
@@ -46,35 +58,115 @@ const DROP_RESPONSE = [
   "content-length",
 ];
 
-const pinned = (upstream: Upstream) => ({
-  ca: upstream.ca,
-  // The certificate is pinned above; the address it was reached at may have changed since it was made.
-  checkServerIdentity: () => undefined,
-});
+const fingerprintOf = (socket: tls.TLSSocket) =>
+  (socket.getPeerCertificate()?.fingerprint256 ?? "")
+    .replaceAll(":", "")
+    .toLowerCase();
 
-/** Finds the company's computer at one of its addresses, and keeps its certificate if it is the one. */
-export async function findUpstream(
-  code: JoinCode,
-  options: { fetchImpl?: typeof fetch } = {},
-): Promise<Upstream | null> {
-  const send = options.fetchImpl ?? fetch;
+/**
+ * A TLS connection to the company's computer, or null: null unless the certificate it presents has
+ * exactly the join code's fingerprint. Which authority signed it, and which name it carries, do not
+ * matter: only that fingerprint is trusted.
+ */
+export function checkedConnection(
+  address: string,
+  port: number,
+  fingerprint: string,
+): Promise<tls.TLSSocket | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value: tls.TLSSocket | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const socket = tls.connect({
+      host: address,
+      port,
+      rejectUnauthorized: false,
+    });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      done(null);
+    }, TIMEOUT_MS);
+    socket.once("secureConnect", () => {
+      if (fingerprintOf(socket) === fingerprint) done(socket);
+      else {
+        socket.destroy();
+        done(null);
+      }
+    });
+    socket.once("error", () => {
+      socket.destroy();
+      done(null);
+    });
+  });
+}
+
+/** Finds the company's computer at one of its addresses, by the certificate the join code names. */
+export async function findUpstream(code: JoinCode): Promise<Upstream | null> {
   for (const address of code.addresses) {
-    const host = address.includes(":") ? `[${address}]` : address;
-    const origin = `https://${host}:${code.port}`;
-    try {
-      const response = await send(`${origin}/api/office/certificate`, {
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        tls: { rejectUnauthorized: false },
-      } as RequestInit);
-      if (!response.ok) continue;
-      const pem = await response.text();
-      if (fingerprintOf(pem) !== code.fingerprint) continue;
-      return { origin, ca: pem };
-    } catch {
-      // Not there, or not answering: the next address.
-    }
+    const socket = await checkedConnection(
+      address,
+      code.port,
+      code.fingerprint,
+    );
+    if (!socket) continue;
+    socket.destroy();
+    const host = `${address.includes(":") ? `[${address}]` : address}:${code.port}`;
+    return { origin: `https://${host}`, host, address, port: code.port };
   }
   return null;
+}
+
+/**
+ * The loopback bridge every request and socket goes through: each connection is held until the
+ * company's computer has shown the right certificate, and dropped if it does not.
+ */
+function startBridge(
+  code: JoinCode,
+  current: () => Upstream | null,
+  lost: () => void,
+): Promise<{ port: number; close: () => void }> {
+  const server = net.createServer((client) => {
+    const to = current();
+    if (!to) {
+      client.destroy();
+      return;
+    }
+    const held: Buffer[] = [];
+    let up: tls.TLSSocket | null = null;
+    client.on("data", (chunk: Buffer) => {
+      if (up) up.write(chunk);
+      else held.push(chunk);
+    });
+    client.on("error", () => up?.destroy());
+    client.on("close", () => up?.destroy());
+    void checkedConnection(to.address, to.port, code.fingerprint).then(
+      (socket) => {
+        if (!socket || client.destroyed) {
+          socket?.destroy();
+          if (!socket) lost();
+          client.destroy();
+          return;
+        }
+        up = socket;
+        for (const chunk of held.splice(0)) socket.write(chunk);
+        socket.on("data", (chunk: Buffer) => client.write(chunk));
+        socket.on("error", () => client.destroy());
+        socket.on("close", () => client.destroy());
+      },
+    );
+  });
+  return new Promise((resolve) =>
+    server.listen(0, "127.0.0.1", () =>
+      resolve({
+        port: (server.address() as net.AddressInfo).port,
+        close: () => server.close(),
+      }),
+    ),
+  );
 }
 
 function unreachable(request: Request, language: string): Response {
@@ -108,7 +200,7 @@ function unreachable(request: Request, language: string): Response {
 }
 
 /** The proxy itself, given where to listen and the join code. Returned so it can be stopped. */
-export function startJoinProxy(options: {
+export async function startJoinProxy(options: {
   code: JoinCode;
   port: number;
   hostname?: string;
@@ -122,18 +214,30 @@ export function startJoinProxy(options: {
 
   async function current(): Promise<Upstream | null> {
     if (upstream) return upstream;
-    finding ??= findUpstream(options.code, { fetchImpl: send }).finally(() => {
+    finding ??= findUpstream(options.code).finally(() => {
       finding = null;
     });
     upstream = await finding;
     return upstream;
   }
 
+  const bridge = await startBridge(
+    options.code,
+    () => upstream,
+    () => {
+      // The company's computer did not show its certificate: look for it again next time.
+      upstream = null;
+    },
+  );
+  const viaBridge = `127.0.0.1:${bridge.port}`;
+
   function outwardHeaders(request: Request, to: Upstream, local: string) {
     const headers = new Headers();
     request.headers.forEach((value, key) => {
       if (!DROP_REQUEST.includes(key.toLowerCase())) headers.set(key, value);
     });
+    // The company's computer is addressed by its own name, though the bytes go through the bridge.
+    headers.set("host", to.host);
     // The page is the company's ArkAgent, seen through this computer: to it, the request is its own.
     const origin = headers.get("origin");
     if (origin === local) headers.set("origin", to.origin);
@@ -151,6 +255,16 @@ export function startJoinProxy(options: {
     idleTimeout: 255,
     async fetch(request, bunServer) {
       const url = new URL(request.url);
+      /*
+       * This computer's loopback only, by name as well as by address (security review of v0.1.54): a
+       * web page that rebinds its own domain to 127.0.0.1 is refused, rather than having its
+       * requests passed to the company's computer as the company's own.
+       */
+      const ownHosts = [`127.0.0.1:${server.port}`, `localhost:${server.port}`];
+      if (!ownHosts.includes(request.headers.get("host")?.toLowerCase() ?? ""))
+        return new Response("This address is not this ArkAgent.", {
+          status: 421,
+        });
       const local = url.origin;
       if (url.pathname === "/__ark_join/health") {
         const to = await current();
@@ -158,10 +272,13 @@ export function startJoinProxy(options: {
       }
       const to = await current();
       if (!to) return unreachable(request, language);
-      const target = to.origin + url.pathname + url.search;
+      const target = `http://${viaBridge}${url.pathname}${url.search}`;
 
       if (request.headers.get("upgrade")?.toLowerCase() === "websocket") {
-        const headers: Record<string, string> = { origin: to.origin };
+        const headers: Record<string, string> = {
+          host: to.host,
+          origin: to.origin,
+        };
         const cookie = request.headers.get("cookie");
         if (cookie) headers.cookie = cookie;
         const protocol = request.headers.get("sec-websocket-protocol");
@@ -189,7 +306,6 @@ export function startJoinProxy(options: {
               ? undefined
               : request.body,
           redirect: "manual",
-          tls: pinned(to),
           // Lets a streamed body (a run's live answer) go on as long as it runs.
           duplex: "half",
         } as RequestInit);
@@ -232,10 +348,8 @@ export function startJoinProxy(options: {
     websocket: {
       open(ws) {
         const data = ws.data;
-        const wsOrigin = data.upstream.origin.replace(/^https/, "wss");
-        const inward = new WebSocket(wsOrigin + data.path, {
+        const inward = new WebSocket(`ws://${viaBridge}${data.path}`, {
           headers: data.headers,
-          tls: pinned(data.upstream),
         } as never);
         inward.binaryType = "arraybuffer";
         data.inward = inward;
@@ -265,7 +379,10 @@ export function startJoinProxy(options: {
 
   return {
     port: server.port as number,
-    stop: () => server.stop(true),
+    stop: () => {
+      server.stop(true);
+      bridge.close();
+    },
     /** Whether the company's computer was found, for the desktop's own check. */
     connected: async () => (await current()) !== null,
   };
@@ -273,6 +390,22 @@ export function startJoinProxy(options: {
 
 // Run by the desktop app on a staff computer: `bun server/src/office/join-proxy.ts`.
 if (import.meta.main) {
+  /*
+   * Never through a proxy set on this computer (security review of v0.1.55): the bridge is plain
+   * HTTP on loopback, and a proxy would see every password and cookie on its way to it.
+   */
+  const loopback = "127.0.0.1,localhost,::1";
+  for (const name of ["NO_PROXY", "no_proxy"])
+    process.env[name] = [process.env[name], loopback].filter(Boolean).join(",");
+  for (const name of [
+    "HTTP_PROXY",
+    "http_proxy",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+  ])
+    delete process.env[name];
   const code = parseJoinCode(process.env.ARK_JOIN_CODE ?? "");
   const port = Number(process.env.ARK_JOIN_PORT);
   if (!code || !Number.isInteger(port) || port < 1) {
@@ -284,7 +417,7 @@ if (import.meta.main) {
     );
     process.exit(2);
   }
-  const proxy = startJoinProxy({
+  const proxy = await startJoinProxy({
     code,
     port,
     language: process.env.ARK_LANGUAGE?.trim() || "en",
